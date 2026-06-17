@@ -3659,8 +3659,9 @@ def final_check(
         doctor_result = doctor(state_dir=state_dir)
 
     decision_id = str(decision.get("decision_id") or "")
-    report_id = str(report.get("report_id") or "")
-    round_id = str(report.get("round_id") or "")
+    decision_round_id = str(decision.get("round_id") or "")
+    round_id = decision_round_id
+    report_id = _expected_report_id(round_id) if round_id else str(report.get("report_id") or "")
     report_status = str(report.get("status") or "UNKNOWN")
     checks: list[dict[str, Any]] = []
 
@@ -4326,8 +4327,8 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     task_packet = _read_json(state_dir / "task_packet.json")
 
     decision_id = str(decision.get("decision_id") or "")
-    report_id = str(report.get("report_id") or "")
     decision_round_id = str(decision.get("round_id") or "")
+    report_id = _expected_report_id(decision_round_id) if decision_round_id else str(report.get("report_id") or "")
     report_round_id = str(report.get("round_id") or "")
     decision_status = str(decision.get("status") or "UNKNOWN")
     report_status = str(report.get("status") or "UNKNOWN")
@@ -4372,16 +4373,15 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     round_match = bool(
         requested_round_id
         and decision_round_id
-        and report_round_id
-        and requested_round_id == decision_round_id == report_round_id
+        and requested_round_id == decision_round_id
     )
     checks.append(
         _check(
             "requested_round_id_match",
             "PASS" if round_match else "FAIL",
-            "requested round_id matches decision and report"
+            "requested round_id matches current decision"
             if round_match
-            else "requested round_id does not match decision/report round_id",
+            else "requested round_id does not match current decision round_id",
             requested_round_id=requested_round_id,
             decision_round_id=decision_round_id,
             report_round_id=report_round_id,

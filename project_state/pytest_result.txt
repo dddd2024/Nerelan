@@ -1,10 +1,10 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1",
-  "report_id": "codex_report_20260617_preflight_startup_status_consistency_rework_v1",
-  "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1",
-  "generated_at": "2026-06-17T12:00:00.000000Z",
+  "decision_id": "decision_20260617_current_report_gate_regeneration_rework_v1",
+  "report_id": "codex_report_20260617_current_report_gate_regeneration_rework_v1",
+  "round_id": "round_20260617_current_report_gate_regeneration_rework_v1",
+  "generated_at": "2026-06-17T12:35:00.000000Z",
   "status": "PARTIAL",
   "tests_ran": [
     "Set-Location F:\\reverse-agent",
@@ -22,7 +22,7 @@
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1"
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_current_report_gate_regeneration_rework_v1"
   ]
 }
 ```
@@ -49,8 +49,8 @@ F:/reverse-agent
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
 preflight: PASSED
-decision_id: decision_20260617_preflight_startup_status_consistency_rework_v1
-round_id: round_20260617_preflight_startup_status_consistency_rework_v1
+decision_id: decision_20260617_current_report_gate_regeneration_rework_v1
+round_id: round_20260617_current_report_gate_regeneration_rework_v1
 mainline: engineering_branch
   [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline
   [PASS] decision_meta_parse: decision_meta parsed
@@ -70,15 +70,15 @@ recommended_next_action: proceed_with_decision_scope
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
-decision_id: decision_20260617_preflight_startup_status_consistency_rework_v1
-round_id: round_20260617_preflight_startup_status_consistency_rework_v1
+decision_id: decision_20260617_current_report_gate_regeneration_rework_v1
+round_id: round_20260617_current_report_gate_regeneration_rework_v1
 mainline: engineering_branch
   [1] status git status: git status --short expected_exit=[0]
-  [2] preflight preflight: python -m reverse_agent.project_gate preflight --state-dir project_state expected_exit=[0]
-  [3] status set-location: Set-Location F:\reverse-agent expected_exit=[0]
-  [4] status pwd: Get-Location expected_exit=[0]
-  [5] status test-path: Test-Path F:\reverse-agent expected_exit=[0]
-  [6] status git rev-parse: git rev-parse --show-toplevel expected_exit=[0]
+  [2] status set-location: Set-Location F:\reverse-agent expected_exit=[0]
+  [3] status pwd: Get-Location expected_exit=[0]
+  [4] status test-path: Test-Path F:\reverse-agent expected_exit=[0]
+  [5] status git rev-parse: git rev-parse --show-toplevel expected_exit=[0]
+  [6] preflight preflight: python -m reverse_agent.project_gate preflight --state-dir project_state expected_exit=[0]
   [7] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state expected_exit=[0]
   [8] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state --json expected_exit=[0]
   [9] status project-cli: python -m reverse_agent.project_gate gate-profile --state-dir project_state --json expected_exit=[0]
@@ -88,33 +88,33 @@ mainline: engineering_branch
   [13] status lint-report: python -m reverse_agent.project_state lint-report --state-dir project_state expected_exit=[0]
   [14] gate report-summary: python -m reverse_agent.project_gate report-summary --state-dir project_state expected_exit=[0]
   [15] gate final-check: python -m reverse_agent.project_gate final-check --state-dir project_state expected_exit=[0]
-  [16] preflight preflight: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1 expected_exit=[0]
+  [16] gate close-round: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_current_report_gate_regeneration_rework_v1 expected_exit=[0]
 recommended_next_action: record_and_follow_command_plan_manually
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-{"schema_version": 1, "plan_name": "command-plan", "plan_status": "PASSED", "decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1", "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T11:58:24.050647Z", "commands": [{"index": 1, "command": "git status --short", "phase": "status", "kind": "git status", "required": true, "expected_exit_codes": [0]}, {"index": 2, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state", "phase": "preflight", "kind": "preflight", "required": true, "expected_exit_codes": [0]}, {"index": 3, "command": "Set-Location F:\\reverse-agent", "phase": "status", "kind": "set-location", "required": true, "expected_exit_codes": [0]}, {"index": 4, "command": "Get-Location", "phase": "status", "kind": "pwd", "required": true, "expected_exit_codes": [0]}, {"index": 5, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "test-path", "required": true, "expected_exit_codes": [0]}, {"index": 6, "command": "git rev-parse --show-toplevel", "phase": "status", "kind": "git rev-parse", "required": true, "expected_exit_codes": [0]}, {"index": 7, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0]}, {"index": 8, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0]}, {"index": 9, "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json", "phase": "status", "kind": "project-cli", "required": true, "expected_exit_codes": [0]}, {"index": 10, "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json", "phase": "gate", "kind": "run-round", "required": true, "expected_exit_codes": [0]}, {"index": 11, "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "phase": "test", "kind": "pytest", "required": true, "expected_exit_codes": [0]}, {"index": 12, "command": "python -m reverse_agent.project_state doctor --state-dir project_state", "phase": "status", "kind": "doctor", "required": true, "expected_exit_codes": [0]}, {"index": 13, "command": "python -m reverse_agent.project_state lint-report --state-dir project_state", "phase": "status", "kind": "lint-report", "required": true, "expected_exit_codes": [0]}, {"index": 14, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state", "phase": "gate", "kind": "report-summary", "required": true, "expected_exit_codes": [0]}, {"index": 15, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "final-check", "required": true, "expected_exit_codes": [0]}, {"index": 16, "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1", "phase": "preflight", "kind": "preflight", "required": true, "expected_exit_codes": [0]}], "warnings": [], "blocking_reasons": [], "recommended_next_action": "record_and_follow_command_plan_manually"}
+{"schema_version": 1, "plan_name": "command-plan", "plan_status": "PASSED", "decision_id": "decision_20260617_current_report_gate_regeneration_rework_v1", "round_id": "round_20260617_current_report_gate_regeneration_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T12:31:35.941856Z", "commands": [{"index": 1, "command": "git status --short", "phase": "status", "kind": "git status", "required": true, "expected_exit_codes": [0]}, {"index": 2, "command": "Set-Location F:\\reverse-agent", "phase": "status", "kind": "set-location", "required": true, "expected_exit_codes": [0]}, {"index": 3, "command": "Get-Location", "phase": "status", "kind": "pwd", "required": true, "expected_exit_codes": [0]}, {"index": 4, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "test-path", "required": true, "expected_exit_codes": [0]}, {"index": 5, "command": "git rev-parse --show-toplevel", "phase": "status", "kind": "git rev-parse", "required": true, "expected_exit_codes": [0]}, {"index": 6, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state", "phase": "preflight", "kind": "preflight", "required": true, "expected_exit_codes": [0]}, {"index": 7, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0]}, {"index": 8, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0]}, {"index": 9, "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json", "phase": "status", "kind": "project-cli", "required": true, "expected_exit_codes": [0]}, {"index": 10, "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json", "phase": "gate", "kind": "run-round", "required": true, "expected_exit_codes": [0]}, {"index": 11, "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "phase": "test", "kind": "pytest", "required": true, "expected_exit_codes": [0]}, {"index": 12, "command": "python -m reverse_agent.project_state doctor --state-dir project_state", "phase": "status", "kind": "doctor", "required": true, "expected_exit_codes": [0]}, {"index": 13, "command": "python -m reverse_agent.project_state lint-report --state-dir project_state", "phase": "status", "kind": "lint-report", "required": true, "expected_exit_codes": [0]}, {"index": 14, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state", "phase": "gate", "kind": "report-summary", "required": true, "expected_exit_codes": [0]}, {"index": 15, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "final-check", "required": true, "expected_exit_codes": [0]}, {"index": 16, "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_current_report_gate_regeneration_rework_v1", "phase": "gate", "kind": "close-round", "required": true, "expected_exit_codes": [0]}], "warnings": [], "blocking_reasons": [], "recommended_next_action": "record_and_follow_command_plan_manually"}
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state --json =====
-{"schema_version": 1, "gate_name": "gate-profile", "gate_status": "PASSED", "decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1", "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T11:58:30.357287Z", "profile": "full"}
+{"schema_version": 1, "gate_name": "gate-profile", "gate_status": "PASSED", "decision_id": "decision_20260617_current_report_gate_regeneration_rework_v1", "round_id": "round_20260617_current_report_gate_regeneration_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T12:31:37.230571Z", "profile": "full"}
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json =====
-{"schema_version": 1, "gate_name": "run-round", "run_status": "PASSED", "decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1", "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T11:58:31.677567Z", "mode": "dry-run", "command_count": 16, "blocking_reasons": [], "warnings": [], "recommended_next_action": "review_plan_before_execute"}
+{"schema_version": 1, "gate_name": "run-round", "run_status": "PASSED", "decision_id": "decision_20260617_current_report_gate_regeneration_rework_v1", "round_id": "round_20260617_current_report_gate_regeneration_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T12:31:38.200744Z", "mode": "dry-run", "command_count": 16, "blocking_reasons": [], "warnings": [], "recommended_next_action": "review_plan_before_execute"}
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
-675 passed in 99.47s (0:01:39)
+684 passed in 73.57s (0:01:13)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
 doctor: FAIL
-  [PASS] decision_approval: decision decision_20260617_preflight_startup_status_consistency_rework_v1 is APPROVED
+  [PASS] decision_approval: decision decision_20260617_current_report_gate_regeneration_rework_v1 is APPROVED
   [PASS] mainline: mainline is engineering_branch
   [PASS] skill_profiles: skill profiles active
-  [PASS] report_parse: report codex_report_20260617_preflight_failure_handoff_rework_v1 status is PARTIAL
-  [FAIL] report_decision_match: report based_on_decision_id (decision_20260617_preflight_failure_handoff_rework_v1) does not match decision_id (decision_20260617_preflight_startup_status_consistency_rework_v1)
+  [PASS] report_parse: report codex_report_20260617_preflight_startup_status_consistency_rework_v1 status is PARTIAL
+  [FAIL] report_decision_match: report based_on_decision_id (decision_20260617_preflight_startup_status_consistency_rework_v1) does not match decision_id (decision_20260617_current_report_gate_regeneration_rework_v1)
   [PASS] pytest_result: pytest_result.txt matches report and covers all tests
   [PASS] archive: decision ready for execution (archive not yet expected)
   [INFO] artifacts: 50 missing, 0 stale historical sample artifacts (non-blocking)
@@ -130,83 +130,28 @@ warning: report round not archived yet
 ===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: FAILED
-decision_id: decision_20260617_preflight_startup_status_consistency_rework_v1
-report_id: codex_report_20260617_preflight_failure_handoff_rework_v1
-round_id: round_20260617_preflight_failure_handoff_rework_v1
-  [ERROR] pytest_result_summary.tests_ran omits command_plan commands: ['python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1']
-  [DIFF] report_id, round_id, based_on_decision_id, files_changed, tests_ran, generated_artifacts
-  [INFO] final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet
-===== EXIT: 1 =====
+report-summary: PASSED
+decision_id: decision_20260617_current_report_gate_regeneration_rework_v1
+report_id: codex_report_20260617_current_report_gate_regeneration_rework_v1
+round_id: round_20260617_current_report_gate_regeneration_rework_v1
+  [INFO] final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet
+artifact: project_state/gates/report_summary_synthesis.json
+===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 final-check: FAILED
-decision_id: decision_20260617_preflight_startup_status_consistency_rework_v1
-report_id: codex_report_20260617_preflight_failure_handoff_rework_v1
-round_id: round_20260617_preflight_failure_handoff_rework_v1
-  [FAIL] decision_report_match: decision/report id or round_id mismatch
+decision_id: decision_20260617_current_report_gate_regeneration_rework_v1
+report_id: codex_report_20260617_current_report_gate_regeneration_rework_v1
+round_id: round_20260617_current_report_gate_regeneration_rework_v1
+  [PASS] decision_report_match: decision/report ids and round_id match
   [PASS] pytest_result_match: pytest_result matches report
   [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
   [WARN] round_manifest_present: round manifest is missing
   [WARN] archived_report_matches_live_report: archived report differs from live report
   [WARN] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
-  [WARN] round_delta_summary_present: round baseline is missing; falling back to legacy git diff coverage
-  [WARN] files_changed_excludes_inherited_dirty_files: no baseline summary is available for inherited dirty file classification
-  [FAIL] files_changed_covers_git_diff: files_changed omits round delta files
-  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
-  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
-  [WARN] baseline_lifecycle_violation: baseline is unavailable; lifecycle violation cannot be checked
-  [WARN] baseline_lifecycle_guard: round baseline is unavailable; legacy lifecycle guard is advisory only
-  [WARN] baseline_capture_order: baseline is unavailable; capture order cannot be checked
-  [PASS] report_prose_claims_covered_by_files_changed: report prose source/test claims are covered by files_changed
-  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
-  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
-  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
-  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
-  [PASS] build_output_scope: no build-generated state files in round delta
-  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
-  [PASS] startup_baseline_consistency: baseline is unavailable; startup/baseline consistency check skipped
-  [WARN] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
-  [PASS] command_plan_present: command_plan.json is present
-  [FAIL] command_plan_ids_match: command_plan ids, round_id, or status do not match
-  [FAIL] command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests
-  [PASS] startup_command_coverage: pytest_result covers required startup commands
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
-  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [FAIL] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
-  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
-  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
-  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
-  [FAIL] stale_artifact_ids: gate artifacts reference stale decision/round/report IDs from a different round
-  [PASS] forbidden_paths_absent: no forbidden paths detected
-  [FAIL] status_policy_valid: status policy found blocking issues
-  [PASS] final_check_stdout_matches_gate_status: archive-pending final-check status is allowed to differ before close-round
-recommended_next_action: fix_gate_failures_before_archive_or_handoff
-===== EXIT: 1 =====
-
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1 =====
-close-round: FAILED
-decision_id: decision_20260617_preflight_startup_status_consistency_rework_v1
-report_id: codex_report_20260617_preflight_failure_handoff_rework_v1
-round_id: round_20260617_preflight_failure_handoff_rework_v1
-  [PASS] decision_meta_parse: decision_meta parsed
-  [PASS] decision_approved: decision status is APPROVED
-  [PASS] report_present: codex report summary parsed
-  [FAIL] requested_round_id_match: requested round_id does not match decision/report round_id
-  [FAIL] report_decision_match: report based_on_decision_id does not match decision
-  [PASS] pytest_result_match: pytest_result matches report
-  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
-  [PASS] command_plan_present: command_plan.json is present
-  [FAIL] command_plan_ids_match: command_plan ids, round_id, or status do not match
-  [FAIL] command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests
-  [PASS] startup_command_coverage: pytest_result covers required startup commands
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
-  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [FAIL] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
   [PASS] round_delta_summary_present: round delta summary is baseline-aware
   [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
-  [FAIL] files_changed_covers_git_diff: files_changed omits round delta files
+  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
   [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
   [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
   [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
@@ -219,22 +164,71 @@ round_id: round_20260617_preflight_failure_handoff_rework_v1
   [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
   [PASS] build_output_scope: no build-generated state files in round delta
   [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
-  [FAIL] startup_baseline_consistency: startup git status --short shows source/test dirty files not recorded in baseline; baseline records are inconsistent with startup evidence
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
+  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
+  [PASS] command_plan_present: command_plan.json is present
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [PASS] startup_command_coverage: pytest_result covers required startup commands
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] close_round_is_last_command_block: close-round is the last command block in pytest_result
+  [FAIL] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
   [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
   [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
   [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
-  [WARN] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
+  [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs
+  [PASS] forbidden_paths_absent: no forbidden paths detected
+  [WARN] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
+  [PASS] final_check_stdout_matches_gate_status: archive-pending final-check status is allowed to differ before close-round
+recommended_next_action: fix_gate_failures_before_archive_or_handoff
+===== EXIT: 1 =====
+
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_current_report_gate_regeneration_rework_v1 =====
+close-round: FAILED
+decision_id: decision_20260617_current_report_gate_regeneration_rework_v1
+report_id: codex_report_20260617_current_report_gate_regeneration_rework_v1
+round_id: round_20260617_current_report_gate_regeneration_rework_v1
+  [PASS] decision_meta_parse: decision_meta parsed
+  [PASS] decision_approved: decision status is APPROVED
+  [PASS] report_present: codex report summary parsed
+  [PASS] requested_round_id_match: requested round_id matches current decision
+  [PASS] report_decision_match: report is based on current decision
+  [PASS] pytest_result_match: pytest_result matches report
+  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
+  [PASS] command_plan_present: command_plan.json is present
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [PASS] startup_command_coverage: pytest_result covers required startup commands
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
+  [FAIL] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
+  [PASS] round_delta_summary_present: round delta summary is baseline-aware
+  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
+  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
+  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
+  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
+  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
+  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
+  [PASS] report_prose_claims_covered_by_files_changed: report prose source/test claims are covered by files_changed
+  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
+  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
+  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
+  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
+  [PASS] build_output_scope: no build-generated state files in round delta
+  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
   [PASS] forbidden_paths_absent: no forbidden paths detected
   [PASS] state_package_compact: state package classification is compact or non-blocking
 archive_status: not_attempted
-  [BLOCK] requested_round_id_match: requested round_id does not match decision/report round_id
-  [BLOCK] report_decision_match: report based_on_decision_id does not match decision
-  [BLOCK] command_plan_ids_match: command_plan ids, round_id, or status do not match
-  [BLOCK] command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests
   [BLOCK] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
-  [BLOCK] files_changed_covers_git_diff: files_changed omits round delta files
-  [BLOCK] startup_baseline_consistency: startup git status --short shows source/test dirty files not recorded in baseline; baseline records are inconsistent with startup evidence
-  [BLOCK] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
 recommended_next_action: fix_close_round_failures_before_retry
 ===== EXIT: 1 =====

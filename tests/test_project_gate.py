@@ -15,6 +15,7 @@ from reverse_agent.project_gate import (
     _verified_cli_coverage_check,
     _startup_baseline_consistency_check,
     _stale_artifact_id_check,
+    _expected_report_id,
     _extract_bash_commands,
     _extract_unfenced_commands,
     _historical_sample_limitations_only,
@@ -38,7 +39,7 @@ from reverse_agent.project_gate import (
     preflight,
     run_round,
 )
-from reverse_agent.project_state import archive_round, write_pytest_result
+from reverse_agent.project_state import archive_round, read_codex_report_summary, write_pytest_result
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -8532,3 +8533,279 @@ class TestStaleArtifactIds:
         report = {"status": "FAILED", "acceptance_recommendation": "REWORK_REQUIRED"}
         result = _preflight_failure_handoff_check(state_dir=state_dir, report=report)
         assert result["status"] == "PASS"
+
+
+class TestCurrentReportGateRegeneration:
+    """Verify that final_check and close_round derive IDs from the decision
+    packet rather than the potentially-stale live report, and that stale
+    gate artifacts are correctly detected.
+    """
+
+    @staticmethod
+    def _make_base_state(
+        tmp_path: Path,
+        *,
+        decision_id: str,
+        round_id: str,
+        report_id: str,
+        report_round_id: str,
+        report_status: str = "SUCCESS",
+        report_acceptance: str = "ACCEPTED",
+        report_based_on_decision_id: str | None = None,
+    ) -> Path:
+        """Create a minimal project_state directory for gate testing."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        _write_skill_registry(tmp_path)
+        _write_json(
+            state_dir / "current_state.json",
+            {
+                "round_id": round_id,
+                "state_build_id": "state_test",
+                "state_digest": "digest_test",
+                "state_scope": "sample_state",
+                "source_harness_run": "run_test",
+            },
+        )
+        _write_json(
+            state_dir / "task_packet.json",
+            {
+                "state_scope": "sample_state",
+                "task_source": "derived_from_sample_artifacts",
+                "execution_scope": "decision_packet_controls_current_round",
+                "active_decision_packet": "project_state/decision_packet.md",
+            },
+        )
+        _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+        _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+        _write_json(state_dir / "negative_results.json", {})
+        _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
+        _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+        based_on = report_based_on_decision_id if report_based_on_decision_id is not None else decision_id
+        _write_report(
+            state_dir,
+            decision_id=based_on,
+            report_id=report_id,
+            round_id=report_round_id,
+            status=report_status,
+            acceptance=report_acceptance,
+        )
+        return state_dir
+
+    def test_final_check_uses_decision_round_id_not_stale_report(self, tmp_path: Path) -> None:
+        """final_check derives round_id and report_id from the decision, not the stale report."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test1",
+            round_id="round_test1",
+            report_id="codex_report_old_round",
+            report_round_id="round_old",
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        assert result["round_id"] == "round_test1"
+        assert result["report_id"] == "codex_report_test1"
+        assert result["report_id"] != "codex_report_old_round"
+
+    def test_close_round_uses_decision_report_id_not_stale_report(self, tmp_path: Path) -> None:
+        """close_round computes report_id from decision round_id, not stale report."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test2",
+            round_id="round_test2",
+            report_id="codex_report_old",
+            report_round_id="round_old",
+        )
+
+        result = close_round(state_dir=state_dir, round_id="round_test2", repo_root=tmp_path)
+
+        assert result["report_id"] == "codex_report_test2"
+        assert result["report_id"] != "codex_report_old"
+
+    def test_close_round_requested_round_id_matches_decision_not_report(self, tmp_path: Path) -> None:
+        """requested_round_id_match passes when requested matches decision, even if report is stale."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test3",
+            round_id="round_test3",
+            report_id="codex_report_old",
+            report_round_id="round_old",
+        )
+
+        result = close_round(state_dir=state_dir, round_id="round_test3", repo_root=tmp_path)
+
+        round_id_check = _check(result, "requested_round_id_match")
+        assert round_id_check["status"] == "PASS"
+
+    def test_close_round_wrong_requested_round_id_fails(self, tmp_path: Path) -> None:
+        """requested_round_id_match fails when requested round_id doesn't match decision."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test4",
+            round_id="round_test4",
+            report_id="codex_report_test4",
+            report_round_id="round_test4",
+        )
+
+        result = close_round(state_dir=state_dir, round_id="round_wrong", repo_root=tmp_path)
+
+        round_id_check = _check(result, "requested_round_id_match")
+        assert round_id_check["status"] == "FAIL"
+
+    def test_stale_report_summary_synthesis_fails_final_check(self, tmp_path: Path) -> None:
+        """stale report_summary_synthesis.json report_id causes stale_artifact_ids FAIL."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test5",
+            round_id="round_test5",
+            report_id="codex_report_test5",
+            report_round_id="round_test5",
+        )
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(gates_dir / "report_summary_synthesis.json", {
+            "schema_version": 1,
+            "artifact_name": "report_summary_synthesis.json",
+            "decision_id": "decision_test5",
+            "round_id": "round_test5",
+            "report_id": "codex_report_stale_round",
+        })
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        stale_check = _check(result, "stale_artifact_ids")
+        assert stale_check["status"] == "FAIL"
+
+    def test_stale_final_gate_result_fails_final_check(self, tmp_path: Path) -> None:
+        """stale final_gate_result.json round_id causes stale_artifact_ids FAIL."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test6",
+            round_id="round_test6",
+            report_id="codex_report_test6",
+            report_round_id="round_test6",
+        )
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(gates_dir / "final_gate_result.json", {
+            "schema_version": 1,
+            "artifact_name": "final_gate_result.json",
+            "decision_id": "decision_test6",
+            "round_id": "round_stale",
+            "report_id": "codex_report_test6",
+            "gate_status": "PASSED",
+        })
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        stale_check = _check(result, "stale_artifact_ids")
+        assert stale_check["status"] == "FAIL"
+
+    def test_close_round_failed_prevents_accepted_status(self, tmp_path: Path) -> None:
+        """close_round with PARTIAL/REWORK_REQUIRED does not produce CLOSED status or ACCEPTED."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test7",
+            round_id="round_test7",
+            report_id="codex_report_test7",
+            report_round_id="round_test7",
+            report_status="PARTIAL",
+            report_acceptance="REWORK_REQUIRED",
+        )
+
+        result = close_round(state_dir=state_dir, round_id="round_test7", repo_root=tmp_path)
+
+        assert result["close_status"] != "CLOSED"
+        # Verify the report's acceptance_recommendation is still REWORK_REQUIRED
+        report = read_codex_report_summary(state_dir)
+        assert report.get("acceptance_recommendation") == "REWORK_REQUIRED"
+
+    def test_command_plan_exit_code_mismatch_remains_blocking(self, tmp_path: Path) -> None:
+        """Exit code mismatch between command_plan and pytest_result is still FAIL."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test8",
+            round_id="round_test8",
+            report_id="codex_report_test8",
+            report_round_id="round_test8",
+        )
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+        command = "python -m pytest -q"
+        command_plan_command = "python -m reverse_agent.project_gate command-plan --state-dir project_state"
+        _write_json(gates_dir / "command_plan.json", {
+            "schema_version": 1,
+            "plan_name": "command-plan",
+            "plan_status": "PASSED",
+            "decision_id": "decision_test8",
+            "round_id": "round_test8",
+            "mainline": "engineering_branch",
+            "generated_at": "2026-06-11T00:00:00Z",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": command,
+                    "phase": "test",
+                    "kind": "pytest",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": command_plan_command,
+                    "phase": "gate",
+                    "kind": "command-plan",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+            ],
+            "warnings": [],
+            "blocking_reasons": [],
+        })
+        # Rewrite the report to include command-plan in tests_ran and generated_artifacts
+        _write_report(
+            state_dir,
+            decision_id="decision_test8",
+            report_id="codex_report_test8",
+            round_id="round_test8",
+            tests_ran=[command, command_plan_command],
+            generated_artifacts=["project_state/gates/command_plan.json"],
+        )
+        # Write a pytest_result.txt with exit code 1 for the pytest command
+        pytest_body = _command_block(command, "1 failed", exit_code=1)
+        write_pytest_result(
+            state_dir=state_dir,
+            summary={
+                "schema_version": 1,
+                "decision_id": "decision_test8",
+                "report_id": "codex_report_test8",
+                "round_id": "round_test8",
+                "generated_at": "2026-06-11T00:00:00Z",
+                "status": "PASSED",
+                "tests_ran": [command, command_plan_command],
+            },
+            body=pytest_body,
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        exit_code_check = _check(result, "pytest_result_exit_codes_match_command_plan")
+        assert exit_code_check["status"] == "FAIL"
+
+    def test_partial_rework_not_accepted(self, tmp_path: Path) -> None:
+        """PARTIAL/REWORK_REQUIRED must not be treated as accepted in status_policy_valid."""
+        state_dir = self._make_base_state(
+            tmp_path,
+            decision_id="decision_test9",
+            round_id="round_test9",
+            report_id="codex_report_test9",
+            report_round_id="round_test9",
+            report_status="PARTIAL",
+            report_acceptance="REWORK_REQUIRED",
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        status_policy = _check(result, "status_policy_valid")
+        assert status_policy["status"] != "PASS"

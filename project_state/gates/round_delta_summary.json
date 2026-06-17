@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1",
-  "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1",
-  "head_commit": "5fbc8644baac",
+  "decision_id": "decision_20260617_current_report_gate_regeneration_rework_v1",
+  "round_id": "round_20260617_current_report_gate_regeneration_rework_v1",
+  "head_commit": "e22590ca35de",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -68,5 +68,5 @@
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-17T12:04:02.693578Z"
+  "generated_at": "2026-06-17T12:35:47.097440Z"
 }
