@@ -16,6 +16,7 @@ from reverse_agent.project_gate import (
     _verified_cli_coverage_check,
     _startup_baseline_consistency_check,
     _stale_artifact_id_check,
+    _report_body_consistency_check,
     _expected_report_id,
     _extract_bash_commands,
     _extract_unfenced_commands,
@@ -8916,6 +8917,7 @@ class TestCommandPlanExpectedExitSemantics:
         exit_check = next(c for c in checks if c["name"] == "pytest_result_exit_codes_match_command_plan")
         assert exit_check["status"] == "PASS"
 
+
     def test_diagnostic_exit_1_visible_in_report_not_accepted(self, tmp_path: Path) -> None:
         """A report with PARTIAL/REWORK_REQUIRED is not treated as accepted/completed."""
         state_dir = tmp_path / "project_state"
@@ -9227,3 +9229,263 @@ class TestCommandPlanExpectedExitSemantics:
 
         exit_check = next(c for c in checks if c["name"] == "pytest_result_exit_codes_match_command_plan")
         assert exit_check["status"] == "PASS"
+
+
+
+class TestReportBodyConsistency:
+    """Tests for report body prose vs JSON summary status consistency."""
+
+    @staticmethod
+    def _make_report_text(status_line: str, extra_lines: str = "") -> str:
+        """Build a minimal report body with a ## Status section."""
+        return (
+            "```json codex_report_summary\n"
+            '{"schema_version": 1}\n'
+            "```\n"
+            "\n"
+            "# CODEX_EXECUTION_REPORT\n"
+            "\n"
+            "## Goal\n"
+            "\n"
+            "Test goal.\n"
+            "\n"
+            f"## Status\n"
+            "\n"
+            f"{status_line}\n"
+            f"{extra_lines}\n"
+            "\n"
+            "## Implementation Changes\n"
+            "\n"
+            "None.\n"
+        )
+
+    def test_json_success_body_partial_fails(self) -> None:
+        """JSON summary SUCCESS plus body PARTIAL causes report-body consistency FAIL."""
+        report_text = self._make_report_text(
+            "PARTIAL — Some work was done but not all tests pass."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["name"] == "report_body_consistency"
+        assert result["status"] == "FAIL"
+        assert any("PARTIAL" in c for c in result.get("contradictions", []))
+
+    def test_json_success_body_failed_fails(self) -> None:
+        """JSON summary SUCCESS plus body FAILED causes report-body consistency FAIL."""
+        report_text = self._make_report_text(
+            "FAILED — Critical issues remain."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "FAIL"
+        assert any("FAILED" in c for c in result.get("contradictions", []))
+
+    def test_json_accepted_body_rework_required_fails(self) -> None:
+        """JSON ACCEPTED plus body REWORK_REQUIRED causes FAIL."""
+        report_text = self._make_report_text(
+            "SUCCESS — All done. REWORK_REQUIRED due to edge cases."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "FAIL"
+        assert any("REWORK_REQUIRED" in c for c in result.get("contradictions", []))
+
+    def test_json_accepted_body_blocked_fails(self) -> None:
+        """JSON ACCEPTED plus body BLOCKED causes FAIL."""
+        report_text = self._make_report_text(
+            "SUCCESS — All done. BLOCKED by upstream issue."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "FAIL"
+        assert any("BLOCKED" in c for c in result.get("contradictions", []))
+
+    def test_json_success_body_close_round_still_fails_fails(self) -> None:
+        """JSON SUCCESS plus body 'close-round still fails' causes FAIL."""
+        report_text = self._make_report_text(
+            "SUCCESS — All done.",
+            "Close-round still fails due to ID mismatch."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "FAIL"
+        assert any("close-round still fails" in c for c in result.get("contradictions", []))
+
+    def test_json_success_body_previous_round_report_still_live_fails(self) -> None:
+        """JSON SUCCESS plus body 'previous round's report is still the live report' causes FAIL."""
+        report_text = self._make_report_text(
+            "SUCCESS — All done.",
+            "The previous round's report is still the live report."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "FAIL"
+        assert any("previous round" in c for c in result.get("contradictions", []))
+
+    def test_matching_json_success_body_success_passes(self) -> None:
+        """Matching JSON SUCCESS and body SUCCESS passes."""
+        report_text = self._make_report_text(
+            "SUCCESS — All code changes implemented and tests pass."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "PASS"
+
+    def test_matching_json_partial_body_partial_passes(self) -> None:
+        """Matching JSON PARTIAL and body PARTIAL passes when genuinely PARTIAL."""
+        report_text = self._make_report_text(
+            "PARTIAL — Some work was done but not all tests pass."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="PARTIAL",
+            acceptance_recommendation="REWORK_REQUIRED",
+        )
+        assert result["status"] == "PASS"
+
+    def test_matching_json_failed_body_failed_passes(self) -> None:
+        """Matching JSON FAILED and body FAILED passes when genuinely FAILED."""
+        report_text = self._make_report_text(
+            "FAILED — Critical issues remain."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="FAILED",
+            acceptance_recommendation="REWORK_REQUIRED",
+        )
+        assert result["status"] == "PASS"
+
+    def test_json_success_body_blocked_prefix_fails(self) -> None:
+        """JSON SUCCESS plus body status beginning with BLOCKED causes FAIL."""
+        report_text = self._make_report_text(
+            "BLOCKED — Cannot proceed due to missing dependency."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "FAIL"
+        assert any("BLOCKED" in c for c in result.get("contradictions", []))
+
+    def test_empty_status_section_passes(self) -> None:
+        """Empty ## Status section does not cause a contradiction."""
+        report_text = (
+            "```json codex_report_summary\n"
+            '{"schema_version": 1}\n'
+            "```\n"
+            "\n"
+            "# CODEX_EXECUTION_REPORT\n"
+            "\n"
+            "## Goal\n"
+            "\n"
+            "Test goal.\n"
+            "\n"
+            "## Status\n"
+            "\n"
+            "## Implementation Changes\n"
+            "\n"
+            "None.\n"
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "PASS"
+
+    def test_json_success_body_previous_round_still_live_short_form_fails(self) -> None:
+        """JSON SUCCESS plus body 'previous round's report is still live' (short form) causes FAIL."""
+        report_text = self._make_report_text(
+            "SUCCESS — All done.",
+            "The previous round's report is still live."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "FAIL"
+        assert any("previous round" in c for c in result.get("contradictions", []))
+
+    def test_json_accepted_body_rework_in_non_status_section_passes(self) -> None:
+        """REWORK_REQUIRED in a non-Status section does not trigger a contradiction."""
+        report_text = (
+            "```json codex_report_summary\n"
+            '{"schema_version": 1}\n'
+            "```\n"
+            "\n"
+            "# CODEX_EXECUTION_REPORT\n"
+            "\n"
+            "## Goal\n"
+            "\n"
+            "Test goal.\n"
+            "\n"
+            "## Status\n"
+            "\n"
+            "SUCCESS — All done.\n"
+            "\n"
+            "## Remaining Limitations\n"
+            "\n"
+            "REWORK_REQUIRED for edge cases.\n"
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        # REWORK_REQUIRED is in Remaining Limitations, not in Status section
+        assert result["status"] == "PASS"
+
+    def test_json_blocked_body_blocked_passes(self) -> None:
+        """Matching JSON BLOCKED and body BLOCKED passes."""
+        report_text = self._make_report_text(
+            "BLOCKED — Cannot proceed."
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="BLOCKED",
+            acceptance_recommendation="BLOCKED",
+        )
+        assert result["status"] == "PASS"
+
+    def test_no_status_section_passes(self) -> None:
+        """Report without a ## Status section does not cause a contradiction."""
+        report_text = (
+            "```json codex_report_summary\n"
+            '{"schema_version": 1}\n'
+            "```\n"
+            "\n"
+            "# CODEX_EXECUTION_REPORT\n"
+            "\n"
+            "## Goal\n"
+            "\n"
+            "Test goal.\n"
+        )
+        result = _report_body_consistency_check(
+            report_text=report_text,
+            report_status="SUCCESS",
+            acceptance_recommendation="ACCEPTED",
+        )
+        assert result["status"] == "PASS"

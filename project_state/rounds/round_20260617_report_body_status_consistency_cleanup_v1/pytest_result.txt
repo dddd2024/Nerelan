@@ -109,27 +109,25 @@ recommended_next_action: record_and_follow_command_plan_manually
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
-doctor: WARN
+doctor: FAIL
   [PASS] decision_approval: decision decision_20260617_report_body_status_consistency_cleanup_v1 is APPROVED
   [PASS] mainline: mainline is engineering_branch
   [PASS] skill_profiles: skill profiles active
   [PASS] report_parse: report codex_report_20260617_report_body_status_consistency_cleanup_v1 status is SUCCESS
-  [PASS] report_decision_match: report decision_id matches
+  [FAIL] report_decision_match: report based_on_decision_id (decision_20260617_report_body_status_consistency_cleanup_v1) does not match decision_id (decision_20260617_report_body_status_consistency_cleanup_v1)
   [PASS] pytest_result: pytest_result.txt matches report and covers all tests
-  [WARN] archive: decision_execution_state is CONSUMED_BY_NON_SUCCESS_REPORT
+  [PASS] archive: decision ready for execution (archive not yet expected)
   [INFO] artifacts: 50 missing, 0 stale historical sample artifacts (non-blocking)
   [PASS] state_package_classification: task_packet.json advisory; decision_packet.md authoritative
-===== EXIT: 0 =====
+===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_state lint-report --state-dir project_state =====
-lint-report: OK
-warning: report_status is FAILED
-warning: report round not archived yet
-report_id: codex_report_20260617_report_body_status_consistency_cleanup_v1
-report_status: FAILED
-acceptance_recommendation: REWORK_REQUIRED
-based_on_decision_id: decision_20260617_report_body_status_consistency_cleanup_v1
-decision_id: decision_20260617_report_body_status_consistency_cleanup_v1
+lint-report: PASSED
+  report_id: codex_report_20260617_report_body_status_consistency_cleanup_v1
+  round_id: round_20260617_report_body_status_consistency_cleanup_v1
+  based_on_decision_id: decision_20260617_report_body_status_consistency_cleanup_v1
+  status: SUCCESS
+  acceptance: ACCEPTED
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
@@ -142,51 +140,48 @@ artifact: project_state/gates/report_summary_synthesis.json
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: WARN
+final-check: PASSED
 decision_id: decision_20260617_report_body_status_consistency_cleanup_v1
 report_id: codex_report_20260617_report_body_status_consistency_cleanup_v1
 round_id: round_20260617_report_body_status_consistency_cleanup_v1
   [PASS] decision_report_match: decision/report ids and round_id match
   [PASS] pytest_result_match: pytest_result matches report
   [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
-  [WARN] round_manifest_present: round manifest is missing
-  [WARN] archived_report_matches_live_report: archived report differs from live report
-  [WARN] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
   [PASS] round_delta_summary_present: round delta summary is baseline-aware
   [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
   [PASS] files_changed_covers_git_diff: files_changed covers round delta files
   [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
   [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
-  [PASS] baseline_lifecycle_violation: baseline was captured before implementation
+  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
   [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
-  [PASS] baseline_capture_order: baseline capture order is clean
-  [PASS] report_prose_claims_covered_by_files_changed: report prose claims are covered by files_changed
-  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths in dirty state
-  [PASS] generated_artifact_live_paths_exist: all live generated artifact paths exist on disk
-  [PASS] startup_status_order_valid: startup git status appears after path confirmation
-  [PASS] decision_immutability: decision_packet.md was not modified during execution
+  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
+  [PASS] report_prose_claims_covered_by_files_changed: report prose source/test claims are covered by files_changed
+  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
+  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
+  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
+  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
   [PASS] build_output_scope: no build-generated state files in round delta
-  [PASS] verified_cli_coverage: all CLI commands are covered by tests_ran
-  [PASS] startup_baseline_consistency: startup git status is consistent with baseline
+  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
   [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
   [PASS] command_plan_present: command_plan.json is present
-  [PASS] command_plan_ids_match: command_plan ids match current decision/report
-  [PASS] command_plan_covers_report_tests: command_plan covers report and pytest_result tests
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
   [PASS] startup_command_coverage: pytest_result covers required startup commands
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout
-  [PASS] command_plan_generated_artifact_recorded: generated_artifacts includes command_plan.json
-  [PASS] close_round_is_last_command_block: close-round is the last command block
-  [PASS] pytest_result_exit_codes_match_command_plan: exit codes match command_plan
-  [PASS] report_summary_synthesis_required: synthesis is required
-  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesis
-  [PASS] report_summary_status_source_available: status fields derived from final gate result
-  [PASS] preflight_failure_handoff: preflight passed
-  [PASS] stale_artifact_ids: gate artifacts carry current IDs
-  [PASS] report_body_consistency: report body prose is consistent with JSON summary
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] close_round_is_last_command_block: close-round is the last command block in pytest_result
+  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs
+  [PASS] report_body_consistency: report body prose is consistent with structured JSON summary
   [PASS] forbidden_paths_absent: no forbidden paths detected
-  [WARN] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
-  [PASS] final_check_stdout_matches_gate_status: archive-pending status allowed
-recommended_next_action: review_warnings_before_closeout
+  [PASS] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
+  [PASS] final_check_stdout_matches_gate_status: archive-pending final-check status is allowed to differ before close-round
+recommended_next_action: proceed_to_close_round
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_report_body_status_consistency_cleanup_v1 =====
@@ -202,40 +197,90 @@ round_id: round_20260617_report_body_status_consistency_cleanup_v1
   [PASS] pytest_result_match: pytest_result matches report
   [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
   [PASS] command_plan_present: command_plan.json is present
-  [PASS] command_plan_ids_match: command_plan ids match current decision/report
-  [PASS] command_plan_covers_report_tests: command_plan covers report and pytest_result tests
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
   [PASS] startup_command_coverage: pytest_result covers required startup commands
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout
-  [PASS] command_plan_generated_artifact_recorded: generated_artifacts includes command_plan.json
-  [PASS] close_round_is_last_command_block: close-round is the last command block
-  [PASS] pytest_result_exit_codes_match_command_plan: exit codes match command_plan
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] close_round_is_last_command_block: close-round is the last command block in pytest_result
+  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
   [PASS] round_delta_summary_present: round delta summary is baseline-aware
-  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited dirty files
+  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
   [PASS] files_changed_covers_git_diff: files_changed covers round delta files
-  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive changes
-  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round delta artifacts
-  [PASS] baseline_lifecycle_violation: baseline captured before implementation
-  [PASS] baseline_lifecycle_guard: baseline source/test dirty files absent
-  [PASS] baseline_capture_order: baseline capture order is clean
-  [PASS] report_prose_claims_covered_by_files_changed: report prose claims covered
-  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths in dirty state
-  [PASS] generated_artifact_live_paths_exist: all live generated artifact paths exist
-  [PASS] startup_status_order_valid: startup git status appears after path confirmation
-  [PASS] decision_immutability: decision_packet.md was not modified
+  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
+  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
+  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
+  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
+  [PASS] report_prose_claims_covered_by_files_changed: report prose source/test claims are covered by files_changed
+  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
+  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
+  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
+  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
   [PASS] build_output_scope: no build-generated state files in round delta
-  [PASS] verified_cli_coverage: all CLI commands covered by tests_ran
-  [PASS] startup_baseline_consistency: startup git status consistent with baseline
-  [PASS] report_summary_synthesis_required: synthesis is required
-  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesis
-  [PASS] report_summary_status_source_available: status fields derived from final gate result
-  [PASS] preflight_failure_handoff: preflight passed
-  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive
+  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
   [PASS] forbidden_paths_absent: no forbidden paths detected
-  [PASS] state_package_compact: state package classification is compact
+  [PASS] state_package_compact: state package classification is compact or non-blocking
   [ACTION PASSED] final_check_before_archive
   [ACTION created] archive_round
   [ACTION PASSED] final_check_after_archive
 archive_status: created
 recommended_next_action: no_action_required
+===== EXIT: 0 =====
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_report_body_status_consistency_cleanup_v1 =====
+close-round: CLOSED
+decision_id: decision_20260617_report_body_status_consistency_cleanup_v1
+report_id: codex_report_20260617_report_body_status_consistency_cleanup_v1
+round_id: round_20260617_report_body_status_consistency_cleanup_v1
+  [PASS] decision_meta_parse: decision_meta parsed
+  [PASS] decision_approved: decision status is APPROVED
+  [PASS] report_present: codex report summary parsed
+  [PASS] requested_round_id_match: requested round_id matches current decision
+  [PASS] report_decision_match: report is based on current decision
+  [PASS] pytest_result_match: pytest_result matches report
+  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
+  [PASS] command_plan_present: command_plan.json is present
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [PASS] startup_command_coverage: pytest_result covers required startup commands
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
+  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
+  [PASS] round_delta_summary_present: round delta summary is baseline-aware
+  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
+  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
+  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
+  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
+  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
+  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
+  [PASS] report_prose_claims_covered_by_files_changed: report prose source/test claims are covered by files_changed
+  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
+  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
+  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
+  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
+  [PASS] build_output_scope: no build-generated state files in round delta
+  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
+  [PASS] forbidden_paths_absent: no forbidden paths detected
+  [PASS] state_package_compact: state package classification is compact or non-blocking
+  [ACTION PASSED] final_check_before_archive
+  [ACTION created] archive_round
+  [ACTION PASSED] final_check_after_archive
+archive_status: created
+recommended_next_action: no_action_required
+===== STDERR =====
 ===== EXIT: 0 =====
 

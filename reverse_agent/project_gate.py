@@ -3068,6 +3068,87 @@ def _stale_artifact_id_check(
     )
 
 
+def _report_body_consistency_check(
+    *,
+    report_text: str,
+    report_status: str,
+    acceptance_recommendation: str,
+) -> dict[str, Any]:
+    """Check that report body prose does not contradict the structured JSON summary.
+
+    Detects obvious contradictions such as:
+    - JSON SUCCESS but body status begins with PARTIAL or FAILED
+    - JSON ACCEPTED but body says REWORK_REQUIRED, BLOCKED, or close-round still fails
+    - JSON success plus body claims previous-round report is still live
+    """
+    contradictions: list[str] = []
+
+    # Normalize status values
+    json_status_upper = report_status.upper()
+    json_acceptance_upper = acceptance_recommendation.upper()
+
+    # Extract the ## Status section from body
+    status_section = ""
+    in_status = False
+    for line in report_text.split("\n"):
+        if line.strip().startswith("## Status"):
+            in_status = True
+            continue
+        if in_status and line.strip().startswith("## "):
+            break
+        if in_status:
+            status_section += line + "\n"
+
+    status_first_line = status_section.strip().split("\n")[0] if status_section.strip() else ""
+
+    # Check 1: JSON SUCCESS but body status begins with PARTIAL or FAILED
+    if json_status_upper == "SUCCESS" and status_first_line:
+        for bad_prefix in ("PARTIAL", "FAILED", "BLOCKED"):
+            if status_first_line.upper().startswith(bad_prefix):
+                contradictions.append(
+                    f"JSON status is SUCCESS but body ## Status begins with {bad_prefix}"
+                )
+                break
+
+    # Check 2: JSON ACCEPTED but body says REWORK_REQUIRED or BLOCKED
+    if json_acceptance_upper == "ACCEPTED":
+        body_upper = status_section.upper()
+        for bad_phrase in ("REWORK_REQUIRED", "BLOCKED"):
+            if bad_phrase in body_upper:
+                contradictions.append(
+                    f"JSON acceptance_recommendation is ACCEPTED but body mentions {bad_phrase}"
+                )
+
+    # Check 3: JSON success plus body says "close-round still fails"
+    if json_status_upper in ("SUCCESS",) and "close-round still fails" in status_section.lower():
+        contradictions.append(
+            "JSON status is SUCCESS but body claims close-round still fails"
+        )
+
+    # Check 4: JSON success plus body claims previous-round report is still live
+    if json_status_upper in ("SUCCESS",) and (
+        "previous round's report is still the live report" in status_section.lower()
+        or "previous round's report is still live" in status_section.lower()
+    ):
+        contradictions.append(
+            "JSON status is SUCCESS but body claims previous round's report is still the live report"
+        )
+
+    if contradictions:
+        return _check(
+            "report_body_consistency",
+            "FAIL",
+            "report body prose contradicts structured JSON summary status/recommendation",
+            contradictions=contradictions,
+        )
+
+    return _check(
+        "report_body_consistency",
+        "PASS",
+        "report body prose is consistent with structured JSON summary",
+    )
+
+
 def _final_gate_is_report_summary_self_failure(payload: dict[str, Any]) -> bool:
     if payload.get("gate_status") != "FAILED":
         return False
@@ -3652,7 +3733,8 @@ def final_check(
     report_text = _read_text(state_dir / "codex_execution_report.md")
     report = read_codex_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
-    pytest_validation = validate_pytest_result_for_report(pytest_text, report)
+    command_plan_data = _read_json(state_dir / "gates" / "command_plan.json")
+    pytest_validation = validate_pytest_result_for_report(pytest_text, report, command_plan=command_plan_data)
     current_state = _read_json(state_dir / "current_state.json")
     task_packet = _read_json(state_dir / "task_packet.json")
     round_consistency = build_round_consistency(
@@ -3950,6 +4032,16 @@ def final_check(
             decision_id=decision_id,
             round_id=round_id,
             report_id=report_id,
+        )
+    )
+
+    # Report body consistency check: body prose must not contradict JSON summary
+    acceptance_recommendation = str(report.get("acceptance_recommendation") or "")
+    checks.append(
+        _report_body_consistency_check(
+            report_text=report_text,
+            report_status=report_status,
+            acceptance_recommendation=acceptance_recommendation,
         )
     )
 
@@ -4330,7 +4422,8 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     report_text = _read_text(state_dir / "codex_execution_report.md")
     report = read_codex_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
-    pytest_validation = validate_pytest_result_for_report(pytest_text, report)
+    command_plan_data = _read_json(state_dir / "gates" / "command_plan.json")
+    pytest_validation = validate_pytest_result_for_report(pytest_text, report, command_plan=command_plan_data)
     current_state = _read_json(state_dir / "current_state.json")
     task_packet = _read_json(state_dir / "task_packet.json")
 

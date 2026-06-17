@@ -1186,6 +1186,8 @@ def _parse_pytest_body_for_failures(body: str) -> dict[str, Any]:
 def validate_pytest_result_for_report(
     pytest_text: str,
     report_summary: dict[str, Any],
+    *,
+    command_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     parsed = parse_pytest_result_header(pytest_text)
     errors: list[str] = []
@@ -1245,10 +1247,25 @@ def validate_pytest_result_for_report(
         )
 
     # Header/exit-code consistency check: if header says PASSED but any
-    # recorded command block has a non-zero exit code, that is a contradiction.
+    # recorded command block has a non-zero exit code that is not expected
+    # by the command_plan, that is a contradiction.
     if header_status == "PASSED":
+        # Build a set of command strings that allow non-zero exit codes
+        allowed_nonzero_commands: set[str] = set()
+        if command_plan and isinstance(command_plan.get("commands"), list):
+            for cmd_entry in command_plan["commands"]:
+                expected = cmd_entry.get("expected_exit_codes", [0])
+                if len(expected) > 1 or (expected and expected[0] != 0):
+                    cmd_str = str(cmd_entry.get("command", "")).strip()
+                    if cmd_str:
+                        allowed_nonzero_commands.add(cmd_str)
+
         nonzero_exits: list[dict[str, Any]] = []
+        current_command: str = ""
         for line in pytest_text.splitlines():
+            # Track the current command being executed
+            if line.startswith("===== COMMAND: ") and line.endswith(" ====="):
+                current_command = line[len("===== COMMAND: "):-len(" =====")].strip()
             if line.startswith("===== EXIT: ") and line.endswith(" ====="):
                 exit_text = line[len("===== EXIT: "):-len(" =====")].strip()
                 try:
@@ -1256,7 +1273,14 @@ def validate_pytest_result_for_report(
                 except ValueError:
                     continue
                 if exit_code != 0:
-                    nonzero_exits.append({"exit_code": exit_code, "line": line.strip()})
+                    # Check if this command is allowed non-zero exit codes
+                    is_allowed = False
+                    for allowed_cmd in allowed_nonzero_commands:
+                        if current_command.startswith(allowed_cmd) or allowed_cmd.startswith(current_command):
+                            is_allowed = True
+                            break
+                    if not is_allowed:
+                        nonzero_exits.append({"exit_code": exit_code, "line": line.strip()})
         if nonzero_exits:
             errors.append(
                 f"pytest_result header status is PASSED but {len(nonzero_exits)} "
@@ -1813,7 +1837,8 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
     decision_round_id = str(decision.get("round_id") or "")
     pytest_text = _read_text_or_empty(state_dir / "pytest_result.txt")
     pytest_result_present = bool(pytest_text.strip())
-    pytest_validation = validate_pytest_result_for_report(pytest_text, report)
+    command_plan_data = _read_json(state_dir / "gates" / "command_plan.json")
+    pytest_validation = validate_pytest_result_for_report(pytest_text, report, command_plan=command_plan_data)
 
     if report_status in {"TEMPLATE_ONLY", "UNKNOWN"}:
         parse_error = report.get("parse_error")
@@ -2086,7 +2111,8 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
 
     # Check 6: pytest result
     pytest_text = _read_text_or_empty(state_dir / "pytest_result.txt")
-    pytest_validation = validate_pytest_result_for_report(pytest_text, report)
+    command_plan_data = _read_json(state_dir / "gates" / "command_plan.json")
+    pytest_validation = validate_pytest_result_for_report(pytest_text, report, command_plan=command_plan_data)
     pytest_result_present = bool(pytest_text.strip())
 
     if pytest_validation.get("parse_error"):

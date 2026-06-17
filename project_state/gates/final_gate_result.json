@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260617_command_plan_expected_exit_semantics_v1",
-  "report_id": "codex_report_20260617_command_plan_expected_exit_semantics_v1",
-  "round_id": "round_20260617_command_plan_expected_exit_semantics_v1",
-  "generated_at": "2026-06-17T13:07:51.342499Z",
+  "decision_id": "decision_20260617_report_body_status_consistency_cleanup_v1",
+  "report_id": "codex_report_20260617_report_body_status_consistency_cleanup_v1",
+  "round_id": "round_20260617_report_body_status_consistency_cleanup_v1",
+  "generated_at": "2026-06-17T14:01:19.766080Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260617_command_plan_expected_exit_semantics_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260617_report_body_status_consistency_cleanup_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -53,36 +53,34 @@
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/round_manifest.json",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
         "tests/test_project_gate.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/round_manifest.json",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
         "tests/test_project_gate.py"
       ]
     },
@@ -101,36 +99,34 @@
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/round_manifest.json",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
         "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/round_manifest.json",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
         "tests/test_project_gate.py"
       ],
       "inherited_dirty_files": []
@@ -141,10 +137,12 @@
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
         "tests/test_project_gate.py"
       ],
       "claimed_source_test_paths": [
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
         "tests/test_project_gate.py"
       ]
     },
@@ -185,6 +183,7 @@
       "detail": "report prose source/test claims are covered by files_changed",
       "claimed_source_test_paths": [
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
         "tests/test_project_gate.py"
       ]
     },
@@ -270,8 +269,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260617_command_plan_expected_exit_semantics_v1",
-      "command_plan_round_id": "round_20260617_command_plan_expected_exit_semantics_v1"
+      "command_plan_decision_id": "decision_20260617_report_body_status_consistency_cleanup_v1",
+      "command_plan_round_id": "round_20260617_report_body_status_consistency_cleanup_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -342,6 +341,11 @@
       "name": "stale_artifact_ids",
       "status": "PASS",
       "detail": "gate artifacts carry current decision/round/report IDs"
+    },
+    {
+      "name": "report_body_consistency",
+      "status": "PASS",
+      "detail": "report body prose is consistent with structured JSON summary"
     },
     {
       "name": "forbidden_paths_absent",
