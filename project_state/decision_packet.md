@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_tiered_gate_profile_plan_v1",
-  "round_id": "round_20260617_tiered_gate_profile_plan_v1",
+  "decision_id": "decision_20260617_clean_start_baseline_guard_v1",
+  "round_id": "round_20260617_clean_start_baseline_guard_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,63 +15,52 @@
 
 ## 1. Goal
 
-Create the first small, testable engineering step toward a tiered gate system so lightweight artifact-only rounds do not always pay the cost of the full closeout gate pipeline.
+Harden the round startup/baseline lifecycle so Codex cannot modify source/test files before recording the startup baseline and then have those modifications treated as harmless inherited dirty files.
 
-This round must not redesign the whole gate system. It should define and implement a read-only gate profile classification layer that can classify a round as `fast`, `standard`, or `full`, explain the selected profile, and expose the recommended command set without changing existing `close-round` enforcement behavior yet.
+This is a narrow engineering guardrail task. The purpose is to make repeated `ACCEPTED_WITH_LIMITATIONS` outcomes caused by pre-baseline source/test modifications become an early `BLOCKED` condition, not a warning that can be explained away after implementation.
 
 Required end state:
 
-- introduce a minimal gate profile classifier for `fast`, `standard`, and `full` modes;
-- add a CLI/report output that shows the recommended gate profile and command set for the current decision;
-- keep existing `preflight`, `command-plan`, `run-round`, `report-summary`, `final-check`, and `close-round` behavior backward-compatible;
-- add tests for artifact-only, normal source/test, and gate/project_state/tooling changes;
-- do not reduce current safety checks in this round;
-- do not run samples, IDA, Ghidra, debugger, harness, runtime probes, or solvers.
-
-The practical motivation is the recent observation that artifact-only/planning rounds spend disproportionate time in gate checks. The target design is:
-
-- `fast`: artifact-only / planning artifacts / resume plan / coverage matrix; expected gate budget 1-3 minutes;
-- `standard`: ordinary bounded source/test changes; expected gate budget 3-6 minutes;
-- `full`: gate/project_state/harness/solver/tool-runner changes or major closeout; expected gate budget 8-15 minutes.
-
-This round only builds the classification and reporting foundation. It must not immediately switch production closeout to fast mode.
+- source/test files dirty at startup must be treated as blocking for source/test implementation rounds unless they are explicitly declared in a dedicated pre-existing inherited baseline allowlist before the round starts;
+- project_state generated files dirty at startup may remain non-blocking when they are normal gate/report/round artifacts;
+- command-plan/final-check/close-round behavior must remain backward-compatible except for stricter source/test clean-start enforcement;
+- add tests proving that source/test startup dirty causes a hard block, while generated project_state artifacts do not;
+- do not change solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw samples, or `.codex-skills/` behavior.
 
 ## 2. Current Evidence
 
-Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` and `current_state.json` remain state inputs only and must not override this decision.
+Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` and `current_state.json` are state inputs only and must not override this decision.
 
 Previous accepted-with-limitations round:
 
-- `decision_20260617_artifact_deliverable_reporting_rework_v1`
-- `round_20260617_artifact_deliverable_reporting_rework_v1`
+- `decision_20260617_tiered_gate_profile_plan_v1`
+- `round_20260617_tiered_gate_profile_plan_v1`
 - mainline: `engineering_branch`
-- result: core artifact-deliverable reporting fix accepted with limitations
-- limitation: source/test files were dirty before baseline capture; final gate passed but retained inherited source/test baseline warnings.
+- result: gate profile classifier accepted with limitations
+- limitation: startup `git status --short` already showed `reverse_agent/project_gate.py` and `tests/test_project_gate.py` dirty before implementation evidence was captured, and final gate accepted them as inherited source/test dirty with warnings.
 
-Relevant current facts:
+Observed recurring defect:
 
-- Current gate pipeline is safe but too heavy for artifact-only rounds.
-- Existing command-plan currently emits a full fixed command chain for most rounds.
-- `project_gate.py` owns command-plan, preflight, run-round, report-summary, final-check, close-round, round baseline/delta, and report summary synthesis.
-- `project_state.py` owns doctor, lint-report, report parsing, pytest result validation, artifact freshness, and state package checks.
-- The active skill registry contains `reverse-agent-iteration@v2`, and no new skill should be added.
+- Multiple recent engineering rounds have had source/test files modified before startup/baseline evidence was recorded.
+- Existing gate can classify these files as `inherited_dirty_files` and permit closeout with warnings.
+- This weakens audit provenance because it becomes unclear whether Codex respected the required startup sequence or retroactively explained already-modified files.
 
-Reason for not continuing training-dataset immediately:
+Desired policy shift:
 
-- The recent bottleneck is not solver capability; it is gate overhead and closeout ergonomics.
-- A tiered gate profile foundation should reduce future artifact-only training rounds without weakening safety globally.
+- For source/test files, clean-start should be strict by default.
+- If source/test files are dirty at startup, Codex must stop before implementation and report `BLOCKED` unless the decision explicitly contains an `Allowed Inherited Dirty Baseline Files` section naming those exact source/test paths with a reason.
+- The explicit allowlist should be rare and should not be inferred from ordinary `Allowed source files` / `Allowed tests` implementation scope.
 
 Existing relevant capabilities to reuse:
 
-- command classification: `_command_kind`, `_command_phase`, command-plan extraction;
-- preflight validation: decision meta, mainline, skill profiles, task_packet non-authority, implementation scope, artifact freshness policy;
-- report-summary synthesis and final-check checks;
-- round delta/baseline tracking;
-- pytest result command coverage checks.
+- `reverse_agent/project_gate.py` already tracks startup command coverage, baseline lifecycle checks, baseline dirty files, inherited dirty files, startup_baseline_consistency, and close snapshot state.
+- `project_state/gates/round_baseline.json` and `project_state/gates/round_delta_summary.json` already contain enough information to identify baseline dirty and inherited dirty files.
+- `pytest_result.txt` command blocks already record startup path confirmation and `git status --short`.
+- Do not add a second gate system.
 
 Artifact freshness:
 
-- Historical `samplereverse` missing/stale artifacts are not current evidence for this engineering round.
+- Historical `samplereverse` missing/stale artifacts are not current evidence for this engineering guardrail round.
 - This round does not depend on reverse sample artifacts.
 
 Negative results:
@@ -95,11 +84,13 @@ Heavy artifact policy:
 
 ## 3. Do Not Do
 
-Do not remove or weaken current `close-round` checks.
+Do not weaken existing gate, report-summary, final-check, or close-round checks.
 
-Do not make `fast` mode the default production closeout path in this round.
+Do not treat files listed under ordinary `Allowed source files` or `Allowed tests` as automatically allowed inherited dirty baseline files.
 
-Do not skip `final-check` or `report-summary` in existing commands.
+Do not hide source/test dirty-at-startup behind `ACCEPTED_WITH_LIMITATIONS` when no explicit inherited baseline allowlist exists.
+
+Do not make generated project_state gate artifacts blocking merely because they are dirty at startup.
 
 Do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, runtime probe, GUI/frontend, sample runner, raw sample, or `.codex-skills/` files.
 
@@ -128,10 +119,10 @@ Read default project-state files in order:
 
 Also inspect:
 
-- `project_state/gates/command_plan.json`
-- `project_state/gates/run_round_result.json`
-- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/round_baseline.json`
+- `project_state/gates/round_delta_summary.json`
 - `project_state/gates/final_gate_result.json`
+- `project_state/gates/report_summary_synthesis.json`
 - `reverse_agent/project_gate.py`
 - `reverse_agent/project_state.py`
 - `tests/test_project_gate.py`
@@ -144,11 +135,11 @@ Do not inspect unrelated solver/harness/tool-runner modules unless a failing tes
 Before implementation, confirm:
 
 1. Startup path is `F:\reverse-agent`, `Test-Path F:\reverse-agent` is true, and `git rev-parse --show-toplevel` points to this repository.
-2. Startup `git status --short` is recorded as baseline.
-3. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
-4. Current decision controls execution; `task_packet.json` is not authoritative.
-5. Existing gate/report-summary/final-check/close-round behavior is understood before changing code.
-6. The current round is an engineering gate ergonomics step, not a reverse-solving or training-data sample step.
+2. Startup `git status --short` is recorded before any file modification.
+3. If startup `git status --short` already shows source/test dirty files, stop immediately and write `codex_execution_report.md` with `status=BLOCKED`; do not implement changes.
+4. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
+5. Current decision controls execution; `task_packet.json` is not authoritative.
+6. Existing baseline lifecycle and final-check behavior is understood before changing code.
 7. No mature reverse-engineering tool integration needs to be modified.
 
 ## 6. Implementation Scope
@@ -156,7 +147,7 @@ Before implementation, confirm:
 Allowed source files:
 
 - `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py` only if existing report/status plumbing strictly requires it
+- `reverse_agent/project_state.py` only if report/status plumbing strictly requires it
 
 Allowed tests:
 
@@ -175,63 +166,28 @@ Allowed generated/project-state files:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/gates/gate_profile_plan.json`
-- `project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/*`
+- `project_state/rounds/round_20260617_clean_start_baseline_guard_v1/*`
 
 Required implementation behavior:
 
-- Add a small gate profile classifier with exactly three profile names: `fast`, `standard`, `full`.
-- Classify `fast` when the decision scope is artifact-only / project_state planning artifacts and no source/test/tooling files are allowed to change.
-- Classify `standard` when the decision allows ordinary bounded source/test changes outside core gate/project_state/harness/solver/tool-runner modules.
-- Classify `full` when the decision allows changes to any of:
-  - `reverse_agent/project_gate.py`
-  - `reverse_agent/project_state.py`
-  - harness modules
-  - solver modules
-  - tool runners
-  - IDA/Ghidra/debugger integration
-  - runtime probe code
-  - `.codex-skills/`
-- Include a reason list explaining why the profile was selected.
-- Expose the result through a read-only command, preferably under `python -m reverse_agent.project_gate gate-profile --state-dir project_state --json`, or an equivalent minimal CLI if this is easier to integrate safely.
-- Write optional JSON output to `project_state/gates/gate_profile_plan.json` when the command is invoked without breaking existing command-plan behavior.
-- Do not make command-plan use the reduced profile yet; it may display the selected profile as metadata or advisory text only.
-- Preserve backward compatibility for existing command-plan/final-check/close-round tests.
-
-Suggested command sets for reporting only:
-
-- `fast` suggested commands:
-  - startup path checks
-  - `preflight`
-  - schema/artifact validation for touched project_state files
-  - focused pytest only if tests are changed
-  - `report-summary`
-  - `final-check-lite` placeholder or existing `final-check` advisory until lite exists
-- `standard` suggested commands:
-  - startup path checks
-  - `preflight`
-  - `command-plan`
-  - focused pytest for touched modules
-  - `doctor`
-  - `lint-report`
-  - `report-summary`
-  - `final-check`
-- `full` suggested commands:
-  - current full command-plan behavior including close-round
-  - relevant full gate/project_state tests
-  - report-summary/final-check/close-round
-
-If `final-check-lite` does not exist, do not implement it in this round. Record it as a future phase in the profile output.
+- Add or harden a clean-start source/test dirty policy in the existing gate path.
+- Source/test paths dirty in the round baseline must produce a blocking result unless all such paths are explicitly listed in a dedicated `Allowed Inherited Dirty Baseline Files` section.
+- The dedicated allowlist must be separate from ordinary `Allowed source files` / `Allowed tests` and must be parsed narrowly.
+- The block should occur as early as practical, preferably in preflight or final-check with a clear blocking reason. Prefer preflight if this can be done without broad refactoring.
+- Generated project_state gate artifacts, report files, round archives, and other build outputs should not be treated as source/test clean-start violations.
+- Preserve existing report-summary/final-check/close-round compatibility.
+- Preserve path normalization across Windows and POSIX separators.
+- Keep the already added gate-profile classifier behavior intact.
 
 Required tests:
 
-1. Artifact-only decision with only `project_state/*.json` / `.md` generated artifacts classifies as `fast`.
-2. Ordinary bounded source/test decision classifies as `standard`.
-3. Gate/project_state change classifies as `full`.
-4. Harness/solver/tool-runner/debugger/IDA/Ghidra/runtime-probe paths classify as `full`.
-5. `.codex-skills/` paths classify as `full` or are rejected according to existing rules.
-6. The CLI emits JSON with `profile`, `reasons`, and `suggested_commands`.
-7. Existing command-plan/final-check/close-round tests continue to pass.
+1. Startup/baseline dirty `reverse_agent/project_gate.py` without explicit inherited allowlist causes a blocking preflight or final-check result.
+2. Startup/baseline dirty `tests/test_project_gate.py` without explicit inherited allowlist causes a blocking preflight or final-check result.
+3. The same source/test dirty file is allowed only when listed under `Allowed Inherited Dirty Baseline Files`.
+4. Ordinary `Allowed source files` / `Allowed tests` does not authorize inherited dirty baseline files.
+5. Dirty generated project_state files do not trigger the source/test clean-start block.
+6. Existing report-summary/final-check/close-round tests continue to pass.
+7. Existing gate-profile tests continue to pass.
 
 ## 7. Tests
 
@@ -253,13 +209,13 @@ python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_tiered_gate_profile_plan_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_baseline_guard_v1
 ```
 
 The pytest result header must include:
 
-- `decision_id=decision_20260617_tiered_gate_profile_plan_v1`
-- `round_id=round_20260617_tiered_gate_profile_plan_v1`
+- `decision_id=decision_20260617_clean_start_baseline_guard_v1`
+- `round_id=round_20260617_clean_start_baseline_guard_v1`
 - the final `report_id`
 - all commands actually run
 
@@ -269,8 +225,8 @@ Stop and report `BLOCKED` without expanding scope if:
 
 - current `decision_packet.md` is no longer this decision;
 - `.codex-skills/registry.json` does not contain active `reverse-agent-iteration@v2`;
-- implementing this requires rewriting close-round or changing enforcement semantics;
-- the change would reduce current safety checks in production rather than only classify/report the recommended tier;
-- the change requires modifying solver/harness/tool-runner/debugger/sample code;
-- tests fail for reasons outside the narrow gate-profile classification scope;
-- adding the CLI would require a broad CLI refactor rather than a small subcommand addition.
+- startup `git status --short` already shows source/test dirty files before implementation begins;
+- implementing this requires rewriting close-round or replacing the existing gate system;
+- the change would require modifying solver/harness/tool-runner/debugger/sample code;
+- tests fail for reasons outside the narrow clean-start baseline guard scope;
+- the guard cannot distinguish source/test files from generated project_state artifacts without broad refactoring.
