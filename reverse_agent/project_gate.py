@@ -3331,6 +3331,10 @@ def build_report_summary_synthesis(
     errors: list[str] = []
     warnings: list[str] = []
 
+    # Read gate profile plan to determine closeout policy
+    gate_profile_payload = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+    closeout_allowed = gate_profile_payload.get("closeout_allowed") if gate_profile_payload else None
+
     commands = _command_plan_json_commands(command_plan_payload)
     command_strings = [str(item.get("command") or "") for item in commands if str(item.get("command") or "")]
     command_plan_ok = (
@@ -3372,6 +3376,11 @@ def build_report_summary_synthesis(
         state_dir=state_dir,
     )
     archive_paths = _expected_archive_paths(state_dir, round_id, list(round_consistency.get("round_manifest_files") or []))
+    # Fast non-closeout: when closeout_allowed=false, no round archive
+    # should exist, so archive paths must not be included in expected
+    # files_changed or generated_artifacts.
+    if closeout_allowed is False:
+        archive_paths = set()
     round_delta_files = _string_set(
         delta_summary.get("new_dirty_files_since_baseline")
         if delta_summary.get("baseline_available")
@@ -3928,6 +3937,12 @@ def final_check(
 
     files_changed = _string_set(report.get("files_changed"))
     archive_paths = _round_archive_paths(state_dir, round_id, manifest_files)
+    # Fast non-closeout: when closeout_allowed=false, no round archive
+    # should exist, so archive paths must not be required in final-check.
+    _fc_gate_profile = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+    _fc_closeout_allowed = _fc_gate_profile.get("closeout_allowed") if _fc_gate_profile else None
+    if _fc_closeout_allowed is False:
+        archive_paths = set()
     generated_artifacts = _string_set(report.get("generated_artifacts"))
     delta_summary = _build_round_delta_summary(
         state_dir=state_dir,
@@ -4260,14 +4275,26 @@ def final_check(
             )
 
         # fast_profile_closeout_consistency: fast cannot claim archived/accepted
-        # closeout when close-round was omitted
+        # closeout when close-round was omitted or implicitly absent under
+        # closeout_allowed=false.
         if command_plan_data:
             cp_omitted = command_plan_data.get("omitted_commands") or []
             omitted_kinds = {str(oc.get("kind") or "") for oc in cp_omitted}
+            cp_commands = command_plan_data.get("commands") or []
+            command_kinds = {str(cmd.get("kind") or "") for cmd in cp_commands}
             close_round_omitted = "close-round" in omitted_kinds
+            close_round_in_commands = "close-round" in command_kinds
             gp_closeout_allowed = gate_profile_payload.get("closeout_allowed") is True
-            if close_round_omitted and gp_closeout_allowed is False:
-                # close-round omitted and closeout not allowed: report must not claim accepted closeout
+            # close-round is effectively omitted when it is either explicitly
+            # in omitted_commands OR absent from both commands and omitted_commands
+            # while closeout_allowed=false (implicit fast non-closeout).
+            close_round_effectively_omitted = (
+                close_round_omitted
+                or (not close_round_in_commands and not close_round_omitted and gp_closeout_allowed is False)
+            )
+            if close_round_effectively_omitted and gp_closeout_allowed is False:
+                # close-round omitted/absent and closeout not allowed: report
+                # must not claim accepted closeout
                 report_status_val = str(report.get("status") or "")
                 acceptance_val = str(report.get("acceptance_recommendation") or "")
                 claims_closeout = (
@@ -4282,6 +4309,7 @@ def final_check(
                         if claims_closeout
                         else "fast profile correctly omits close-round without claiming accepted closeout",
                         close_round_omitted=close_round_omitted,
+                        close_round_in_commands=close_round_in_commands,
                         closeout_allowed=gp_closeout_allowed,
                     )
                 )
@@ -4292,6 +4320,7 @@ def final_check(
                         "PASS",
                         "close-round not omitted or closeout is allowed",
                         close_round_omitted=close_round_omitted,
+                        close_round_in_commands=close_round_in_commands,
                         closeout_allowed=gp_closeout_allowed,
                     )
                 )
@@ -5577,6 +5606,7 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
     omitted_commands: list[dict[str, Any]] = []
     active_profile = str((profile_meta.get("profile") or "")).lower()
     required_kinds = profile_meta.get("required_command_kinds") or []
+    closeout_allowed = profile_meta.get("closeout_allowed")
     if active_profile == "fast" and required_kinds:
         kept: list[dict[str, Any]] = []
         for cmd in commands:
@@ -5602,6 +5632,22 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
         for i, cmd in enumerate(kept, start=1):
             cmd["index"] = i
         commands = kept
+
+    # Fast non-closeout: explicitly record close-round as omitted when
+    # closeout_allowed=false, even if close-round was not in the decision
+    # Tests section.  This makes the omission auditable in omitted_commands
+    # regardless of whether close-round was ever present in the command list.
+    if active_profile == "fast" and closeout_allowed is False:
+        omitted_kinds = {str(oc.get("kind") or "") for oc in omitted_commands}
+        command_kinds = {str(cmd.get("kind") or "") for cmd in commands}
+        if "close-round" not in omitted_kinds and "close-round" not in command_kinds:
+            omitted_commands.append(
+                {
+                    "command": None,
+                    "kind": "close-round",
+                    "reason": "omitted by fast profile: closeout not allowed",
+                }
+            )
 
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,

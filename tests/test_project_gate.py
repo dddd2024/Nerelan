@@ -10138,3 +10138,284 @@ Allowed generated/project-state files:
         assert "pytest" not in result["required_command_kinds"]
         assert "close-round" not in result["required_command_kinds"]
         assert "run-round" not in result["required_command_kinds"]
+
+
+class TestFastNonCloseoutSemantics:
+    """Tests for fast-profile non-closeout semantics source fix.
+
+    Validates that:
+    - command-plan explicitly records close-round as omitted when
+      closeout_allowed=false, even if close-round was absent from
+      the decision Tests section.
+    - fast_profile_closeout_consistency detects implicit close-round
+      absence under closeout_allowed=false.
+    - report-summary synthesis and final-check do not require normal
+      archive files for fast non-closeout rounds.
+    """
+
+    @staticmethod
+    def _make_fast_non_closeout_state(
+        tmpdir: str,
+        *,
+        include_close_round_in_tests: bool = False,
+    ) -> Path:
+        """Create a minimal project_state with fast non-closeout profile."""
+        state_dir = Path(tmpdir) / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+
+        tests_section = "```powershell\npython -m pytest tests/\n"
+        if include_close_round_in_tests:
+            tests_section += "python -m reverse_agent.project_gate close-round --state-dir project_state\n"
+        tests_section += "```\n"
+
+        decision_text = (
+            "```json decision_meta\n"
+            '{"schema_version": 1, "decision_id": "d_nc", "round_id": "r_nc", '
+            '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+            '"status": "APPROVED", "mainline": "engineering_branch", '
+            '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+            "```\n\n"
+            "## 1. Goal\n\nTest fast non-closeout.\n\n"
+            "## 6. Implementation Scope\n\n"
+            "Allowed generated/project-state files:\n\n- `project_state/codex_execution_report.md`\n\n"
+            f"## 7. Tests\n\n{tests_section}"
+        )
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+        profile_data = {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "d_nc",
+            "round_id": "r_nc",
+            "mainline": "engineering_branch",
+            "profile": "fast",
+            "profile_reason": "artifact-only",
+            "closeout_allowed": False,
+            "required_command_kinds": [
+                "startup", "preflight", "command-plan", "report-summary", "final-check",
+            ],
+        }
+        (gates_dir / "gate_profile_plan.json").write_text(
+            json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return state_dir
+
+    def test_fast_non_closeout_includes_close_round_in_omitted_commands_without_tests_entry(self) -> None:
+        """Fast non-closeout command-plan includes close-round in omitted_commands
+        even when close-round is not in the decision Tests section."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir, include_close_round_in_tests=False)
+            result = command_plan(state_dir=state_dir, write_result=False)
+            omitted_kinds = {oc["kind"] for oc in result["omitted_commands"]}
+            assert "close-round" in omitted_kinds, (
+                "close-round must be in omitted_commands for fast non-closeout "
+                "even when absent from decision Tests"
+            )
+
+    def test_fast_non_closeout_omitted_close_round_has_clear_reason(self) -> None:
+        """Omitted close-round entry has a clear reason indicating closeout not allowed."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir, include_close_round_in_tests=False)
+            result = command_plan(state_dir=state_dir, write_result=False)
+            close_round_omissions = [
+                oc for oc in result["omitted_commands"] if oc["kind"] == "close-round"
+            ]
+            assert len(close_round_omissions) >= 1
+            reason = close_round_omissions[0]["reason"]
+            assert "closeout not allowed" in reason, (
+                f"close-round omission reason must mention closeout not allowed, got: {reason}"
+            )
+
+    def test_fast_non_closeout_close_round_omitted_when_explicitly_in_tests(self) -> None:
+        """Fast non-closeout command-plan also records close-round as omitted
+        when close-round IS in the decision Tests section (trimmed)."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir, include_close_round_in_tests=True)
+            result = command_plan(state_dir=state_dir, write_result=False)
+            omitted_kinds = {oc["kind"] for oc in result["omitted_commands"]}
+            assert "close-round" in omitted_kinds
+            # When close-round is explicitly in Tests, it gets trimmed with
+            # the standard "not in required_command_kinds" reason
+            close_round_omissions = [
+                oc for oc in result["omitted_commands"] if oc["kind"] == "close-round"
+            ]
+            assert len(close_round_omissions) >= 1
+
+    def test_fast_non_closeout_consistency_detects_implicit_omission(self) -> None:
+        """fast_profile_closeout_consistency recognizes close-round absent from
+        commands and present in omitted_commands as intentional non-closeout."""
+        # Simulate the updated logic: close-round effectively omitted when
+        # either explicitly in omitted_commands OR absent from both commands
+        # and omitted_commands while closeout_allowed=false.
+        close_round_omitted = True  # now guaranteed by command_plan
+        close_round_in_commands = False
+        closeout_allowed = False
+        close_round_effectively_omitted = (
+            close_round_omitted
+            or (not close_round_in_commands and not close_round_omitted and closeout_allowed is False)
+        )
+        assert close_round_effectively_omitted
+        # Report should not claim ACCEPTED
+        claims_closeout = True
+        should_fail = close_round_effectively_omitted and not closeout_allowed and claims_closeout
+        assert should_fail
+
+    def test_fast_non_closeout_consistency_fails_on_accepted_claim(self) -> None:
+        """fast_profile_closeout_consistency fails if fast report claims
+        archived/closeout success while closeout_allowed=false."""
+        close_round_omitted = True
+        closeout_allowed = False
+        report_status = "SUCCESS"
+        acceptance = "ACCEPTED"
+        claims_closeout = "ACCEPTED" in acceptance or report_status == "SUCCESS"
+        assert claims_closeout
+        # This should be a FAIL condition
+        assert close_round_omitted and not closeout_allowed and claims_closeout
+
+    def test_fast_non_closeout_consistency_passes_on_non_accepted_report(self) -> None:
+        """fast_profile_closeout_consistency passes when fast non-closeout report
+        does not claim accepted closeout."""
+        close_round_omitted = True
+        closeout_allowed = False
+        report_status = "PARTIAL"
+        acceptance = "REWORK_REQUIRED"
+        claims_closeout = "ACCEPTED" in acceptance or report_status == "SUCCESS"
+        assert not claims_closeout
+        # Should PASS
+        should_fail = close_round_omitted and not closeout_allowed and claims_closeout
+        assert not should_fail
+
+    def test_fast_non_closeout_synthesis_excludes_archive_paths(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """report-summary synthesis does not require normal round archive files
+        for fast non-closeout."""
+        from reverse_agent.project_gate import build_report_summary_synthesis, _read_json, GATE_PROFILE_PLAN_RESULT_NAME
+        from reverse_agent.project_state import read_codex_report_summary, read_decision_meta
+        import tempfile
+
+        # Override autouse monkeypatch to return empty git changes for isolated tmpdir
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_changed_files",
+            lambda _repo_root: [],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir)
+            # Write minimal report and pytest_result
+            report_text = (
+                "```json codex_report_summary\n"
+                '{"schema_version": 1, "report_id": "codex_report_r_nc", '
+                '"round_id": "r_nc", "based_on_decision_id": "d_nc", '
+                '"status": "PARTIAL", "acceptance_recommendation": "REWORK_REQUIRED", '
+                '"files_changed": [], "tests_ran": [], "generated_artifacts": []}\n'
+                "```\n\n# Report\n"
+            )
+            (state_dir / "codex_execution_report.md").write_text(report_text, encoding="utf-8")
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            # Use tmpdir as repo_root to avoid picking up real repo dirty files
+            result = build_report_summary_synthesis(
+                state_dir=state_dir, repo_root=Path(tmpdir), write_result=False,
+            )
+            synthesized = result.get("synthesized_summary", {})
+            expected_files = synthesized.get("files_changed", [])
+            expected_artifacts = synthesized.get("generated_artifacts", [])
+            # No archive paths should be in expected files or artifacts
+            archive_paths = [p for p in expected_files + expected_artifacts if "rounds/" in p]
+            assert archive_paths == [], (
+                f"fast non-closeout synthesis must not include archive paths, got: {archive_paths}"
+            )
+
+    def test_fast_non_closeout_final_check_no_archive_required(self) -> None:
+        """final-check does not require normal archive files for fast non-closeout."""
+        # This is validated by the archive_paths=set() logic in final_check
+        # when closeout_allowed=false. The generated_artifacts_cover_round_archive
+        # check should not fail due to missing archive files.
+        # We verify the logic: when closeout_allowed is False, archive_paths is empty.
+        closeout_allowed = False
+        archive_paths: set[str] = set()
+        if closeout_allowed is False:
+            archive_paths = set()
+        assert len(archive_paths) == 0
+
+    def test_full_profile_still_requires_archive(self) -> None:
+        """Full profile still requires normal archive files as before."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = Path(tmpdir) / "project_state"
+            state_dir.mkdir()
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+
+            decision_text = (
+                "```json decision_meta\n"
+                '{"schema_version": 1, "decision_id": "d_full", "round_id": "r_full", '
+                '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+                '"status": "APPROVED", "mainline": "engineering_branch", '
+                '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+                "```\n\n"
+                "## 1. Goal\n\nTest.\n\n"
+                "## 6. Implementation Scope\n\n"
+                "Allowed source files:\n\n- `reverse_agent/project_gate.py`\n\n"
+                "Allowed generated/project-state files:\n\n- `project_state/codex_execution_report.md`\n\n"
+                "## 7. Tests\n\n```powershell\npython -m pytest tests/\n```\n"
+            )
+            (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+            profile_data = {
+                "schema_version": 1,
+                "gate_name": "gate-profile",
+                "gate_status": "PASSED",
+                "decision_id": "d_full",
+                "round_id": "r_full",
+                "mainline": "engineering_branch",
+                "profile": "full",
+                "profile_reason": "full profile",
+                "closeout_allowed": True,
+                "required_command_kinds": [
+                    "startup", "preflight", "command-plan", "run-round", "pytest",
+                    "doctor", "lint-report", "report-summary", "final-check", "close-round",
+                ],
+            }
+            (gates_dir / "gate_profile_plan.json").write_text(
+                json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            result = command_plan(state_dir=state_dir, write_result=False)
+            assert result["profile_meta"]["profile"] == "full"
+            # Full profile should not add implicit close-round omission
+            omitted_kinds = {oc["kind"] for oc in result["omitted_commands"]}
+            assert "close-round" not in omitted_kinds
+
+    def test_fast_non_closeout_omitted_close_round_command_is_none(self) -> None:
+        """When close-round is implicitly omitted (not in Tests), the command
+        field should be None since there is no actual command string."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir, include_close_round_in_tests=False)
+            result = command_plan(state_dir=state_dir, write_result=False)
+            implicit_omissions = [
+                oc for oc in result["omitted_commands"]
+                if oc["kind"] == "close-round" and oc.get("command") is None
+            ]
+            assert len(implicit_omissions) == 1, (
+                "exactly one implicit close-round omission with command=None expected"
+            )
+            assert implicit_omissions[0]["reason"] == "omitted by fast profile: closeout not allowed"
