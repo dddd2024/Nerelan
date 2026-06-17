@@ -554,6 +554,44 @@ def _allowed_inherited_files(decision_text: str, inherited_dirty_files: set[str]
     return inherited_dirty_files & allowed_paths
 
 
+def _decision_scope_deliverable_paths(decision_text: str) -> set[str]:
+    """Return artifact paths listed in the decision's Implementation Scope
+    "Allowed generated artifacts" or "Allowed generated/project-state files"
+    sub-section.
+
+    These are deliverables the decision explicitly authorizes creating, so
+    they must appear in the report's files_changed and generated_artifacts
+    even when they were present before baseline capture (inherited dirty).
+    """
+    scope_text = _markdown_section(decision_text, "Implementation Scope")
+    paths: set[str] = set()
+    in_allowed_generated = False
+    for raw_line in scope_text.splitlines():
+        line = raw_line.strip()
+        lowered = line.lower()
+        # Detect "Allowed generated artifacts" / "Allowed generated files" /
+        # "Allowed generated/project-state files" sub-section headers
+        if lowered.startswith("allowed generated") or lowered.startswith("allowed project-state") or lowered.startswith("allowed project_state"):
+            in_allowed_generated = True
+            continue
+        # Exit the sub-section when hitting another sub-section or a blank
+        # structural boundary (another "Allowed" or "Disallowed" header)
+        if in_allowed_generated and (
+            (lowered.startswith("allowed") and not lowered.startswith("allowed generated") and not lowered.startswith("allowed project"))
+            or lowered.startswith("disallowed")
+            or lowered.startswith("required")
+            or lowered.startswith("do not")
+        ):
+            in_allowed_generated = False
+            continue
+        if not in_allowed_generated or not line.startswith("-"):
+            continue
+        item = _path_from_markdown_bullet(line)
+        if item and not item.lower().endswith(":"):
+            paths.add(_norm_path(item))
+    return paths
+
+
 def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
     section = _markdown_section(decision_text, "Allowed Inherited Dirty Baseline Files")
     return _scope_paths(section)
@@ -953,6 +991,7 @@ def _round_delta_checks(
     generated_artifacts: set[str],
     archive_paths: set[str],
     state_dir: Path | None = None,
+    decision_text: str = "",
 ) -> list[dict[str, Any]]:
     baseline_available = bool(delta_summary.get("baseline_available"))
     final_dirty_files = _string_set(delta_summary.get("final_dirty_files"))
@@ -982,6 +1021,15 @@ def _round_delta_checks(
         for path in (inherited_dirty_files & files_changed)
         if not _is_generated_state_or_archive_path(path)
     ) if baseline_available else []
+
+    # Decision-scope required deliverables that are inherited dirty files
+    # should not be flagged as suspicious — they are legitimate round output
+    # that happened to be created before baseline capture.
+    decision_scope_deliverables = _decision_scope_deliverable_paths(decision_text) if decision_text else set()
+    inherited_claimed = sorted(
+        path for path in inherited_claimed
+        if _norm_path(path) not in decision_scope_deliverables
+    )
 
     # Check close snapshot for baseline lifecycle semantics.
     close_snapshot = _read_round_close_snapshot(state_dir) if state_dir else {}
@@ -2572,6 +2620,19 @@ def build_report_summary_synthesis(
         if report_allowed and _report_explains_inherited_baseline_files(report_text):
             allowed_inherited = inherited_dirty_files & report_allowed
     round_delta_files |= allowed_inherited
+    # Promote decision-scope required deliverables that are inherited dirty
+    # files into files_changed and generated_artifacts.  When a deliverable
+    # is explicitly listed in the decision's "Allowed generated artifacts"
+    # sub-section and exists in the final dirty files, it must appear in the
+    # report summary even if it was created before baseline capture.  Without
+    # this promotion, core deliverables can be silently omitted from the
+    # report because they are classified as inherited dirty files.
+    decision_scope_deliverables = _decision_scope_deliverable_paths(decision_text)
+    final_dirty_files_set = _string_set(delta_summary.get("final_dirty_files"))
+    inherited_scope_deliverables = (
+        inherited_dirty_files & decision_scope_deliverables & final_dirty_files_set
+    )
+    round_delta_files |= inherited_scope_deliverables
     # Only include close snapshot in expected files if it already exists
     # (i.e., close-round has been run). During active rounds before
     # close-round, the close snapshot doesn't exist yet.
@@ -2596,6 +2657,9 @@ def build_report_summary_synthesis(
     }
     if RUN_ROUND_OUTPUT_PATH in round_delta_files or any(_command_kind(command) == "run-round" for command in command_strings):
         generated_artifact_set.add(RUN_ROUND_OUTPUT_PATH)
+    # Include decision-scope required deliverables that were promoted from
+    # inherited dirty files into generated_artifacts.
+    generated_artifact_set |= inherited_scope_deliverables
     expected_generated_artifacts = sorted(generated_artifact_set)
 
     final_gate_status = ""
@@ -3071,6 +3135,7 @@ def final_check(
             generated_artifacts=generated_artifacts,
             archive_paths=archive_paths,
             state_dir=state_dir,
+            decision_text=decision_text,
         )
     )
     checks.extend(
@@ -3710,6 +3775,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             generated_artifacts=generated_artifacts,
             archive_paths=archive_paths,
             state_dir=state_dir,
+            decision_text=decision_text,
         )
     )
     checks.extend(

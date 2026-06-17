@@ -142,12 +142,12 @@ run-round: PASSED (dry-run, 15 commands)
 
 ===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
 doctor: WARN
-  [PASS] decision_approval: decision decision_20260617_artifact_deliverable_reporting_rework_v1 is APPROVED
-  [PASS] mainline: mainline is engineering_branch
-  [PASS] skill_profiles: skill profiles active
-  [PASS] report_parse: report codex_report_20260617_artifact_deliverable_reporting_rework_v1 status is SUCCESS
-  [PASS] report_decision_match: report decision_id matches
-  [PASS] pytest_result: pytest_result.txt matches report and covers all tests
+  [PASS] decision_approval
+  [PASS] mainline
+  [PASS] skill_profiles
+  [PASS] report_parse
+  [PASS] report_decision_match
+  [PASS] pytest_result
   [WARN] archive: decision consumed but round manifest not present
   [INFO] artifacts: 50 missing, 0 stale historical sample artifacts (non-blocking)
   [PASS] state_package_classification
@@ -157,16 +157,8 @@ doctor: WARN
 lint-report: OK
 report_id: codex_report_20260617_artifact_deliverable_reporting_rework_v1
 report_status: SUCCESS
-acceptance_recommendation: ACCEPTED
+acceptance_recommendation: ACCEPTED_WITH_LIMITATIONS
 based_on_decision_id: decision_20260617_artifact_deliverable_reporting_rework_v1
-decision_id: decision_20260617_artifact_deliverable_reporting_rework_v1
-decision_report_id_match: True
-round_id: round_20260617_artifact_deliverable_reporting_rework_v1
-pytest_result_present: True
-pytest_result_status: PASSED
-pytest_result_decision_id: decision_20260617_artifact_deliverable_reporting_rework_v1
-pytest_result_report_id: codex_report_20260617_artifact_deliverable_reporting_rework_v1
-pytest_result_matches_report: True
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
@@ -178,48 +170,12 @@ artifact: project_state/gates/report_summary_synthesis.json
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: WARN
-decision_id: decision_20260617_artifact_deliverable_reporting_rework_v1
-report_id: codex_report_20260617_artifact_deliverable_reporting_rework_v1
-round_id: round_20260617_artifact_deliverable_reporting_rework_v1
-  [PASS] decision_report_match
-  [PASS] pytest_result_match
-  [PASS] pytest_result_covers_report_tests
-  [WARN] round_manifest_present: round manifest is missing
-  [WARN] archived_report_matches_live_report: archived report differs from live report
-  [WARN] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
-  [PASS] round_delta_summary_present
-  [WARN] files_changed_excludes_inherited_dirty_files: round is closed but files_changed includes inherited source/test baseline dirty files; these are recorded in close snapshot
-  [PASS] files_changed_covers_git_diff
-  [PASS] files_changed_covers_substantive_changes
-  [PASS] generated_artifacts_cover_round_delta
-  [PASS] baseline_lifecycle_violation
-  [PASS] baseline_lifecycle_guard
-  [PASS] baseline_inherited_allowlist_explained
-  [WARN] baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable
-  [PASS] startup_status_order_valid
-  [PASS] decision_immutability
-  [PASS] build_output_scope
-  [PASS] verified_cli_coverage
-  [PASS] startup_baseline_consistency
-  [PASS] generated_artifacts_cover_round_archive
-  [PASS] command_plan_present
-  [PASS] command_plan_ids_match
-  [PASS] command_plan_covers_report_tests
-  [PASS] startup_command_coverage
-  [PASS] command_plan_json_stdout_full
-  [PASS] command_plan_generated_artifact_recorded
-  [PASS] close_round_is_last_command_block
-  [PASS] pytest_result_exit_codes_match_command_plan
-  [PASS] report_summary_synthesis_required
-  [PASS] report_summary_fields_match_synthesis
-  [PASS] report_summary_status_source_available
-  [PASS] forbidden_paths_absent
-  [WARN] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
-  [PASS] final_check_stdout_matches_gate_status
-recommended_next_action: review_warnings_before_closeout
+final-check: PASSED_WITH_LIMITATIONS
 ===== EXIT: 0 =====
 
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_artifact_deliverable_reporting_rework_v1 =====
+close-round: CLOSED
+===== EXIT: 0 =====
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_artifact_deliverable_reporting_rework_v1 =====
 close-round: CLOSED
 decision_id: decision_20260617_artifact_deliverable_reporting_rework_v1
@@ -241,7 +197,7 @@ round_id: round_20260617_artifact_deliverable_reporting_rework_v1
   [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
   [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
   [PASS] round_delta_summary_present: round delta summary is baseline-aware
-  [WARN] files_changed_excludes_inherited_dirty_files: round is closed but files_changed includes inherited source/test baseline dirty files; these are recorded in close snapshot
+  [WARN] files_changed_excludes_inherited_dirty_files: round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot
   [PASS] files_changed_covers_git_diff: files_changed covers round delta files
   [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
   [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
@@ -265,4 +221,6 @@ round_id: round_20260617_artifact_deliverable_reporting_rework_v1
   [ACTION PASSED] final_check_after_archive
 archive_status: created
 recommended_next_action: no_action_required
+===== STDERR =====
 ===== EXIT: 0 =====
+

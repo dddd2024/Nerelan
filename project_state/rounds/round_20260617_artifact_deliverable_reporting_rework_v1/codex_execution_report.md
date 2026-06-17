@@ -88,18 +88,6 @@ Fix the audit/reporting chain so that artifact-only deliverables required by the
 4. No sample solving attempted
 5. No .codex-skills/registry.json modification
 
-## Gate Pipeline Results
-
-- preflight: PASSED
-- command-plan: PASSED
-- run-round (dry-run): PASSED
-- pytest: 604 passed
-- doctor: WARN (historical artifacts non-blocking)
-- lint-report: OK
-- report-summary: PASSED
-- final-check: WARN (no FAIL, only inherited dirty file WARNs)
-- close-round: CLOSED
-
 ## Allowed Inherited Dirty Baseline Files
 
 The following source/test files were modified before baseline capture and are authorized by the decision's Implementation Scope:

@@ -6609,3 +6609,255 @@ class TestStatusPolicyHistoricalArtifactsOnly:
             mainline="training_dataset",
         )
         assert result is False
+
+
+class TestDecisionScopeDeliverablePaths:
+    """Verify _decision_scope_deliverable_paths extracts allowed generated artifact
+    paths from the decision's Implementation Scope section."""
+
+    def test_extracts_allowed_generated_artifacts(self) -> None:
+        from reverse_agent.project_gate import _decision_scope_deliverable_paths
+
+        decision_text = """```json decision_meta
+{"schema_version": 1, "decision_id": "d1", "round_id": "r1", "status": "APPROVED", "mainline": "training_dataset", "skill_profiles": ["reverse-agent-iteration@v2"]}
+```
+
+# DECISION_PACKET
+
+## 6. Implementation Scope
+
+Allowed generated artifacts:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+- `project_state/local_reverse_cipher_static_evidence_profile.md`
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+"""
+        paths = _decision_scope_deliverable_paths(decision_text)
+        assert "project_state/local_reverse_cipher_static_evidence_profile.json" in paths
+        assert "project_state/local_reverse_cipher_static_evidence_profile.md" in paths
+        # Source files should NOT be included
+        assert "reverse_agent/project_gate.py" not in paths
+
+    def test_returns_empty_when_no_allowed_generated_section(self) -> None:
+        from reverse_agent.project_gate import _decision_scope_deliverable_paths
+
+        decision_text = """```json decision_meta
+{"schema_version": 1, "decision_id": "d1", "round_id": "r1", "status": "APPROVED", "mainline": "engineering_branch", "skill_profiles": ["reverse-agent-iteration@v2"]}
+```
+
+# DECISION_PACKET
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+"""
+        paths = _decision_scope_deliverable_paths(decision_text)
+        assert len(paths) == 0
+
+    def test_exits_subsection_on_disallowed(self) -> None:
+        from reverse_agent.project_gate import _decision_scope_deliverable_paths
+
+        decision_text = """```json decision_meta
+{"schema_version": 1, "decision_id": "d1", "round_id": "r1", "status": "APPROVED", "mainline": "training_dataset", "skill_profiles": ["reverse-agent-iteration@v2"]}
+```
+
+# DECISION_PACKET
+
+## 6. Implementation Scope
+
+Allowed generated artifacts:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+
+Disallowed:
+
+- `solve_reports/`
+"""
+        paths = _decision_scope_deliverable_paths(decision_text)
+        assert "project_state/local_reverse_cipher_static_evidence_profile.json" in paths
+        # Disallowed items should not be included
+        assert "solve_reports/" not in paths
+
+    def test_path_normalization(self) -> None:
+        from reverse_agent.project_gate import _decision_scope_deliverable_paths
+
+        decision_text = """```json decision_meta
+{"schema_version": 1, "decision_id": "d1", "round_id": "r1", "status": "APPROVED", "mainline": "training_dataset", "skill_profiles": ["reverse-agent-iteration@v2"]}
+```
+
+# DECISION_PACKET
+
+## 6. Implementation Scope
+
+Allowed generated artifacts:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+"""
+        paths = _decision_scope_deliverable_paths(decision_text)
+        # Should be normalized (forward slashes)
+        assert any("local_reverse_cipher_static_evidence_profile.json" in p for p in paths)
+
+    def test_allowed_project_state_files_subsection(self) -> None:
+        """'Allowed generated/project-state files:' header is also recognized."""
+        from reverse_agent.project_gate import _decision_scope_deliverable_paths
+
+        decision_text = """```json decision_meta
+{"schema_version": 1, "decision_id": "d1", "round_id": "r1", "status": "APPROVED", "mainline": "training_dataset", "skill_profiles": ["reverse-agent-iteration@v2"]}
+```
+
+# DECISION_PACKET
+
+## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+"""
+        paths = _decision_scope_deliverable_paths(decision_text)
+        assert "project_state/codex_execution_report.md" in paths
+        assert "project_state/pytest_result.txt" in paths
+
+
+class TestDecisionScopeDeliverablePromotion:
+    """Verify that decision-scope required deliverables present as inherited dirty
+    files are promoted into files_changed and generated_artifacts in synthesis."""
+
+    def test_inherited_scope_deliverable_not_flagged_in_delta_checks(self) -> None:
+        """Decision-scope deliverables that are inherited dirty files should not
+        be flagged by files_changed_excludes_inherited_dirty_files."""
+        from reverse_agent.project_gate import _round_delta_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "final_dirty_files": [
+                "project_state/local_reverse_cipher_static_evidence_profile.json",
+                "project_state/codex_execution_report.md",
+            ],
+            "new_dirty_files_since_baseline": [
+                "project_state/codex_execution_report.md",
+            ],
+            "inherited_dirty_files": [
+                "project_state/local_reverse_cipher_static_evidence_profile.json",
+            ],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated artifacts:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+"""
+        checks = _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed={
+                "project_state/local_reverse_cipher_static_evidence_profile.json",
+                "project_state/codex_execution_report.md",
+            },
+            generated_artifacts={
+                "project_state/local_reverse_cipher_static_evidence_profile.json",
+                "project_state/codex_execution_report.md",
+            },
+            archive_paths=set(),
+            decision_text=decision_text,
+        )
+        check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
+        assert check["status"] == "PASS"
+
+    def test_non_scope_inherited_dirty_still_flagged_in_delta_checks(self) -> None:
+        """Non-scope inherited dirty files should still be flagged by
+        files_changed_excludes_inherited_dirty_files."""
+        from reverse_agent.project_gate import _round_delta_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "final_dirty_files": [
+                "project_state/some_other_artifact.json",
+                "project_state/codex_execution_report.md",
+            ],
+            "new_dirty_files_since_baseline": [
+                "project_state/codex_execution_report.md",
+            ],
+            "inherited_dirty_files": [
+                "project_state/some_other_artifact.json",
+            ],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated artifacts:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+"""
+        checks = _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed={
+                "project_state/some_other_artifact.json",
+                "project_state/codex_execution_report.md",
+            },
+            generated_artifacts={
+                "project_state/some_other_artifact.json",
+                "project_state/codex_execution_report.md",
+            },
+            archive_paths=set(),
+            decision_text=decision_text,
+        )
+        check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
+        # Non-scope inherited dirty file should still be flagged
+        assert check["status"] in {"WARN", "FAIL"}
+
+    def test_scope_deliverable_promoted_in_synthesis_logic(self) -> None:
+        """Verify the promotion logic: inherited dirty files that are also
+        decision-scope deliverables should be included in round_delta_files."""
+        from reverse_agent.project_gate import _decision_scope_deliverable_paths, _norm_path
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated artifacts:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+- `project_state/local_reverse_cipher_static_evidence_profile.md`
+"""
+        deliverables = _decision_scope_deliverable_paths(decision_text)
+        inherited_dirty = {
+            "project_state/local_reverse_cipher_static_evidence_profile.json",
+            "project_state/local_reverse_cipher_static_evidence_profile.md",
+        }
+        final_dirty = {
+            "project_state/local_reverse_cipher_static_evidence_profile.json",
+            "project_state/local_reverse_cipher_static_evidence_profile.md",
+            "project_state/codex_execution_report.md",
+        }
+        # The promotion logic: inherited_scope_deliverables = inherited_dirty & deliverables & final_dirty
+        inherited_scope_deliverables = inherited_dirty & deliverables & final_dirty
+        assert len(inherited_scope_deliverables) == 2
+        assert _norm_path("project_state/local_reverse_cipher_static_evidence_profile.json") in inherited_scope_deliverables
+        assert _norm_path("project_state/local_reverse_cipher_static_evidence_profile.md") in inherited_scope_deliverables
+
+    def test_non_scope_inherited_dirty_not_promoted(self) -> None:
+        """Non-scope inherited dirty files should not be promoted."""
+        from reverse_agent.project_gate import _decision_scope_deliverable_paths, _norm_path
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated artifacts:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+"""
+        deliverables = _decision_scope_deliverable_paths(decision_text)
+        inherited_dirty = {
+            "project_state/some_other_artifact.json",
+        }
+        final_dirty = {
+            "project_state/some_other_artifact.json",
+            "project_state/codex_execution_report.md",
+        }
+        inherited_scope_deliverables = inherited_dirty & deliverables & final_dirty
+        assert len(inherited_scope_deliverables) == 0

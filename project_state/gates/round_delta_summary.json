@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260617_training_dataset_cipher_static_evidence_profile_v1",
-  "round_id": "round_20260617_training_dataset_cipher_static_evidence_profile_v1",
-  "head_commit": "6a5d19fab140",
+  "decision_id": "decision_20260617_artifact_deliverable_reporting_rework_v1",
+  "round_id": "round_20260617_artifact_deliverable_reporting_rework_v1",
+  "head_commit": "fde83882e595",
   "baseline_available": true,
   "baseline_git_status_short": [
-    "A  project_state/local_reverse_cipher_static_evidence_profile.json",
-    "A  project_state/local_reverse_cipher_static_evidence_profile.md"
+    "M  reverse_agent/project_gate.py",
+    "M  tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [
-    "project_state/local_reverse_cipher_static_evidence_profile.json",
-    "project_state/local_reverse_cipher_static_evidence_profile.md"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
@@ -23,16 +23,15 @@
     " M project_state/gates/preflight_result.json",
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
-    " M project_state/gates/round_close_snapshot.json",
     " M project_state/gates/round_delta_summary.json",
     " M project_state/gates/run_round_result.json",
-    "A  project_state/local_reverse_cipher_static_evidence_profile.json",
-    "A  project_state/local_reverse_cipher_static_evidence_profile.md",
     " M project_state/pytest_result.txt",
-    "?? project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/round_manifest.json"
+    "M  reverse_agent/project_gate.py",
+    "M  tests/test_project_gate.py",
+    "?? project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -41,7 +40,6 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt"
@@ -53,16 +51,15 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
-    "project_state/local_reverse_cipher_static_evidence_profile.json",
-    "project_state/local_reverse_cipher_static_evidence_profile.md",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/round_manifest.json"
+    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/round_manifest.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -71,19 +68,18 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/round_manifest.json"
+    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/round_manifest.json"
   ],
   "inherited_dirty_files": [
-    "project_state/local_reverse_cipher_static_evidence_profile.json",
-    "project_state/local_reverse_cipher_static_evidence_profile.md"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-17T03:27:22.203078Z"
+  "generated_at": "2026-06-17T04:05:21.871374Z"
 }
