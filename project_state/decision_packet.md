@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_training_dataset_cipher_static_evidence_profile_v1",
-  "round_id": "round_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "decision_id": "decision_20260617_artifact_deliverable_reporting_rework_v1",
+  "round_id": "round_20260617_artifact_deliverable_reporting_rework_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
-  "mainline": "training_dataset",
+  "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,108 +15,95 @@
 
 ## 1. Goal
 
-Build the next training-dataset step for local reverse samples by producing a bounded `cipher_static_evidence_profile` plan for PE cipher samples, especially DES and RC4.
+Repair the audit/reporting chain for artifact-only rounds so core deliverables cannot be hidden as inherited baseline dirty files and omitted from `codex_report_summary.files_changed` / `generated_artifacts`.
 
-This round must unblock the current type-level training gap without solving a single sample. The immediate purpose is to turn the `pending_cipher_static_evidence_profile` blocker into an explicit, reusable evidence contract that future static-triage rounds can apply to DES/RC4 PE samples.
+This is a narrow engineering rework after the audit of `decision_20260617_training_dataset_cipher_static_evidence_profile_v1`. Do not redo the cipher static evidence profile content. The existing `project_state/local_reverse_cipher_static_evidence_profile.json` and `.md` are content deliverables to preserve, not regenerate.
 
 Required end state:
 
-- create a reviewable cipher static evidence profile artifact under `project_state/`;
-- cover both DES and RC4 PE sample families listed in the local reverse training matrix;
-- define exact evidence fields future IDA/Ghidra/static extraction should collect;
-- define how the profile maps tool output into training metadata and later `StructuredEvidence`;
-- select the first bounded DES and RC4 samples for later triage, but do not triage them in this round;
-- do not run local reverse samples, debuggers, harness campaigns, runtime probes, or solver searches;
-- do not modify solver logic, static tool runners, IDA/Ghidra/debugger adapters, or harness behavior.
+- artifact-only deliverables required by `decision_packet.md` must appear in the synthesized and final `codex_report_summary.files_changed` and `generated_artifacts` when they are present in the final dirty set;
+- `report-summary` / `final-check` must not silently treat required deliverables as harmless inherited dirty files when they are the core output of the round;
+- add regression coverage for required deliverables that are created before baseline capture;
+- keep source/test changes small and limited to project gate/report metadata logic;
+- do not modify solver, harness, IDA/Ghidra/debugger, runtime probe, sample runner, GUI/frontend, or `.codex-skills/` code.
 
 ## 2. Current Evidence
 
-Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` still reflects an old `samplereverse` sample-state task (`collect_missing_evidence`) and is non-authoritative for this round.
+Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` remains non-authoritative state input and still may describe old `samplereverse` sample-state work.
 
-Current state digest and build id are retained from the available state package:
+The immediately preceding round:
 
-- `state_build_id`: `state_20260615_150220_24f61a9ac337`
-- `state_digest`: `24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae`
+- `decision_20260617_training_dataset_cipher_static_evidence_profile_v1`
+- `round_20260617_training_dataset_cipher_static_evidence_profile_v1`
+- `report_id=codex_report_20260617_training_dataset_cipher_static_evidence_profile_v1`
+- `mainline=training_dataset`
+- audit conclusion from GPT: `REWORK_REQUIRED` for audit metadata, not for profile content.
 
-The previous gate-policy repair round was accepted with limitations and archived:
+Observed audit defect:
 
-- `decision_20260616_training_dataset_historical_artifact_policy_v1`
-- `round_20260616_training_dataset_historical_artifact_policy_v1`
-- `report_status=SUCCESS`
-- `acceptance_recommendation=ACCEPTED`
-- `final_gate_result.json` now treats historical sample artifact freshness as a non-blocking external-state notice for non-sample-solving closeout.
+- `project_state/pytest_result.txt` startup `git status --short` showed `A  project_state/local_reverse_cipher_static_evidence_profile.json` and `A  project_state/local_reverse_cipher_static_evidence_profile.md` before gate execution.
+- `project_state/codex_execution_report.md` did not include those two profile deliverables in `codex_report_summary.files_changed` or `generated_artifacts`.
+- `project_state/gates/report_summary_synthesis.json` also omitted those two deliverables from synthesized `files_changed` and `generated_artifacts`.
+- `project_state/gates/final_gate_result.json` classified the two profile files as `inherited_dirty_files`, while `files_changed_covers_git_diff` still passed.
+- This means a core required deliverable can be present in final dirty files but absent from the report summary because it existed before baseline capture.
 
-Training-dataset evidence to use:
+Content status of previous profile:
 
-- `project_state/local_reverse_training_resume_plan.json` reports 50 local samples: 1 solved, 2 blocked, 1 needs triage, 46 inventory-only.
-- The resume plan lists `crypto/cipher` as a type coverage gap and states that `pending_cipher_static_evidence_profile` blocks cipher sample triage.
-- The recommended resume sequence includes building a cipher static evidence profile for DES and RC4 samples.
-- `project_state/local_reverse_type_coverage_matrix.json` reports 6 PE `crypto/cipher` samples, 0 solved, 0 blocked, 0 needs triage, 6 inventory-only.
-- The cipher PE inventory-only sample ids are `desenc_0e0b5203`, `desenc_14c58fcd`, `desenc_40cba418`, `desenc_fd9d0af6`, `rc4enc_3480917d`, and `rc4enc_f93c785f`.
-- The matrix also lists Python reference/support materials: `des_interactive_solver_256e1726`, `rc4_add1978d`, and `rc4_interactive_solver_773052ac`; these may be used as reference metadata only, not as target binaries.
+- `project_state/local_reverse_cipher_static_evidence_profile.json` appears structurally complete and includes `decision_id`, `round_id`, DES/RC4 sample coverage, evidence contract, StructuredEvidence mapping plan, future static triage sequence, first bounded triage targets, non-goals, and stop conditions.
+- `project_state/local_reverse_cipher_static_evidence_profile.md` is the companion human-readable artifact.
+- Do not rewrite or reinterpret the DES/RC4 evidence profile unless a schema/check requires a minimal metadata-only change.
 
 Artifact freshness:
 
-- `artifact_index.json` still has many old `samplereverse` artifacts marked missing/stale; these are historical sample artifacts and must not be treated as current evidence for this training-dataset planning round.
-- Do not use stale/missing `samplereverse` artifacts as evidence.
-- The current training artifacts are the local reverse resume plan and type coverage matrix from `project_state/`; verify they exist before relying on them.
+- Historical `samplereverse` missing artifacts remain non-current evidence and must not drive this engineering rework.
+- This round is about live project-state report/gate metadata consistency only.
 
 Negative results:
 
-- Do not return to old `sample_solver` blind search.
+- Do not return to old sample_solver blind search.
 - Do not only increase guided-pool beam or budget.
-- Do not use `compare_semantics_agree=false` candidates as a primary frontier.
+- Do not use `compare_semantics_agree=false` candidates as primary frontier.
 - Do not commit full `solve_reports/`.
-- Do not repeat previously failed `samplereverse` candidate-pool/runtime-validation branches.
+- Do not repeat prior `samplereverse` failed candidate/runtime branches.
 
-Existing relevant capabilities that must be checked and reused instead of duplicated:
+Existing relevant capabilities:
 
-- IDA / IDAPython: existing runner, scripts, evidence parsing, and static triage consumers exist; do not create a duplicate IDA interface.
-- Ghidra: currently no implemented headless runner/evidence adapter is recorded; mention as optional future evidence source only, do not implement it here.
-- OllyDbg / debugger: existing runtime/debugger evidence path exists; do not run or modify it in this round.
-- strings/static feature extraction: existing pure-Python static string extraction exists; reuse as a future evidence source, do not duplicate it.
-- solver templates and symbolic/constraint solvers exist; this round must not run or modify solvers.
-- harness and artifact freshness tracking exist; this round must not run harness campaigns.
-- sample metadata and local reverse training inventory exist; use them as the source for sample ids and categories.
+- `reverse_agent/project_gate.py` owns preflight, command-plan, report-summary, final-check, close-round, round baseline/delta, and files_changed/generated_artifacts checks.
+- `reverse_agent/project_state.py` owns report parsing, lint-report, doctor, pytest result validation, artifact freshness, and status summary.
+- Existing IDA / IDAPython, OllyDbg/debugger, solver, harness, sample metadata, and artifact-index capabilities must remain untouched.
+- Mature reverse tools are not relevant to this rework except as prohibited scope.
 
 Allowed tool execution:
 
-- Read repository source, tests, `project_state/` JSON/markdown, and `training_materials/local_reverse/` metadata.
-- Run gate/status/test commands listed in the Tests section.
-- Do not execute local reverse sample binaries.
-- Do not run IDA/Ghidra/debugger/emulator/runtime probe/harness/solver commands in this round.
-
-Heavy artifact policy:
-
-- Do not read full `solve_reports/`.
-- Do not read full `PROJECT_PROGRESS_LOG.txt`.
-- Do not commit generated full runtime reports.
+- Read repository source/tests and `project_state/` metadata.
+- Run the gate/status/test commands listed below.
+- Do not run local reverse samples, IDA, Ghidra, debugger, emulator, runtime probes, harness campaigns, or solvers.
 
 ## 3. Do Not Do
 
-Do not solve DES or RC4 samples in this round.
+Do not redo `project_state/local_reverse_cipher_static_evidence_profile.json` or `.md` content.
+
+Do not solve DES/RC4 samples.
 
 Do not run sample binaries.
 
-Do not run runtime probes, OllyDbg, x64dbg, emulator, harness campaigns, or candidate validation.
+Do not run IDA/Ghidra/debugger/emulator/runtime probe/harness/solver commands.
 
-Do not run IDA/Ghidra analysis in this round. This round only defines the evidence profile that later static-triage rounds will use.
+Do not modify solver logic, harness behavior, tool runners, IDA scripts, debugger scripts, GUI/frontend, raw samples, or `.codex-skills/`.
 
-Do not modify `reverse_agent/tool_runners.py`, IDA scripts, debugger scripts, solver modules, harness modules, GUI/frontend, or `.codex-skills/`.
+Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
-Do not modify raw sample files.
+Do not weaken report/gate checks globally.
 
-Do not modify or commit full `solve_reports/`.
+Do not allow arbitrary inherited dirty files to be reported as generated artifacts. The fix must be limited to deliverables required by the active decision scope and present in final dirty files.
 
-Do not mark any cipher sample as solved, blocked, or triaged merely because this profile exists.
+Do not change sample training statuses.
 
-Do not overwrite existing training status artifacts unless the change is a clearly named additive planning artifact.
-
-Do not treat `task_packet.task` as the current execution authority.
+Do not treat `task_packet.task` as current execution authority.
 
 ## 4. Files To Inspect
 
-Read the default project-state files in order:
+Read default project-state files in order:
 
 1. `project_state/task_packet.json`
 2. `project_state/current_state.json`
@@ -129,22 +116,19 @@ Read the default project-state files in order:
 
 Also inspect:
 
-- `project_state/local_reverse_training_resume_plan.json`
-- `project_state/local_reverse_type_coverage_matrix.json`
-- `project_state/local_reverse_training_status.json`, if present
-- `project_state/local_reverse_training_review_queue.json`, if present
-- `project_state/local_reverse_training_next_queue.json`, if present
-- `training_materials/local_reverse/queue.json`, if present
-- `training_materials/local_reverse/github_safe_status_overlay.json`, if present
-- `reverse_agent/tool_capability_inventory.py`
-- `reverse_agent/local_reverse_training_status.py`
-- `reverse_agent/local_samples.py`
-- `reverse_agent/local_reverse_inventory.py`
-- `reverse_agent/static_feature_extractor.py`
-- existing DES/RC4 solver or reference modules, read-only only
-- tests related to local reverse training status and project gates
+- `project_state/gates/round_baseline.json`
+- `project_state/gates/round_delta_summary.json`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+- `project_state/local_reverse_cipher_static_evidence_profile.md`
+- `project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/round_manifest.json`
+- `reverse_agent/project_gate.py`
+- `reverse_agent/project_state.py`
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py`
 
-Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+Do not inspect unrelated solver/harness/tool-runner modules unless a failing test directly requires it.
 
 ## 5. Required Audit
 
@@ -152,20 +136,26 @@ Before implementation, confirm:
 
 1. Startup path is `F:\reverse-agent`, `Test-Path F:\reverse-agent` is true, and `git rev-parse --show-toplevel` points to this repository.
 2. Startup `git status --short` is recorded as baseline.
-3. `decision_meta` is valid, `status=APPROVED`, `mainline=training_dataset`, and `reverse-agent-iteration@v2` is active.
-4. `task_packet.json` is non-authoritative and still reflects old sample-state information.
-5. `project_state/local_reverse_training_resume_plan.json` exists and lists `pending_cipher_static_evidence_profile` as a cipher gap.
-6. `project_state/local_reverse_type_coverage_matrix.json` exists and lists the 6 PE cipher samples.
-7. Existing IDA, debugger, solver, harness, sample metadata, and artifact-index capabilities are identified so this round does not duplicate them.
-8. Historical `samplereverse` missing/stale artifacts are not used as current evidence.
-9. No local sample execution is required to complete this round.
+3. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
+4. The previous cipher profile files exist and were omitted from report summary despite being required deliverables.
+5. The defect is in audit/report metadata, not in DES/RC4 profile content.
+6. Existing gate/report-summary code paths are reused; do not implement a second gate system.
+7. No reverse sample execution is needed to complete the rework.
 
 ## 6. Implementation Scope
 
-Allowed generated artifacts:
+Allowed source files:
 
-- `project_state/local_reverse_cipher_static_evidence_profile.json`
-- `project_state/local_reverse_cipher_static_evidence_profile.md`
+- `reverse_agent/project_gate.py`
+- `reverse_agent/project_state.py` only if report parsing/lint-report support is strictly required
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py` only if project_state support is changed
+
+Allowed generated/project-state files:
+
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/preflight_result.json`
@@ -176,58 +166,25 @@ Allowed generated artifacts:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/*`
+- `project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/*`
 
-Allowed source/test changes:
+Required implementation behavior:
 
-- Prefer no source/test changes.
-- If and only if an existing test requires a small schema accommodation for the new additive profile artifact, modify only narrowly related tests and explain why.
-- Do not modify production code unless a gate/test failure proves that existing code cannot record the additive artifact; in that case stop and report `BLOCKED` instead of expanding scope.
+- Detect deliverables explicitly required by the active decision's Implementation Scope / Allowed generated artifacts.
+- If a required deliverable is present in the final dirty files, include it in synthesized `files_changed` even when it was present in `baseline_dirty_files` / `inherited_dirty_files`.
+- Include those required deliverables in synthesized `generated_artifacts` when they are project-state artifacts produced for the current round.
+- Keep inherited source/test dirty handling unchanged.
+- Keep the guard against arbitrary inherited dirty files unchanged.
+- Make the rule path-normalized and compatible with Windows and POSIX separators.
+- Preserve old fields and backward compatibility.
 
-The JSON profile must include at least:
+Required test scenarios:
 
-- `schema_version`
-- `decision_id`
-- `round_id`
-- `generated_at`
-- `source_artifacts`
-- `scope`: PE cipher samples only
-- `cipher_families`: at least `DES` and `RC4`
-- `target_sample_ids_by_family`
-- `reference_material_sample_ids_by_family`
-- `evidence_contract` with required future evidence fields:
-  - algorithm marker evidence
-  - string evidence
-  - constant/table evidence
-  - import/API evidence
-  - input source evidence
-  - key/source evidence
-  - IV/mode/padding evidence when applicable
-  - ciphertext/source evidence
-  - comparison/output sink evidence
-  - candidate input domain evidence
-  - validation preconditions
-  - confidence and blocker fields
-- `structured_evidence_mapping_plan`
-- `future_static_triage_sequence`
-- `first_bounded_triage_targets`: one DES sample and one RC4 sample
-- `non_goals`
-- `stop_conditions`
-
-The markdown profile must be a concise human-readable companion explaining:
-
-- why this profile is needed;
-- how DES and RC4 should be distinguished statically;
-- what evidence future IDA/static-triage runs must extract;
-- why no sample is solved in this round;
-- which future round should run first after this artifact is accepted.
-
-Recommended first bounded triage targets for later rounds:
-
-- DES: `desenc_0e0b5203`
-- RC4: `rc4enc_3480917d`
-
-Do not update `local_reverse_training_status.json` to claim progress unless the new artifact is explicitly designed as a planning artifact and does not alter sample statuses.
+1. A required artifact-only deliverable listed in decision scope and present before baseline capture must appear in synthesized `files_changed` and `generated_artifacts`.
+2. A non-required inherited dirty file must not be promoted to `generated_artifacts`.
+3. Source/test inherited dirty files must not be silently promoted unless already allowed by existing source/test rules.
+4. The previous cipher-profile pattern (`project_state/local_reverse_cipher_static_evidence_profile.json` and `.md`) should be represented by a regression fixture.
+5. Existing report-summary/final-check tests must continue to pass.
 
 ## 7. Tests
 
@@ -243,30 +200,29 @@ python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
+python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
-python -m pytest tests/test_local_reverse_training_status.py tests/test_project_state.py tests/test_project_gate.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_training_dataset_cipher_static_evidence_profile_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_artifact_deliverable_reporting_rework_v1
 ```
 
 The pytest result header must include:
 
-- `decision_id=decision_20260617_training_dataset_cipher_static_evidence_profile_v1`
-- `round_id=round_20260617_training_dataset_cipher_static_evidence_profile_v1`
+- `decision_id=decision_20260617_artifact_deliverable_reporting_rework_v1`
+- `round_id=round_20260617_artifact_deliverable_reporting_rework_v1`
 - the final `report_id`
 - all commands actually run
 
 ## 8. Stop Conditions
 
-Stop and report `BLOCKED` without modifying additional files if:
+Stop and report `BLOCKED` without expanding scope if:
 
-- required training artifacts are missing and cannot be read;
-- `.codex-skills/registry.json` does not contain active `reverse-agent-iteration@v2`;
 - current `decision_packet.md` is no longer this decision;
-- Codex would need to run IDA/Ghidra/debugger/harness/solver/sample binaries to complete the profile;
-- resolving the task would require changing production tool runners, solver logic, harness behavior, or raw samples;
-- existing artifacts show a newer accepted decision superseding this one;
-- `report-summary` or `final-check` fails for reasons other than known historical sample artifact external-state notices;
-- tests fail and the cause is outside this narrow additive planning-artifact scope.
+- `.codex-skills/registry.json` does not contain active `reverse-agent-iteration@v2`;
+- the fix requires redesigning the gate system instead of a small report-summary/final-check adjustment;
+- the fix requires running IDA/Ghidra/debugger/harness/solver/sample binaries;
+- tests fail for reasons outside the narrow artifact deliverable reporting scope;
+- implementing the fix would modify solver/harness/tool-runner/sample code;
+- `report-summary` or `final-check` fails for a real blocking reason unrelated to this metadata rework.
