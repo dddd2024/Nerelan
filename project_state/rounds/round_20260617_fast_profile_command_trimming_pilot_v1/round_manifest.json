@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-17T16:16:44Z",
+  "decision_id": "decision_20260617_fast_profile_command_trimming_pilot_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260617_fast_profile_command_trimming_pilot_v1\\codex_execution_report.md",
+      "sha256": "777fafc71eca00cc7a640b7f39d629081e390ac6688f893fc782eca31271018e",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260617_fast_profile_command_trimming_pilot_v1\\decision_packet.md",
+      "sha256": "e2fa3620ff5fa649bd9595ad155a532d81aee0bc0d47ff5601a98b98faed29b8",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260617_fast_profile_command_trimming_pilot_v1\\pytest_result.txt",
+      "sha256": "6d2c2876ca400d143bb930db41e451abce557c2ecdb739a3ce08d5280188cc30",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260617_fast_profile_command_trimming_pilot_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260617_fast_profile_command_trimming_pilot_v1",
+  "schema_version": 1,
+  "source_git_commit": "e359cba75133",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260615_150220_24f61a9ac337",
+  "state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
+  "workflow_status": "REPORT_AVAILABLE"
+}

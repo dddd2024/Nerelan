@@ -627,10 +627,9 @@ _FULL_SCOPE_PREFIXES: tuple[str, ...] = (
 _FAST_SUGGESTED_COMMANDS: list[dict[str, Any]] = [
     {"index": 1, "command": "startup path checks", "phase": "status", "kind": "startup"},
     {"index": 2, "command": "preflight", "phase": "preflight", "kind": "preflight"},
-    {"index": 3, "command": "schema/artifact validation for touched project_state files", "phase": "validation", "kind": "validation"},
-    {"index": 4, "command": "focused pytest only if tests are changed", "phase": "test", "kind": "pytest"},
-    {"index": 5, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
-    {"index": 6, "command": "final-check (or final-check-lite in future)", "phase": "gate", "kind": "final-check"},
+    {"index": 3, "command": "command-plan", "phase": "gate", "kind": "command-plan"},
+    {"index": 4, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
+    {"index": 5, "command": "final-check", "phase": "gate", "kind": "final-check"},
 ]
 
 _STANDARD_SUGGESTED_COMMANDS: list[dict[str, Any]] = [
@@ -767,7 +766,7 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
     else:
         closeout_allowed = False
         required_command_kinds = [
-            "startup", "preflight", "validation", "pytest", "report-summary", "final-check",
+            "startup", "preflight", "command-plan", "report-summary", "final-check",
         ]
         profile_reason = "artifact-only cleanup does not require close-round"
 
@@ -851,7 +850,7 @@ def gate_profile(*, state_dir: Path, write_result: bool = True, profile_override
             else:
                 classification["closeout_allowed"] = False
                 classification["required_command_kinds"] = [
-                    "startup", "preflight", "validation", "pytest", "report-summary", "final-check",
+                    "startup", "preflight", "command-plan", "report-summary", "final-check",
                 ]
                 classification["profile_reason"] = "fast profile explicitly selected"
             classification["profile"] = override_profile
@@ -4203,6 +4202,132 @@ def final_check(
             )
         )
 
+    # Fast profile trimming validation checks
+    if gate_profile_payload and str(gate_profile_payload.get("profile") or "") == "fast":
+        # fast_profile_scope_valid: fast profile only allowed for artifact/report-only scope
+        source_test_in_changed = any(
+            _path_is_source_or_test(f) for f in files_changed
+        )
+        gate_scope_in_changed = any(
+            _path_is_full_scope(f) for f in files_changed
+        )
+        fast_scope_ok = not source_test_in_changed and not gate_scope_in_changed
+        checks.append(
+            _check(
+                "fast_profile_scope_valid",
+                "PASS" if fast_scope_ok else "FAIL",
+                "fast profile used for artifact/report-only scope"
+                if fast_scope_ok
+                else "fast profile not allowed: source/test or gate/project_state files in round delta",
+                source_test_files_in_delta=[f for f in files_changed if _path_is_source_or_test(f)],
+                gate_scope_files_in_delta=[f for f in files_changed if _path_is_full_scope(f)],
+            )
+        )
+
+        # fast_profile_pytest_not_omitted_with_source_changes: if source/test
+        # logic files changed, fast must not omit pytest
+        if command_plan_data:
+            cp_omitted = command_plan_data.get("omitted_commands") or []
+            omitted_kinds = {str(oc.get("kind") or "") for oc in cp_omitted}
+            pytest_omitted = "pytest" in omitted_kinds
+            if pytest_omitted and source_test_in_changed:
+                checks.append(
+                    _check(
+                        "fast_profile_pytest_not_omitted_with_source_changes",
+                        "FAIL",
+                        "fast profile omits pytest while source/test logic files are changed",
+                        omitted_kinds=sorted(omitted_kinds),
+                        source_test_files_in_delta=[f for f in files_changed if _path_is_source_or_test(f)],
+                    )
+                )
+            else:
+                checks.append(
+                    _check(
+                        "fast_profile_pytest_not_omitted_with_source_changes",
+                        "PASS",
+                        "fast profile pytest omission is consistent with scope"
+                        if pytest_omitted
+                        else "pytest is included in command plan",
+                    )
+                )
+        else:
+            checks.append(
+                _check(
+                    "fast_profile_pytest_not_omitted_with_source_changes",
+                    "PASS",
+                    "command_plan.json not present; pytest omission check not applicable",
+                )
+            )
+
+        # fast_profile_closeout_consistency: fast cannot claim archived/accepted
+        # closeout when close-round was omitted
+        if command_plan_data:
+            cp_omitted = command_plan_data.get("omitted_commands") or []
+            omitted_kinds = {str(oc.get("kind") or "") for oc in cp_omitted}
+            close_round_omitted = "close-round" in omitted_kinds
+            gp_closeout_allowed = gate_profile_payload.get("closeout_allowed") is True
+            if close_round_omitted and gp_closeout_allowed is False:
+                # close-round omitted and closeout not allowed: report must not claim accepted closeout
+                report_status_val = str(report.get("status") or "")
+                acceptance_val = str(report.get("acceptance_recommendation") or "")
+                claims_closeout = (
+                    "ACCEPTED" in acceptance_val
+                    or report_status_val == "SUCCESS"
+                )
+                checks.append(
+                    _check(
+                        "fast_profile_closeout_consistency",
+                        "FAIL" if claims_closeout else "PASS",
+                        "fast profile claims accepted closeout while close-round was omitted and closeout not allowed"
+                        if claims_closeout
+                        else "fast profile correctly omits close-round without claiming accepted closeout",
+                        close_round_omitted=close_round_omitted,
+                        closeout_allowed=gp_closeout_allowed,
+                    )
+                )
+            else:
+                checks.append(
+                    _check(
+                        "fast_profile_closeout_consistency",
+                        "PASS",
+                        "close-round not omitted or closeout is allowed",
+                        close_round_omitted=close_round_omitted,
+                        closeout_allowed=gp_closeout_allowed,
+                    )
+                )
+        else:
+            checks.append(
+                _check(
+                    "fast_profile_closeout_consistency",
+                    "PASS",
+                    "command_plan.json not present; closeout consistency check not applicable",
+                )
+            )
+    else:
+        # Non-fast profiles: these checks are not applicable
+        if gate_profile_payload:
+            checks.append(
+                _check(
+                    "fast_profile_scope_valid",
+                    "PASS",
+                    "profile is not fast; scope validation not applicable",
+                )
+            )
+            checks.append(
+                _check(
+                    "fast_profile_pytest_not_omitted_with_source_changes",
+                    "PASS",
+                    "profile is not fast; pytest omission check not applicable",
+                )
+            )
+            checks.append(
+                _check(
+                    "fast_profile_closeout_consistency",
+                    "PASS",
+                    "profile is not fast; closeout consistency check not applicable",
+                )
+            )
+
     path_claims = forbidden_claim_set | generated_artifacts | archive_paths
     forbidden_hits = _forbidden_hits(path_claims, mainline=str(decision.get("mainline") or ""))
     manifest_forbidden = list(round_consistency.get("round_manifest_forbidden_files") or [])
@@ -5448,6 +5573,36 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
             "required_command_kinds": profile_payload.get("required_command_kinds"),
         }
 
+    # Apply fast profile command trimming: omit commands not in required_command_kinds
+    omitted_commands: list[dict[str, Any]] = []
+    active_profile = str((profile_meta.get("profile") or "")).lower()
+    required_kinds = profile_meta.get("required_command_kinds") or []
+    if active_profile == "fast" and required_kinds:
+        kept: list[dict[str, Any]] = []
+        for cmd in commands:
+            cmd_kind = str(cmd.get("kind") or "")
+            # Map some kinds to their group for trimming purposes
+            mapped_kind = cmd_kind
+            if cmd_kind in ("set-location", "pwd", "test-path", "git status", "git rev-parse"):
+                mapped_kind = "startup"
+            elif cmd_kind in ("project-cli",):
+                # gate-profile is a status/inspection command; keep if startup is required
+                mapped_kind = "startup"
+            if mapped_kind in required_kinds or cmd_kind in required_kinds:
+                kept.append(cmd)
+            else:
+                omitted_commands.append(
+                    {
+                        "command": cmd.get("command"),
+                        "kind": cmd_kind,
+                        "reason": f"omitted by fast profile: {cmd_kind} not in required_command_kinds",
+                    }
+                )
+        # Re-index kept commands
+        for i, cmd in enumerate(kept, start=1):
+            cmd["index"] = i
+        commands = kept
+
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "plan_name": COMMAND_PLAN_NAME,
@@ -5457,6 +5612,7 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
         "mainline": mainline,
         "generated_at": _now_iso(),
         "profile_meta": profile_meta,
+        "omitted_commands": omitted_commands,
         "commands": commands,
         "warnings": warnings,
         "blocking_reasons": blocking_reasons,

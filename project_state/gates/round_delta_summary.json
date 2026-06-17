@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260617_gate_profile_tier_integration_v1",
-  "round_id": "round_20260617_gate_profile_tier_integration_v1",
-  "head_commit": "870f18b668d7",
+  "decision_id": "decision_20260617_fast_profile_command_trimming_pilot_v1",
+  "round_id": "round_20260617_fast_profile_command_trimming_pilot_v1",
+  "head_commit": "e359cba75133",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -23,10 +23,10 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260617_gate_profile_tier_integration_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260617_gate_profile_tier_integration_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260617_gate_profile_tier_integration_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260617_gate_profile_tier_integration_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -53,10 +53,10 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_gate_profile_tier_integration_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_gate_profile_tier_integration_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_gate_profile_tier_integration_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_gate_profile_tier_integration_v1/round_manifest.json",
+    "project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -71,14 +71,14 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_gate_profile_tier_integration_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_gate_profile_tier_integration_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_gate_profile_tier_integration_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_gate_profile_tier_integration_v1/round_manifest.json",
+    "project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_fast_profile_command_trimming_pilot_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-17T15:41:11.037576Z"
+  "generated_at": "2026-06-17T16:16:44.835719Z"
 }

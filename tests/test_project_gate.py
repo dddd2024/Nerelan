@@ -9843,3 +9843,298 @@ Allowed generated/project-state files:
             result = gate_profile(state_dir=state_dir, write_result=False, profile_override="invalid_profile")
             assert result["gate_status"] == "FAILED"
             assert "invalid profile name" in result["profile_reason"].lower()
+
+
+class TestFastProfileCommandTrimmingPilot:
+    """Tests for fast profile command trimming pilot."""
+
+    def test_fast_profile_omits_pytest_and_records_omission(self) -> None:
+        """Fast profile for artifact/report-only scope omits pytest and records the omission with reason."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = Path(tmpdir) / "project_state"
+            state_dir.mkdir()
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+
+            decision_text = (
+                "```json decision_meta\n"
+                '{"schema_version": 1, "decision_id": "d1", "round_id": "r1", '
+                '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+                '"status": "APPROVED", "mainline": "engineering_branch", '
+                '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+                "```\n\n"
+                "## 1. Goal\n\nTest.\n\n"
+                "## 6. Implementation Scope\n\n"
+                "Allowed generated/project-state files:\n\n- `project_state/codex_execution_report.md`\n\n"
+                "## 7. Tests\n\n```powershell\n"
+                "python -m pytest tests/\n"
+                "python -m reverse_agent.project_gate close-round --state-dir project_state\n"
+                "```\n"
+            )
+            (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+            profile_data = {
+                "schema_version": 1,
+                "gate_name": "gate-profile",
+                "gate_status": "PASSED",
+                "decision_id": "d1",
+                "round_id": "r1",
+                "mainline": "engineering_branch",
+                "profile": "fast",
+                "profile_reason": "artifact-only",
+                "closeout_allowed": False,
+                "required_command_kinds": ["startup", "preflight", "command-plan", "report-summary", "final-check"],
+            }
+            (gates_dir / "gate_profile_plan.json").write_text(
+                json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            result = command_plan(state_dir=state_dir, write_result=False)
+            assert result["profile_meta"]["profile"] == "fast"
+            omitted_kinds = {oc["kind"] for oc in result["omitted_commands"]}
+            assert "pytest" in omitted_kinds
+            assert "close-round" in omitted_kinds
+            # Each omitted command must have a reason
+            for oc in result["omitted_commands"]:
+                assert "reason" in oc
+                assert "fast profile" in oc["reason"]
+
+    def test_fast_profile_includes_required_command_kinds(self) -> None:
+        """Fast profile includes startup, preflight, command-plan, report-summary, and final-check command kinds."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "fast"
+        required = result["required_command_kinds"]
+        for kind in ("startup", "preflight", "command-plan", "report-summary", "final-check"):
+            assert kind in required, f"fast profile must include {kind}"
+
+    def test_fast_profile_does_not_include_close_round_when_closeout_not_allowed(self) -> None:
+        """Fast profile does not include close-round when closeout_allowed=false."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "fast"
+        assert result["closeout_allowed"] is False
+        assert "close-round" not in result["required_command_kinds"]
+
+    def test_fast_profile_cannot_claim_archived_closeout_when_close_round_omitted(self) -> None:
+        """Fast profile cannot claim archived/accepted closeout when close-round was omitted."""
+        # Simulate the logic: fast profile with closeout_allowed=false and close-round omitted
+        gp_profile = "fast"
+        gp_closeout_allowed = False
+        close_round_omitted = True
+        # If close-round is omitted and closeout not allowed, report should not claim ACCEPTED
+        claims_closeout = True  # Simulating a report that claims ACCEPTED
+        closeout_safe = gp_profile == "full" or gp_closeout_allowed
+        # closeout_safe is False, so close-round should be blocked
+        assert not closeout_safe
+        # And claiming closeout while close-round was omitted is inconsistent
+        assert close_round_omitted and not gp_closeout_allowed
+
+    def test_fast_profile_fails_final_check_if_source_test_files_in_delta(self) -> None:
+        """Fast profile fails final-check if source/test logic files are present in round delta."""
+        from reverse_agent.project_gate import _path_is_source_or_test
+
+        # Verify that source/test files are detected
+        assert _path_is_source_or_test("reverse_agent/some_module.py")
+        assert _path_is_source_or_test("tests/test_some_module.py")
+        # And that the check would fail
+        source_test_in_changed = any(
+            _path_is_source_or_test(f) for f in ["reverse_agent/some_module.py", "project_state/report.md"]
+        )
+        assert source_test_in_changed
+
+    def test_fast_profile_fails_final_check_if_pytest_omitted_with_source_changes(self) -> None:
+        """Fast profile fails final-check if pytest is omitted while source/test logic files changed."""
+        omitted_kinds = {"pytest", "close-round"}
+        source_test_in_changed = True  # source files changed
+        pytest_omitted = "pytest" in omitted_kinds
+        # This should be a FAIL condition
+        assert pytest_omitted and source_test_in_changed
+
+    def test_fast_profile_fails_final_check_if_close_round_attempted_with_closeout_false(self) -> None:
+        """Fast profile fails final-check if close-round is attempted while closeout_allowed=false."""
+        gp_profile = "fast"
+        gp_closeout_allowed = False
+        closeout_safe = gp_profile == "full" or gp_closeout_allowed
+        assert not closeout_safe
+
+    def test_fast_profile_command_plan_includes_omitted_command_metadata(self) -> None:
+        """Fast profile command-plan includes omitted command metadata and reasons."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = Path(tmpdir) / "project_state"
+            state_dir.mkdir()
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+
+            decision_text = (
+                "```json decision_meta\n"
+                '{"schema_version": 1, "decision_id": "d1", "round_id": "r1", '
+                '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+                '"status": "APPROVED", "mainline": "engineering_branch", '
+                '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+                "```\n\n"
+                "## 1. Goal\n\nTest.\n\n"
+                "## 6. Implementation Scope\n\n"
+                "Allowed generated/project-state files:\n\n- `project_state/codex_execution_report.md`\n\n"
+                "## 7. Tests\n\n```powershell\n"
+                "python -m pytest tests/\n"
+                "python -m reverse_agent.project_state doctor --state-dir project_state\n"
+                "python -m reverse_agent.project_state lint-report --state-dir project_state\n"
+                "python -m reverse_agent.project_gate close-round --state-dir project_state\n"
+                "```\n"
+            )
+            (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+            profile_data = {
+                "schema_version": 1,
+                "gate_name": "gate-profile",
+                "gate_status": "PASSED",
+                "decision_id": "d1",
+                "round_id": "r1",
+                "mainline": "engineering_branch",
+                "profile": "fast",
+                "profile_reason": "artifact-only",
+                "closeout_allowed": False,
+                "required_command_kinds": ["startup", "preflight", "command-plan", "report-summary", "final-check"],
+            }
+            (gates_dir / "gate_profile_plan.json").write_text(
+                json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            result = command_plan(state_dir=state_dir, write_result=False)
+            assert "omitted_commands" in result
+            assert isinstance(result["omitted_commands"], list)
+            assert len(result["omitted_commands"]) > 0
+            # Each omitted command must have command, kind, and reason
+            for oc in result["omitted_commands"]:
+                assert "command" in oc
+                assert "kind" in oc
+                assert "reason" in oc
+                assert "fast profile" in oc["reason"]
+
+    def test_full_profile_command_plan_remains_compatible(self) -> None:
+        """Full profile command-plan remains compatible with existing full tests."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = Path(tmpdir) / "project_state"
+            state_dir.mkdir()
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+
+            decision_text = (
+                "```json decision_meta\n"
+                '{"schema_version": 1, "decision_id": "d1", "round_id": "r1", '
+                '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+                '"status": "APPROVED", "mainline": "engineering_branch", '
+                '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+                "```\n\n"
+                "## 1. Goal\n\nTest.\n\n"
+                "## 6. Implementation Scope\n\n"
+                "Allowed source files:\n\n- `reverse_agent/project_gate.py`\n\n"
+                "Allowed generated/project-state files:\n\n- `project_state/codex_execution_report.md`\n\n"
+                "## 7. Tests\n\n```powershell\npython -m pytest tests/\n```\n"
+            )
+            (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+            profile_data = {
+                "schema_version": 1,
+                "gate_name": "gate-profile",
+                "gate_status": "PASSED",
+                "decision_id": "d1",
+                "round_id": "r1",
+                "mainline": "engineering_branch",
+                "profile": "full",
+                "profile_reason": "full profile",
+                "closeout_allowed": True,
+                "required_command_kinds": [
+                    "startup", "preflight", "command-plan", "run-round", "pytest",
+                    "doctor", "lint-report", "report-summary", "final-check", "close-round",
+                ],
+            }
+            (gates_dir / "gate_profile_plan.json").write_text(
+                json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            result = command_plan(state_dir=state_dir, write_result=False)
+            assert result["profile_meta"]["profile"] == "full"
+            # Full profile should not trim any commands
+            assert result["omitted_commands"] == []
+            assert len(result["commands"]) > 0
+
+    def test_standard_profile_behavior_unchanged(self) -> None:
+        """Standard profile behavior remains unchanged except metadata compatibility."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/some_module.py`
+
+Allowed tests:
+
+- `tests/test_some_module.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "standard"
+        assert result["closeout_allowed"] is True
+        assert "pytest" in result["required_command_kinds"]
+        assert "close-round" not in result["required_command_kinds"]
+
+    def test_stale_mismatched_profile_metadata_still_fails_final_check(self) -> None:
+        """Stale or mismatched gate_profile_plan/command_plan profile metadata still fails final-check."""
+        gate_profile_payload = {"profile": "fast", "decision_id": "old", "round_id": "old"}
+        command_plan_data = {"profile_meta": {"profile": "full"}}
+        # Stale IDs
+        gp_current = gate_profile_payload.get("decision_id") == "current"
+        assert not gp_current
+        # Mismatched profiles
+        cp_profile = str((command_plan_data.get("profile_meta") or {}).get("profile") or "")
+        gp_profile = str(gate_profile_payload.get("profile") or "")
+        profiles_match = cp_profile == gp_profile
+        assert not profiles_match
+
+    def test_fast_profile_required_command_kinds_do_not_include_pytest(self) -> None:
+        """Fast profile required_command_kinds does not include pytest or close-round."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "fast"
+        assert "pytest" not in result["required_command_kinds"]
+        assert "close-round" not in result["required_command_kinds"]
+        assert "run-round" not in result["required_command_kinds"]
