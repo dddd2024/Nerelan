@@ -1,42 +1,11 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_clean_start_baseline_guard_v1",
-  "round_id": "round_20260617_clean_start_baseline_guard_v1",
-  "report_id": "codex_report_20260617_clean_start_baseline_guard_v1",
-  "status": "PASSED",
-  "tests_ran": [
-    "Set-Location F:\\reverse-agent",
-    "Get-Location",
-    "Test-Path F:\\reverse-agent",
-    "git rev-parse --show-toplevel",
-    "git status --short",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
-  ]
+  "decision_id": "",
+  "report_id": "",
+  "round_id": "",
+  "generated_at": "",
+  "status": "TEMPLATE_ONLY",
+  "tests_ran": []
 }
 ```
-
-===== COMMAND: Set-Location F:\reverse-agent =====
-F:\reverse-agent
-===== EXIT: 0 =====
-
-===== COMMAND: Get-Location =====
-F:\reverse-agent
-===== EXIT: 0 =====
-
-===== COMMAND: Test-Path F:\reverse-agent =====
-True
-===== EXIT: 0 =====
-
-===== COMMAND: git rev-parse --show-toplevel =====
-F:/reverse-agent
-===== EXIT: 0 =====
-
-===== COMMAND: git status --short =====
- M reverse_agent/project_gate.py
- M tests/test_project_gate.py
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
-350 passed, 268 passed, 618 total
-===== EXIT: 0 =====

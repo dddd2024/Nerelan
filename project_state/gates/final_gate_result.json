@@ -1,0 +1,373 @@
+{
+  "schema_version": 1,
+  "gate_name": "final-check",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260617_clean_start_baseline_guard_v1",
+  "report_id": "",
+  "round_id": "",
+  "generated_at": "2026-06-17T05:54:18.592988Z",
+  "checks": [
+    {
+      "name": "decision_report_match",
+      "status": "FAIL",
+      "detail": "decision/report id or round_id mismatch"
+    },
+    {
+      "name": "pytest_result_match",
+      "status": "FAIL",
+      "detail": "pytest_result does not match report",
+      "errors": [
+        "pytest_result_summary invalid: invalid status: TEMPLATE_ONLY"
+      ]
+    },
+    {
+      "name": "pytest_result_covers_report_tests",
+      "status": "WARN",
+      "detail": "pytest_result coverage is incomplete or unknown",
+      "missing_report_tests": []
+    },
+    {
+      "name": "round_manifest_present",
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": ""
+    },
+    {
+      "name": "archived_report_matches_live_report",
+      "status": "WARN",
+      "detail": "archived report differs from live report"
+    },
+    {
+      "name": "archived_pytest_result_matches_live_pytest_result",
+      "status": "WARN",
+      "detail": "archived pytest_result differs from live pytest_result",
+      "required": true,
+      "skipped_reason": null
+    },
+    {
+      "name": "round_delta_summary_present",
+      "status": "WARN",
+      "detail": "round baseline is missing; falling back to legacy git diff coverage",
+      "path": "project_state/gates/round_delta_summary.json",
+      "baseline_available": false,
+      "inherited_dirty_files": [],
+      "new_dirty_files_since_baseline": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "tmp8osv9s8n/"
+      ],
+      "final_dirty_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "tmp8osv9s8n/"
+      ]
+    },
+    {
+      "name": "files_changed_excludes_inherited_dirty_files",
+      "status": "WARN",
+      "detail": "no baseline summary is available for inherited dirty file classification",
+      "inherited_dirty_files": []
+    },
+    {
+      "name": "files_changed_covers_git_diff",
+      "status": "FAIL",
+      "detail": "files_changed omits round delta files",
+      "missing_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "tmp8osv9s8n/"
+      ],
+      "git_changed_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "tmp8osv9s8n/"
+      ],
+      "required_round_delta_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "tmp8osv9s8n/"
+      ],
+      "inherited_dirty_files": []
+    },
+    {
+      "name": "files_changed_covers_substantive_changes",
+      "status": "PASS",
+      "detail": "files_changed covers substantive source/test/artifact changes",
+      "substantive_dirty_files": []
+    },
+    {
+      "name": "generated_artifacts_cover_round_delta",
+      "status": "FAIL",
+      "detail": "generated_artifacts omits round baseline/delta artifacts",
+      "missing_artifacts": [
+        "project_state/gates/round_delta_summary.json"
+      ]
+    },
+    {
+      "name": "baseline_lifecycle_violation",
+      "status": "WARN",
+      "detail": "baseline is unavailable; lifecycle violation cannot be checked"
+    },
+    {
+      "name": "baseline_lifecycle_guard",
+      "status": "WARN",
+      "detail": "round baseline is unavailable; legacy lifecycle guard is advisory only",
+      "source_test_scope": [
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
+      ]
+    },
+    {
+      "name": "baseline_capture_order",
+      "status": "WARN",
+      "detail": "baseline is unavailable; capture order cannot be checked",
+      "capture_order_status": "unavailable"
+    },
+    {
+      "name": "startup_status_order_valid",
+      "status": "PASS",
+      "detail": "startup git status --short appears after path confirmation commands",
+      "valid": true,
+      "startup_status_block_index": null,
+      "path_confirmation_block_indexes": {
+        "Set-Location": null,
+        "Get-Location": null,
+        "Test-Path": null,
+        "git rev-parse": null
+      },
+      "startup_status_evidence_trusted": false
+    },
+    {
+      "name": "decision_immutability",
+      "status": "PASS",
+      "detail": "live project_state/decision_packet.md was not modified during execution",
+      "live_decision_in_files_changed": false,
+      "live_decision_in_new_dirty": false
+    },
+    {
+      "name": "build_output_scope",
+      "status": "PASS",
+      "detail": "no build-generated state files in round delta",
+      "build_files_in_delta": []
+    },
+    {
+      "name": "verified_cli_coverage",
+      "status": "PASS",
+      "detail": "all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks",
+      "uncovered_clis": []
+    },
+    {
+      "name": "startup_baseline_consistency",
+      "status": "PASS",
+      "detail": "baseline is unavailable; startup/baseline consistency check skipped",
+      "startup_source_test_dirty": [],
+      "baseline_dirty_files": [],
+      "startup_evidence_trusted": false
+    },
+    {
+      "name": "generated_artifacts_cover_round_archive",
+      "status": "PASS",
+      "detail": "generated_artifacts covers round archive files",
+      "missing_artifacts": []
+    },
+    {
+      "name": "command_plan_present",
+      "status": "PASS",
+      "detail": "command-plan consistency is not required for this report",
+      "required": false
+    },
+    {
+      "name": "report_summary_synthesis_required",
+      "status": "PASS",
+      "detail": "report-summary synthesis is required for this report",
+      "required": true,
+      "artifact": "project_state/gates/report_summary_synthesis.json"
+    },
+    {
+      "name": "report_summary_fields_match_synthesis",
+      "status": "FAIL",
+      "detail": "codex_report_summary differs from synthesized summary",
+      "errors": [
+        "pytest_result_summary.tests_ran missing or empty"
+      ],
+      "diffs": [
+        {
+          "field": "report_id",
+          "expected": "codex_report_20260617_clean_start_baseline_guard_v1",
+          "actual": ""
+        },
+        {
+          "field": "round_id",
+          "expected": "round_20260617_clean_start_baseline_guard_v1",
+          "actual": ""
+        },
+        {
+          "field": "based_on_decision_id",
+          "expected": "decision_20260617_clean_start_baseline_guard_v1",
+          "actual": ""
+        },
+        {
+          "field": "files_changed",
+          "expected": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/decision_packet.md",
+            "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/pytest_result.txt",
+            "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/round_manifest.json"
+          ],
+          "actual": []
+        },
+        {
+          "field": "tests_ran",
+          "expected": [
+            "Get-Location",
+            "Set-Location F:\\reverse-agent",
+            "Test-Path F:\\reverse-agent",
+            "git rev-parse --show-toplevel",
+            "git status --short",
+            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+            "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_baseline_guard_v1",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+            "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+            "python -m reverse_agent.project_state doctor --state-dir project_state",
+            "python -m reverse_agent.project_state lint-report --state-dir project_state"
+          ],
+          "actual": []
+        },
+        {
+          "field": "generated_artifacts",
+          "expected": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_close_snapshot.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/run_round_result.json",
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/decision_packet.md",
+            "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/pytest_result.txt",
+            "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/round_manifest.json"
+          ],
+          "actual": []
+        }
+      ]
+    },
+    {
+      "name": "report_summary_status_source_available",
+      "status": "PASS",
+      "detail": "report summary status fields are derived from final gate result",
+      "warnings": [
+        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+      ],
+      "non_blocking_warnings": [
+        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+      ]
+    },
+    {
+      "name": "forbidden_paths_absent",
+      "status": "PASS",
+      "detail": "no forbidden paths detected",
+      "forbidden_paths": []
+    },
+    {
+      "name": "status_policy_valid",
+      "status": "FAIL",
+      "detail": "status policy found blocking issues",
+      "lint_errors": [
+        "codex_report_summary is TEMPLATE_ONLY",
+        "report_id missing",
+        "round_id missing",
+        "based_on_decision_id missing",
+        "pytest_result_summary invalid: invalid status: TEMPLATE_ONLY",
+        "doctor status is FAIL"
+      ],
+      "warnings": [
+        "acceptance_recommendation is UNKNOWN"
+      ],
+      "doctor_status": "FAIL",
+      "report_status": "TEMPLATE_ONLY",
+      "limitations": null,
+      "external_state_notices": [
+        "50 missing historical sample artifacts"
+      ]
+    },
+    {
+      "name": "final_check_stdout_matches_gate_status",
+      "status": "PASS",
+      "detail": "archive-pending final-check status is allowed to differ before close-round",
+      "required": false,
+      "skipped_reason": "archive_pending_pre_close_round"
+    }
+  ],
+  "blocking_reasons": [
+    "decision_report_match: decision/report id or round_id mismatch",
+    "pytest_result_match: pytest_result does not match report",
+    "files_changed_covers_git_diff: files_changed omits round delta files",
+    "generated_artifacts_cover_round_delta: generated_artifacts omits round baseline/delta artifacts",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary",
+    "status_policy_valid: status policy found blocking issues"
+  ],
+  "warnings": [
+    "pytest_result_covers_report_tests: pytest_result coverage is incomplete or unknown",
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "round_delta_summary_present: round baseline is missing; falling back to legacy git diff coverage",
+    "files_changed_excludes_inherited_dirty_files: no baseline summary is available for inherited dirty file classification",
+    "baseline_lifecycle_violation: baseline is unavailable; lifecycle violation cannot be checked",
+    "baseline_lifecycle_guard: round baseline is unavailable; legacy lifecycle guard is advisory only",
+    "baseline_capture_order: baseline is unavailable; capture order cannot be checked"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
+  "status_summary": {
+    "decision_execution_state": "READY_FOR_EXECUTION",
+    "decision_report_id_match": false,
+    "decision_consumed_by_report": false,
+    "archive_status": "unknown",
+    "report_status": "FAILED",
+    "report_acceptance_recommendation": "REWORK_REQUIRED"
+  }
+}

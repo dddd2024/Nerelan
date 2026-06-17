@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "artifact_name": "round_baseline.json",
+  "decision_id": "decision_20260617_clean_start_baseline_guard_v1",
+  "round_id": "round_20260617_clean_start_baseline_guard_v1",
+  "head_commit": "9360a9c7ab55",
+  "baseline_git_status_short": [
+    " M project_state/codex_execution_report.md",
+    " M project_state/pytest_result.txt",
+    "?? tmp8osv9s8n/"
+  ],
+  "baseline_git_diff_name_only": [
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt"
+  ],
+  "baseline_dirty_files": [
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt",
+    "tmp8osv9s8n/"
+  ],
+  "baseline_untracked_files": [
+    "tmp8osv9s8n/"
+  ],
+  "baseline_has_untracked_implementation_files": false,
+  "generated_at": "2026-06-17T05:54:06.593213Z"
+}
