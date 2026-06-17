@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_report_body_status_consistency_cleanup_v1",
-  "round_id": "round_20260617_report_body_status_consistency_cleanup_v1",
+  "decision_id": "decision_20260617_gate_profile_tier_integration_v1",
+  "round_id": "round_20260617_gate_profile_tier_integration_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,66 +15,67 @@
 
 ## 1. Goal
 
-Clean up report body/status consistency after the accepted-with-limitations `decision_20260617_command_plan_expected_exit_semantics_v1` round.
+Formally integrate the gate tier design around the existing `gate-profile` mechanism.
 
-This is a narrow engineering/documentation cleanup. Do not continue expanding command-plan, gate-profile, startup/baseline, stale artifact, generated-artifact, solver, harness, or reverse-tool functionality.
+The goal is to turn the current advisory fast/standard/full profile idea into a small, testable execution-policy layer without weakening the default full gate path.
 
 Required end state:
 
-- `project_state/codex_execution_report.md` body status text must not contradict `codex_report_summary.status` or `codex_report_summary.acceptance_recommendation`;
-- if `codex_report_summary.status=SUCCESS` and `acceptance_recommendation=ACCEPTED`, the body must not say `PARTIAL`, `REWORK_REQUIRED`, `close-round still fails`, or `previous round's report is still the live report`;
-- if final gate and close-round are archived/passed, the report body must reflect that state;
-- add or harden a lightweight report-body consistency check so obvious status contradictions are caught by `report-summary` or `final-check` in future rounds;
-- keep all prior gate-tiering, command-plan expected-exit, startup/baseline, stale artifact ID, generated-artifact existence, report-prose claim, tmp-path, and gate-profile behavior intact;
-- do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw samples, or `.codex-skills/` behavior.
+- define explicit semantics for `fast`, `standard`, and `full` profiles;
+- preserve `full` as the default profile for close-round and archive safety;
+- allow `gate-profile` and `command-plan` to expose the selected profile, profile reason, allowed command set, and whether close-round is permitted;
+- support explicit profile selection for inspection/dry-run, while preventing accidental archive/close-round under an insufficient profile;
+- add final-check validation that profile metadata is current and compatible with the current decision/report/round;
+- keep profile behavior deterministic and rule-based, not LLM-based;
+- keep all prior clean-start, decision immutability, stale artifact ID, generated-artifact existence, command-plan expected-exit, report-body consistency, report-summary, and close-round checks intact;
+- do not touch solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw samples, or `.codex-skills/` behavior.
+
+This is an engineering-branch gate architecture task. It must not turn into reverse-solving, tool-integration, or training-dataset work.
 
 ## 2. Current Evidence
 
-Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` and `current_state.json` are state inputs only and must not override this decision.
+Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` and `current_state.json` are advisory inputs only and must not override this decision.
 
-Previous round accepted with limitations:
+Previous accepted-with-limitations round:
 
-- `decision_20260617_command_plan_expected_exit_semantics_v1`
-- `round_20260617_command_plan_expected_exit_semantics_v1`
+- `decision_20260617_report_body_status_consistency_cleanup_v1`
+- `round_20260617_report_body_status_consistency_cleanup_v1`
 - mainline: `engineering_branch`
 - GPT audit conclusion: `ACCEPTED_WITH_LIMITATIONS`
 
-Observed facts from the previous audit:
+Known current state from the previous audit:
 
-- `command-plan` expected-exit semantics were implemented.
-- Diagnostic commands such as `doctor`, `lint-report`, `report-summary`, and `final-check` are now modeled with diagnostic expected-exit semantics.
-- `pytest_result_exit_codes_match_command_plan` passed.
-- startup/preflight/baseline checks passed.
-- stale artifact ID checks passed.
-- final gate passed.
-- close-round ultimately archived the round successfully.
-- However, the report body still contained stale text saying `PARTIAL` and claiming previous-round report/close-round failures even though the structured JSON summary said `SUCCESS`/`ACCEPTED` and the final gate/close-round had passed.
-
-Meaning:
-
-- This is no longer a gate architecture defect.
-- The remaining defect is report readability/trust: prose status must not contradict structured status.
-- The next step should be a small cleanup, not another broad gate redesign.
+- `codex_report_summary.status` was `SUCCESS` and `acceptance_recommendation` was `ACCEPTED`.
+- startup status was clean.
+- preflight passed.
+- pytest passed with 707 tests.
+- final-check passed.
+- close-round closed and archived the round.
+- `report_body_consistency` passed.
+- Prior report-body inconsistency was resolved enough to proceed.
+- Remaining limitations were non-blocking: report prose contained a generic diagnostic caveat, and `tests/test_project_gate.py` had a large diff.
 
 Existing useful behavior to preserve:
 
-- fast/standard/full advisory `gate-profile` classifier;
-- command-plan expected-exit semantics;
-- conditional close-round behavior;
+- `source_test_clean_start` hard stop;
 - startup/baseline consistency check;
 - stale artifact ID check;
 - current-report gate regeneration behavior;
+- command-plan expected-exit semantics;
+- conditional close-round behavior;
+- report-body consistency check;
 - preflight-failure handoff check;
 - `decision_immutability` FAIL behavior;
 - inherited source/test dirty FAIL behavior;
-- `report_summary_fields_match_synthesis` structural mismatch FAIL behavior;
+- `report_summary_fields_match_synthesis` mismatch detection;
 - generated-artifact live-path existence behavior;
 - report-prose claimed source/test coverage;
-- `tmp*/` dirty-state check.
+- `tmp*/` dirty-state check;
+- existing advisory `gate-profile` classifier.
 
 Artifact freshness:
 
-- Historical `samplereverse` missing/stale artifacts are not current evidence for this cleanup.
+- Historical `samplereverse` missing/stale artifacts are not current evidence for this gate-profile integration.
 - This round does not depend on reverse sample artifacts.
 
 Negative results:
@@ -85,7 +86,13 @@ Negative results:
 - Do not commit full `solve_reports/`.
 - Do not repeat old `samplereverse` failed candidate/runtime branches.
 
-Allowed tool execution:
+Existing tool capability boundary:
+
+- This round is not reverse-solving.
+- This round does not require IDA/Ghidra/debugger/solver/harness execution.
+- Mature reverse tools must not be modified or reimplemented.
+
+Allowed execution:
 
 - Read repository source/tests and compact `project_state/` metadata.
 - Run only the gate/status/test commands listed in the Tests section.
@@ -98,35 +105,33 @@ Heavy artifact policy:
 
 ## 3. Do Not Do
 
-Do not continue expanding command-plan expected-exit semantics.
+Do not make `fast` or `standard` silently replace `full` for close-round.
 
-Do not continue expanding startup/baseline/stale artifact/current-report ID functionality.
+Do not weaken final-check, close-round, preflight, decision immutability, startup/baseline, stale artifact, generated-artifact, command-plan, or report-body checks.
 
-Do not add another new gate subsystem.
+Do not globally allow reduced checks for all rounds.
 
-Do not rewrite command-plan, report-summary, final-check, or close-round from scratch.
+Do not implement LLM-based profile selection.
 
-Do not weaken ordinary required command failures.
+Do not add another independent gate engine.
 
-Do not change close-round semantics except where needed to test report-body consistency.
+Do not rewrite command-plan, final-check, or close-round from scratch.
 
-Do not call a round complete if final-check or close-round is failed/invalid.
-
-Do not use report-body cleanup as an excuse to change solver, harness, reverse-tool, sample, or GUI behavior.
-
-Do not modify live `project_state/decision_packet.md` during execution to add a late allowlist or change the active task.
-
-Do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, runtime probe, GUI/frontend, sample runner, raw sample, or `.codex-skills/` files.
+Do not expand this into frontend, GUI, solver, harness, sample runner, reverse tools, IDA/Ghidra/debugger, or training dataset work.
 
 Do not run sample binaries.
 
 Do not run IDA/Ghidra/debugger/harness/solver/runtime probe commands.
 
-Do not change training sample statuses.
+Do not modify `.codex-skills/`.
 
-Do not add a database, queue system, workflow engine, or new external dependency.
+Do not add a database, queue, Kubernetes, workflow engine, or new external service.
 
 Do not treat `task_packet.task` as current execution authority.
+
+Do not modify live `project_state/decision_packet.md` during execution to add a late allowlist or change the active task.
+
+Do not use this profile work to bypass close-round failures.
 
 ## 4. Files To Inspect
 
@@ -143,11 +148,12 @@ Read default project-state files in order:
 
 Also inspect:
 
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/final_gate_result.json`
+- `project_state/gates/gate_profile_plan.json`
 - `project_state/gates/command_plan.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/report_summary_synthesis.json`
 - `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py` only if report-body validation plumbing strictly requires it
+- `reverse_agent/project_state.py` only if command-plan/report validation plumbing strictly requires it
 - `tests/test_project_gate.py`
 - `tests/test_project_state.py` only if project_state support is changed
 - current Git changed filenames / diff summary
@@ -165,15 +171,17 @@ Before implementation, confirm:
 5. If startup `git status --short` shows live `project_state/decision_packet.md` dirty, stop immediately and write a BLOCKED report; do not implement changes.
 6. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
 7. Current decision controls execution; `task_packet.json` is not authoritative.
-8. Confirm the previous report-body/status contradiction before changing code or report text.
-9. No mature reverse-engineering tool integration needs to be modified.
+8. Confirm existing `gate-profile` behavior before changing it.
+9. Confirm command-plan currently records expected exits and close-round semantics correctly.
+10. Confirm final-check currently sees report-body consistency as PASS before adding profile validation.
+11. Confirm no mature reverse-engineering tool integration needs to be modified.
 
 ## 6. Implementation Scope
 
 Allowed source files:
 
 - `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py` only if report-body consistency validation strictly requires it
+- `reverse_agent/project_state.py` only if command-plan/report validation plumbing strictly requires it
 
 Allowed tests:
 
@@ -193,45 +201,56 @@ Allowed project-state/report files:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260617_report_body_status_consistency_cleanup_v1/*`
+- `project_state/rounds/round_20260617_gate_profile_tier_integration_v1/*`
+
+Required profile semantics:
+
+- `fast`: for report-only, artifact-only, documentation-only, or project_state-only cleanup where no source/test logic changes are present. It may generate a reduced advisory command list, but must not silently close/archive unless final-check says the selected profile is explicitly closeout-safe.
+- `standard`: for ordinary non-gate Python/test changes where project_gate/project_state/close-round semantics are not modified. It may include targeted pytest plus full state/gate validation.
+- `full`: for gate/project_state/command-plan/final-check/close-round changes, harness/solver/tool-runner-adjacent changes, any source/test dirty at startup, any unknown-risk profile, or any profile ambiguity. This remains the default safe path.
 
 Required implementation behavior:
 
-- Correct the live `project_state/codex_execution_report.md` body so its `## Status`, `Remaining Limitations`, and key verification text agree with `codex_report_summary`.
-- If structured summary says `SUCCESS` and `ACCEPTED`, body text must not claim partial completion, rework required, stale live report, or close-round failure.
-- Add or harden a report body consistency check that detects obvious contradictions between body status prose and JSON summary status/recommendation.
-- The check should flag examples such as:
-  - JSON `SUCCESS` but body status begins with `PARTIAL` or `FAILED`;
-  - JSON `ACCEPTED` but body says `REWORK_REQUIRED`, `BLOCKED`, or `close-round still fails`;
-  - JSON success plus body claims previous-round report is still live.
-- Keep the check narrow and heuristic; do not build an NLP subsystem.
-- Ensure report-summary/final-check include the new check or equivalent validation.
-- Preserve command-plan expected-exit semantics from the previous round.
-- Preserve startup/baseline consistency behavior from prior rounds.
-- Preserve stale artifact ID behavior from prior rounds.
+- Add a deterministic profile policy function if one does not already exist; otherwise refactor the existing classifier minimally.
+- `gate-profile --json` must output at least: `profile`, `profile_reason`, `risk_reasons`, `closeout_allowed`, `required_command_kinds`, `decision_id`, `round_id`, `mainline`, and `generated_at`.
+- `command-plan` must include selected profile metadata and show which commands are included because of that profile.
+- If explicit profile selection is supported, invalid profile names must fail with a clear error.
+- If no explicit profile is supplied, use auto-selection but default to `full` for ambiguity or any gate/project_state source change.
+- `final-check` must validate that `gate_profile_plan.json` is current for the active decision/round and consistent with `command_plan.json`.
+- `final-check` must fail if a non-full profile attempts close-round while `closeout_allowed` is false.
+- `close-round` must keep full safety semantics by default; reduced profiles must be explicitly marked safe before archive can be created.
+- Do not reduce current test coverage for the full path.
+- Keep the profile implementation small and table/rule-driven.
+- Preserve command-plan expected-exit semantics from prior rounds.
+- Preserve report-body consistency behavior.
+- Preserve startup/baseline consistency behavior.
+- Preserve stale artifact ID behavior.
 - Preserve generated-artifact live-path existence behavior.
 - Preserve report-prose claimed source/test coverage behavior.
 - Preserve `tmp*/` dirty-state check behavior.
-- Preserve gate-profile classifier behavior.
 - Preserve path normalization across Windows and POSIX separators.
 
 Required tests:
 
-1. JSON summary `SUCCESS` plus body `PARTIAL` causes report-body consistency FAIL.
-2. JSON summary `ACCEPTED` plus body `REWORK_REQUIRED` or `BLOCKED` causes FAIL.
-3. JSON success plus body `close-round still fails` causes FAIL.
-4. JSON success plus body `previous round's report is still the live report` causes FAIL.
-5. Matching JSON success and body success passes.
-6. Matching JSON partial/rework body passes when the summary is genuinely `PARTIAL` / `REWORK_REQUIRED`.
-7. Existing command-plan expected-exit tests continue to pass.
-8. Existing startup/baseline consistency tests continue to pass.
-9. Existing stale artifact ID tests continue to pass.
-10. Existing current-report regeneration tests continue to pass.
-11. Existing preflight-failure handoff tests continue to pass.
-12. Existing generated-artifact live-path tests continue to pass.
-13. Existing report prose claim coverage tests continue to pass.
-14. Existing tmp-path dirty-state tests continue to pass.
-15. Existing gate-profile tests continue to pass.
+1. auto profile defaults to `full` for `reverse_agent/project_gate.py` changes.
+2. auto profile defaults to `full` for `reverse_agent/project_state.py` changes.
+3. auto profile uses `fast` only for report/project_state artifact-only cleanup when no source/test logic changes are present.
+4. `standard` profile is selected or allowed for ordinary non-gate Python/test changes when risk rules permit it.
+5. ambiguous or unknown file changes default to `full`.
+6. `gate-profile --json` includes profile metadata, reasons, command kinds, and closeout permission.
+7. `command-plan --json` includes profile metadata and remains compatible with expected-exit semantics.
+8. stale `gate_profile_plan.json` decision_id/round_id causes final-check FAIL.
+9. mismatch between `gate_profile_plan.json` profile and `command_plan.json` profile causes final-check FAIL.
+10. non-full profile with `closeout_allowed=false` cannot close/archive.
+11. full profile can close/archive when all other gates pass.
+12. invalid explicit profile name fails clearly.
+13. existing command-plan expected-exit tests continue to pass.
+14. existing report-body consistency tests continue to pass.
+15. existing startup/baseline consistency tests continue to pass.
+16. existing stale artifact ID tests continue to pass.
+17. existing generated-artifact live-path tests continue to pass.
+18. existing tmp-path dirty-state tests continue to pass.
+19. existing preflight handoff and decision immutability tests continue to pass.
 
 ## 7. Tests
 
@@ -244,22 +263,23 @@ Test-Path F:\reverse-agent
 git rev-parse --show-toplevel
 git status --short
 python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m reverse_agent.project_gate gate-profile --state-dir project_state
+python -m reverse_agent.project_gate gate-profile --state-dir project_state --json
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
-python -m reverse_agent.project_gate gate-profile --state-dir project_state --json
 python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_report_body_status_consistency_cleanup_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_gate_profile_tier_integration_v1
 ```
 
 The pytest result header must include:
 
-- `decision_id=decision_20260617_report_body_status_consistency_cleanup_v1`
-- `round_id=round_20260617_report_body_status_consistency_cleanup_v1`
+- `decision_id=decision_20260617_gate_profile_tier_integration_v1`
+- `round_id=round_20260617_gate_profile_tier_integration_v1`
 - the final `report_id`
 - all commands actually run
 
@@ -274,7 +294,8 @@ Stop and report `BLOCKED` without expanding scope if:
 - startup `git status --short` already shows source/test dirty files before implementation begins;
 - startup `git status --short` already shows live `project_state/decision_packet.md` dirty;
 - temporary paths such as `tmp*/` cannot be safely removed or explained;
-- implementing this requires rewriting command-plan, close-round, or replacing the existing gate system;
-- the change would require modifying solver/harness/tool-runner/debugger/sample code;
-- report-body consistency cannot be checked without broad refactoring or NLP-style analysis;
-- tests fail for reasons outside the narrow report-body status consistency cleanup scope.
+- implementing this requires replacing the existing gate system;
+- implementing this requires changing solver/harness/tool-runner/debugger/sample code;
+- profile semantics cannot be expressed with a small deterministic rule table;
+- close-round safety would need to be weakened to make fast/standard pass;
+- tests fail for reasons outside the narrow gate-profile tier integration scope.
