@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1",
-  "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1",
+  "decision_id": "decision_20260617_current_report_gate_regeneration_rework_v1",
+  "round_id": "round_20260617_current_report_gate_regeneration_rework_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,18 +15,18 @@
 
 ## 1. Goal
 
-Repair startup-status, preflight-baseline, and current-round final-gate consistency so a clean startup cannot later be misreported as inherited source/test dirty, and stale gate artifacts cannot be used as current evidence.
+Repair the current-report gate regeneration order so `codex_execution_report.md`, `pytest_result.txt`, `report_summary_synthesis.json`, `final_gate_result.json`, `round_delta_summary.json`, and close-round all refer to the same current decision/report/round.
 
-This is the actual engineering rework after `decision_20260617_preflight_failure_handoff_rework_v1`. Do not change the external Codex prompt in this round; use the corrected prompt externally, but this decision is for repository behavior and state consistency.
+This is a narrow engineering rework after `decision_20260617_preflight_startup_status_consistency_rework_v1`. Do not add new broad gate features. The immediate failure is that live `codex_execution_report.md` was updated to the current round, but later gate artifacts and command outputs still used or reported stale prior-round report IDs.
 
 Required end state:
 
-- if the trusted startup `git status --short` shows source/test dirty, preflight and final-check must treat it as hard-stop evidence;
-- if trusted startup `git status --short` is clean, later source/test dirty files must be treated as this-round modifications, not inherited baseline dirty;
-- preflight must not report `source_test_clean_start: PASS` when trusted startup evidence shows source/test dirty;
-- final-check must fail if `preflight_result.json`, `report_summary_synthesis.json`, or `final_gate_result.json` references a stale report_id / round_id rather than the current decision/report;
-- final-check must fail if live `final_gate_result.json` is stale or mismatched and must not use it as current success evidence;
-- keep preflight-failure handoff, decision immutability, generated-artifact existence, report-prose claim coverage, and tmp-path checks intact;
+- report-summary must read the current live `project_state/codex_execution_report.md`, not a stale archived or cached report;
+- final-check output must contain the current `decision_id`, current live `report_id`, and current `round_id`;
+- close-round must compare the requested round_id against the current decision/report, not against stale prior-round artifacts;
+- stale `report_summary_synthesis.json`, `final_gate_result.json`, `command_plan.json`, and `round_delta_summary.json` must be regenerated or rejected before they are used as current evidence;
+- if close-round fails, the report must remain `PARTIAL`/`FAILED` with `REWORK_REQUIRED` or `BLOCKED`; do not package close-round failure as completion;
+- preserve startup/baseline consistency checks, stale artifact ID checks, preflight-failure handoff, decision immutability, generated-artifact existence, report-prose claim coverage, tmp-path checks, and gate-profile behavior;
 - do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw samples, or `.codex-skills/` behavior.
 
 ## 2. Current Evidence
@@ -35,30 +35,32 @@ Current execution authority is this `project_state/decision_packet.md`. `task_pa
 
 Previous round requiring rework:
 
-- `decision_20260617_preflight_failure_handoff_rework_v1`
-- `round_20260617_preflight_failure_handoff_rework_v1`
+- `decision_20260617_preflight_startup_status_consistency_rework_v1`
+- `round_20260617_preflight_startup_status_consistency_rework_v1`
 - mainline: `engineering_branch`
 - GPT audit conclusion: `REWORK_REQUIRED`
 
 Observed facts from the previous audit:
 
-- The current report improved status semantics by using `status=PARTIAL` and `acceptance_recommendation=REWORK_REQUIRED`, instead of `COMPLETED_WITH_LIMITATIONS` / accepted.
-- The user also showed a clean startup example where `git status --short` was empty at the true beginning of execution.
-- However, later recorded `pytest_result.txt` showed source/test files dirty in the startup command block, while preflight still reported `source_test_clean_start: PASS`.
-- This means startup evidence and preflight baseline were inconsistent.
-- `final_gate_result.json` also referenced stale IDs from `round_20260617_execution_authority_hard_stop_rework_v1` while the live report was for `round_20260617_preflight_failure_handoff_rework_v1`.
-- Therefore final-check evidence was not current for the active report/round.
-- Gate output still had report/decision mismatch, pytest_result mismatch, command-plan mismatch, report-summary mismatch, and stale final gate evidence.
+- The live `codex_execution_report.md` was updated to the current round and used `status=PARTIAL` plus `acceptance_recommendation=REWORK_REQUIRED`.
+- The startup `git status --short` in `pytest_result.txt` was clean, and preflight passed.
+- The implementation added useful checks for startup/baseline consistency and stale artifact IDs.
+- However, `doctor`, `lint-report`, `report-summary`, `final-check`, and `close-round` output still referenced `codex_report_20260617_preflight_failure_handoff_rework_v1` / `round_20260617_preflight_failure_handoff_rework_v1` while the live report was `codex_report_20260617_preflight_startup_status_consistency_rework_v1`.
+- `final_gate_result.json` and close-round were therefore not current evidence for the active report.
+- close-round failed with report/decision mismatch, command-plan mismatch, pytest exit-code mismatch, files_changed coverage mismatch, startup/baseline consistency mismatch, and report-summary mismatch.
+- The screenshot claim that close-round failed only because diagnostic commands naturally return non-zero is insufficient; the actual failure includes stale/mismatched report and gate artifacts.
 
 Meaning:
 
-- The report-status vocabulary issue moved in the right direction.
-- The remaining defect is state provenance: startup `git status`, baseline capture/reuse, preflight_result, report_summary_synthesis, and final_gate_result must all agree on the current decision/report/round.
-- A stale final gate or stale report-summary artifact must never be treated as current evidence.
+- The code checks are moving in the right direction.
+- The remaining defect is regeneration/order-of-operations: after the live report is written, report-summary/final-check/close-round must be regenerated against that live report and current round.
+- Stale gate artifacts must not be used to claim completion or limitation.
 
 Existing useful behavior to preserve:
 
 - `source_test_clean_start` hard stop;
+- startup/baseline consistency check;
+- stale artifact ID check;
 - preflight-failure handoff check;
 - `decision_immutability` FAIL behavior;
 - inherited source/test dirty FAIL behavior;
@@ -94,19 +96,19 @@ Heavy artifact policy:
 
 ## 3. Do Not Do
 
-Do not modify the external Codex prompt in this repository during this round.
+Do not continue expanding generated-artifact functionality beyond preserving existing checks.
 
-Do not continue expanding generated-artifact functionality.
+Do not add another new gate subsystem.
 
 Do not rewrite clean-start guard, report-summary, final-check, or close-round from scratch.
 
 Do not weaken existing hard-stop gates.
 
-Do not convert preflight failure into accepted/completed status.
+Do not use stale `final_gate_result.json`, stale `report_summary_synthesis.json`, stale `command_plan.json`, stale `round_delta_summary.json`, or stale `preflight_result.json` as current evidence.
 
-Do not use stale `final_gate_result.json`, stale `report_summary_synthesis.json`, or stale `preflight_result.json` as current evidence.
+Do not use archived prior-round reports as the live report for current report-summary/final-check/close-round.
 
-Do not run close-round after a hard-stop except in a test fixture explicitly validating failure behavior.
+Do not call a round complete if final-check or close-round is failed/invalid.
 
 Do not modify live `project_state/decision_packet.md` during execution to add a late allowlist or change the active task.
 
@@ -140,12 +142,13 @@ Also inspect:
 - `project_state/gates/preflight_result.json`
 - `project_state/gates/command_plan.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/gates/final_gate_result.json`
 - `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
+- `project_state/gates/round_close_snapshot.json` if present
 - `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py` only if status/baseline parsing support strictly requires it
+- `reverse_agent/project_state.py` only if report/status plumbing strictly requires it
 - `tests/test_project_gate.py`
 - `tests/test_project_state.py` only if project_state support is changed
 - current Git changed filenames / diff summary
@@ -158,21 +161,20 @@ Before implementation, confirm:
 
 1. Startup path is `F:\reverse-agent`, `Test-Path F:\reverse-agent` is true, and `git rev-parse --show-toplevel` points to this repository.
 2. Startup `git status --short` is recorded before any file modification.
-3. Record whether startup status is truly clean or has baseline dirty files.
-4. If startup `git status --short` is clean, later source/test dirty files must be treated as this-round changes, not inherited baseline dirty.
-5. If startup `git status --short` already shows source/test dirty files, stop immediately and write `codex_execution_report.md` with `status=BLOCKED` or `status=FAILED` and `acceptance_recommendation=REWORK_REQUIRED`; do not implement changes.
-6. If startup `git status --short` shows live `project_state/decision_packet.md` dirty, stop immediately and write a BLOCKED report; do not implement changes.
-7. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
-8. Current decision controls execution; `task_packet.json` is not authoritative.
-9. Confirm the previous startup/preflight/final-gate ID mismatch before changing code.
-10. No mature reverse-engineering tool integration needs to be modified.
+3. If startup `git status --short` is clean, later source/test dirty files must be treated as this-round changes, not inherited baseline dirty.
+4. If startup `git status --short` already shows source/test dirty files, stop immediately and write `codex_execution_report.md` with `status=BLOCKED` or `status=FAILED` and `acceptance_recommendation=REWORK_REQUIRED`; do not implement changes.
+5. If startup `git status --short` shows live `project_state/decision_packet.md` dirty, stop immediately and write a BLOCKED report; do not implement changes.
+6. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
+7. Current decision controls execution; `task_packet.json` is not authoritative.
+8. Confirm the previous stale live-report/gate-artifact regeneration defect before changing code.
+9. No mature reverse-engineering tool integration needs to be modified.
 
 ## 6. Implementation Scope
 
 Allowed source files:
 
 - `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py` only if startup-status parsing or pytest_result validation strictly requires it
+- `reverse_agent/project_state.py` only if report/status plumbing strictly requires it
 
 Allowed tests:
 
@@ -191,19 +193,23 @@ Allowed generated/project-state files:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/*`
+- `project_state/rounds/round_20260617_current_report_gate_regeneration_rework_v1/*`
 
 Required implementation behavior:
 
-- Parse trusted startup `git status --short` from `pytest_result.txt` command blocks when available.
-- If trusted startup status shows source/test dirty, preflight/final-check must not report clean-start PASS unless there is an explicit pre-existing decision allowlist and no live decision mutation.
-- If trusted startup status is clean, baseline summaries must not later classify implementation source/test changes as inherited dirty.
-- If startup status and `round_baseline.json` disagree on source/test dirty state, final-check must FAIL with a clear startup/baseline consistency error.
-- Ensure `preflight_result.json`, `report_summary_synthesis.json`, `command_plan.json`, and `final_gate_result.json` carry current `decision_id`, `report_id` where applicable, and `round_id`.
-- Ensure final-check fails if any of those artifacts are stale or reference another round/report.
-- Ensure report-summary/final-check regenerate current-round synthesis/final result rather than using stale previous-round IDs.
-- Ensure final gate cannot use a stale `final_gate_result.json` as current success evidence.
-- Preserve preflight-failure handoff behavior from the previous round.
+- Ensure report-summary reads the current live `project_state/codex_execution_report.md` after it is written.
+- Ensure final-check reads the current live report and emits the current `report_id`, `decision_id`, and `round_id`.
+- Ensure close-round uses the current live report for report/decision/round comparisons.
+- Ensure stale gate artifacts are regenerated or rejected before they can influence current final-check/close-round output.
+- Ensure `report_summary_synthesis.json` generated for current round contains current `report_id`, current `round_id`, and current `based_on_decision_id`.
+- Ensure `final_gate_result.json` generated for current round contains current `decision_id`, current live `report_id`, and current `round_id`.
+- Ensure `command_plan.json` generated for current round contains current `decision_id` and current `round_id`.
+- Ensure `round_delta_summary.json` and `round_baseline.json` are current-round artifacts or are clearly rejected as stale.
+- If close-round fails, report status/recommendation must remain non-success and non-accepted.
+- If diagnostic commands are expected to fail during a blocked/diagnostic path, command-plan must model expected exit codes explicitly; otherwise final-check must treat non-zero exit codes as real failures.
+- Preserve startup/baseline consistency behavior from the previous round.
+- Preserve stale artifact ID check behavior from the previous round.
+- Preserve preflight-failure handoff behavior.
 - Preserve `pytest_result_summary.status` exit-code consistency behavior.
 - Preserve generated-artifact live-path existence behavior.
 - Preserve report-prose claimed source/test coverage behavior.
@@ -213,20 +219,23 @@ Required implementation behavior:
 
 Required tests:
 
-1. startup `git status --short` clean, later source/test files dirty: final-check treats them as this-round changes, not inherited dirty.
-2. startup `git status --short` shows source/test dirty, baseline missing or clean: preflight/final-check FAIL.
-3. startup status and `round_baseline.json` conflict on source/test dirty: final-check FAIL.
-4. `preflight_result.json` with stale `round_id`: final-check FAIL.
-5. `report_summary_synthesis.json` with stale `report_id` or `round_id`: final-check FAIL.
-6. `final_gate_result.json` with stale `report_id` or `round_id`: final-check FAIL.
-7. final-check generated for current round must contain current `decision_id`, current `report_id`, and current `round_id`.
-8. Current report `PARTIAL/REWORK_REQUIRED` must not be misread as accepted completion.
-9. Existing preflight-failure handoff tests continue to pass.
-10. Existing execution-authority hard-stop tests continue to pass.
-11. Existing generated-artifact live-path tests continue to pass.
-12. Existing report prose claim coverage tests continue to pass.
-13. Existing tmp-path dirty-state tests continue to pass.
-14. Existing gate-profile tests continue to pass.
+1. After current live report is written, report-summary reads that current report, not a prior report.
+2. final-check output `report_id` and `round_id` match the current live report.
+3. close-round requested round_id compares against the current decision/report/round.
+4. stale `report_summary_synthesis.json` cannot satisfy current final-check.
+5. stale `final_gate_result.json` cannot be treated as current success evidence.
+6. stale `command_plan.json` cannot satisfy current command-plan checks.
+7. close-round failed/invalid prevents accepted/completed report status.
+8. command-plan expected exit code mismatch remains a blocking failure unless explicitly modeled by the current command-plan.
+9. Current report `PARTIAL/REWORK_REQUIRED` is not misread as accepted completion.
+10. Existing startup/baseline consistency tests continue to pass.
+11. Existing stale artifact ID tests continue to pass.
+12. Existing preflight-failure handoff tests continue to pass.
+13. Existing execution-authority hard-stop tests continue to pass.
+14. Existing generated-artifact live-path tests continue to pass.
+15. Existing report prose claim coverage tests continue to pass.
+16. Existing tmp-path dirty-state tests continue to pass.
+17. Existing gate-profile tests continue to pass.
 
 ## 7. Tests
 
@@ -248,13 +257,13 @@ python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_current_report_gate_regeneration_rework_v1
 ```
 
 The pytest result header must include:
 
-- `decision_id=decision_20260617_preflight_startup_status_consistency_rework_v1`
-- `round_id=round_20260617_preflight_startup_status_consistency_rework_v1`
+- `decision_id=decision_20260617_current_report_gate_regeneration_rework_v1`
+- `round_id=round_20260617_current_report_gate_regeneration_rework_v1`
 - the final `report_id`
 - all commands actually run
 
@@ -271,5 +280,5 @@ Stop and report `BLOCKED` without expanding scope if:
 - temporary paths such as `tmp*/` cannot be safely removed or explained;
 - implementing this requires rewriting close-round or replacing the existing gate system;
 - the change would require modifying solver/harness/tool-runner/debugger/sample code;
-- startup status, baseline state, and current-round gate artifact IDs cannot be reconciled without broad refactoring;
-- tests fail for reasons outside the narrow startup/preflight/final-gate consistency scope.
+- current report and current gate artifacts cannot be made to reference the same decision/report/round without broad refactoring;
+- tests fail for reasons outside the narrow current-report gate regeneration scope.
