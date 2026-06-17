@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_codex_startup_prompt_contract_rework_v1",
-  "round_id": "round_20260617_codex_startup_prompt_contract_rework_v1",
+  "decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1",
+  "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,56 +15,62 @@
 
 ## 1. Goal
 
-Create a corrected Codex startup/execution prompt contract that removes the ambiguity causing clean startup states to later be reported as inherited source/test dirty, and prevents preflight hard-stop failures from being reported as completed work.
+Repair startup-status, preflight-baseline, and current-round final-gate consistency so a clean startup cannot later be misreported as inherited source/test dirty, and stale gate artifacts cannot be used as current evidence.
 
-This round is prompt/documentation first. Do not continue gate implementation, generated-artifact work, solver work, reverse solving, or sample work.
+This is the actual engineering rework after `decision_20260617_preflight_failure_handoff_rework_v1`. Do not change the external Codex prompt in this round; use the corrected prompt externally, but this decision is for repository behavior and state consistency.
 
 Required end state:
 
-- add a reusable prompt contract at `project_state/codex_startup_prompt_contract.md`;
-- the prompt contract must clearly distinguish three states:
-  1. startup clean before implementation;
-  2. startup dirty before implementation;
-  3. expected source/test dirty after implementation;
-- the prompt contract must state that source/test files modified after startup are this-round changes, not inherited baseline dirty files;
-- the prompt contract must state that `COMPLETED_WITH_LIMITATIONS` is a human final-reply label only, not a valid `codex_report_summary.status` unless the project schema explicitly supports it;
-- the prompt contract must state that if preflight fails, Codex must stop after recording startup/preflight evidence and write `BLOCKED` or `FAILED` plus `REWORK_REQUIRED`, not continue through the full gate pipeline;
-- do not modify Python source, tests, solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw samples, or `.codex-skills/` in this round.
+- if the trusted startup `git status --short` shows source/test dirty, preflight and final-check must treat it as hard-stop evidence;
+- if trusted startup `git status --short` is clean, later source/test dirty files must be treated as this-round modifications, not inherited baseline dirty;
+- preflight must not report `source_test_clean_start: PASS` when trusted startup evidence shows source/test dirty;
+- final-check must fail if `preflight_result.json`, `report_summary_synthesis.json`, or `final_gate_result.json` references a stale report_id / round_id rather than the current decision/report;
+- final-check must fail if live `final_gate_result.json` is stale or mismatched and must not use it as current success evidence;
+- keep preflight-failure handoff, decision immutability, generated-artifact existence, report-prose claim coverage, and tmp-path checks intact;
+- do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw samples, or `.codex-skills/` behavior.
 
 ## 2. Current Evidence
 
 Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` and `current_state.json` are state inputs only and must not override this decision.
 
-Reason for this rework:
+Previous round requiring rework:
 
-- The user provided a startup screenshot showing `git status --short = 空`, meaning the local working tree can be clean before Codex starts implementation.
-- Previous rounds repeatedly produced reports where later source/test modifications were treated as startup baseline/inherited dirty, or where preflight hard-stop failures were described as completion with limitations.
-- The current external prompt has two ambiguous parts:
-  - it says startup dirty files should be recorded as baseline dirty, but later decisions require source/test startup dirty to be a hard stop;
-  - it asks for final item 12 to use `COMPLETED_WITH_LIMITATIONS`, while the project report schema/final gate has rejected unsupported `codex_report_summary.status=COMPLETED_WITH_LIMITATIONS`.
-- Therefore the first fix should be prompt-level: make the startup/preflight/report-status contract unambiguous before continuing implementation work.
+- `decision_20260617_preflight_failure_handoff_rework_v1`
+- `round_20260617_preflight_failure_handoff_rework_v1`
+- mainline: `engineering_branch`
+- GPT audit conclusion: `REWORK_REQUIRED`
 
-Important interpretation:
+Observed facts from the previous audit:
 
-- If the startup `git status --short` is clean, Codex must record that fact and treat later `reverse_agent/*.py` or `tests/*.py` changes as this-round modifications.
-- Codex must not rerun or recapture startup baseline after modifying source/test files and then call those files inherited dirty.
-- If startup source/test dirty exists before implementation, Codex must stop and report `BLOCKED` or `FAILED/REWORK_REQUIRED`, unless the active decision had an explicit trusted allowlist before execution.
-- If preflight fails, the full Tests list is not a command sequence to blindly continue; it becomes a stop condition unless the command is part of a controlled unit-test fixture.
+- The current report improved status semantics by using `status=PARTIAL` and `acceptance_recommendation=REWORK_REQUIRED`, instead of `COMPLETED_WITH_LIMITATIONS` / accepted.
+- The user also showed a clean startup example where `git status --short` was empty at the true beginning of execution.
+- However, later recorded `pytest_result.txt` showed source/test files dirty in the startup command block, while preflight still reported `source_test_clean_start: PASS`.
+- This means startup evidence and preflight baseline were inconsistent.
+- `final_gate_result.json` also referenced stale IDs from `round_20260617_execution_authority_hard_stop_rework_v1` while the live report was for `round_20260617_preflight_failure_handoff_rework_v1`.
+- Therefore final-check evidence was not current for the active report/round.
+- Gate output still had report/decision mismatch, pytest_result mismatch, command-plan mismatch, report-summary mismatch, and stale final gate evidence.
+
+Meaning:
+
+- The report-status vocabulary issue moved in the right direction.
+- The remaining defect is state provenance: startup `git status`, baseline capture/reuse, preflight_result, report_summary_synthesis, and final_gate_result must all agree on the current decision/report/round.
+- A stale final gate or stale report-summary artifact must never be treated as current evidence.
 
 Existing useful behavior to preserve:
 
 - `source_test_clean_start` hard stop;
-- `decision_immutability` hard stop;
+- preflight-failure handoff check;
+- `decision_immutability` FAIL behavior;
 - inherited source/test dirty FAIL behavior;
 - `report_summary_fields_match_synthesis` structural mismatch FAIL behavior;
-- generated-artifact live-path existence checks;
+- generated-artifact live-path existence behavior;
 - report-prose claimed source/test coverage;
 - `tmp*/` dirty-state check;
 - gate-profile classifier behavior.
 
 Artifact freshness:
 
-- Historical `samplereverse` missing/stale artifacts are not current evidence for this prompt-contract rework.
+- Historical `samplereverse` missing/stale artifacts are not current evidence for this engineering rework.
 - This round does not depend on reverse sample artifacts.
 
 Negative results:
@@ -77,8 +83,8 @@ Negative results:
 
 Allowed tool execution:
 
-- Read compact `project_state/` metadata and the existing prompt/guide files needed to write the prompt contract.
-- Run only lightweight file/status validation and any non-invasive project-state lint needed for the prompt artifact.
+- Read repository source/tests and compact `project_state/` metadata.
+- Run gate/status/test commands listed in the Tests section.
 - Do not run local reverse samples, IDA, Ghidra, debugger, emulator, runtime probe, harness campaigns, or solver commands.
 
 Heavy artifact policy:
@@ -88,27 +94,33 @@ Heavy artifact policy:
 
 ## 3. Do Not Do
 
-Do not modify Python source or tests in this round.
+Do not modify the external Codex prompt in this repository during this round.
 
 Do not continue expanding generated-artifact functionality.
 
-Do not rewrite clean-start guard, report-summary, final-check, or close-round code.
+Do not rewrite clean-start guard, report-summary, final-check, or close-round from scratch.
 
-Do not modify `.codex-skills/` or `.codex-skills/registry.json`.
+Do not weaken existing hard-stop gates.
 
-Do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, runtime probe, GUI/frontend, sample runner, raw sample files, or training sample metadata.
+Do not convert preflight failure into accepted/completed status.
+
+Do not use stale `final_gate_result.json`, stale `report_summary_synthesis.json`, or stale `preflight_result.json` as current evidence.
+
+Do not run close-round after a hard-stop except in a test fixture explicitly validating failure behavior.
+
+Do not modify live `project_state/decision_packet.md` during execution to add a late allowlist or change the active task.
+
+Do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, runtime probe, GUI/frontend, sample runner, raw sample, or `.codex-skills/` files.
 
 Do not run sample binaries.
 
 Do not run IDA/Ghidra/debugger/harness/solver/runtime probe commands.
 
-Do not use unsupported `codex_report_summary.status=COMPLETED_WITH_LIMITATIONS`.
+Do not change training sample statuses.
 
-Do not call this round `COMPLETED` if only the prompt artifact was written but required validation/report files are missing.
+Do not add a database, queue system, workflow engine, or new external dependency.
 
 Do not treat `task_packet.task` as current execution authority.
-
-Do not upload, push, create PR, merge, rebase, or switch branches from Codex unless a separate user message explicitly says to do so.
 
 ## 4. Files To Inspect
 
@@ -123,94 +135,102 @@ Read default project-state files in order:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Also inspect only as needed:
+Also inspect:
 
-- `AGENT_GUIDE_FOR_AI.md`
-- `README.txt`
 - `project_state/gates/preflight_result.json`
+- `project_state/gates/command_plan.json`
+- `project_state/gates/run_round_result.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/round_baseline.json`
+- `project_state/gates/round_delta_summary.json`
+- `reverse_agent/project_gate.py`
+- `reverse_agent/project_state.py` only if status/baseline parsing support strictly requires it
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py` only if project_state support is changed
+- current Git changed filenames / diff summary
 
-Do not inspect unrelated solver/harness/tool-runner modules.
+Do not inspect unrelated solver/harness/tool-runner modules unless a failing test directly requires it.
 
 ## 5. Required Audit
 
-Before writing the prompt contract, confirm:
+Before implementation, confirm:
 
 1. Startup path is `F:\reverse-agent`, `Test-Path F:\reverse-agent` is true, and `git rev-parse --show-toplevel` points to this repository.
-2. Startup `git status --short` is recorded before any modification.
-3. If startup source/test files are dirty, do not edit code; because this round is prompt/document-only, either stop with `BLOCKED` or proceed only if the dirty files are known inherited user work and are not touched.
-4. If startup `project_state/decision_packet.md` is dirty, stop and report `BLOCKED`.
-5. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
-6. Current decision controls execution; `task_packet.json` is not authoritative.
-7. Confirm the prompt ambiguity before writing the prompt contract:
-   - startup clean vs post-implementation dirty;
-   - inherited baseline dirty vs this-round files_changed;
-   - human final label vs `codex_report_summary.status` schema;
-   - preflight failure stop condition vs full gate pipeline.
-8. No mature reverse-engineering tool integration needs to be modified.
+2. Startup `git status --short` is recorded before any file modification.
+3. Record whether startup status is truly clean or has baseline dirty files.
+4. If startup `git status --short` is clean, later source/test dirty files must be treated as this-round changes, not inherited baseline dirty.
+5. If startup `git status --short` already shows source/test dirty files, stop immediately and write `codex_execution_report.md` with `status=BLOCKED` or `status=FAILED` and `acceptance_recommendation=REWORK_REQUIRED`; do not implement changes.
+6. If startup `git status --short` shows live `project_state/decision_packet.md` dirty, stop immediately and write a BLOCKED report; do not implement changes.
+7. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
+8. Current decision controls execution; `task_packet.json` is not authoritative.
+9. Confirm the previous startup/preflight/final-gate ID mismatch before changing code.
+10. No mature reverse-engineering tool integration needs to be modified.
 
 ## 6. Implementation Scope
 
-Allowed documentation/prompt artifact:
+Allowed source files:
 
-- `project_state/codex_startup_prompt_contract.md` (create or replace)
+- `reverse_agent/project_gate.py`
+- `reverse_agent/project_state.py` only if startup-status parsing or pytest_result validation strictly requires it
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py` only if project_state support is changed
 
 Allowed generated/project-state files:
 
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
-- `project_state/gates/preflight_result.json` only if preflight is run for lightweight validation
-- `project_state/gates/command_plan.json` only if command-plan is run for lightweight validation
-- `project_state/gates/gate_profile_plan.json` only if gate-profile is run for lightweight validation
+- `project_state/gates/preflight_result.json`
+- `project_state/gates/command_plan.json`
+- `project_state/gates/run_round_result.json`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/round_baseline.json`
+- `project_state/gates/round_delta_summary.json`
+- `project_state/gates/round_close_snapshot.json`
+- `project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/*`
 
-Do not modify:
+Required implementation behavior:
 
-- `reverse_agent/*.py`
-- `tests/*.py`
-- `.codex-skills/*`
-- solver/harness/tool-runner/debugger/sample/GUI files
-- raw sample files
+- Parse trusted startup `git status --short` from `pytest_result.txt` command blocks when available.
+- If trusted startup status shows source/test dirty, preflight/final-check must not report clean-start PASS unless there is an explicit pre-existing decision allowlist and no live decision mutation.
+- If trusted startup status is clean, baseline summaries must not later classify implementation source/test changes as inherited dirty.
+- If startup status and `round_baseline.json` disagree on source/test dirty state, final-check must FAIL with a clear startup/baseline consistency error.
+- Ensure `preflight_result.json`, `report_summary_synthesis.json`, `command_plan.json`, and `final_gate_result.json` carry current `decision_id`, `report_id` where applicable, and `round_id`.
+- Ensure final-check fails if any of those artifacts are stale or reference another round/report.
+- Ensure report-summary/final-check regenerate current-round synthesis/final result rather than using stale previous-round IDs.
+- Ensure final gate cannot use a stale `final_gate_result.json` as current success evidence.
+- Preserve preflight-failure handoff behavior from the previous round.
+- Preserve `pytest_result_summary.status` exit-code consistency behavior.
+- Preserve generated-artifact live-path existence behavior.
+- Preserve report-prose claimed source/test coverage behavior.
+- Preserve `tmp*/` dirty-state check behavior.
+- Preserve gate-profile classifier behavior.
+- Preserve path normalization across Windows and POSIX separators.
 
-Required content for `project_state/codex_startup_prompt_contract.md`:
+Required tests:
 
-1. A short purpose statement: this prompt is for Codex local execution in `F:\reverse-agent`.
-2. A strict startup block that must run before any file modification.
-3. A state classification table:
-   - startup clean: continue; later source/test dirty files are this-round changes;
-   - startup project_state/generated dirty only: record as baseline and continue with caution;
-   - startup source/test dirty: hard stop unless pre-existing decision allowlist exists;
-   - startup live decision dirty: hard stop.
-4. A preflight rule:
-   - run preflight before implementation;
-   - if preflight fails, stop and write `BLOCKED` or `FAILED/REWORK_REQUIRED` report;
-   - do not run the remaining full gate pipeline after preflight failure.
-5. A report status vocabulary rule:
-   - `codex_report_summary.status` may use only schema-supported statuses such as `SUCCESS`, `PARTIAL`, `FAILED`, or `BLOCKED`;
-   - `COMPLETED_WITH_LIMITATIONS` is only a human final-reply label if used at all, not a JSON report status unless schema explicitly supports it;
-   - when preflight or required gates fail, `acceptance_recommendation` must be `REWORK_REQUIRED` or `BLOCKED`, never accepted.
-6. A files_changed rule:
-   - files changed after startup are this-round changes;
-   - baseline dirty files are only those present in startup evidence before implementation;
-   - do not classify implementation edits as inherited dirty.
-7. A testing rule:
-   - the Tests list is conditional on preflight success;
-   - if preflight fails, record startup/preflight evidence and stop;
-   - if command blocks contain non-zero exit codes, `pytest_result_summary.status` cannot be `PASSED`.
-8. A final 12-item reply rule that distinguishes user-facing completion label from JSON report status.
-9. A compact corrected prompt block that the user can paste into Codex.
-
-Required report behavior for this round:
-
-- If only the prompt contract is created and validation succeeds, use `status=SUCCESS` or `PARTIAL` according to actual validation.
-- If startup dirty source/test files prevent safe editing, use `status=BLOCKED` or `FAILED` and `acceptance_recommendation=REWORK_REQUIRED` or `BLOCKED`.
-- Do not use `COMPLETED_WITH_LIMITATIONS` as JSON status.
+1. startup `git status --short` clean, later source/test files dirty: final-check treats them as this-round changes, not inherited dirty.
+2. startup `git status --short` shows source/test dirty, baseline missing or clean: preflight/final-check FAIL.
+3. startup status and `round_baseline.json` conflict on source/test dirty: final-check FAIL.
+4. `preflight_result.json` with stale `round_id`: final-check FAIL.
+5. `report_summary_synthesis.json` with stale `report_id` or `round_id`: final-check FAIL.
+6. `final_gate_result.json` with stale `report_id` or `round_id`: final-check FAIL.
+7. final-check generated for current round must contain current `decision_id`, current `report_id`, and current `round_id`.
+8. Current report `PARTIAL/REWORK_REQUIRED` must not be misread as accepted completion.
+9. Existing preflight-failure handoff tests continue to pass.
+10. Existing execution-authority hard-stop tests continue to pass.
+11. Existing generated-artifact live-path tests continue to pass.
+12. Existing report prose claim coverage tests continue to pass.
+13. Existing tmp-path dirty-state tests continue to pass.
+14. Existing gate-profile tests continue to pass.
 
 ## 7. Tests
 
-Because this round is documentation/prompt-only, do not run broad pytest unless Python files are modified by mistake.
-
-Run and record lightweight validation in `project_state/pytest_result.txt`:
+Run and record the following commands in `project_state/pytest_result.txt`:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -218,28 +238,27 @@ Get-Location
 Test-Path F:\reverse-agent
 git rev-parse --show-toplevel
 git status --short
-Test-Path F:\reverse-agent\project_state\decision_packet.md
-Test-Path F:\reverse-agent\project_state\codex_startup_prompt_contract.md
-Test-Path F:\reverse-agent\project_state\pytest_result.txt
-Test-Path F:\reverse-agent\project_state\codex_execution_report.md
-python -m reverse_agent.project_gate gate-profile --state-dir project_state --json
-```
-
-Optional only if startup state is clean and no source/test files are modified:
-
-```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m reverse_agent.project_gate gate-profile --state-dir project_state --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
+python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+python -m reverse_agent.project_state doctor --state-dir project_state
+python -m reverse_agent.project_state lint-report --state-dir project_state
+python -m reverse_agent.project_gate report-summary --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1
 ```
-
-Do not run `final-check` or `close-round` if preflight fails or if this prompt-only round intentionally leaves no closeable code implementation.
 
 The pytest result header must include:
 
-- `decision_id=decision_20260617_codex_startup_prompt_contract_rework_v1`
-- `round_id=round_20260617_codex_startup_prompt_contract_rework_v1`
+- `decision_id=decision_20260617_preflight_startup_status_consistency_rework_v1`
+- `round_id=round_20260617_preflight_startup_status_consistency_rework_v1`
 - the final `report_id`
 - all commands actually run
+
+If preflight fails due to actual startup source/test dirty, Codex must stop after recording startup/preflight evidence and write a BLOCKED/REWORK report instead of running the remaining commands.
 
 ## 8. Stop Conditions
 
@@ -247,11 +266,10 @@ Stop and report `BLOCKED` without expanding scope if:
 
 - current `decision_packet.md` is no longer this decision;
 - `.codex-skills/registry.json` does not contain active `reverse-agent-iteration@v2`;
-- startup `git status --short` shows live `project_state/decision_packet.md` dirty;
-- startup source/test dirty files exist and cannot be safely left untouched while creating only the prompt artifact;
+- startup `git status --short` already shows source/test dirty files before implementation begins;
+- startup `git status --short` already shows live `project_state/decision_packet.md` dirty;
 - temporary paths such as `tmp*/` cannot be safely removed or explained;
-- implementing this requires modifying Python source/tests or gate code;
 - implementing this requires rewriting close-round or replacing the existing gate system;
 - the change would require modifying solver/harness/tool-runner/debugger/sample code;
-- prompt contract cannot be written without broad refactoring;
-- validation fails for reasons outside the narrow prompt-contract scope.
+- startup status, baseline state, and current-round gate artifact IDs cannot be reconciled without broad refactoring;
+- tests fail for reasons outside the narrow startup/preflight/final-gate consistency scope.
