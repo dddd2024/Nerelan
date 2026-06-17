@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_current_report_gate_regeneration_rework_v1",
-  "round_id": "round_20260617_current_report_gate_regeneration_rework_v1",
+  "decision_id": "decision_20260617_command_plan_expected_exit_semantics_v1",
+  "round_id": "round_20260617_command_plan_expected_exit_semantics_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,18 +15,19 @@
 
 ## 1. Goal
 
-Repair the current-report gate regeneration order so `codex_execution_report.md`, `pytest_result.txt`, `report_summary_synthesis.json`, `final_gate_result.json`, `round_delta_summary.json`, and close-round all refer to the same current decision/report/round.
+Repair command-plan expected-exit semantics so diagnostic commands, ordinary required commands, and closeout commands are modeled differently.
 
-This is a narrow engineering rework after `decision_20260617_preflight_startup_status_consistency_rework_v1`. Do not add new broad gate features. The immediate failure is that live `codex_execution_report.md` was updated to the current round, but later gate artifacts and command outputs still used or reported stale prior-round report IDs.
+This is a narrow engineering rework after `decision_20260617_current_report_gate_regeneration_rework_v1`. The previous round largely fixed current report/gate artifact ID consistency. The remaining blocker is `pytest_result_exit_codes_match_command_plan`: diagnostic commands returned non-zero while command-plan still expected exit code 0 for every required command.
 
 Required end state:
 
-- report-summary must read the current live `project_state/codex_execution_report.md`, not a stale archived or cached report;
-- final-check output must contain the current `decision_id`, current live `report_id`, and current `round_id`;
-- close-round must compare the requested round_id against the current decision/report, not against stale prior-round artifacts;
-- stale `report_summary_synthesis.json`, `final_gate_result.json`, `command_plan.json`, and `round_delta_summary.json` must be regenerated or rejected before they are used as current evidence;
-- if close-round fails, the report must remain `PARTIAL`/`FAILED` with `REWORK_REQUIRED` or `BLOCKED`; do not package close-round failure as completion;
-- preserve startup/baseline consistency checks, stale artifact ID checks, preflight-failure handoff, decision immutability, generated-artifact existence, report-prose claim coverage, tmp-path checks, and gate-profile behavior;
+- command-plan must distinguish ordinary required commands, diagnostic gate/status commands, and closeout commands;
+- diagnostic commands may allow non-zero exit codes when their purpose is to detect and report gate problems, but their findings must still be reflected in report-summary/final-check;
+- ordinary required commands must still fail when they return unexpected non-zero exit codes;
+- `close-round` must remain a real closeout command and must not be treated as a harmless diagnostic failure in the normal closeout path;
+- `close-round` should be skipped or treated as a diagnostic failure-path fixture when final-check is already failed, rather than being included as an unconditional expected-success command;
+- `pytest_result_exit_codes_match_command_plan` must use command kind/phase semantics instead of treating all command-plan entries as expected `[0]`;
+- preserve startup/baseline consistency checks, stale artifact ID checks, preflight-failure handoff, decision immutability, generated-artifact existence, report-prose claim coverage, tmp-path checks, gate-profile behavior, and current-report gate regeneration behavior;
 - do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw samples, or `.codex-skills/` behavior.
 
 ## 2. Current Evidence
@@ -35,32 +36,39 @@ Current execution authority is this `project_state/decision_packet.md`. `task_pa
 
 Previous round requiring rework:
 
-- `decision_20260617_preflight_startup_status_consistency_rework_v1`
-- `round_20260617_preflight_startup_status_consistency_rework_v1`
+- `decision_20260617_current_report_gate_regeneration_rework_v1`
+- `round_20260617_current_report_gate_regeneration_rework_v1`
 - mainline: `engineering_branch`
 - GPT audit conclusion: `REWORK_REQUIRED`
 
 Observed facts from the previous audit:
 
-- The live `codex_execution_report.md` was updated to the current round and used `status=PARTIAL` plus `acceptance_recommendation=REWORK_REQUIRED`.
-- The startup `git status --short` in `pytest_result.txt` was clean, and preflight passed.
-- The implementation added useful checks for startup/baseline consistency and stale artifact IDs.
-- However, `doctor`, `lint-report`, `report-summary`, `final-check`, and `close-round` output still referenced `codex_report_20260617_preflight_failure_handoff_rework_v1` / `round_20260617_preflight_failure_handoff_rework_v1` while the live report was `codex_report_20260617_preflight_startup_status_consistency_rework_v1`.
-- `final_gate_result.json` and close-round were therefore not current evidence for the active report.
-- close-round failed with report/decision mismatch, command-plan mismatch, pytest exit-code mismatch, files_changed coverage mismatch, startup/baseline consistency mismatch, and report-summary mismatch.
-- The screenshot claim that close-round failed only because diagnostic commands naturally return non-zero is insufficient; the actual failure includes stale/mismatched report and gate artifacts.
+- The current report, pytest_result, report-summary, final-check, and close-round mostly referenced the current decision/report/round.
+- Startup `git status --short` was clean.
+- Preflight passed.
+- Pytest passed: 684 tests.
+- `decision_report_match` passed.
+- `report_summary_fields_match_synthesis` passed.
+- `stale_artifact_ids` passed.
+- `startup_baseline_consistency` passed.
+- `files_changed_covers_git_diff` passed.
+- `files_changed_excludes_inherited_dirty_files` passed.
+- The remaining hard blocker was `pytest_result_exit_codes_match_command_plan`.
+- The mismatch came from commands such as `doctor`, `lint-report`, `report-summary`, and `close-round` returning exit code 1 while command-plan expected `[0]` for every command.
 
 Meaning:
 
-- The code checks are moving in the right direction.
-- The remaining defect is regeneration/order-of-operations: after the live report is written, report-summary/final-check/close-round must be regenerated against that live report and current round.
-- Stale gate artifacts must not be used to claim completion or limitation.
+- Startup/baseline/stale artifact/current-report ID issues are mostly resolved and should not be expanded further.
+- The remaining defect is command-plan expected-exit modeling.
+- Diagnostic commands that intentionally detect gate/report problems need different expected-exit semantics from ordinary commands.
+- `close-round` needs conditional execution semantics: it should not be run as a successful closeout command after final-check has already failed.
 
 Existing useful behavior to preserve:
 
 - `source_test_clean_start` hard stop;
 - startup/baseline consistency check;
 - stale artifact ID check;
+- current-report gate regeneration behavior;
 - preflight-failure handoff check;
 - `decision_immutability` FAIL behavior;
 - inherited source/test dirty FAIL behavior;
@@ -96,19 +104,21 @@ Heavy artifact policy:
 
 ## 3. Do Not Do
 
-Do not continue expanding generated-artifact functionality beyond preserving existing checks.
+Do not continue expanding startup/baseline/stale artifact/current-report ID functionality beyond preserving existing checks.
 
 Do not add another new gate subsystem.
 
-Do not rewrite clean-start guard, report-summary, final-check, or close-round from scratch.
+Do not rewrite command-plan, report-summary, final-check, or close-round from scratch.
 
-Do not weaken existing hard-stop gates.
+Do not weaken ordinary required command failures.
 
-Do not use stale `final_gate_result.json`, stale `report_summary_synthesis.json`, stale `command_plan.json`, stale `round_delta_summary.json`, or stale `preflight_result.json` as current evidence.
+Do not make all commands globally accept `[0, 1]`.
 
-Do not use archived prior-round reports as the live report for current report-summary/final-check/close-round.
+Do not treat `close-round` exit code 1 as acceptable in the normal closeout path.
 
 Do not call a round complete if final-check or close-round is failed/invalid.
+
+Do not use diagnostic command failures as an excuse to write accepted/completed status.
 
 Do not modify live `project_state/decision_packet.md` during execution to add a late allowlist or change the active task.
 
@@ -139,16 +149,13 @@ Read default project-state files in order:
 
 Also inspect:
 
-- `project_state/gates/preflight_result.json`
 - `project_state/gates/command_plan.json`
-- `project_state/gates/run_round_result.json`
-- `project_state/gates/report_summary_synthesis.json`
 - `project_state/gates/final_gate_result.json`
+- `project_state/gates/report_summary_synthesis.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/gates/round_close_snapshot.json` if present
 - `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py` only if report/status plumbing strictly requires it
+- `reverse_agent/project_state.py` only if pytest_result/status validation plumbing strictly requires it
 - `tests/test_project_gate.py`
 - `tests/test_project_state.py` only if project_state support is changed
 - current Git changed filenames / diff summary
@@ -166,15 +173,16 @@ Before implementation, confirm:
 5. If startup `git status --short` shows live `project_state/decision_packet.md` dirty, stop immediately and write a BLOCKED report; do not implement changes.
 6. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
 7. Current decision controls execution; `task_packet.json` is not authoritative.
-8. Confirm the previous stale live-report/gate-artifact regeneration defect before changing code.
-9. No mature reverse-engineering tool integration needs to be modified.
+8. Confirm the previous `pytest_result_exit_codes_match_command_plan` blocker before changing code.
+9. Confirm which command categories are ordinary required, diagnostic, and closeout.
+10. No mature reverse-engineering tool integration needs to be modified.
 
 ## 6. Implementation Scope
 
 Allowed source files:
 
 - `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py` only if report/status plumbing strictly requires it
+- `reverse_agent/project_state.py` only if pytest_result/status validation strictly requires it
 
 Allowed tests:
 
@@ -193,24 +201,25 @@ Allowed generated/project-state files:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260617_current_report_gate_regeneration_rework_v1/*`
+- `project_state/rounds/round_20260617_command_plan_expected_exit_semantics_v1/*`
 
 Required implementation behavior:
 
-- Ensure report-summary reads the current live `project_state/codex_execution_report.md` after it is written.
-- Ensure final-check reads the current live report and emits the current `report_id`, `decision_id`, and `round_id`.
-- Ensure close-round uses the current live report for report/decision/round comparisons.
-- Ensure stale gate artifacts are regenerated or rejected before they can influence current final-check/close-round output.
-- Ensure `report_summary_synthesis.json` generated for current round contains current `report_id`, current `round_id`, and current `based_on_decision_id`.
-- Ensure `final_gate_result.json` generated for current round contains current `decision_id`, current live `report_id`, and current `round_id`.
-- Ensure `command_plan.json` generated for current round contains current `decision_id` and current `round_id`.
-- Ensure `round_delta_summary.json` and `round_baseline.json` are current-round artifacts or are clearly rejected as stale.
-- If close-round fails, report status/recommendation must remain non-success and non-accepted.
-- If diagnostic commands are expected to fail during a blocked/diagnostic path, command-plan must model expected exit codes explicitly; otherwise final-check must treat non-zero exit codes as real failures.
-- Preserve startup/baseline consistency behavior from the previous round.
-- Preserve stale artifact ID check behavior from the previous round.
+- Extend command-plan entries with clear command semantics, such as `kind` / `phase` values for ordinary status commands, preflight, tests, diagnostic commands, gate checks, and closeout commands.
+- Keep ordinary required commands expected to exit `[0]`.
+- Treat `doctor`, `lint-report`, `report-summary`, and `final-check` as diagnostic or gate-diagnostic commands when they are used to inspect/report state. These commands may allow `[0, 1]` only when non-zero output is expected to be captured in report/final gate rather than treated as an execution mismatch.
+- Do not silently ignore diagnostic command failures: their failures must remain visible in pytest_result/report/final gate, and the report must remain `PARTIAL`/`FAILED` with `REWORK_REQUIRED` unless final-check and closeout pass.
+- Treat `close-round` as a closeout command. In normal closeout path it must expect exit `[0]`.
+- Add conditional close-round semantics: `close-round` should be executed only if final-check has passed, unless the command is explicitly part of a test fixture validating failure behavior.
+- If final-check fails, close-round should be skipped in the normal manual command plan and the report should remain `REWORK_REQUIRED` or `BLOCKED`.
+- Update `pytest_result_exit_codes_match_command_plan` so it validates exit codes according to command kind and conditional execution semantics.
+- Ensure command-plan JSON records enough metadata for final-check to decide whether a non-zero command exit is allowed, diagnostic, or blocking.
+- Ensure ordinary command exit 1 still fails the check.
+- Ensure close-round exit 1 still fails in closeout mode.
+- Preserve startup/baseline consistency behavior from prior rounds.
+- Preserve stale artifact ID behavior from prior rounds.
+- Preserve current-report gate regeneration behavior from prior rounds.
 - Preserve preflight-failure handoff behavior.
-- Preserve `pytest_result_summary.status` exit-code consistency behavior.
 - Preserve generated-artifact live-path existence behavior.
 - Preserve report-prose claimed source/test coverage behavior.
 - Preserve `tmp*/` dirty-state check behavior.
@@ -219,17 +228,17 @@ Required implementation behavior:
 
 Required tests:
 
-1. After current live report is written, report-summary reads that current report, not a prior report.
-2. final-check output `report_id` and `round_id` match the current live report.
-3. close-round requested round_id compares against the current decision/report/round.
-4. stale `report_summary_synthesis.json` cannot satisfy current final-check.
-5. stale `final_gate_result.json` cannot be treated as current success evidence.
-6. stale `command_plan.json` cannot satisfy current command-plan checks.
-7. close-round failed/invalid prevents accepted/completed report status.
-8. command-plan expected exit code mismatch remains a blocking failure unless explicitly modeled by the current command-plan.
-9. Current report `PARTIAL/REWORK_REQUIRED` is not misread as accepted completion.
-10. Existing startup/baseline consistency tests continue to pass.
-11. Existing stale artifact ID tests continue to pass.
+1. diagnostic command exit 1 does not trigger `pytest_result_exit_codes_match_command_plan` mismatch when command-plan explicitly allows diagnostic `[0, 1]`.
+2. diagnostic command exit 1 remains visible in report/final gate and does not produce accepted/completed status.
+3. ordinary required command exit 1 still triggers `pytest_result_exit_codes_match_command_plan` FAIL.
+4. final-check failed causes normal close-round command to be skipped or marked not applicable, not executed as expected-success closeout.
+5. final-check passed allows close-round expected exit `[0]`.
+6. close-round exit 1 in closeout mode still blocks.
+7. command-plan JSON records command kind/phase/expected_exit_codes sufficient for final-check validation.
+8. current round final-check/close-round no longer fails solely because diagnostic commands returned exit 1.
+9. Existing startup/baseline consistency tests continue to pass.
+10. Existing stale artifact ID tests continue to pass.
+11. Existing current-report regeneration tests continue to pass.
 12. Existing preflight-failure handoff tests continue to pass.
 13. Existing execution-authority hard-stop tests continue to pass.
 14. Existing generated-artifact live-path tests continue to pass.
@@ -257,17 +266,17 @@ python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_current_report_gate_regeneration_rework_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_command_plan_expected_exit_semantics_v1
 ```
 
 The pytest result header must include:
 
-- `decision_id=decision_20260617_current_report_gate_regeneration_rework_v1`
-- `round_id=round_20260617_current_report_gate_regeneration_rework_v1`
+- `decision_id=decision_20260617_command_plan_expected_exit_semantics_v1`
+- `round_id=round_20260617_command_plan_expected_exit_semantics_v1`
 - the final `report_id`
 - all commands actually run
 
-If preflight fails due to actual startup source/test dirty, Codex must stop after recording startup/preflight evidence and write a BLOCKED/REWORK report instead of running the remaining commands.
+If final-check fails, Codex should not run `close-round` as a normal expected-success closeout command. Record the skip or diagnostic reason instead and report `REWORK_REQUIRED`.
 
 ## 8. Stop Conditions
 
@@ -280,5 +289,5 @@ Stop and report `BLOCKED` without expanding scope if:
 - temporary paths such as `tmp*/` cannot be safely removed or explained;
 - implementing this requires rewriting close-round or replacing the existing gate system;
 - the change would require modifying solver/harness/tool-runner/debugger/sample code;
-- current report and current gate artifacts cannot be made to reference the same decision/report/round without broad refactoring;
-- tests fail for reasons outside the narrow current-report gate regeneration scope.
+- command kind/phase semantics cannot distinguish diagnostic commands from closeout commands without broad refactoring;
+- tests fail for reasons outside the narrow command-plan expected-exit semantics scope.
