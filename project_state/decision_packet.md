@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260616_training_dataset_historical_artifact_policy_v1",
-  "round_id": "round_20260616_training_dataset_historical_artifact_policy_v1",
+  "decision_id": "decision_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "round_id": "round_20260617_training_dataset_cipher_static_evidence_profile_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
-  "mainline": "engineering_branch",
+  "mainline": "training_dataset",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,102 +15,108 @@
 
 ## 1. Goal
 
-Repair the gate/status policy that incorrectly blocks `training_dataset` rounds when the only artifact freshness issue is historical sample artifact missing/stale state unrelated to the current training round.
+Build the next training-dataset step for local reverse samples by producing a bounded `cipher_static_evidence_profile` plan for PE cipher samples, especially DES and RC4.
 
-The previous `training_dataset` round produced the requested resume plan and type coverage matrix, but `close-round` failed because `status_policy_valid` treated historical `samplereverse` missing artifacts as blocking under `training_dataset`.
-
-This is an `engineering_branch` gate-policy repair round. Do not continue sample solving. Do not regenerate the training inventory. Do not rerun local samples.
+This round must unblock the current type-level training gap without solving a single sample. The immediate purpose is to turn the `pending_cipher_static_evidence_profile` blocker into an explicit, reusable evidence contract that future static-triage rounds can apply to DES/RC4 PE samples.
 
 Required end state:
 
-- `training_dataset` mainline can treat historical sample artifact freshness issues as non-blocking when the current report does not claim those artifacts as current evidence;
-- `status_policy_valid` passes for the previous training resume scenario when the only blocking issue is historical sample artifact freshness;
-- real current-round missing/stale artifacts remain blocking;
-- `engineering_branch` behavior remains unchanged;
-- `reverse_solving` behavior remains strict and does not silently downgrade current evidence failures;
-- `report-summary` passes;
-- `final-check` passes;
-- `close-round` exits 0 and archives `round_20260616_training_dataset_historical_artifact_policy_v1`.
+- create a reviewable cipher static evidence profile artifact under `project_state/`;
+- cover both DES and RC4 PE sample families listed in the local reverse training matrix;
+- define exact evidence fields future IDA/Ghidra/static extraction should collect;
+- define how the profile maps tool output into training metadata and later `StructuredEvidence`;
+- select the first bounded DES and RC4 samples for later triage, but do not triage them in this round;
+- do not run local reverse samples, debuggers, harness campaigns, runtime probes, or solver searches;
+- do not modify solver logic, static tool runners, IDA/Ghidra/debugger adapters, or harness behavior.
 
 ## 2. Current Evidence
 
-Current execution authority is this `project_state/decision_packet.md`; `task_packet.json` and `current_state.json` remain state inputs only and must not override this decision.
+Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` still reflects an old `samplereverse` sample-state task (`collect_missing_evidence`) and is non-authoritative for this round.
 
-The previous round:
+Current state digest and build id are retained from the available state package:
 
-- `decision_20260616_local_reverse_training_resume_plan_v1`
-- `round_20260616_local_reverse_training_resume_plan_v1`
-- mainline: `training_dataset`
-- audit conclusion: `REWORK_REQUIRED`
+- `state_build_id`: `state_20260615_150220_24f61a9ac337`
+- `state_digest`: `24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae`
 
-Evidence from the previous round:
+The previous gate-policy repair round was accepted with limitations and archived:
 
-- `project_state/local_reverse_training_resume_plan.json` exists and contains the expected resume plan.
-- `project_state/local_reverse_type_coverage_matrix.json` exists and contains type coverage.
-- `pytest` passed with 645 tests.
-- `command-plan` passed.
-- No sample execution was reported.
-- No source/test code was modified.
-- `final-check` failed because `status_policy_valid` failed.
-- `close-round` failed after archive due to `final_check_after_archive: ['status_policy_valid']`.
-- `report_summary_synthesis.json` expected `FAILED / REWORK_REQUIRED`, while Codex report claimed `SUCCESS / ACCEPTED`.
+- `decision_20260616_training_dataset_historical_artifact_policy_v1`
+- `round_20260616_training_dataset_historical_artifact_policy_v1`
+- `report_status=SUCCESS`
+- `acceptance_recommendation=ACCEPTED`
+- `final_gate_result.json` now treats historical sample artifact freshness as a non-blocking external-state notice for non-sample-solving closeout.
 
-Known likely root cause:
+Training-dataset evidence to use:
 
-- `reverse_agent/project_state.py` has `_historical_artifact_freshness_is_non_blocking()`.
-- `reverse_agent/project_gate.py` has `_status_policy_failure_is_historical_artifacts_only()`.
-- The current logic appears to downgrade historical missing/stale artifacts for `engineering_branch` but not for `training_dataset`.
-- For training resume planning, historical `samplereverse` missing artifacts are external state notices, not current-round blockers, provided the report does not claim them as current evidence.
+- `project_state/local_reverse_training_resume_plan.json` reports 50 local samples: 1 solved, 2 blocked, 1 needs triage, 46 inventory-only.
+- The resume plan lists `crypto/cipher` as a type coverage gap and states that `pending_cipher_static_evidence_profile` blocks cipher sample triage.
+- The recommended resume sequence includes building a cipher static evidence profile for DES and RC4 samples.
+- `project_state/local_reverse_type_coverage_matrix.json` reports 6 PE `crypto/cipher` samples, 0 solved, 0 blocked, 0 needs triage, 6 inventory-only.
+- The cipher PE inventory-only sample ids are `desenc_0e0b5203`, `desenc_14c58fcd`, `desenc_40cba418`, `desenc_fd9d0af6`, `rc4enc_3480917d`, and `rc4enc_f93c785f`.
+- The matrix also lists Python reference/support materials: `des_interactive_solver_256e1726`, `rc4_add1978d`, and `rc4_interactive_solver_773052ac`; these may be used as reference metadata only, not as target binaries.
 
-Existing mature tool interfaces and sample evidence mechanisms must remain untouched. This round is only about gate/status policy classification.
+Artifact freshness:
 
-Existing relevant capabilities to check before implementation:
+- `artifact_index.json` still has many old `samplereverse` artifacts marked missing/stale; these are historical sample artifacts and must not be treated as current evidence for this training-dataset planning round.
+- Do not use stale/missing `samplereverse` artifacts as evidence.
+- The current training artifacts are the local reverse resume plan and type coverage matrix from `project_state/`; verify they exist before relying on them.
 
-- project_state doctor/lint/report status policy code;
-- project_gate final-check/close-round status policy code;
-- report-summary synthesis behavior;
-- artifact freshness classification;
-- mainline-specific policy handling;
-- tests for project_state, project_gate, and local_reverse_training_status;
-- existing IDA/Ghidra/debugger/solver/harness interfaces, read-only only.
+Negative results:
+
+- Do not return to old `sample_solver` blind search.
+- Do not only increase guided-pool beam or budget.
+- Do not use `compare_semantics_agree=false` candidates as a primary frontier.
+- Do not commit full `solve_reports/`.
+- Do not repeat previously failed `samplereverse` candidate-pool/runtime-validation branches.
+
+Existing relevant capabilities that must be checked and reused instead of duplicated:
+
+- IDA / IDAPython: existing runner, scripts, evidence parsing, and static triage consumers exist; do not create a duplicate IDA interface.
+- Ghidra: currently no implemented headless runner/evidence adapter is recorded; mention as optional future evidence source only, do not implement it here.
+- OllyDbg / debugger: existing runtime/debugger evidence path exists; do not run or modify it in this round.
+- strings/static feature extraction: existing pure-Python static string extraction exists; reuse as a future evidence source, do not duplicate it.
+- solver templates and symbolic/constraint solvers exist; this round must not run or modify solvers.
+- harness and artifact freshness tracking exist; this round must not run harness campaigns.
+- sample metadata and local reverse training inventory exist; use them as the source for sample ids and categories.
+
+Allowed tool execution:
+
+- Read repository source, tests, `project_state/` JSON/markdown, and `training_materials/local_reverse/` metadata.
+- Run gate/status/test commands listed in the Tests section.
+- Do not execute local reverse sample binaries.
+- Do not run IDA/Ghidra/debugger/emulator/runtime probe/harness/solver commands in this round.
+
+Heavy artifact policy:
+
+- Do not read full `solve_reports/`.
+- Do not read full `PROJECT_PROGRESS_LOG.txt`.
+- Do not commit generated full runtime reports.
 
 ## 3. Do Not Do
 
-Do not modify solver logic.
+Do not solve DES or RC4 samples in this round.
 
-Do not modify sample runners.
+Do not run sample binaries.
 
-Do not modify IDA/Ghidra/debugger/emulator/probe/harness behavior.
+Do not run runtime probes, OllyDbg, x64dbg, emulator, harness campaigns, or candidate validation.
 
-Do not rerun local reverse samples.
+Do not run IDA/Ghidra analysis in this round. This round only defines the evidence profile that later static-triage rounds will use.
 
-Do not generate candidates.
+Do not modify `reverse_agent/tool_runners.py`, IDA scripts, debugger scripts, solver modules, harness modules, GUI/frontend, or `.codex-skills/`.
 
-Do not rebuild or rescan the training inventory.
+Do not modify raw sample files.
 
-Do not modify `.codex-skills/`.
+Do not modify or commit full `solve_reports/`.
 
-Do not modify raw samples.
+Do not mark any cipher sample as solved, blocked, or triaged merely because this profile exists.
 
-Do not modify GUI/frontend.
-
-Do not commit full `solve_reports/`.
-
-Do not weaken artifact freshness policy globally.
-
-Do not allow `training_dataset` to treat current-round missing/stale evidence as non-blocking.
-
-Do not downgrade `reverse_solving` current evidence failures.
-
-Do not hide real `report-summary` diffs or errors.
-
-Do not patch generated JSON files manually to hide failure.
+Do not overwrite existing training status artifacts unless the change is a clearly named additive planning artifact.
 
 Do not treat `task_packet.task` as the current execution authority.
 
 ## 4. Files To Inspect
 
-Read the default project_state files in order:
+Read the default project-state files in order:
 
 1. `project_state/task_packet.json`
 2. `project_state/current_state.json`
@@ -123,19 +129,22 @@ Read the default project_state files in order:
 
 Also inspect:
 
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/round_delta_summary.json`
 - `project_state/local_reverse_training_resume_plan.json`
 - `project_state/local_reverse_type_coverage_matrix.json`
-- `project_state/rounds/round_20260616_local_reverse_training_resume_plan_v1/round_manifest.json`, if present
-- `reverse_agent/project_state.py`
-- `reverse_agent/project_gate.py`
-- `tests/test_project_state.py`
-- `tests/test_project_gate.py`
-- `tests/test_local_reverse_training_status.py`
+- `project_state/local_reverse_training_status.json`, if present
+- `project_state/local_reverse_training_review_queue.json`, if present
+- `project_state/local_reverse_training_next_queue.json`, if present
+- `training_materials/local_reverse/queue.json`, if present
+- `training_materials/local_reverse/github_safe_status_overlay.json`, if present
+- `reverse_agent/tool_capability_inventory.py`
+- `reverse_agent/local_reverse_training_status.py`
+- `reverse_agent/local_samples.py`
+- `reverse_agent/local_reverse_inventory.py`
+- `reverse_agent/static_feature_extractor.py`
+- existing DES/RC4 solver or reference modules, read-only only
+- tests related to local reverse training status and project gates
 
-Do not read full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports/`.
+Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
@@ -143,75 +152,86 @@ Before implementation, confirm:
 
 1. Startup path is `F:\reverse-agent`, `Test-Path F:\reverse-agent` is true, and `git rev-parse --show-toplevel` points to this repository.
 2. Startup `git status --short` is recorded as baseline.
-3. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
-4. Current decision controls execution; `task_packet.json` is only state input.
-5. Previous round failed only because of `status_policy_valid` after training resume artifacts were produced.
-6. The artifact freshness blocker is historical sample artifact missing/stale state, not current-round generated training artifacts.
-7. The previous training report did not claim historical `samplereverse` artifacts as current evidence.
-8. Existing logic already distinguishes historical artifact freshness for `engineering_branch`.
-9. The fix can be narrow and mainline-aware.
-10. The fix will not change `reverse_solving` current evidence strictness.
-11. The fix will not permit missing artifacts that are directly referenced by current training resume outputs.
-12. Existing IDA/Ghidra/debugger/solver/harness capabilities are noted read-only; do not assume they do not exist.
-13. `negative_results.json` is checked and no prohibited failed direction is repeated.
+3. `decision_meta` is valid, `status=APPROVED`, `mainline=training_dataset`, and `reverse-agent-iteration@v2` is active.
+4. `task_packet.json` is non-authoritative and still reflects old sample-state information.
+5. `project_state/local_reverse_training_resume_plan.json` exists and lists `pending_cipher_static_evidence_profile` as a cipher gap.
+6. `project_state/local_reverse_type_coverage_matrix.json` exists and lists the 6 PE cipher samples.
+7. Existing IDA, debugger, solver, harness, sample metadata, and artifact-index capabilities are identified so this round does not duplicate them.
+8. Historical `samplereverse` missing/stale artifacts are not used as current evidence.
+9. No local sample execution is required to complete this round.
 
 ## 6. Implementation Scope
 
-Allowed source changes:
+Allowed generated artifacts:
 
-- `reverse_agent/project_state.py`
-- `reverse_agent/project_gate.py`
-
-Allowed test changes:
-
-- `tests/test_project_state.py`
-- `tests/test_project_gate.py`
-
-Allowed generated state/report updates:
-
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+- `project_state/local_reverse_cipher_static_evidence_profile.md`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
-- `project_state/gates/command_plan.json`
-- `project_state/gates/final_gate_result.json`
 - `project_state/gates/preflight_result.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_close_snapshot.json`
-- `project_state/gates/round_delta_summary.json`
+- `project_state/gates/command_plan.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/*`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/round_baseline.json`
+- `project_state/gates/round_delta_summary.json`
+- `project_state/gates/round_close_snapshot.json`
+- `project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/*`
 
-Expected implementation:
+Allowed source/test changes:
 
-1. In `reverse_agent/project_state.py`, update `_historical_artifact_freshness_is_non_blocking()` so its allowed non-blocking mainlines include both:
-   - `engineering_branch`
-   - `training_dataset`
+- Prefer no source/test changes.
+- If and only if an existing test requires a small schema accommodation for the new additive profile artifact, modify only narrowly related tests and explain why.
+- Do not modify production code unless a gate/test failure proves that existing code cannot record the additive artifact; in that case stop and report `BLOCKED` instead of expanding scope.
 
-2. In `reverse_agent/project_gate.py`, update `_status_policy_failure_is_historical_artifacts_only()` so the historical-artifact-only downgrade also applies to `training_dataset`.
+The JSON profile must include at least:
 
-3. Add focused tests proving:
-   - `training_dataset` plus only historical missing/stale artifacts is non-blocking;
-   - `engineering_branch` behavior remains unchanged;
-   - `reverse_solving` with current missing/stale evidence still blocks;
-   - `training_dataset` with current-round claimed missing artifact still blocks;
-   - `status_policy_valid` passes when only historical sample artifact freshness exists;
-   - `report_summary_synthesis` still fails on real status/report mismatch.
+- `schema_version`
+- `decision_id`
+- `round_id`
+- `generated_at`
+- `source_artifacts`
+- `scope`: PE cipher samples only
+- `cipher_families`: at least `DES` and `RC4`
+- `target_sample_ids_by_family`
+- `reference_material_sample_ids_by_family`
+- `evidence_contract` with required future evidence fields:
+  - algorithm marker evidence
+  - string evidence
+  - constant/table evidence
+  - import/API evidence
+  - input source evidence
+  - key/source evidence
+  - IV/mode/padding evidence when applicable
+  - ciphertext/source evidence
+  - comparison/output sink evidence
+  - candidate input domain evidence
+  - validation preconditions
+  - confidence and blocker fields
+- `structured_evidence_mapping_plan`
+- `future_static_triage_sequence`
+- `first_bounded_triage_targets`: one DES sample and one RC4 sample
+- `non_goals`
+- `stop_conditions`
 
-Do not modify:
+The markdown profile must be a concise human-readable companion explaining:
 
-- solver/sample-runner/IDA/debugger/emulator/harness modules;
-- `.codex-skills/`;
-- raw samples;
-- GUI/frontend files;
-- full `solve_reports/`;
-- existing local_reverse resume plan artifacts, except generated state refresh if gates require it;
-- `artifact_index.json`, unless using an existing tested mechanism and documenting provenance.
+- why this profile is needed;
+- how DES and RC4 should be distinguished statically;
+- what evidence future IDA/static-triage runs must extract;
+- why no sample is solved in this round;
+- which future round should run first after this artifact is accepted.
+
+Recommended first bounded triage targets for later rounds:
+
+- DES: `desenc_0e0b5203`
+- RC4: `rc4enc_3480917d`
+
+Do not update `local_reverse_training_status.json` to claim progress unless the new artifact is explicitly designed as a planning artifact and does not alter sample statuses.
 
 ## 7. Tests
 
-Record command, stdout, stderr, and exit code in `project_state/pytest_result.txt`.
-
-Required commands:
+Run and record the following commands in `project_state/pytest_result.txt`:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -225,46 +245,28 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state --js
 python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
 python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
-python -m reverse_agent.project_state active-execution-view --state-dir project_state --json
-python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_local_reverse_training_status.py -q
+python -m pytest tests/test_local_reverse_training_status.py tests/test_project_state.py tests/test_project_gate.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_training_dataset_historical_artifact_policy_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_training_dataset_cipher_static_evidence_profile_v1
 ```
 
-Validation expectations:
+The pytest result header must include:
 
-- pytest passes;
-- `training_dataset` historical artifact freshness is non-blocking only when historical and not claimed as current evidence;
-- `reverse_solving` freshness strictness remains intact;
-- current-round training artifacts cannot be missing while report claims success;
-- `report-summary` passes;
-- `final-check` passes;
-- `close-round` exits 0;
-- archive is created.
+- `decision_id=decision_20260617_training_dataset_cipher_static_evidence_profile_v1`
+- `round_id=round_20260617_training_dataset_cipher_static_evidence_profile_v1`
+- the final `report_id`
+- all commands actually run
 
 ## 8. Stop Conditions
 
-Stop with `REWORK_REQUIRED` if `training_dataset` still fails only because of historical sample artifact freshness.
+Stop and report `BLOCKED` without modifying additional files if:
 
-Stop with `REWORK_REQUIRED` if `reverse_solving` missing/stale current evidence becomes non-blocking.
-
-Stop with `REWORK_REQUIRED` if current-round training artifacts can be missing while report claims success.
-
-Stop with `REWORK_REQUIRED` if `report-summary` fails.
-
-Stop with `REWORK_REQUIRED` if `final-check` fails.
-
-Stop with `REWORK_REQUIRED` if `close-round` exits nonzero.
-
-Stop with `REWORK_REQUIRED` if solver/sample-runner/IDA/debugger/emulator/harness code is modified.
-
-Stop with `REWORK_REQUIRED` if `.codex-skills/`, raw samples, GUI/frontend, or full `solve_reports/` are modified.
-
-Stop with `REWORK_REQUIRED` if old sample_solver blind search, beam/budget expansion, or a negative_results failed direction is repeated.
-
-Stop with `REWORK_REQUIRED` if stale/missing artifacts are treated as current evidence.
-
-Stop with `BLOCKED` if the required fix needs broad project_state schema migration rather than a narrow mainline-aware policy update.
-
-Do not write SUCCESS or ACCEPTED if final-check or close-round fails.
+- required training artifacts are missing and cannot be read;
+- `.codex-skills/registry.json` does not contain active `reverse-agent-iteration@v2`;
+- current `decision_packet.md` is no longer this decision;
+- Codex would need to run IDA/Ghidra/debugger/harness/solver/sample binaries to complete the profile;
+- resolving the task would require changing production tool runners, solver logic, harness behavior, or raw samples;
+- existing artifacts show a newer accepted decision superseding this one;
+- `report-summary` or `final-check` fails for reasons other than known historical sample artifact external-state notices;
+- tests fail and the cause is outside this narrow additive planning-artifact scope.
