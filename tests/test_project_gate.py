@@ -7234,3 +7234,208 @@ Allowed generated/project-state files:
         )
         guard = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
         assert guard["status"] == "PASS"
+
+
+class TestReportProseClaimsCoveredByFilesChanged:
+    """Tests for the report_prose_claims_covered_by_files_changed check.
+
+    Verifies that source/test paths claimed in report prose (Source Changes,
+    Test Changes, backticked paths) must appear in files_changed.
+    """
+
+    def test_source_change_omitted_from_files_changed_fails(self) -> None:
+        """Report body claims reverse_agent/project_gate.py in Source Changes
+        but files_changed omits it: check must fail."""
+        from reverse_agent.project_gate import _report_prose_claims_check
+
+        report_text = """## Changes
+
+### Source Changes
+
+1. **`reverse_agent/project_gate.py`** — Added new check function.
+
+### Test Changes
+
+No test changes.
+"""
+        result = _report_prose_claims_check(
+            report_text=report_text,
+            files_changed={"project_state/codex_execution_report.md"},
+        )
+        assert result["name"] == "report_prose_claims_covered_by_files_changed"
+        assert result["status"] == "FAIL"
+        assert "reverse_agent/project_gate.py" in result.get("missing_from_files_changed", [])
+
+    def test_test_change_omitted_from_files_changed_fails(self) -> None:
+        """Report body claims tests/test_project_gate.py in Test Changes
+        but files_changed omits it: check must fail."""
+        from reverse_agent.project_gate import _report_prose_claims_check
+
+        report_text = """## Changes
+
+### Source Changes
+
+No source changes.
+
+### Test Changes
+
+2. **`tests/test_project_gate.py`** — Added new test class.
+"""
+        result = _report_prose_claims_check(
+            report_text=report_text,
+            files_changed={"project_state/codex_execution_report.md"},
+        )
+        assert result["name"] == "report_prose_claims_covered_by_files_changed"
+        assert result["status"] == "FAIL"
+        assert "tests/test_project_gate.py" in result.get("missing_from_files_changed", [])
+
+    def test_claimed_path_present_in_files_changed_passes(self) -> None:
+        """Claimed source/test file present in files_changed: check passes."""
+        from reverse_agent.project_gate import _report_prose_claims_check
+
+        report_text = """## Changes
+
+### Source Changes
+
+1. **`reverse_agent/project_gate.py`** — Added new check function.
+
+### Test Changes
+
+2. **`tests/test_project_gate.py`** — Added new test class.
+"""
+        result = _report_prose_claims_check(
+            report_text=report_text,
+            files_changed={
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+            },
+        )
+        assert result["name"] == "report_prose_claims_covered_by_files_changed"
+        assert result["status"] == "PASS"
+
+    def test_project_state_artifacts_in_prose_do_not_trigger_failure(self) -> None:
+        """Project_state generated artifacts in report prose do not trigger
+        the source/test claimed-change failure."""
+        from reverse_agent.project_gate import _report_prose_claims_check
+
+        report_text = """## Changes
+
+### Source Changes
+
+No source changes.
+
+### Test Changes
+
+No test changes.
+
+## Evidence
+
+Updated `project_state/codex_execution_report.md` and `project_state/pytest_result.txt`.
+"""
+        result = _report_prose_claims_check(
+            report_text=report_text,
+            files_changed={"project_state/codex_execution_report.md"},
+        )
+        assert result["name"] == "report_prose_claims_covered_by_files_changed"
+        assert result["status"] == "PASS"
+
+
+class TestTmpPathsAbsentFromDirtyState:
+    """Tests for the tmp_paths_absent_from_dirty_state check.
+
+    Verifies that temporary paths (tmp*/) are not present in dirty state.
+    """
+
+    def test_tmp_path_in_dirty_state_is_blocking(self) -> None:
+        """Temporary path such as tmp8osv9s8n/ in final dirty/inherited
+        dirty state is blocking."""
+        from reverse_agent.project_gate import _tmp_paths_dirty_check
+
+        delta_summary = {
+            "final_dirty_files": ["tmp8osv9s8n/"],
+            "inherited_dirty_files": ["tmp8osv9s8n/"],
+            "baseline_dirty_files": ["tmp8osv9s8n/"],
+        }
+        result = _tmp_paths_dirty_check(delta_summary=delta_summary)
+        assert result["name"] == "tmp_paths_absent_from_dirty_state"
+        assert result["status"] == "FAIL"
+        assert "tmp8osv9s8n/" in result.get("tmp_paths", [])
+
+    def test_no_tmp_path_in_dirty_state_passes(self) -> None:
+        """No temporary paths in dirty state: check passes."""
+        from reverse_agent.project_gate import _tmp_paths_dirty_check
+
+        delta_summary = {
+            "final_dirty_files": ["project_state/codex_execution_report.md"],
+            "inherited_dirty_files": [],
+            "baseline_dirty_files": [],
+        }
+        result = _tmp_paths_dirty_check(delta_summary=delta_summary)
+        assert result["name"] == "tmp_paths_absent_from_dirty_state"
+        assert result["status"] == "PASS"
+
+
+class TestExistingChecksPreserved:
+    """Verify that existing clean-start baseline guard and gate-profile
+    tests continue to pass after the new checks are added."""
+
+    def test_clean_start_baseline_guard_still_works(self) -> None:
+        """Existing clean-start baseline guard behavior is preserved."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": [],
+            "inherited_dirty_files": [],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        report_text = ""
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
+        )
+        guard = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard["status"] == "PASS"
+
+    def test_gate_profile_classifier_still_works(self) -> None:
+        """Existing gate-profile classifier behavior is preserved."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        # Decision allowing project_gate.py changes classifies as full
+        decision_text_full = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text_full)
+        assert result["profile"] == "full"
+
+        # Artifact-only decision classifies as fast
+        decision_text_fast = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+"""
+        result = classify_gate_profile(decision_text_fast)
+        assert result["profile"] == "fast"

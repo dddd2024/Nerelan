@@ -1030,6 +1030,133 @@ def _is_substantive_change(path: str) -> bool:
     return _is_implementation_file(path)
 
 
+def _is_temporary_path(path: str) -> bool:
+    """Return True if *path* looks like a temporary file/directory that
+    should not persist as an inherited dirty file in a successful closeout.
+
+    Matches patterns like ``tmp8osv9s8n/``, ``tmp1234/``, ``tmp/``, etc.
+    """
+    normalized = _norm_path(path)
+    # Match top-level tmp*/ directories or files (e.g. tmp8osv9s8n/,
+    # tmp8osv9s8n/some_file, tmp1234)
+    parts = normalized.split("/")
+    if parts and parts[0].startswith("tmp"):
+        remainder = parts[0][3:]
+        # Allow "tmp" itself and "tmp" followed by alphanumeric chars
+        if remainder == "" or remainder.isalnum():
+            return True
+    return False
+
+
+def _extract_claimed_source_test_paths(report_text: str) -> set[str]:
+    """Extract source/test file paths claimed as changed in the report prose.
+
+    Scans sections like "Source Changes" and "Test Changes" for backticked
+    paths (`` `reverse_agent/foo.py` `` or `` `tests/bar.py` ``).  Only
+    returns paths that are classified as implementation files by
+    :func:`_is_implementation_file`, which excludes generated
+    ``project_state/`` artifacts.
+    """
+    if not report_text or not report_text.strip():
+        return set()
+
+    # Extract "Source Changes" and "Test Changes" sections from the report.
+    # These are the prose sections where the report claims specific files
+    # were modified.
+    source_section = _markdown_section(report_text, "Source Changes")
+    test_section = _markdown_section(report_text, "Test Changes")
+    changes_section = _markdown_section(report_text, "Changes")
+
+    # Also scan the full report for backticked paths in bullet lists
+    # that look like source/test paths.
+    combined_text = "\n".join([source_section, test_section, changes_section])
+
+    # If no specific sections found, fall back to scanning the full report
+    if not combined_text.strip():
+        combined_text = report_text
+
+    # Find backticked paths: `reverse_agent/foo.py` or `tests/bar.py`
+    backtick_pattern = re.compile(r"`([^`]+)`")
+    paths: set[str] = set()
+    for match in backtick_pattern.finditer(combined_text):
+        candidate = _norm_path(match.group(1))
+        if _is_implementation_file(candidate):
+            paths.add(candidate)
+    return paths
+
+
+def _report_prose_claims_check(
+    *,
+    report_text: str,
+    files_changed: set[str],
+) -> dict[str, Any]:
+    """Check that source/test paths claimed in report prose appear in
+    ``codex_report_summary.files_changed``.
+
+    If the report body claims a source/test file was changed (e.g. in
+    "Source Changes" or "Test Changes" sections with backticked paths),
+    but that path is absent from ``files_changed``, this check fails.
+    """
+    claimed = _extract_claimed_source_test_paths(report_text)
+    if not claimed:
+        return _check(
+            "report_prose_claims_covered_by_files_changed",
+            "PASS",
+            "report prose does not claim source/test changes beyond files_changed",
+            claimed_source_test_paths=[],
+        )
+
+    missing = sorted(claimed - files_changed)
+    if missing:
+        return _check(
+            "report_prose_claims_covered_by_files_changed",
+            "FAIL",
+            "report prose claims source/test changes that are absent from files_changed",
+            claimed_source_test_paths=sorted(claimed),
+            missing_from_files_changed=missing,
+        )
+
+    return _check(
+        "report_prose_claims_covered_by_files_changed",
+        "PASS",
+        "report prose source/test claims are covered by files_changed",
+        claimed_source_test_paths=sorted(claimed),
+    )
+
+
+def _tmp_paths_dirty_check(
+    *,
+    delta_summary: dict[str, Any],
+) -> dict[str, Any]:
+    """Check that temporary paths (``tmp*/``) are not present in dirty state.
+
+    Temporary files/directories like ``tmp8osv9s8n/`` should be removed
+    before successful closeout.  If they appear in the final dirty files
+    or inherited dirty files, this check fails.
+    """
+    final_dirty_files = _string_set(delta_summary.get("final_dirty_files"))
+    inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
+    baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
+
+    all_dirty = final_dirty_files | inherited_dirty_files | baseline_dirty_files
+    tmp_paths = sorted(path for path in all_dirty if _is_temporary_path(path))
+
+    if tmp_paths:
+        return _check(
+            "tmp_paths_absent_from_dirty_state",
+            "FAIL",
+            "temporary paths (tmp*/) found in dirty state; must be removed before closeout",
+            tmp_paths=tmp_paths,
+        )
+
+    return _check(
+        "tmp_paths_absent_from_dirty_state",
+        "PASS",
+        "no temporary paths (tmp*/) in dirty state",
+        tmp_paths=[],
+    )
+
+
 def _baseline_matches_round(payload: dict[str, Any], decision_id: str, round_id: str) -> bool:
     return (
         bool(payload)
@@ -1190,6 +1317,7 @@ def _round_delta_checks(
     archive_paths: set[str],
     state_dir: Path | None = None,
     decision_text: str = "",
+    report_text: str = "",
 ) -> list[dict[str, Any]]:
     baseline_available = bool(delta_summary.get("baseline_available"))
     final_dirty_files = _string_set(delta_summary.get("final_dirty_files"))
@@ -1302,6 +1430,10 @@ def _round_delta_checks(
     )
 
     substantive_dirty_files = {path for path in required_changed_for_diff if _is_substantive_change(path)}
+    # Also include source/test paths claimed in report prose — if the report
+    # body says a source/test file changed, it must appear in files_changed.
+    claimed_source_test = _extract_claimed_source_test_paths(report_text) if report_text else set()
+    substantive_dirty_files |= claimed_source_test
     missing_substantive = sorted(substantive_dirty_files - files_changed)
     if missing_substantive:
         checks.append(
@@ -1311,6 +1443,7 @@ def _round_delta_checks(
                 "files_changed omits substantive source/test/artifact changes",
                 missing_substantive_files=missing_substantive,
                 substantive_dirty_files=sorted(substantive_dirty_files),
+                claimed_source_test_paths=sorted(claimed_source_test),
             )
         )
     else:
@@ -1320,6 +1453,7 @@ def _round_delta_checks(
                 "PASS",
                 "files_changed covers substantive source/test/artifact changes",
                 substantive_dirty_files=sorted(substantive_dirty_files),
+                claimed_source_test_paths=sorted(claimed_source_test),
             )
         )
 
@@ -3316,6 +3450,7 @@ def final_check(
             archive_paths=archive_paths,
             state_dir=state_dir,
             decision_text=decision_text,
+            report_text=report_text,
         )
     )
     checks.extend(
@@ -3336,6 +3471,19 @@ def final_check(
             pytest_text=pytest_text,
             state_dir=state_dir,
             current_decision_id=decision_id,
+        )
+    )
+    # Report prose claims vs files_changed consistency check
+    checks.append(
+        _report_prose_claims_check(
+            report_text=report_text,
+            files_changed=files_changed,
+        )
+    )
+    # Temporary paths (tmp*/) must not remain in dirty state
+    checks.append(
+        _tmp_paths_dirty_check(
+            delta_summary=delta_summary,
         )
     )
     # Startup status order check
@@ -3956,6 +4104,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             archive_paths=archive_paths,
             state_dir=state_dir,
             decision_text=decision_text,
+            report_text=report_text,
         )
     )
     checks.extend(
@@ -3976,6 +4125,19 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             pytest_text=pytest_text,
             state_dir=state_dir,
             current_decision_id=decision_id,
+        )
+    )
+    # Report prose claims vs files_changed consistency check
+    checks.append(
+        _report_prose_claims_check(
+            report_text=report_text,
+            files_changed=files_changed,
+        )
+    )
+    # Temporary paths (tmp*/) must not remain in dirty state
+    checks.append(
+        _tmp_paths_dirty_check(
+            delta_summary=delta_summary,
         )
     )
     # Startup status order check
