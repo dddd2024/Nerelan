@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_fast_artifact_only_validation_rework_v1",
-  "round_id": "round_20260617_fast_artifact_only_validation_rework_v1",
+  "decision_id": "decision_20260617_fast_non_closeout_semantics_source_fix_v1",
+  "round_id": "round_20260617_fast_non_closeout_semantics_source_fix_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,61 +15,54 @@
 
 ## 1. Goal
 
-Rework the `fast` artifact-only validation semantics from `decision_20260617_fast_artifact_only_validation_v1`.
+Fix fast-profile non-closeout semantics in source code.
 
-The previous round was reported as `COMPLETED_WITH_LIMITATIONS`, but the limitations show a real validation inconsistency: fast profile selected correctly and source/test files were not changed, yet the report/synthesis/archive semantics still do not cleanly represent `closeout_allowed=false` and omitted close-round behavior.
+The prior artifact-only rework correctly diagnosed that the current gate/report system cannot cleanly represent `profile=fast`, `closeout_allowed=false`, no close-round command, and no normal archive. This round may modify only the gate implementation and its tests to make that state first-class and auditable.
 
 Required end state:
 
-- no `reverse_agent/*.py`, `tests/*.py`, solver, harness, reverse-tool, sample, GUI, or `.codex-skills/` file is modified;
-- startup status is clean before any artifact update;
-- fast auto-selection remains `profile=fast` for the artifact-only validation scope;
-- `command_plan.json` must clearly prove whether pytest and close-round were omitted by fast trimming;
-- if `omitted_commands` cannot prove pytest/close-round omission because these commands were absent from the decision Tests section, the report must state validation is incomplete and use `PARTIAL` or `FAILED`, not `SUCCESS/ACCEPTED`;
-- `fast_profile_closeout_consistency` must not claim `close_round_omitted=false` when `command_plan.json` contains no close-round command;
-- if `closeout_allowed=false`, report/synthesis/final gate must not imply normal archive closeout success;
-- if a manual archive directory is created for recordkeeping, it must be labeled as manual/non-closeout evidence and must not be used as proof of normal close-round success;
-- full and standard behavior must not be changed in this round.
+- `command-plan --json` for `profile=fast` and `closeout_allowed=false` must explicitly record close-round as omitted, even when close-round was not present in the decision Tests section;
+- `omitted_commands` must include a close-round omission entry with a reason such as `omitted by fast profile: closeout not allowed`;
+- `fast_profile_closeout_consistency` must no longer PASS with `close_round_omitted=false` while `closeout_allowed=false` and no close-round command exists;
+- final-check must treat absence of close-round under `closeout_allowed=false` as a recognized fast non-closeout state, not as normal archive success;
+- `report_summary_synthesis` and final-check expected file sets must not require normal round archive files for fast non-closeout rounds;
+- if fast non-closeout report status is intended to be a successful validation without archive, report/final gate must expose that as non-archived/non-closeout success rather than pretending close-round ran;
+- full close-round behavior must remain unchanged;
+- standard profile behavior must remain unchanged;
+- no solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw sample, or `.codex-skills/` behavior may be changed.
 
-This is an engineering-branch artifact/report semantics rework. It must not become a source/test implementation round.
+This is an engineering-branch gate semantics task. It must not turn into reverse-solving, tool-integration, or training-dataset work.
 
 ## 2. Current Evidence
 
 Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` and `current_state.json` are advisory inputs only and must not override this decision.
 
-Previous round under review:
+Previous accepted-with-limitations diagnostic round:
 
-- `decision_20260617_fast_artifact_only_validation_v1`
-- `round_20260617_fast_artifact_only_validation_v1`
-- Codex self-reported: `COMPLETED_WITH_LIMITATIONS`
-- GPT audit conclusion: `REWORK_REQUIRED`
+- `decision_20260617_fast_artifact_only_validation_rework_v1`
+- `round_20260617_fast_artifact_only_validation_rework_v1`
+- mainline: `engineering_branch`
+- GPT audit conclusion: `ACCEPTED_WITH_LIMITATIONS`
 
-Evidence from the previous round:
+Evidence from the diagnostic round:
 
+- It did not modify `reverse_agent/*.py` or `tests/*.py`.
+- It did not run pytest.
+- It did not run close-round.
+- Startup was clean and preflight passed.
 - `gate-profile` auto-selected `profile=fast`.
 - `closeout_allowed=false`.
-- `required_command_kinds=[startup, preflight, command-plan, report-summary, final-check]`.
-- Explicit `gate-profile --profile fast --json` matched auto fast.
-- `command-plan` contained 13 commands, all within fast required command kinds.
-- `command-plan` did not include pytest, run-round, doctor, lint-report, or close-round.
-- No `reverse_agent/*.py` or `tests/*.py` files were modified.
-- `final-check` passed with fast-profile checks shown as PASS.
-- Report claimed `SUCCESS/ACCEPTED`.
-
-Blocking inconsistencies:
-
-- The decision required `omitted_commands` to record pytest and close-round omission reasons, but `command_plan.json` had `omitted_commands=[]`.
-- The command plan had no close-round command, but `fast_profile_closeout_consistency` reported `close_round_omitted=false` while `closeout_allowed=false`.
-- The report claimed `SUCCESS/ACCEPTED` although normal close-round was not run and closeout was not allowed.
-- Archive/synthesis paths existed from manual recordkeeping, while fast profile was explicitly `closeout_allowed=false`, causing archive semantics to be ambiguous.
-- The round manifest was non-minimal / manually archived rather than a normal close-round archive.
+- `command-plan` omitted pytest and recorded pytest in `omitted_commands`.
+- `command-plan` still did not record close-round in `omitted_commands` because close-round was absent from the decision Tests section.
+- `final-check` still reported `fast_profile_closeout_consistency` as PASS with `close_round_omitted=false`, `closeout_allowed=false`.
+- `report_summary_synthesis` and final-check still expected normal archive paths for a fast non-closeout round.
+- The diagnostic report correctly used `status=PARTIAL` and `acceptance_recommendation=REWORK_REQUIRED`.
 
 Meaning:
 
-- The fast classifier worked.
-- The no-source/no-test constraint worked.
-- The command-plan and final-check semantic reporting around omitted close-round and closeout_allowed=false is not yet trustworthy.
-- This rework should repair state/report evidence, not implement a new gate engine.
+- Fast classifier and no-source/no-test evidence are already proven.
+- The remaining issue is source-level gate/report semantics.
+- This round must be a small source fix with tests.
 
 Existing useful behavior to preserve:
 
@@ -82,18 +75,19 @@ Existing useful behavior to preserve:
 - gate-profile metadata and consistency checks;
 - `gate_profile_closeout_safety` check;
 - fast profile scope checks;
-- fast omitted-command metadata where representable;
+- fast pytest omitted-command metadata;
 - preflight-failure handoff check;
 - `decision_immutability` FAIL behavior;
 - inherited source/test dirty FAIL behavior;
 - `report_summary_fields_match_synthesis` mismatch detection;
 - generated-artifact live-path existence behavior;
 - report-prose claimed source/test coverage;
-- `tmp*/` dirty-state check.
+- `tmp*/` dirty-state check;
+- full-profile close-round and archive behavior.
 
 Artifact freshness:
 
-- Historical `samplereverse` missing/stale artifacts are not current evidence for this fast validation rework.
+- Historical `samplereverse` missing/stale artifacts are not current evidence for this source fix.
 - This round does not depend on reverse sample artifacts.
 
 Negative results:
@@ -112,25 +106,23 @@ Existing tool capability boundary:
 
 ## 3. Do Not Do
 
-Do not modify `reverse_agent/*.py`.
-
-Do not modify `tests/*.py`.
-
 Do not modify solver, harness, IDA/Ghidra/debugger/tool-runner, sample runner, GUI/frontend, raw samples, or `.codex-skills/` files.
 
-Do not implement new gate logic in this round unless the existing artifact/report commands already expose a safe flag for this exact semantic correction.
+Do not run local reverse samples, IDA, Ghidra, debugger, emulator, runtime probe, harness campaigns, or solver commands.
 
 Do not expand `standard` behavior.
 
-Do not run pytest.
+Do not weaken full-profile close-round or archive validation.
 
-Do not run close-round.
+Do not make fast closeout run close-round when `closeout_allowed=false`.
 
-Do not create or rely on a normal close-round archive when `fast.closeout_allowed=false`.
+Do not treat missing archive files as globally non-blocking; only fast non-closeout rounds may avoid normal archive requirements.
 
-Do not claim `SUCCESS/ACCEPTED` if omitted pytest/close-round evidence is incomplete or closeout semantics are ambiguous.
+Do not mark fast non-closeout as archived.
 
-Do not hide the `omitted_commands=[]` limitation.
+Do not rewrite command-plan, final-check, close-round, or report-summary from scratch.
+
+Do not add another independent gate engine.
 
 Do not treat `task_packet.task` as current execution authority.
 
@@ -157,36 +149,37 @@ Also inspect:
 - `project_state/gates/report_summary_synthesis.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
+- `reverse_agent/project_gate.py`
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py` only if a project-state test is strictly required
 - current Git changed filenames / diff summary
 
 Do not inspect unrelated solver/harness/tool-runner modules unless a gate command directly reports them as a blocking forbidden path.
 
 ## 5. Required Audit
 
-Before any artifact update, confirm:
+Before implementation, confirm:
 
 1. Startup path is `F:\reverse-agent`, `Test-Path F:\reverse-agent` is true, and `git rev-parse --show-toplevel` points to this repository.
 2. Startup `git status --short` is recorded before any file modification.
-3. If startup `git status --short` is clean, later artifact dirty files are this-round changes, not inherited baseline dirty.
-4. If startup `git status --short` already shows any `reverse_agent/*.py` or `tests/*.py` dirty file, stop immediately and write `codex_execution_report.md` with `status=BLOCKED` or `FAILED` and `acceptance_recommendation=REWORK_REQUIRED`; do not continue.
+3. If startup `git status --short` is clean, later source/test dirty files are this-round changes, not inherited baseline dirty.
+4. If startup `git status --short` already shows source/test dirty files, stop unless they are explicitly the current decision's allowed files and are documented as baseline dirty; otherwise write BLOCKED/REWORK report.
 5. If startup `git status --short` shows live `project_state/decision_packet.md` dirty, stop immediately and write a BLOCKED report; do not continue.
 6. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
 7. Current decision controls execution; `task_packet.json` is not authoritative.
-8. Confirm fast profile auto-selects `fast`.
-9. Confirm whether command-plan lacks close-round and pytest.
-10. Confirm whether `omitted_commands` records those omissions.
-11. Confirm no mature reverse-engineering tool integration needs to be modified.
+8. Confirm existing fast profile auto-selection and closeout_allowed=false behavior before changing code.
+9. Confirm no mature reverse-engineering tool integration needs to be modified.
 
 ## 6. Implementation Scope
 
-No source/test implementation is allowed in this round.
+Allowed source files:
 
-Forbidden files:
+- `reverse_agent/project_gate.py`
 
-- `reverse_agent/*.py`
-- `tests/*.py`
-- `.codex-skills/*`
-- solver/harness/tool-runner/debugger/sample/GUI/frontend/raw sample files
+Allowed tests:
+
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py` only if strictly required by a project-state support change; prefer not to modify it.
 
 Allowed project-state/report files:
 
@@ -199,36 +192,41 @@ Allowed project-state/report files:
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/gates/round_close_snapshot.json` only if explicitly marked as manual/non-closeout; otherwise do not generate it
+- `project_state/gates/round_close_snapshot.json` only if produced by an allowed command and not used to fake normal archive success
+- `project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/*` only if final-check proves close-round is allowed; otherwise do not create a normal archive
 
-Do not write a normal `project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/*` archive unless an existing final-check result explicitly proves fast closeout is safe. Current expected behavior is that fast closeout is not safe and no normal archive should be produced.
+Required implementation details:
 
-Required rework behavior:
+- Update command-plan generation so fast non-closeout plans include an explicit omitted close-round entry even when close-round was absent from the decision Tests section.
+- The omitted entry must include at least command/kind/reason fields.
+- Update `fast_profile_closeout_consistency` to compute close-round absence from both `commands` and `omitted_commands`.
+- If `profile=fast` and `closeout_allowed=false` and no close-round command exists, the check should recognize this as an intentional fast non-closeout state, not `close_round_omitted=false`.
+- If a report claims archive/closeout success under fast non-closeout, final-check must fail.
+- Update report-summary/final-check expected archive behavior so fast non-closeout rounds do not require normal archive files.
+- Preserve normal archive requirements for full profile and any profile with `closeout_allowed=true`.
+- Preserve all existing full-path tests.
+- Add focused tests for fast non-closeout semantics; do not do broad test rewrites.
 
-- Run startup and preflight first.
-- Run `gate-profile` and `command-plan` in artifact-only state.
-- Preserve auto-selected `fast` if it still applies.
-- If `omitted_commands=[]` while pytest/close-round are absent, report validation as incomplete: `status=PARTIAL` or `FAILED`; `acceptance_recommendation=REWORK_REQUIRED`.
-- If final-check reports `close_round_omitted=false` while command-plan contains no close-round command, explicitly record this as the rework blocker.
-- If `closeout_allowed=false`, do not claim normal archive closeout.
-- The final report must distinguish:
-  - fast classifier success;
-  - command-plan trim evidence incomplete/complete;
-  - closeout not allowed;
-  - no source/test changes.
-- Final report must not claim `SUCCESS/ACCEPTED` unless all above inconsistencies are resolved by existing artifact/report evidence only.
+Required tests:
 
-Required evidence in final artifacts:
-
-- `gate_profile_plan.json` carries current decision_id/round_id and `profile=fast`.
-- `command_plan.json` carries current decision_id/round_id and `profile_meta.profile=fast`.
-- `codex_execution_report.md` does not claim source/test changes.
-- `files_changed` and `generated_artifacts` do not include any `reverse_agent/*.py` or `tests/*.py` path.
-- If rework remains incomplete, report must explicitly recommend a future source-code fix in a separate engineering round, not silently accept.
+1. fast command-plan with `closeout_allowed=false` includes close-round in `omitted_commands` even if close-round is not in decision Tests.
+2. omitted close-round entry has a clear reason: closeout not allowed under fast profile.
+3. `fast_profile_closeout_consistency` recognizes close-round absent from commands and present in omitted_commands as intentional non-closeout.
+4. `fast_profile_closeout_consistency` fails if fast report claims archived/closeout success while `closeout_allowed=false`.
+5. report-summary synthesis does not require normal round archive files for fast non-closeout.
+6. final-check does not require normal archive files for fast non-closeout.
+7. full profile still requires normal archive files as before.
+8. command-plan expected-exit semantics still pass.
+9. report-body consistency tests still pass.
+10. startup/baseline consistency tests still pass.
+11. stale artifact ID tests still pass.
+12. generated-artifact live-path tests still pass.
+13. tmp-path dirty-state tests still pass.
+14. preflight handoff and decision immutability tests still pass.
 
 ## 7. Tests
 
-Run only:
+Run and record the following commands in `project_state/pytest_result.txt`:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -241,31 +239,31 @@ python -m reverse_agent.project_gate gate-profile --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state --json
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+python -m reverse_agent.project_state doctor --state-dir project_state
+python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-Do not run pytest.
-
-Do not run close-round.
+Do not run close-round unless final-check explicitly proves close-round is allowed for the current profile. Expected behavior for fast non-closeout is no normal close-round archive.
 
 The pytest_result header must include:
 
-- `decision_id=decision_20260617_fast_artifact_only_validation_rework_v1`
-- `round_id=round_20260617_fast_artifact_only_validation_rework_v1`
+- `decision_id=decision_20260617_fast_non_closeout_semantics_source_fix_v1`
+- `round_id=round_20260617_fast_non_closeout_semantics_source_fix_v1`
 - the final `report_id`
 - all commands actually run
-- explicit notation that pytest and close-round were intentionally omitted
+- explicit notation whether close-round was intentionally omitted due to fast non-closeout
 
 ## 8. Stop Conditions
 
 Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 
-- any source/test file becomes dirty;
-- fast cannot be auto-selected;
-- omitted_commands cannot prove pytest/close-round omission;
-- final-check cannot correctly identify omitted close-round;
-- report would need to claim archived/accepted closeout while `closeout_allowed=false`;
-- implementing the fix requires changing `reverse_agent/*.py` or `tests/*.py`;
-- implementing the fix requires changing solver/harness/tool-runner/debugger/sample code;
-- the validation requires replacing or rewriting the existing gate system.
+- current `decision_packet.md` is no longer this decision;
+- `.codex-skills/registry.json` does not contain active `reverse-agent-iteration@v2`;
+- implementation requires modifying files outside the allowed source/test scope;
+- implementation requires changing solver/harness/tool-runner/debugger/sample code;
+- fast non-closeout cannot be represented without weakening full close-round safety;
+- final-check cannot distinguish fast non-closeout from normal archived closeout;
+- tests fail for reasons outside the narrow fast non-closeout semantics scope.
