@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260617_report_body_status_consistency_cleanup_v1",
-  "round_id": "round_20260617_report_body_status_consistency_cleanup_v1",
-  "head_commit": "d80e7f986e32",
+  "decision_id": "decision_20260617_gate_profile_tier_integration_v1",
+  "round_id": "round_20260617_gate_profile_tier_integration_v1",
+  "head_commit": "870f18b668d7",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-17T13:25:15.023058Z"
+  "generated_at": "2026-06-17T15:10:00.000000Z"
 }

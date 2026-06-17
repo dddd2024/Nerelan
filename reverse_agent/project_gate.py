@@ -685,7 +685,11 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
 
     Returns a dict with:
     - ``profile``: one of ``fast``, ``standard``, ``full``
-    - ``reasons``: list of strings explaining the classification
+    - ``profile_reason``: concise string explaining the classification
+    - ``risk_reasons``: list of risk factors that influenced the classification
+    - ``closeout_allowed``: whether close-round is permitted for this profile
+    - ``required_command_kinds``: list of command kinds required for this profile
+    - ``reasons``: list of strings explaining the classification (legacy)
     - ``suggested_commands``: list of command dicts for the recommended tier
     - ``future_phases``: list of planned future enhancements
     """
@@ -694,6 +698,7 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
     allowed_generated = _decision_scope_deliverable_paths(decision_text)
 
     reasons: list[str] = []
+    risk_reasons: list[str] = []
     profile = "fast"  # default: artifact-only
 
     # Check for full-scope paths
@@ -707,6 +712,7 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
             f"decision scope includes gate/project_state/harness/solver/tool-runner paths: "
             f"{', '.join(full_scope_hits)}"
         )
+        risk_reasons.append("gate/project_state source changes require full validation")
 
     # Check for .codex-skills/ in generated artifacts (also full)
     codex_skills_hits = [
@@ -718,6 +724,7 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
         reasons.append(
             f"decision scope includes .codex-skills/ paths: {', '.join(codex_skills_hits)}"
         )
+        risk_reasons.append(".codex-skills/ changes require full validation")
 
     # Check for ordinary source/test changes (standard)
     if profile == "fast":
@@ -730,6 +737,7 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
             reasons.append(
                 f"decision scope includes source/test changes: {', '.join(source_test_hits)}"
             )
+            risk_reasons.append("source/test changes require targeted pytest and gate validation")
 
     # Fast profile justification
     if profile == "fast":
@@ -741,6 +749,28 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
         else:
             reasons.append("decision scope has no source/test or gate/project_state changes")
 
+    # Determine closeout_allowed and required_command_kinds based on profile
+    if profile == "full":
+        closeout_allowed = True
+        required_command_kinds = [
+            "startup", "preflight", "command-plan", "run-round", "pytest",
+            "doctor", "lint-report", "report-summary", "final-check", "close-round",
+        ]
+        profile_reason = "gate/project_state/harness/solver/tool-runner changes require full validation pipeline"
+    elif profile == "standard":
+        closeout_allowed = True
+        required_command_kinds = [
+            "startup", "preflight", "command-plan", "pytest",
+            "doctor", "lint-report", "report-summary", "final-check",
+        ]
+        profile_reason = "source/test changes require targeted pytest and gate validation"
+    else:
+        closeout_allowed = False
+        required_command_kinds = [
+            "startup", "preflight", "validation", "pytest", "report-summary", "final-check",
+        ]
+        profile_reason = "artifact-only cleanup does not require close-round"
+
     suggested_commands: list[dict[str, Any]]
     if profile == "fast":
         suggested_commands = _FAST_SUGGESTED_COMMANDS
@@ -751,17 +781,25 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
 
     return {
         "profile": profile,
+        "profile_reason": profile_reason,
+        "risk_reasons": risk_reasons,
+        "closeout_allowed": closeout_allowed,
+        "required_command_kinds": required_command_kinds,
         "reasons": reasons,
         "suggested_commands": suggested_commands,
-        "future_phases": [
-            "final-check-lite: lightweight final check for fast-profile rounds",
-            "command-plan profile-aware: emit reduced command set for fast/standard profiles",
-        ],
+        "future_phases": [],
     }
 
 
-def gate_profile(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
-    """Run gate profile classification and optionally write the result."""
+def gate_profile(*, state_dir: Path, write_result: bool = True, profile_override: str | None = None) -> dict[str, Any]:
+    """Run gate profile classification and optionally write the result.
+
+    Args:
+        state_dir: Path to the project_state directory.
+        write_result: Whether to write the result to gate_profile_plan.json.
+        profile_override: If provided, use this profile instead of auto-classification.
+            Must be one of "fast", "standard", "full". Invalid names cause a FAIL result.
+    """
     state_dir = Path(state_dir)
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
@@ -771,6 +809,52 @@ def gate_profile(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
     mainline = str(decision.get("mainline") or "")
 
     classification = classify_gate_profile(decision_text)
+
+    # Handle explicit profile selection
+    if profile_override is not None:
+        if profile_override not in _GATE_PROFILE_NAMES:
+            return {
+                "schema_version": GATE_RESULT_SCHEMA_VERSION,
+                "gate_name": "gate-profile",
+                "gate_status": "FAILED",
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "mainline": mainline,
+                "generated_at": _now_iso(),
+                "profile": profile_override,
+                "profile_reason": f"invalid profile name: {profile_override}",
+                "risk_reasons": [f"unknown profile: {profile_override}"],
+                "closeout_allowed": False,
+                "required_command_kinds": [],
+                "reasons": [f"invalid profile name: {profile_override}; must be one of {', '.join(_GATE_PROFILE_NAMES)}"],
+                "suggested_commands": [],
+                "future_phases": [],
+            }
+        # Override the auto-classified profile but keep the derived metadata
+        override_profile = profile_override
+        if override_profile != classification["profile"]:
+            # Recompute closeout_allowed and required_command_kinds for the override
+            if override_profile == "full":
+                classification["closeout_allowed"] = True
+                classification["required_command_kinds"] = [
+                    "startup", "preflight", "command-plan", "run-round", "pytest",
+                    "doctor", "lint-report", "report-summary", "final-check", "close-round",
+                ]
+                classification["profile_reason"] = "full profile explicitly selected"
+            elif override_profile == "standard":
+                classification["closeout_allowed"] = True
+                classification["required_command_kinds"] = [
+                    "startup", "preflight", "command-plan", "pytest",
+                    "doctor", "lint-report", "report-summary", "final-check",
+                ]
+                classification["profile_reason"] = "standard profile explicitly selected"
+            else:
+                classification["closeout_allowed"] = False
+                classification["required_command_kinds"] = [
+                    "startup", "preflight", "validation", "pytest", "report-summary", "final-check",
+                ]
+                classification["profile_reason"] = "fast profile explicitly selected"
+            classification["profile"] = override_profile
 
     result: dict[str, Any] = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
@@ -4045,6 +4129,80 @@ def final_check(
         )
     )
 
+    # Gate profile plan currency check: gate_profile_plan.json must carry current IDs
+    gate_profile_payload = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+    if gate_profile_payload:
+        gp_decision_id = str(gate_profile_payload.get("decision_id") or "")
+        gp_round_id = str(gate_profile_payload.get("round_id") or "")
+        gp_current = gp_decision_id == decision_id and gp_round_id == round_id
+        checks.append(
+            _check(
+                "gate_profile_plan_current",
+                "PASS" if gp_current else "FAIL",
+                "gate_profile_plan.json carries current decision/round IDs"
+                if gp_current
+                else "gate_profile_plan.json has stale decision_id or round_id",
+                gate_profile_decision_id=gp_decision_id,
+                gate_profile_round_id=gp_round_id,
+            )
+        )
+        # Gate profile plan / command plan consistency check
+        if command_plan_data:
+            cp_profile = str((command_plan_data.get("profile_meta") or {}).get("profile") or "")
+            gp_profile = str(gate_profile_payload.get("profile") or "")
+            profiles_match = cp_profile == gp_profile and gp_profile in _GATE_PROFILE_NAMES
+            checks.append(
+                _check(
+                    "gate_profile_plan_command_plan_consistency",
+                    "PASS" if profiles_match else "FAIL",
+                    "gate_profile_plan.json profile matches command_plan.json profile"
+                    if profiles_match
+                    else f"gate_profile_plan.json profile ({gp_profile}) does not match command_plan.json profile ({cp_profile})",
+                    gate_profile_plan_profile=gp_profile,
+                    command_plan_profile=cp_profile,
+                )
+            )
+        else:
+            checks.append(
+                _check(
+                    "gate_profile_plan_command_plan_consistency",
+                    "PASS",
+                    "command_plan.json not present; profile consistency check not applicable",
+                )
+            )
+    elif command_plan_data:
+        # command_plan exists but gate_profile_plan.json does not: WARN
+        checks.append(
+            _check(
+                "gate_profile_plan_current",
+                "WARN",
+                "gate_profile_plan.json not found but command_plan.json exists; profile validation incomplete",
+            )
+        )
+        checks.append(
+            _check(
+                "gate_profile_plan_command_plan_consistency",
+                "WARN",
+                "gate_profile_plan.json not found; profile consistency check skipped",
+            )
+        )
+    else:
+        # Neither gate_profile_plan.json nor command_plan.json: ordinary round, not applicable
+        checks.append(
+            _check(
+                "gate_profile_plan_current",
+                "PASS",
+                "gate_profile_plan.json not present; ordinary round without profile plan",
+            )
+        )
+        checks.append(
+            _check(
+                "gate_profile_plan_command_plan_consistency",
+                "PASS",
+                "gate_profile_plan.json not present; ordinary round without profile plan",
+            )
+        )
+
     path_claims = forbidden_claim_set | generated_artifacts | archive_paths
     forbidden_hits = _forbidden_hits(path_claims, mainline=str(decision.get("mainline") or ""))
     manifest_forbidden = list(round_consistency.get("round_manifest_forbidden_files") or [])
@@ -4736,6 +4894,34 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         )
     )
 
+    # Gate profile closeout safety check: non-full profile with closeout_allowed=false
+    # cannot close/archive
+    gate_profile_payload = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+    if gate_profile_payload:
+        gp_profile = str(gate_profile_payload.get("profile") or "")
+        gp_closeout_allowed = gate_profile_payload.get("closeout_allowed") is True
+        closeout_safe = gp_profile == "full" or gp_closeout_allowed
+        checks.append(
+            _check(
+                "gate_profile_closeout_safety",
+                "PASS" if closeout_safe else "FAIL",
+                f"profile {gp_profile} permits close-round"
+                if closeout_safe
+                else f"profile {gp_profile} does not permit close-round (closeout_allowed=false)",
+                profile=gp_profile,
+                closeout_allowed=gp_closeout_allowed,
+            )
+        )
+    else:
+        # If no gate_profile_plan.json exists, default to full (safe) behavior
+        checks.append(
+            _check(
+                "gate_profile_closeout_safety",
+                "PASS",
+                "no gate_profile_plan.json found; defaulting to full profile closeout safety",
+            )
+        )
+
     precheck_failures = [check for check in checks if check.get("status") == "FAIL"]
     if critical_metadata_errors:
         close_status = "INVALID"
@@ -5250,6 +5436,18 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
                 archive_seen = True
 
     plan_status = "FAILED" if blocking_reasons else ("WARN" if warnings else "PASSED")
+
+    # Include profile metadata from gate_profile_plan.json
+    profile_payload = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+    profile_meta: dict[str, Any] = {}
+    if profile_payload:
+        profile_meta = {
+            "profile": profile_payload.get("profile"),
+            "profile_reason": profile_payload.get("profile_reason"),
+            "closeout_allowed": profile_payload.get("closeout_allowed"),
+            "required_command_kinds": profile_payload.get("required_command_kinds"),
+        }
+
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "plan_name": COMMAND_PLAN_NAME,
@@ -5258,6 +5456,7 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
         "round_id": round_id,
         "mainline": mainline,
         "generated_at": _now_iso(),
+        "profile_meta": profile_meta,
         "commands": commands,
         "warnings": warnings,
         "blocking_reasons": blocking_reasons,
@@ -5861,13 +6060,15 @@ def _print_gate_profile(result: dict[str, Any]) -> None:
         f"round_id: {result.get('round_id')}",
         f"mainline: {result.get('mainline')}",
         f"profile: {result.get('profile')}",
+        f"profile_reason: {result.get('profile_reason')}",
+        f"closeout_allowed: {result.get('closeout_allowed')}",
     ]
+    for reason in result.get("risk_reasons", []):
+        lines.append(f"  risk: {reason}")
     for reason in result.get("reasons", []):
         lines.append(f"  reason: {reason}")
     for cmd in result.get("suggested_commands", []):
         lines.append(f"  [{cmd.get('index')}] {cmd.get('phase')} {cmd.get('kind')}: {cmd.get('command')}")
-    for phase in result.get("future_phases", []):
-        lines.append(f"  [FUTURE] {phase}")
     lines.append(f"artifact: project_state/gates/gate_profile_plan.json")
     print("\n".join(lines))
 
@@ -5977,6 +6178,8 @@ def main(argv: list[str] | None = None) -> int:
     gate_profile_parser = subparsers.add_parser("gate-profile", help="Classify gate profile (fast/standard/full) for the current decision.")
     gate_profile_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     gate_profile_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    gate_profile_parser.add_argument("--profile", choices=list(_GATE_PROFILE_NAMES), default=None,
+                                     help="Explicitly select a profile instead of auto-classification.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -6039,7 +6242,14 @@ def main(argv: list[str] | None = None) -> int:
         print(output, end="")
         return exit_code
     if args.command == "gate-profile":
-        result = gate_profile(state_dir=Path(args.state_dir))
+        profile_override = getattr(args, "profile", None)
+        result = gate_profile(state_dir=Path(args.state_dir), profile_override=profile_override)
+        if result.get("gate_status") == "FAILED":
+            if args.json:
+                print(json.dumps(result, ensure_ascii=True, indent=2))
+            else:
+                _print_gate_profile(result)
+            return 1
         if args.json:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:

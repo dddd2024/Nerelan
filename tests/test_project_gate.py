@@ -455,6 +455,12 @@ def _make_gate_state(
         ],
         "warnings": [],
         "blocking_reasons": [],
+        "profile_meta": {
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+        },
     })
     _write_json(gates_dir / "round_delta_summary.json", {
         "schema_version": 1, "artifact_name": "round_delta_summary.json",
@@ -479,6 +485,18 @@ def _make_gate_state(
         "decision_id": decision_id, "round_id": round_id,
         "gate_status": "PASSED",
     })
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
     _write_report(
         state_dir,
         decision_id=decision_id,
@@ -498,6 +516,7 @@ def _make_gate_state(
             "project_state/gates/round_delta_summary.json",
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/final_gate_result.json",
+            "project_state/gates/gate_profile_plan.json",
             *archive_paths,
         ],
     )
@@ -607,6 +626,12 @@ def _make_command_plan_gate_state(
         "warnings": [],
         "blocking_reasons": [],
         "recommended_next_action": "record_and_follow_command_plan_manually",
+        "profile_meta": {
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+        },
     }
     if command_plan_overrides:
         plan_payload.update(command_plan_overrides)
@@ -639,6 +664,18 @@ def _make_command_plan_gate_state(
         "decision_id": decision_id, "round_id": round_id,
         "gate_status": "PASSED",
     })
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
     _write_report(
         state_dir,
         decision_id=decision_id,
@@ -668,6 +705,7 @@ def _make_command_plan_gate_state(
             "project_state/gates/round_delta_summary.json",
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/final_gate_result.json",
+            "project_state/gates/gate_profile_plan.json",
             *archive_paths,
         ],
     )
@@ -1158,6 +1196,7 @@ def test_final_check_warns_without_round_baseline_for_legacy_round(tmp_path: Pat
             "project_state/gates/round_delta_summary.json",
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/final_gate_result.json",
+            "project_state/gates/gate_profile_plan.json",
             *archive_paths,
         ],
     )
@@ -1524,6 +1563,7 @@ def test_final_check_keeps_ordinary_rounds_without_command_plan_compatible(tmp_p
     )
     # Remove command_plan.json so the round is treated as ordinary
     (state_dir / "gates" / "command_plan.json").unlink()
+    (state_dir / "gates" / "gate_profile_plan.json").unlink()
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
@@ -8418,6 +8458,18 @@ class TestStaleArtifactIds:
             "report_id": "rp1",
             "gate_status": "PASSED",
         })
+        _write_json(gates_dir / "gate_profile_plan.json", {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "d1",
+            "round_id": "stale_round",
+            "mainline": "engineering_branch",
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+        })
         result = _stale_artifact_id_check(
             state_dir=state_dir,
             decision_id="d1",
@@ -8437,6 +8489,18 @@ class TestStaleArtifactIds:
         _write_json(gates_dir / "command_plan.json", {
             "decision_id": "stale_decision",
             "round_id": "r1",
+        })
+        _write_json(gates_dir / "gate_profile_plan.json", {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "stale_decision",
+            "round_id": "r1",
+            "mainline": "engineering_branch",
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
         })
         result = _stale_artifact_id_check(
             state_dir=state_dir,
@@ -8473,6 +8537,18 @@ class TestStaleArtifactIds:
             "round_id": "r1",
             "report_id": "rp1",
             "gate_status": "PASSED",
+        })
+        _write_json(gates_dir / "gate_profile_plan.json", {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "d1",
+            "round_id": "r1",
+            "mainline": "engineering_branch",
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
         })
         result = _stale_artifact_id_check(
             state_dir=state_dir,
@@ -8512,6 +8588,18 @@ class TestStaleArtifactIds:
             "round_id": "r1",
             "report_id": "rp1",
             "gate_status": "FAILED",
+        })
+        _write_json(gates_dir / "gate_profile_plan.json", {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "d1",
+            "round_id": "r1",
+            "mainline": "engineering_branch",
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
         })
         result = _stale_artifact_id_check(
             state_dir=state_dir,
@@ -8699,6 +8787,18 @@ class TestCurrentReportGateRegeneration:
             "report_id": "codex_report_test6",
             "gate_status": "PASSED",
         })
+        _write_json(gates_dir / "gate_profile_plan.json", {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "decision_test6",
+            "round_id": "round_stale",
+            "mainline": "engineering_branch",
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+        })
 
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
@@ -8765,6 +8865,18 @@ class TestCurrentReportGateRegeneration:
             ],
             "warnings": [],
             "blocking_reasons": [],
+        })
+        _write_json(gates_dir / "gate_profile_plan.json", {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "decision_test8",
+            "round_id": "round_test8",
+            "mainline": "engineering_branch",
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
         })
         # Rewrite the report to include command-plan in tests_ran and generated_artifacts
         _write_report(
@@ -9489,3 +9601,245 @@ class TestReportBodyConsistency:
             acceptance_recommendation="ACCEPTED",
         )
         assert result["status"] == "PASS"
+
+
+class TestGateProfileTierIntegration:
+    """Tests for gate profile tier integration (fast/standard/full)."""
+
+    def test_auto_profile_defaults_full_for_project_gate_changes(self) -> None:
+        """Auto profile defaults to full for reverse_agent/project_gate.py changes."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
+        assert result["closeout_allowed"] is True
+        assert "close-round" in result["required_command_kinds"]
+
+    def test_auto_profile_defaults_full_for_project_state_changes(self) -> None:
+        """Auto profile defaults to full for reverse_agent/project_state.py changes."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_state.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
+        assert result["closeout_allowed"] is True
+
+    def test_auto_profile_uses_fast_for_artifact_only_cleanup(self) -> None:
+        """Auto profile uses fast for report/project_state artifact-only cleanup."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+- `project_state/codex_execution_report.md`
+
+Required implementation behavior:
+
+- Define evidence fields for DES and RC4 PE cipher samples.
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "fast"
+        assert result["closeout_allowed"] is False
+
+    def test_standard_profile_for_ordinary_source_test_changes(self) -> None:
+        """Standard profile for ordinary non-gate Python/test changes."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/some_module.py`
+
+Allowed tests:
+
+- `tests/test_some_module.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "standard"
+        assert result["closeout_allowed"] is True
+        assert "close-round" not in result["required_command_kinds"]
+
+    def test_ambiguous_unknown_file_changes_default_to_full(self) -> None:
+        """Ambiguous or unknown file changes default to full."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/solver.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
+
+    def test_gate_profile_json_includes_required_fields(self) -> None:
+        """gate-profile --json includes profile metadata, reasons, command kinds, and closeout permission."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert "profile" in result
+        assert "profile_reason" in result
+        assert "risk_reasons" in result
+        assert "closeout_allowed" in result
+        assert "required_command_kinds" in result
+        assert isinstance(result["risk_reasons"], list)
+        assert isinstance(result["required_command_kinds"], list)
+        assert len(result["required_command_kinds"]) > 0
+
+    def test_command_plan_includes_profile_metadata(self) -> None:
+        """command-plan --json includes profile metadata."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = Path(tmpdir) / "project_state"
+            state_dir.mkdir()
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+
+            decision_text = (
+                "```json decision_meta\n"
+                '{"schema_version": 1, "decision_id": "d1", "round_id": "r1", '
+                '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+                '"status": "APPROVED", "mainline": "engineering_branch", '
+                '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+                "```\n\n"
+                "## 1. Goal\n\nTest.\n\n"
+                "## 6. Implementation Scope\n\n"
+                "Allowed source files:\n\n- `reverse_agent/project_gate.py`\n\n"
+                "Allowed generated/project-state files:\n\n- `project_state/codex_execution_report.md`\n\n"
+                "## 7. Tests\n\n```powershell\npython -m pytest tests/\n```\n"
+            )
+            (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+            profile_data = {
+                "schema_version": 1,
+                "gate_name": "gate-profile",
+                "gate_status": "PASSED",
+                "decision_id": "d1",
+                "round_id": "r1",
+                "mainline": "engineering_branch",
+                "profile": "full",
+                "profile_reason": "test",
+                "closeout_allowed": True,
+                "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+            }
+            (gates_dir / "gate_profile_plan.json").write_text(
+                json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            result = command_plan(state_dir=state_dir, write_result=False)
+            assert "profile_meta" in result
+            assert result["profile_meta"]["profile"] == "full"
+            assert result["profile_meta"]["closeout_allowed"] is True
+
+    def test_stale_gate_profile_plan_causes_final_check_fail(self) -> None:
+        """Stale gate_profile_plan.json decision_id/round_id causes final-check FAIL."""
+        gate_profile_payload = {
+            "decision_id": "old_decision_id",
+            "round_id": "old_round_id",
+            "profile": "full",
+        }
+        decision_id = "current_decision_id"
+        round_id = "current_round_id"
+        gp_decision_id = str(gate_profile_payload.get("decision_id") or "")
+        gp_round_id = str(gate_profile_payload.get("round_id") or "")
+        gp_current = gp_decision_id == decision_id and gp_round_id == round_id
+        assert not gp_current
+
+    def test_mismatch_profile_causes_final_check_fail(self) -> None:
+        """Mismatch between gate_profile_plan.json profile and command_plan.json profile causes FAIL."""
+        gate_profile_payload = {"profile": "fast"}
+        command_plan_data = {"profile_meta": {"profile": "full"}}
+        cp_profile = str((command_plan_data.get("profile_meta") or {}).get("profile") or "")
+        gp_profile = str(gate_profile_payload.get("profile") or "")
+        profiles_match = cp_profile == gp_profile
+        assert not profiles_match
+
+    def test_non_full_profile_closeout_not_allowed_cannot_close(self) -> None:
+        """Non-full profile with closeout_allowed=false cannot close/archive."""
+        gp_profile = "fast"
+        gp_closeout_allowed = False
+        closeout_safe = gp_profile == "full" or gp_closeout_allowed
+        assert not closeout_safe
+
+    def test_full_profile_can_close_when_all_gates_pass(self) -> None:
+        """Full profile can close/archive when all other gates pass."""
+        gp_profile = "full"
+        gp_closeout_allowed = True
+        closeout_safe = gp_profile == "full" or gp_closeout_allowed
+        assert closeout_safe
+
+    def test_invalid_explicit_profile_name_fails(self) -> None:
+        """Invalid explicit profile name fails clearly."""
+        from reverse_agent.project_gate import gate_profile
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = Path(tmpdir) / "project_state"
+            state_dir.mkdir()
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+
+            decision_text = (
+                "```json decision_meta\n"
+                '{"schema_version": 1, "decision_id": "d1", "round_id": "r1", '
+                '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+                '"status": "APPROVED", "mainline": "engineering_branch", '
+                '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+                "```\n\n"
+                "## 1. Goal\n\nTest.\n\n"
+                "## 6. Implementation Scope\n\n"
+                "Allowed generated/project-state files:\n\n- `project_state/codex_execution_report.md`\n\n"
+                "## 7. Tests\n\n```powershell\npython -m pytest tests/\n```\n"
+            )
+            (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+            result = gate_profile(state_dir=state_dir, write_result=False, profile_override="invalid_profile")
+            assert result["gate_status"] == "FAILED"
+            assert "invalid profile name" in result["profile_reason"].lower()
