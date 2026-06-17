@@ -8,6 +8,7 @@ import pytest
 from reverse_agent.project_gate import (
     BUILD_OUTPUT_WHITELIST,
     _close_round_exit_code,
+    _command_expected_exit_codes,
     _command_kind,
     _command_phase,
     _decision_immutability_check,
@@ -30,6 +31,7 @@ from reverse_agent.project_gate import (
     _result_status,
     _round_close_snapshot_path,
     _allowed_inherited_files,
+    _validate_command_plan_consistency,
     _write_round_close_snapshot,
     build_report_summary_synthesis,
     close_round,
@@ -2806,7 +2808,7 @@ git status --short
     assert commands[1]["expected_exit_codes"] == [0]
     assert commands[2]["expected_exit_codes"] == [0]
     assert commands[5]["expected_exit_codes"] == [0]
-    assert commands[6]["expected_exit_codes"] == [0]
+    assert commands[6]["expected_exit_codes"] == [0, 1]
     assert result["blocking_reasons"] == []
     assert result["warnings"] == []
 
@@ -8809,3 +8811,419 @@ class TestCurrentReportGateRegeneration:
 
         status_policy = _check(result, "status_policy_valid")
         assert status_policy["status"] != "PASS"
+
+
+class TestCommandPlanExpectedExitSemantics:
+    """Tests for diagnostic exit-code tolerance and conditional close-round semantics."""
+
+    @staticmethod
+    def _make_state_dir(
+        tmp_path: Path,
+        *,
+        decision_id: str = "decision_exit_sem",
+        round_id: str = "round_exit_sem",
+        command_plan_commands: list[dict[str, Any]],
+        report_tests: list[str] | None = None,
+        report_generated_artifacts: list[str] | None = None,
+    ) -> Path:
+        """Create a minimal state_dir with a command_plan.json for validation tests."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+
+        # Build report tests_ran from command_plan commands if not specified
+        if report_tests is None:
+            report_tests = [c["command"] for c in command_plan_commands]
+        if report_generated_artifacts is None:
+            report_generated_artifacts = ["project_state/gates/command_plan.json"]
+
+        _write_json(
+            gates_dir / "command_plan.json",
+            {
+                "schema_version": 1,
+                "plan_name": "command-plan",
+                "plan_status": "PASSED",
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "mainline": "engineering_branch",
+                "generated_at": "2026-06-17T00:00:00Z",
+                "commands": command_plan_commands,
+                "warnings": [],
+                "blocking_reasons": [],
+            },
+        )
+        return state_dir
+
+    @staticmethod
+    def _decision_dict(
+        *,
+        decision_id: str = "decision_exit_sem",
+        round_id: str = "round_exit_sem",
+    ) -> dict[str, Any]:
+        return {
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "mainline": "engineering_branch",
+        }
+
+    @staticmethod
+    def _report_dict(
+        *,
+        decision_id: str = "decision_exit_sem",
+        round_id: str = "round_exit_sem",
+        report_id: str = "codex_report_exit_sem",
+        tests_ran: list[str] | None = None,
+        generated_artifacts: list[str] | None = None,
+        status: str = "SUCCESS",
+        acceptance: str = "ACCEPTED",
+    ) -> dict[str, Any]:
+        return {
+            "report_id": report_id,
+            "round_id": round_id,
+            "based_on_decision_id": decision_id,
+            "status": status,
+            "acceptance_recommendation": acceptance,
+            "tests_ran": tests_ran if tests_ran is not None else [],
+            "generated_artifacts": generated_artifacts if generated_artifacts is not None else ["project_state/gates/command_plan.json"],
+        }
+
+    def test_diagnostic_exit_1_not_mismatch(self, tmp_path: Path) -> None:
+        """Doctor command with expected_exit_codes [0,1] and exit code 1 is not a mismatch."""
+        doctor_cmd = "python -m reverse_agent.project_gate doctor --state-dir project_state"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {
+                    "index": 1,
+                    "command": doctor_cmd,
+                    "phase": "status",
+                    "kind": "doctor",
+                    "required": True,
+                    "expected_exit_codes": [0, 1],
+                },
+            ],
+        )
+        pytest_text = _command_block(doctor_cmd, "diagnostic findings", exit_code=1)
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision=self._decision_dict(),
+            report=self._report_dict(tests_ran=[doctor_cmd]),
+            pytest_text=pytest_text,
+        )
+
+        exit_check = next(c for c in checks if c["name"] == "pytest_result_exit_codes_match_command_plan")
+        assert exit_check["status"] == "PASS"
+
+    def test_diagnostic_exit_1_visible_in_report_not_accepted(self, tmp_path: Path) -> None:
+        """A report with PARTIAL/REWORK_REQUIRED is not treated as accepted/completed."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        _write_skill_registry(tmp_path)
+        _write_json(
+            state_dir / "current_state.json",
+            {
+                "round_id": "round_diag",
+                "state_build_id": "state_test",
+                "state_digest": "digest_test",
+                "state_scope": "sample_state",
+            },
+        )
+        _write_json(
+            state_dir / "task_packet.json",
+            {
+                "state_scope": "sample_state",
+                "task_source": "derived_from_sample_artifacts",
+                "execution_scope": "decision_packet_controls_current_round",
+                "active_decision_packet": "project_state/decision_packet.md",
+            },
+        )
+        _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+        _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+        _write_json(state_dir / "negative_results.json", {})
+        _write_decision(state_dir, decision_id="decision_diag", round_id="round_diag")
+        _write_round_baseline(state_dir, decision_id="decision_diag", round_id="round_diag")
+        _write_report(
+            state_dir,
+            decision_id="decision_diag",
+            report_id="codex_report_diag",
+            round_id="round_diag",
+            status="PARTIAL",
+            acceptance="REWORK_REQUIRED",
+        )
+
+        report = read_codex_report_summary(state_dir)
+        assert report.get("status") == "PARTIAL"
+        assert report.get("acceptance_recommendation") == "REWORK_REQUIRED"
+        # Verify that PARTIAL/REWORK_REQUIRED is not treated as accepted
+        assert report.get("acceptance_recommendation") != "ACCEPTED"
+        assert report.get("status") != "SUCCESS"
+
+    def test_ordinary_required_command_exit_1_fails(self, tmp_path: Path) -> None:
+        """A pytest command with expected_exit_codes [0] and exit code 1 is a mismatch."""
+        pytest_cmd = "python -m pytest -q"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {
+                    "index": 1,
+                    "command": pytest_cmd,
+                    "phase": "test",
+                    "kind": "pytest",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+            ],
+        )
+        pytest_text = _command_block(pytest_cmd, "1 failed", exit_code=1)
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision=self._decision_dict(),
+            report=self._report_dict(tests_ran=[pytest_cmd]),
+            pytest_text=pytest_text,
+        )
+
+        exit_check = next(c for c in checks if c["name"] == "pytest_result_exit_codes_match_command_plan")
+        assert exit_check["status"] == "FAIL"
+
+    def test_final_check_failed_skips_close_round(self, tmp_path: Path) -> None:
+        """Close-round with required=False (final-check failed) is skipped in validation."""
+        close_cmd = "python -m reverse_agent.project_gate close-round --state-dir project_state"
+        pytest_cmd = "python -m pytest -q"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {
+                    "index": 1,
+                    "command": pytest_cmd,
+                    "phase": "test",
+                    "kind": "pytest",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": close_cmd,
+                    "phase": "gate",
+                    "kind": "close-round",
+                    "required": False,
+                    "expected_exit_codes": [0, 1],
+                    "conditional_closeout": True,
+                },
+            ],
+        )
+        # pytest_result.txt has the pytest command but no close-round block
+        pytest_text = _command_block(pytest_cmd, "1 passed", exit_code=0)
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision=self._decision_dict(),
+            report=self._report_dict(tests_ran=[pytest_cmd, close_cmd]),
+            pytest_text=pytest_text,
+        )
+
+        exit_check = next(c for c in checks if c["name"] == "pytest_result_exit_codes_match_command_plan")
+        # close-round is skipped because required=False, so no mismatch
+        assert exit_check["status"] == "PASS"
+
+    def test_final_check_passed_allows_close_round_expected_0(self, tmp_path: Path) -> None:
+        """Close-round with required=True (final-check passed) and exit 0 passes validation."""
+        close_cmd = "python -m reverse_agent.project_gate close-round --state-dir project_state"
+        pytest_cmd = "python -m pytest -q"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {
+                    "index": 1,
+                    "command": pytest_cmd,
+                    "phase": "test",
+                    "kind": "pytest",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": close_cmd,
+                    "phase": "gate",
+                    "kind": "close-round",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                    "conditional_closeout": True,
+                },
+            ],
+        )
+        pytest_text = (
+            _command_block(pytest_cmd, "1 passed", exit_code=0)
+            + "\n"
+            + _command_block(close_cmd, "round closed", exit_code=0)
+        )
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision=self._decision_dict(),
+            report=self._report_dict(tests_ran=[pytest_cmd, close_cmd]),
+            pytest_text=pytest_text,
+        )
+
+        exit_check = next(c for c in checks if c["name"] == "pytest_result_exit_codes_match_command_plan")
+        assert exit_check["status"] == "PASS"
+
+    def test_close_round_exit_1_in_closeout_mode_blocks(self, tmp_path: Path) -> None:
+        """Close-round with required=True (final-check passed) and exit 1 fails validation."""
+        close_cmd = "python -m reverse_agent.project_gate close-round --state-dir project_state"
+        pytest_cmd = "python -m pytest -q"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {
+                    "index": 1,
+                    "command": pytest_cmd,
+                    "phase": "test",
+                    "kind": "pytest",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": close_cmd,
+                    "phase": "gate",
+                    "kind": "close-round",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                    "conditional_closeout": True,
+                },
+            ],
+        )
+        pytest_text = (
+            _command_block(pytest_cmd, "1 passed", exit_code=0)
+            + "\n"
+            + _command_block(close_cmd, "close failed", exit_code=1)
+        )
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision=self._decision_dict(),
+            report=self._report_dict(tests_ran=[pytest_cmd, close_cmd]),
+            pytest_text=pytest_text,
+        )
+
+        exit_check = next(c for c in checks if c["name"] == "pytest_result_exit_codes_match_command_plan")
+        assert exit_check["status"] == "FAIL"
+
+    def test_command_plan_json_records_kind_phase_expected_exit(self, tmp_path: Path) -> None:
+        """command_plan output includes kind, phase, expected_exit_codes for each command."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        _write_skill_registry(tmp_path)
+        _write_json(
+            state_dir / "current_state.json",
+            {
+                "round_id": "round_cp",
+                "state_build_id": "state_test",
+                "state_digest": "digest_test",
+                "state_scope": "sample_state",
+            },
+        )
+        _write_json(
+            state_dir / "task_packet.json",
+            {
+                "state_scope": "sample_state",
+                "task_source": "derived_from_sample_artifacts",
+                "execution_scope": "decision_packet_controls_current_round",
+                "active_decision_packet": "project_state/decision_packet.md",
+            },
+        )
+        _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+        _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+        _write_json(state_dir / "negative_results.json", {})
+        # Write a decision with a doctor command and a pytest command
+        _write_command_plan_decision(
+            state_dir,
+            tests_block=(
+                "python -m reverse_agent.project_gate doctor --state-dir project_state\n"
+                "python -m pytest -q"
+            ),
+        )
+
+        result = command_plan(state_dir=state_dir, write_result=False)
+
+        commands = result.get("commands", [])
+        assert len(commands) >= 2
+
+        # Verify each command has kind, phase, expected_exit_codes
+        for cmd in commands:
+            assert "kind" in cmd, f"command missing 'kind': {cmd}"
+            assert "phase" in cmd, f"command missing 'phase': {cmd}"
+            assert "expected_exit_codes" in cmd, f"command missing 'expected_exit_codes': {cmd}"
+
+        # Verify diagnostic commands have expected_exit_codes [0, 1]
+        diagnostic_kinds = {"doctor", "lint-report", "report-summary", "final-check"}
+        for cmd in commands:
+            if cmd["kind"] in diagnostic_kinds:
+                assert cmd["expected_exit_codes"] == [0, 1], (
+                    f"diagnostic command kind={cmd['kind']} should have expected_exit_codes [0, 1], "
+                    f"got {cmd['expected_exit_codes']}"
+                )
+
+        # Verify ordinary commands (pytest, etc.) have expected_exit_codes [0]
+        ordinary_kinds = {"pytest", "command-plan", "run-round"}
+        for cmd in commands:
+            if cmd["kind"] in ordinary_kinds:
+                assert cmd["expected_exit_codes"] == [0], (
+                    f"ordinary command kind={cmd['kind']} should have expected_exit_codes [0], "
+                    f"got {cmd['expected_exit_codes']}"
+                )
+
+    def test_current_round_final_check_no_longer_fails_on_diagnostic_exit_1(self, tmp_path: Path) -> None:
+        """Diagnostic commands recording exit code 1 do not cause exit-code mismatch."""
+        doctor_cmd = "python -m reverse_agent.project_gate doctor --state-dir project_state"
+        lint_cmd = "python -m reverse_agent.project_gate lint-report --state-dir project_state"
+        pytest_cmd = "python -m pytest -q"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {
+                    "index": 1,
+                    "command": doctor_cmd,
+                    "phase": "status",
+                    "kind": "doctor",
+                    "required": True,
+                    "expected_exit_codes": [0, 1],
+                },
+                {
+                    "index": 2,
+                    "command": lint_cmd,
+                    "phase": "status",
+                    "kind": "lint-report",
+                    "required": True,
+                    "expected_exit_codes": [0, 1],
+                },
+                {
+                    "index": 3,
+                    "command": pytest_cmd,
+                    "phase": "test",
+                    "kind": "pytest",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+            ],
+        )
+        pytest_text = (
+            _command_block(doctor_cmd, "findings detected", exit_code=1)
+            + "\n"
+            + _command_block(lint_cmd, "lint issues found", exit_code=1)
+            + "\n"
+            + _command_block(pytest_cmd, "1 passed", exit_code=0)
+        )
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision=self._decision_dict(),
+            report=self._report_dict(tests_ran=[doctor_cmd, lint_cmd, pytest_cmd]),
+            pytest_text=pytest_text,
+        )
+
+        exit_check = next(c for c in checks if c["name"] == "pytest_result_exit_codes_match_command_plan")
+        assert exit_check["status"] == "PASS"

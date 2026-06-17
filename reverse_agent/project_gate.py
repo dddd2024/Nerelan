@@ -2735,6 +2735,14 @@ def _validate_command_plan_consistency(
     _skip_kinds: set[str] = {"final-check"}
     if skip_pending_close_round:
         _skip_kinds.add("close-round")
+    # Also skip close-round when it's marked as not required (final-check failed)
+    if "close-round" not in _skip_kinds:
+        close_round_items = [
+            item for item in (command_plan_payload.get("commands") or [])
+            if isinstance(item, dict) and item.get("kind") == "close-round" and not item.get("required", True)
+        ]
+        if close_round_items:
+            _skip_kinds.add("close-round")
     if extra_skip_kinds:
         _skip_kinds |= extra_skip_kinds
     expected_by_command = _expected_exit_codes_by_command(
@@ -5024,6 +5032,7 @@ def _command_expected_exit_codes(
     phase: str,
     command: str,
     decision_text: str,
+    final_check_passed: bool | None = None,
 ) -> tuple[list[int], str, str | None]:
     if kind == "preflight" and phase != "preflight":
         if _decision_allows_expected_nonzero_preflight(decision_text):
@@ -5031,6 +5040,23 @@ def _command_expected_exit_codes(
         return [0], "post-report preflight is not explicitly marked expected nonzero", (
             f"command '{command}' looks like a post-report preflight diagnostic without expected nonzero wording"
         )
+    # Diagnostic commands: doctor, lint-report, report-summary, final-check
+    # These commands intentionally return non-zero when they detect gate/report
+    # problems. Their findings are captured in report/final gate artifacts and
+    # must not be treated as execution mismatches.
+    if kind in {"doctor", "lint-report", "report-summary", "final-check"}:
+        return [0, 1], f"{kind} diagnostic allows exit 0 or 1; findings captured in report/final gate", None
+    # Close-round: conditional execution semantics
+    # When final-check has passed, close-round must exit 0 (normal closeout).
+    # When final-check has failed, close-round is a diagnostic/failure-path
+    # fixture and exit 1 is expected.
+    if kind == "close-round":
+        if final_check_passed is True:
+            return [0], "close-round closeout expected exit 0 after final-check passed", None
+        if final_check_passed is False:
+            return [0, 1], "close-round diagnostic after final-check failed; exit 1 is expected", None
+        # final_check_passed is None (unknown) — default to strict
+        return [0], "close-round expected exit 0 (final-check status unknown)", None
     if kind == "unknown":
         return [0], "unknown command kind; defaulting to zero exit", None
     return [0], f"{kind} expected to exit 0", None
@@ -5093,6 +5119,12 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
         if extract_error:
             blocking_reasons.append(extract_error)
         extracted_commands = _inject_report_summary_command(extracted_commands, decision_text)
+        # Determine final-check status for conditional close-round semantics
+        final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+        final_check_passed: bool | None = None
+        if final_gate_payload:
+            fg_status = str(final_gate_payload.get("gate_status") or "")
+            final_check_passed = fg_status == "PASSED"
         archive_seen = False
         for index, command in enumerate(extracted_commands, start=1):
             kind = _command_kind(command)
@@ -5102,6 +5134,7 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
                 phase=phase,
                 command=command,
                 decision_text=decision_text,
+                final_check_passed=final_check_passed,
             )
             if kind == "unknown":
                 warnings.append(f"command {index} has unknown kind: {command}")
@@ -5113,8 +5146,9 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
                     "command": command,
                     "phase": phase,
                     "kind": kind,
-                    "required": True,
+                    "required": kind != "close-round" or final_check_passed is not False,
                     "expected_exit_codes": expected_exit_codes,
+                    "conditional_closeout": kind == "close-round",
                     "records_stdout_stderr": True,
                     "notes": notes,
                 }
