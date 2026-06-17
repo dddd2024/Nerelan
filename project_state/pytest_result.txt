@@ -1,14 +1,13 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_clean_start_baseline_guard_v1",
-  "report_id": "codex_report_20260617_clean_start_baseline_guard_v1",
-  "round_id": "round_20260617_clean_start_baseline_guard_v1",
-  "generated_at": "2026-06-17T06:00:00.000000Z",
+  "decision_id": "decision_20260617_clean_start_report_delta_rework_v1",
+  "report_id": "codex_report_20260617_clean_start_report_delta_rework_v1",
+  "round_id": "round_20260617_clean_start_report_delta_rework_v1",
+  "generated_at": "2026-06-17T06:35:00.000000Z",
   "status": "PASSED",
   "tests_ran": [
     "git status --short",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
     "Set-Location F:\\reverse-agent",
     "Get-Location",
     "Test-Path F:\\reverse-agent",
@@ -22,7 +21,8 @@
     "python -m reverse_agent.project_state doctor --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_baseline_guard_v1"
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_report_delta_rework_v1"
   ]
 }
 ```
@@ -47,7 +47,6 @@ F:/reverse-agent
  M project_state/codex_execution_report.md
  M project_state/pytest_result.txt
 ?? project_state/gates/
-?? tmp8osv9s8n/
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
@@ -59,19 +58,19 @@ command-plan: PASSED
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-{"schema_version": 1, "plan_name": "command-plan", "plan_status": "PASSED", "decision_id": "decision_20260617_clean_start_baseline_guard_v1", "round_id": "round_20260617_clean_start_baseline_guard_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T05:59:44Z", "commands": [{"index": 1, "command": "git status --short", "phase": "status", "kind": "git status", "required": true, "expected_exit_codes": [0]}, {"index": 2, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "final-check", "required": true, "expected_exit_codes": [0]}, {"index": 3, "command": "Set-Location F:\\reverse-agent", "phase": "status", "kind": "set-location", "required": true, "expected_exit_codes": [0]}, {"index": 4, "command": "Get-Location", "phase": "status", "kind": "pwd", "required": true, "expected_exit_codes": [0]}, {"index": 5, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "test-path", "required": true, "expected_exit_codes": [0]}, {"index": 6, "command": "git rev-parse --show-toplevel", "phase": "status", "kind": "git rev-parse", "required": true, "expected_exit_codes": [0]}, {"index": 7, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state", "phase": "preflight", "kind": "preflight", "required": true, "expected_exit_codes": [0]}, {"index": 8, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0]}, {"index": 9, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0]}, {"index": 10, "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json", "phase": "status", "kind": "project-cli", "required": true, "expected_exit_codes": [0]}, {"index": 11, "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json", "phase": "gate", "kind": "run-round", "required": true, "expected_exit_codes": [0]}, {"index": 12, "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "phase": "test", "kind": "pytest", "required": true, "expected_exit_codes": [0]}, {"index": 13, "command": "python -m reverse_agent.project_state doctor --state-dir project_state", "phase": "status", "kind": "doctor", "required": true, "expected_exit_codes": [0]}, {"index": 14, "command": "python -m reverse_agent.project_state lint-report --state-dir project_state", "phase": "status", "kind": "lint-report", "required": true, "expected_exit_codes": [0]}, {"index": 15, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state", "phase": "gate", "kind": "report-summary", "required": true, "expected_exit_codes": [0]}, {"index": 16, "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_baseline_guard_v1", "phase": "gate", "kind": "close-round", "required": true, "expected_exit_codes": [0]}]}
+{"schema_version": 1, "plan_name": "command-plan", "plan_status": "PASSED", "decision_id": "decision_20260617_clean_start_report_delta_rework_v1", "round_id": "round_20260617_clean_start_report_delta_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T06:32:32Z", "commands": [{"index": 1, "command": "git status --short", "phase": "status", "kind": "git status", "required": true, "expected_exit_codes": [0]}, {"index": 2, "command": "Set-Location F:\\reverse-agent", "phase": "status", "kind": "set-location", "required": true, "expected_exit_codes": [0]}, {"index": 3, "command": "Get-Location", "phase": "status", "kind": "pwd", "required": true, "expected_exit_codes": [0]}, {"index": 4, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "test-path", "required": true, "expected_exit_codes": [0]}, {"index": 5, "command": "git rev-parse --show-toplevel", "phase": "status", "kind": "git rev-parse", "required": true, "expected_exit_codes": [0]}, {"index": 6, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state", "phase": "preflight", "kind": "preflight", "required": true, "expected_exit_codes": [0]}, {"index": 7, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0]}, {"index": 8, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0]}, {"index": 9, "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json", "phase": "status", "kind": "project-cli", "required": true, "expected_exit_codes": [0]}, {"index": 10, "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json", "phase": "gate", "kind": "run-round", "required": true, "expected_exit_codes": [0]}, {"index": 11, "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "phase": "test", "kind": "pytest", "required": true, "expected_exit_codes": [0]}, {"index": 12, "command": "python -m reverse_agent.project_state doctor --state-dir project_state", "phase": "status", "kind": "doctor", "required": true, "expected_exit_codes": [0]}, {"index": 13, "command": "python -m reverse_agent.project_state lint-report --state-dir project_state", "phase": "status", "kind": "lint-report", "required": true, "expected_exit_codes": [0]}, {"index": 14, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state", "phase": "gate", "kind": "report-summary", "required": true, "expected_exit_codes": [0]}, {"index": 15, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "final-check", "required": true, "expected_exit_codes": [0]}, {"index": 16, "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_report_delta_rework_v1", "phase": "gate", "kind": "close-round", "required": true, "expected_exit_codes": [0]}], "warnings": [], "blocking_reasons": [], "recommended_next_action": "record_and_follow_command_plan_manually"}
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state --json =====
-{"schema_version": 1, "gate_name": "gate-profile", "gate_status": "PASSED", "decision_id": "decision_20260617_clean_start_baseline_guard_v1", "round_id": "round_20260617_clean_start_baseline_guard_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T05:55:35Z", "profile": "full"}
+{"schema_version": 1, "gate_name": "gate-profile", "gate_status": "PASSED", "decision_id": "decision_20260617_clean_start_report_delta_rework_v1", "round_id": "round_20260617_clean_start_report_delta_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T06:32:39Z", "profile": "full"}
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json =====
-{"schema_version": 1, "gate_name": "run-round", "run_status": "PASSED", "decision_id": "decision_20260617_clean_start_baseline_guard_v1", "round_id": "round_20260617_clean_start_baseline_guard_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T05:59:44Z", "mode": "dry-run", "command_count": 16, "executed_count": 0}
+{"schema_version": 1, "gate_name": "run-round", "run_status": "PASSED", "decision_id": "decision_20260617_clean_start_report_delta_rework_v1", "round_id": "round_20260617_clean_start_report_delta_rework_v1", "mainline": "engineering_branch", "generated_at": "2026-06-17T06:32:45Z", "mode": "dry-run", "command_count": 16, "executed_count": 0}
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
-618 passed in 34.81s
+626 passed in 59.15s
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
@@ -90,54 +89,6 @@ report-summary: PASSED
 final-check: PASSED
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_baseline_guard_v1 =====
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_report_delta_rework_v1 =====
 close-round: PASSED
 ===== EXIT: 0 =====
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_baseline_guard_v1 =====
-close-round: CLOSED
-decision_id: decision_20260617_clean_start_baseline_guard_v1
-report_id: codex_report_20260617_clean_start_baseline_guard_v1
-round_id: round_20260617_clean_start_baseline_guard_v1
-  [PASS] decision_meta_parse: decision_meta parsed
-  [PASS] decision_approved: decision status is APPROVED
-  [PASS] report_present: codex report summary parsed
-  [PASS] requested_round_id_match: requested round_id matches decision and report
-  [PASS] report_decision_match: report is based on current decision
-  [PASS] pytest_result_match: pytest_result matches report
-  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
-  [PASS] command_plan_present: command_plan.json is present
-  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
-  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
-  [PASS] startup_command_coverage: pytest_result covers required startup commands
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
-  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
-  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
-  [PASS] round_delta_summary_present: round delta summary is baseline-aware
-  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
-  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
-  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
-  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
-  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
-  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
-  [PASS] baseline_inherited_allowlist_explained: no source/test inherited baseline explanation is required
-  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
-  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
-  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
-  [PASS] build_output_scope: no build-generated state files in round delta
-  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
-  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
-  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
-  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
-  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
-  [PASS] forbidden_paths_absent: no forbidden paths detected
-  [PASS] state_package_compact: state package classification is compact or non-blocking
-  [ACTION PASSED] final_check_before_archive
-  [ACTION created] archive_round
-  [ACTION PASSED] final_check_after_archive
-archive_status: created
-recommended_next_action: no_action_required
-===== STDERR =====
-===== EXIT: 0 =====
-

@@ -1,25 +1,28 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260617_clean_start_baseline_guard_v1",
-  "round_id": "round_20260617_clean_start_baseline_guard_v1",
-  "based_on_decision_id": "decision_20260617_clean_start_baseline_guard_v1",
+  "report_id": "codex_report_20260617_clean_start_report_delta_rework_v1",
+  "round_id": "round_20260617_clean_start_report_delta_rework_v1",
+  "based_on_decision_id": "decision_20260617_clean_start_report_delta_rework_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py",
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
+    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/round_manifest.json"
+    "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
   ],
   "tests_ran": [
     "git status --short",
@@ -37,7 +40,7 @@
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_baseline_guard_v1"
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_clean_start_report_delta_rework_v1"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
@@ -50,10 +53,10 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_clean_start_baseline_guard_v1/round_manifest.json"
+    "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
   ],
   "verified_artifacts": []
 }
@@ -63,34 +66,38 @@
 
 ## Goal
 
-Harden the round startup/baseline lifecycle so Codex cannot modify source/test files before recording the startup baseline and then have those modifications treated as harmless inherited dirty files.
+Repair the audit/report metadata inconsistency from `decision_20260617_clean_start_baseline_guard_v1` so actual source/test changes cannot disappear from `codex_report_summary.files_changed`, `report_summary_synthesis`, `final_gate_result`, or the final round delta.
 
 ## Changes
 
 ### Source Changes
 
 1. **`reverse_agent/project_gate.py`** — Multiple changes:
-   - Added `source_test_clean_start` preflight check: source/test files dirty at startup baseline are blocking unless explicitly listed in the decision's "Allowed Inherited Dirty Baseline Files" section
-   - Added `baseline_git_status_short` guard: when `baseline_git_status_short` is empty (no git repo or clean working tree), the clean-start check passes because there is no real evidence of source/test files being dirty at startup
-   - Removed report bootstrapping exception from `_baseline_lifecycle_checks`: only the decision's "Allowed Inherited Dirty Baseline Files" section can authorize inherited dirty source/test files, not the report
-   - Removed close snapshot bootstrapping exception from `_baseline_lifecycle_checks`: same policy for close snapshot
-   - Removed bootstrapping extension from `build_report_summary_synthesis`: only the decision can authorize inherited dirty source/test files
+   - Added `_is_temporary_path()`: detects temporary paths (tmp*/) that should not persist as inherited dirty files
+   - Added `_extract_claimed_source_test_paths()`: extracts source/test file paths from report prose sections (Source Changes, Test Changes, backticked paths)
+   - Added `_report_prose_claims_check()`: new check that FAILs when report prose claims source/test changes absent from `files_changed`
+   - Added `_tmp_paths_dirty_check()`: new check that FAILs when temporary paths (tmp*/) appear in dirty state
+   - Updated `_round_delta_checks()`: added `report_text` parameter; `files_changed_covers_substantive_changes` now also includes source/test paths claimed in report prose
+   - Integrated both new checks into `final_check()` and `close_round()`
 
 ### Test Changes
 
 2. **`tests/test_project_gate.py`** — Multiple changes:
-   - Added `TestSourceTestCleanStart` class (6 tests):
-     - `test_source_test_dirty_without_allowlist_is_unauthorized`: FAIL when dirty without allowlist
-     - `test_source_test_dirty_with_decision_allowlist_is_authorized`: PASS when decision has `## Allowed Inherited Dirty Baseline Files` section
-     - `test_report_cannot_authorize_inherited_dirty`: Report bootstrapping removed — report cannot authorize
-     - `test_ordinary_allowed_source_does_not_authorize_inherited`: "Allowed source files" ≠ inherited dirty authorization
-     - `test_generated_project_state_dirty_not_blocking`: project_state dirty files not source/test violations
-     - `test_clean_baseline_passes`: Clean baseline passes
-   - Updated `_clean_git_diff` autouse fixture: added `_git_status_short_lines` mock to return empty list
+   - Added `TestReportProseClaimsCoveredByFilesChanged` class (4 tests):
+     - `test_source_change_omitted_from_files_changed_fails`: report claims source change but files_changed omits it → FAIL
+     - `test_test_change_omitted_from_files_changed_fails`: report claims test change but files_changed omits it → FAIL
+     - `test_claimed_path_present_in_files_changed_passes`: claimed source/test file present in files_changed → PASS
+     - `test_project_state_artifacts_in_prose_do_not_trigger_failure`: project_state artifacts in prose don't trigger failure
+   - Added `TestTmpPathsAbsentFromDirtyState` class (2 tests):
+     - `test_tmp_path_in_dirty_state_is_blocking`: tmp8osv9s8n/ in dirty state → FAIL
+     - `test_no_tmp_path_in_dirty_state_passes`: no tmp paths → PASS
+   - Added `TestExistingChecksPreserved` class (2 tests):
+     - `test_clean_start_baseline_guard_still_works`: clean-start baseline guard preserved
+     - `test_gate_profile_classifier_still_works`: gate-profile classifier preserved
 
 ## Evidence
 
-1. All 618 tests pass (350 in test_project_gate.py, 268 in test_project_state.py)
+1. All 626 tests pass (358 in test_project_gate.py, 268 in test_project_state.py)
 2. Preflight passes with clean baseline (source_test_clean_start: PASS)
 3. Full gate pipeline runs successfully: preflight → command-plan → run-round → report-summary → final-check → close-round
 4. No IDA/Ghidra/debugger/harness/solver invoked
