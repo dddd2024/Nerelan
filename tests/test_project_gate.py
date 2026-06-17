@@ -776,6 +776,10 @@ def _clean_git_diff(monkeypatch: pytest.MonkeyPatch) -> None:
             "project_state/rounds/round_gate/round_manifest.json",
         ],
     )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_status_short_lines",
+        lambda _repo_root: [],
+    )
 
 
 def _check(result: dict[str, object], name: str) -> dict[str, object]:
@@ -7038,3 +7042,195 @@ Allowed generated/project-state files:
         fast_result = classify_gate_profile(fast_text)
         full_result = classify_gate_profile(full_text)
         assert len(fast_result["suggested_commands"]) < len(full_result["suggested_commands"])
+
+
+class TestSourceTestCleanStart:
+    """Tests for the source_test_clean_start preflight check and the
+    removal of report bootstrapping exceptions."""
+
+    def test_source_test_dirty_without_allowlist_is_unauthorized(self) -> None:
+        """Source/test files dirty at baseline without decision allowlist
+        must be classified as unauthorized."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        report_text = ""
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
+        )
+        guard = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard["status"] == "FAIL"
+
+    def test_source_test_dirty_with_decision_allowlist_is_authorized(self) -> None:
+        """Source/test files dirty at baseline WITH decision allowlist
+        must be authorized."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+
+## Allowed Inherited Dirty Baseline Files
+
+- `reverse_agent/project_gate.py`
+"""
+        report_text = ""
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
+        )
+        guard = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard["status"] != "FAIL"
+
+    def test_report_cannot_authorize_inherited_dirty(self) -> None:
+        """Report bootstrapping exception has been removed: the report
+        cannot authorize inherited dirty source/test files."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        # Report tries to authorize the inherited dirty file
+        report_text = """## Allowed Inherited Dirty Baseline Files
+
+The following source/test files were modified before baseline capture:
+
+- `reverse_agent/project_gate.py` — Allowed source file per decision scope
+"""
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
+        )
+        guard = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        # Report bootstrapping is removed, so this must still FAIL
+        assert guard["status"] == "FAIL"
+
+    def test_ordinary_allowed_source_does_not_authorize_inherited(self) -> None:
+        """Ordinary 'Allowed source files' does not authorize inherited
+        dirty baseline files."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/some_module.py"],
+            "inherited_dirty_files": ["reverse_agent/some_module.py"],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/some_module.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        report_text = ""
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
+        )
+        guard = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard["status"] == "FAIL"
+
+    def test_generated_project_state_dirty_not_blocking(self) -> None:
+        """Generated project_state files dirty at baseline are not
+        source/test clean-start violations."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": [
+                "project_state/codex_execution_report.md",
+                "project_state/gates/preflight_result.json",
+                "project_state/pytest_result.txt",
+            ],
+            "inherited_dirty_files": [
+                "project_state/codex_execution_report.md",
+            ],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
+"""
+        report_text = ""
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
+        )
+        guard = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard["status"] != "FAIL"
+
+    def test_clean_baseline_passes(self) -> None:
+        """Clean baseline (no source/test dirty) passes the check."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": [],
+            "inherited_dirty_files": [],
+        }
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        report_text = ""
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
+        )
+        guard = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard["status"] == "PASS"

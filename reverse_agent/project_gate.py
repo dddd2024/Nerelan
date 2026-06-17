@@ -1362,19 +1362,12 @@ def _baseline_lifecycle_checks(
     allowed_inherited = _allowed_inherited_baseline_paths(decision_text)
     source_test_baseline_dirty = sorted(baseline_dirty_files & source_test_scope)
     unauthorized = sorted((baseline_dirty_files & source_test_scope) - allowed_inherited)
-    # Bootstrapping exception: when the gate itself must be fixed before
-    # preflight can pass, source/test files authorized by Implementation
-    # Scope will necessarily be dirty in baseline.  If the report
-    # explicitly lists and explains these files in its "Allowed Inherited
-    # Dirty Baseline Files" section, remove them from unauthorized so that
-    # baseline_lifecycle_guard does not FAIL on a necessary pre-preflight
-    # modification.
-    if unauthorized:
-        report_allowed = _allowed_inherited_baseline_paths(report_text)
-        if report_allowed and _report_explains_inherited_baseline_files(report_text):
-            bootstrapped = set(unauthorized) & source_test_scope & report_allowed
-            if bootstrapped:
-                unauthorized = sorted(set(unauthorized) - bootstrapped)
+    # NOTE: No bootstrapping exception.  Only the decision's "Allowed
+    # Inherited Dirty Baseline Files" section can authorize inherited
+    # dirty source/test files.  The report cannot retroactively
+    # authorize them.  This enforces the clean-start policy: source/test
+    # files must be clean at startup unless the decision explicitly
+    # allows them as inherited dirty.
     allowed_claimed = sorted((baseline_dirty_files & source_test_scope) & allowed_inherited)
     generated_or_archive_dirty = sorted(path for path in baseline_dirty_files if _is_generated_state_or_archive_path(path))
     checks: list[dict[str, Any]] = []
@@ -1457,17 +1450,9 @@ def _baseline_lifecycle_checks(
             # dirty files, not stale baseline dirty files.
             close_source_test_dirty = sorted(close_dirty_files & source_test_scope)
             close_unauthorized = sorted((close_dirty_files & source_test_scope) - allowed_inherited)
-            # Bootstrapping exception for close snapshot: when source/test
-            # files are authorized by Implementation Scope and the report
-            # explicitly lists and explains them, they are not unauthorized
-            # even at close time.  This mirrors the preflight bootstrapping
-            # exception above.
-            if close_unauthorized:
-                report_allowed = _allowed_inherited_baseline_paths(report_text)
-                if report_allowed and _report_explains_inherited_baseline_files(report_text):
-                    bootstrapped = set(close_unauthorized) & source_test_scope & report_allowed
-                    if bootstrapped:
-                        close_unauthorized = sorted(set(close_unauthorized) - bootstrapped)
+            # NOTE: No bootstrapping exception for close snapshot either.
+            # Only the decision's "Allowed Inherited Dirty Baseline Files"
+            # section can authorize inherited dirty source/test files.
             if close_unauthorized:
                 checks.append(
                     _check(
@@ -2808,15 +2793,10 @@ def build_report_summary_synthesis(
     # files_changed.
     inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
     allowed_inherited = _allowed_inherited_files(decision_text, inherited_dirty_files)
-    # Bootstrapping extension: also accept inherited dirty files that the
-    # report explicitly lists and explains in its "Allowed Inherited Dirty
-    # Baseline Files" section.  This mirrors the bootstrapping exception in
-    # _baseline_lifecycle_checks and ensures expected_files_changed includes
-    # files that were necessarily modified before preflight.
-    if not allowed_inherited and report_text:
-        report_allowed = _allowed_inherited_baseline_paths(report_text)
-        if report_allowed and _report_explains_inherited_baseline_files(report_text):
-            allowed_inherited = inherited_dirty_files & report_allowed
+    # NOTE: No bootstrapping extension.  Only the decision's "Allowed
+    # Inherited Dirty Baseline Files" section can authorize inherited
+    # dirty source/test files.  The report cannot retroactively
+    # authorize them.  This enforces the clean-start policy.
     round_delta_files |= allowed_inherited
     # Promote decision-scope required deliverables that are inherited dirty
     # files into files_changed and generated_artifacts.  When a deliverable
@@ -4841,6 +4821,43 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
             if capability_ok
             else "reverse/tool/training mainline lacks required tool capability audit wording",
             capability_required=capability_required,
+        )
+    )
+
+    # --- source_test_clean_start check ---
+    # Source/test files dirty at startup baseline are blocking unless
+    # explicitly listed in the decision's "Allowed Inherited Dirty
+    # Baseline Files" section.  This prevents Codex from modifying
+    # source/test files before recording the startup baseline and then
+    # retroactively explaining them in the report.
+    # Only the decision can authorize inherited dirty source/test files,
+    # not the report (no bootstrapping exception).
+    # When baseline_git_status_short is empty (no git repo or clean
+    # working tree), the dirty files in baseline_dirty_file_set come
+    # from a test mock or a non-repo directory, so the clean-start
+    # check should pass — there is no real evidence of source/test
+    # files being dirty at startup.
+    baseline_git_status_short = baseline.get("baseline_git_status_short") or []
+    baseline_source_test_dirty = sorted(
+        path for path in baseline_dirty_file_set
+        if _is_implementation_file(path) and not _is_generated_state_or_archive_path(path)
+    )
+    decision_allowed_inherited = _allowed_inherited_baseline_paths(decision_text)
+    unauthorized_startup_dirty = sorted(
+        path for path in baseline_source_test_dirty
+        if _norm_path(path) not in decision_allowed_inherited
+    )
+    clean_start_ok = not unauthorized_startup_dirty or not baseline_git_status_short
+    checks.append(
+        _check(
+            "source_test_clean_start",
+            "PASS" if clean_start_ok else "FAIL",
+            "no source/test files are dirty at startup baseline"
+            if clean_start_ok
+            else "source/test files are dirty at startup baseline without explicit decision allowlist; stop before implementation",
+            unauthorized_source_test_dirty=unauthorized_startup_dirty if not clean_start_ok else [],
+            allowed_inherited_dirty_baseline_files=sorted(decision_allowed_inherited),
+            baseline_source_test_dirty=baseline_source_test_dirty,
         )
     )
 
