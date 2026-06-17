@@ -2945,6 +2945,12 @@ def build_report_summary_synthesis(
         inherited_dirty_files & decision_scope_deliverables & final_dirty_files_set
     )
     round_delta_files |= inherited_scope_deliverables
+    # Include source/test paths claimed in report prose.  If the report
+    # body claims a source/test file changed (e.g. in "Source Changes" or
+    # "Test Changes" sections), that file must appear in files_changed
+    # even if it has already been committed and is no longer dirty.
+    claimed_source_test = _extract_claimed_source_test_paths(report_text)
+    round_delta_files |= claimed_source_test
     # Only include close snapshot in expected files if it already exists
     # (i.e., close-round has been run). During active rounds before
     # close-round, the close snapshot doesn't exist yet.
