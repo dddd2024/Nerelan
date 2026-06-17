@@ -2,16 +2,17 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "FAILED",
-  "decision_id": "decision_20260617_preflight_failure_handoff_rework_v1",
-  "round_id": "round_20260617_preflight_failure_handoff_rework_v1",
-  "report_id": "codex_report_20260617_execution_authority_hard_stop_rework_v1",
-  "generated_at": "2026-06-17T11:24:39.657007Z",
+  "synthesis_status": "PASSED",
+  "decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1",
+  "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1",
+  "report_id": "codex_report_20260617_preflight_startup_status_consistency_rework_v1",
+  "generated_at": "2026-06-17T12:04:02.699086Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260617_preflight_failure_handoff_rework_v1",
-    "round_id": "round_20260617_preflight_failure_handoff_rework_v1",
-    "based_on_decision_id": "decision_20260617_preflight_failure_handoff_rework_v1",
+    "report_id": "codex_report_20260617_preflight_startup_status_consistency_rework_v1",
+    "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1",
+    "based_on_decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1",
     "files_changed": [
+      "project_state/codex_execution_report.md",
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
       "project_state/gates/gate_profile_plan.json",
@@ -21,10 +22,11 @@
       "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/gates/run_round_result.json",
-      "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/round_manifest.json",
+      "project_state/pytest_result.txt",
+      "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/round_manifest.json",
       "reverse_agent/project_gate.py",
       "tests/test_project_gate.py"
     ],
@@ -40,10 +42,10 @@
       "project_state/gates/round_delta_summary.json",
       "project_state/gates/run_round_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/round_manifest.json"
+      "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/round_manifest.json"
     ],
     "tests_ran": [
       "git status --short",
@@ -61,148 +63,16 @@
       "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_failure_handoff_rework_v1"
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1"
     ]
   },
-  "diffs": [
-    {
-      "field": "report_id",
-      "expected": "codex_report_20260617_preflight_failure_handoff_rework_v1",
-      "actual": "codex_report_20260617_execution_authority_hard_stop_rework_v1"
-    },
-    {
-      "field": "round_id",
-      "expected": "round_20260617_preflight_failure_handoff_rework_v1",
-      "actual": "round_20260617_execution_authority_hard_stop_rework_v1"
-    },
-    {
-      "field": "based_on_decision_id",
-      "expected": "decision_20260617_preflight_failure_handoff_rework_v1",
-      "actual": "decision_20260617_execution_authority_hard_stop_rework_v1"
-    },
-    {
-      "field": "files_changed",
-      "expected": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
-      "actual": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ]
-    },
-    {
-      "field": "tests_ran",
-      "expected": [
-        "Get-Location",
-        "Set-Location F:\\reverse-agent",
-        "Test-Path F:\\reverse-agent",
-        "git rev-parse --show-toplevel",
-        "git status --short",
-        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_failure_handoff_rework_v1",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-        "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
-        "python -m reverse_agent.project_state doctor --state-dir project_state",
-        "python -m reverse_agent.project_state lint-report --state-dir project_state"
-      ],
-      "actual": [
-        "Get-Location",
-        "Set-Location F:\\reverse-agent",
-        "Test-Path F:\\reverse-agent",
-        "git rev-parse --show-toplevel",
-        "git status --short",
-        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_execution_authority_hard_stop_rework_v1",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-        "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
-        "python -m reverse_agent.project_state doctor --state-dir project_state",
-        "python -m reverse_agent.project_state lint-report --state-dir project_state"
-      ]
-    },
-    {
-      "field": "generated_artifacts",
-      "expected": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_preflight_failure_handoff_rework_v1/round_manifest.json"
-      ],
-      "actual": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/round_manifest.json"
-      ]
-    }
-  ],
-  "errors": [
-    "baseline contains source/test dirty files not allowed as inherited baseline",
-    "pytest_result_summary.tests_ran omits command_plan commands: ['python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_failure_handoff_rework_v1']"
-  ],
+  "diffs": [],
+  "errors": [],
   "warnings": [
-    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+    "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
   ],
   "non_blocking_warnings": [
-    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+    "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
   ],
   "sources": {
     "decision_meta": "project_state/decision_packet.md",

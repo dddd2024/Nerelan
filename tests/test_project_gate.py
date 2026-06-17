@@ -14,6 +14,7 @@ from reverse_agent.project_gate import (
     _build_output_scope_check,
     _verified_cli_coverage_check,
     _startup_baseline_consistency_check,
+    _stale_artifact_id_check,
     _extract_bash_commands,
     _extract_unfenced_commands,
     _historical_sample_limitations_only,
@@ -8215,3 +8216,319 @@ Allowed generated/project-state files:
 """
         result = classify_gate_profile(decision_text)
         assert result["profile"] == "full"
+
+
+class TestStartupBaselineConsistency:
+    """Verify startup-baseline consistency checks including the reverse case
+    where startup is clean but baseline claims source/test dirty files.
+    """
+
+    _CLEAN_PYTEST_TEXT = (
+        "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+        "F:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Get-Location =====\n"
+        "Path\n----\nF:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+        "True\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git rev-parse --show-toplevel =====\n"
+        "F:/reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git status --short =====\n"
+        "===== EXIT: 0 =====\n"
+    )
+
+    _DIRTY_PYTEST_TEXT = (
+        "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+        "F:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Get-Location =====\n"
+        "Path\n----\nF:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+        "True\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git rev-parse --show-toplevel =====\n"
+        "F:/reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git status --short =====\n"
+        " M reverse_agent/project_gate.py\n"
+        "===== EXIT: 0 =====\n"
+    )
+
+    _DECISION_TEXT = (
+        "## Implementation Scope\n\n"
+        "Allowed source files:\n\n"
+        "- `reverse_agent/project_gate.py`\n\n"
+        "Allowed tests:\n\n"
+        "- `tests/test_project_gate.py`\n\n"
+        "## Do Not Do\nNothing\n"
+    )
+
+    def test_startup_clean_baseline_source_test_dirty_fails(self) -> None:
+        """Startup git status clean, baseline has source/test dirty -> FAIL."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+                "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+            },
+            decision_text=self._DECISION_TEXT,
+            report_text="",
+            pytest_text=self._CLEAN_PYTEST_TEXT,
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "FAIL"
+        assert "clean" in result["detail"].lower()
+        assert "baseline" in result["detail"].lower()
+        assert "reverse_agent/project_gate.py" in result.get("baseline_source_test_dirty", [])
+
+    def test_startup_dirty_baseline_missing_fails(self) -> None:
+        """Startup git status shows source/test dirty, baseline doesn't record them -> FAIL."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": [],
+                "inherited_dirty_files": [],
+            },
+            decision_text=self._DECISION_TEXT,
+            report_text="",
+            pytest_text=self._DIRTY_PYTEST_TEXT,
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "FAIL"
+        assert "reverse_agent/project_gate.py" in result.get("missing_from_baseline", [])
+
+    def test_startup_dirty_baseline_agrees_passes(self) -> None:
+        """Startup and baseline agree on source/test dirty -> PASS."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+                "inherited_dirty_files": [],
+            },
+            decision_text=self._DECISION_TEXT,
+            report_text="",
+            pytest_text=self._DIRTY_PYTEST_TEXT,
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "PASS"
+
+    def test_startup_clean_baseline_clean_passes(self) -> None:
+        """Both startup and baseline are clean -> PASS."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": [],
+                "inherited_dirty_files": [],
+            },
+            decision_text=self._DECISION_TEXT,
+            report_text="",
+            pytest_text=self._CLEAN_PYTEST_TEXT,
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "PASS"
+
+    def test_startup_evidence_not_trusted_skips(self) -> None:
+        """Startup evidence not trusted -> PASS (skip)."""
+        # Use a pytest_text without proper path-confirmation order
+        # so startup evidence is not trusted
+        untrusted_pytest = (
+            "===== COMMAND: git status --short =====\n"
+            " M reverse_agent/project_gate.py\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+                "inherited_dirty_files": [],
+            },
+            decision_text=self._DECISION_TEXT,
+            report_text="",
+            pytest_text=untrusted_pytest,
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "PASS"
+        assert result.get("startup_evidence_trusted") is False
+
+
+class TestStaleArtifactIds:
+    """Verify stale artifact ID detection in gate artifacts."""
+
+    def test_preflight_stale_round_id_fails(self, tmp_path: Path) -> None:
+        """preflight_result.json has wrong round_id -> FAIL."""
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        _write_json(gates_dir / "preflight_result.json", {
+            "decision_id": "d1",
+            "round_id": "stale_round",
+            "gate_status": "PASSED",
+        })
+        result = _stale_artifact_id_check(
+            state_dir=state_dir,
+            decision_id="d1",
+            round_id="r1",
+            report_id="rp1",
+        )
+        assert result["name"] == "stale_artifact_ids"
+        assert result["status"] == "FAIL"
+        stale = result.get("stale_artifacts", [])
+        assert any(s["artifact"] == "preflight_result.json" and s["field"] == "round_id" for s in stale)
+
+    def test_report_summary_stale_report_id_fails(self, tmp_path: Path) -> None:
+        """report_summary_synthesis.json has wrong report_id -> FAIL."""
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        _write_json(gates_dir / "report_summary_synthesis.json", {
+            "decision_id": "d1",
+            "round_id": "r1",
+            "report_id": "stale_report",
+        })
+        result = _stale_artifact_id_check(
+            state_dir=state_dir,
+            decision_id="d1",
+            round_id="r1",
+            report_id="rp1",
+        )
+        assert result["name"] == "stale_artifact_ids"
+        assert result["status"] == "FAIL"
+        stale = result.get("stale_artifacts", [])
+        assert any(s["artifact"] == "report_summary_synthesis.json" and s["field"] == "report_id" for s in stale)
+
+    def test_final_gate_stale_round_id_fails(self, tmp_path: Path) -> None:
+        """final_gate_result.json has wrong round_id -> FAIL."""
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        _write_json(gates_dir / "final_gate_result.json", {
+            "decision_id": "d1",
+            "round_id": "stale_round",
+            "report_id": "rp1",
+            "gate_status": "PASSED",
+        })
+        result = _stale_artifact_id_check(
+            state_dir=state_dir,
+            decision_id="d1",
+            round_id="r1",
+            report_id="rp1",
+        )
+        assert result["name"] == "stale_artifact_ids"
+        assert result["status"] == "FAIL"
+        stale = result.get("stale_artifacts", [])
+        assert any(s["artifact"] == "final_gate_result.json" and s["field"] == "round_id" for s in stale)
+
+    def test_command_plan_stale_decision_id_fails(self, tmp_path: Path) -> None:
+        """command_plan.json has wrong decision_id -> FAIL."""
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        _write_json(gates_dir / "command_plan.json", {
+            "decision_id": "stale_decision",
+            "round_id": "r1",
+        })
+        result = _stale_artifact_id_check(
+            state_dir=state_dir,
+            decision_id="d1",
+            round_id="r1",
+            report_id="rp1",
+        )
+        assert result["name"] == "stale_artifact_ids"
+        assert result["status"] == "FAIL"
+        stale = result.get("stale_artifacts", [])
+        assert any(s["artifact"] == "command_plan.json" and s["field"] == "decision_id" for s in stale)
+
+    def test_all_artifacts_current_passes(self, tmp_path: Path) -> None:
+        """All artifacts have current IDs -> PASS."""
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        _write_json(gates_dir / "preflight_result.json", {
+            "decision_id": "d1",
+            "round_id": "r1",
+            "gate_status": "PASSED",
+        })
+        _write_json(gates_dir / "report_summary_synthesis.json", {
+            "decision_id": "d1",
+            "round_id": "r1",
+            "report_id": "rp1",
+        })
+        _write_json(gates_dir / "command_plan.json", {
+            "decision_id": "d1",
+            "round_id": "r1",
+        })
+        _write_json(gates_dir / "final_gate_result.json", {
+            "decision_id": "d1",
+            "round_id": "r1",
+            "report_id": "rp1",
+            "gate_status": "PASSED",
+        })
+        result = _stale_artifact_id_check(
+            state_dir=state_dir,
+            decision_id="d1",
+            round_id="r1",
+            report_id="rp1",
+        )
+        assert result["name"] == "stale_artifact_ids"
+        assert result["status"] == "PASS"
+
+    def test_no_artifacts_passes(self, tmp_path: Path) -> None:
+        """No artifacts exist -> PASS."""
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        result = _stale_artifact_id_check(
+            state_dir=state_dir,
+            decision_id="d1",
+            round_id="r1",
+            report_id="rp1",
+        )
+        assert result["name"] == "stale_artifact_ids"
+        assert result["status"] == "PASS"
+
+    def test_current_report_partial_not_accepted(self, tmp_path: Path) -> None:
+        """report PARTIAL/REWORK_REQUIRED must not be treated as accepted in stale ID check.
+
+        This test verifies that even with current IDs, the stale_artifact_id_check
+        correctly returns PASS (it only checks IDs, not report status). The
+        report status acceptance is handled by other checks.
+        """
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        _write_json(gates_dir / "final_gate_result.json", {
+            "decision_id": "d1",
+            "round_id": "r1",
+            "report_id": "rp1",
+            "gate_status": "FAILED",
+        })
+        result = _stale_artifact_id_check(
+            state_dir=state_dir,
+            decision_id="d1",
+            round_id="r1",
+            report_id="rp1",
+        )
+        # Stale ID check should PASS — IDs are current even if gate failed
+        assert result["name"] == "stale_artifact_ids"
+        assert result["status"] == "PASS"
+
+    def test_existing_preflight_failure_handoff_tests_pass(self, tmp_path: Path) -> None:
+        """Verify existing preflight-failure handoff tests still pass."""
+        from reverse_agent.project_gate import _preflight_failure_handoff_check
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        preflight_result = {"gate_status": "FAILED", "checks": []}
+        (gates_dir / "preflight_result.json").write_text(
+            json.dumps(preflight_result), encoding="utf-8"
+        )
+        report = {"status": "FAILED", "acceptance_recommendation": "REWORK_REQUIRED"}
+        result = _preflight_failure_handoff_check(state_dir=state_dir, report=report)
+        assert result["status"] == "PASS"

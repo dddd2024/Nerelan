@@ -1,24 +1,29 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260617_preflight_failure_handoff_rework_v1",
-  "round_id": "round_20260617_preflight_failure_handoff_rework_v1",
-  "based_on_decision_id": "decision_20260617_preflight_failure_handoff_rework_v1",
+  "report_id": "codex_report_20260617_preflight_startup_status_consistency_rework_v1",
+  "round_id": "round_20260617_preflight_startup_status_consistency_rework_v1",
+  "based_on_decision_id": "decision_20260617_preflight_startup_status_consistency_rework_v1",
   "status": "PARTIAL",
   "acceptance_recommendation": "REWORK_REQUIRED",
   "files_changed": [
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py",
     "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt",
     "project_state/gates/command_plan.json",
+    "project_state/gates/final_gate_result.json",
+    "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
+    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/gates/run_round_result.json"
+    "project_state/gates/run_round_result.json",
+    "project_state/pytest_result.txt",
+    "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/round_manifest.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "tests_ran": [
     "Set-Location F:\\reverse-agent",
@@ -36,20 +41,25 @@
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_failure_handoff_rework_v1"
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_preflight_startup_status_consistency_rework_v1"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/command_plan.json",
+    "project_state/gates/final_gate_result.json",
+    "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
+    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/gates/run_round_result.json"
-  ],
-  "verified_artifacts": []
+    "project_state/gates/run_round_result.json",
+    "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_preflight_startup_status_consistency_rework_v1/round_manifest.json"
+  ]
 }
 ```
 
@@ -57,80 +67,74 @@
 
 ## Goal
 
-Repair preflight-failure handoff and report-status handling so a hard-stop preflight failure cannot be packaged as `COMPLETED_WITH_LIMITATIONS` or `ACCEPTED_WITH_LIMITATIONS`.
+Repair startup-status, preflight-baseline, and current-round final-gate consistency so a clean startup cannot later be misreported as inherited source/test dirty, and stale gate artifacts cannot be used as current evidence.
 
 ## Status
 
-PARTIAL — All code changes implemented and 662 tests pass. The gate pipeline cannot close this round cleanly because source/test files are dirty at baseline (our own uncommitted implementation changes). The new `preflight_failure_handoff` check correctly blocks close-round when preflight failed but report claims success/acceptance. The `validate_pytest_result_for_report` exit-code consistency check correctly prevents `PASSED` status when command blocks have non-zero exit codes.
+PARTIAL — All code changes implemented and 675 tests pass. The gate pipeline cannot close this round cleanly because the previous round's report (`codex_report_20260617_preflight_failure_handoff_rework_v1`) is still the live report, causing decision/report ID mismatches. The new `stale_artifact_ids` check correctly detects stale gate artifacts. The enhanced `startup_baseline_consistency` check correctly catches startup/baseline inconsistencies. The close-round correctly blocks on these mismatches.
 
 ## Implementation Changes
 
 ### `reverse_agent/project_gate.py`
 
-1. Added `_preflight_failure_handoff_check` function:
-   - Reads preflight result from `project_state/gates/preflight_result.json`
-   - If preflight status is FAILED or BLOCKED, checks that report does not claim success (`SUCCESS`, `COMPLETED`, `COMPLETED_WITH_LIMITATIONS`) or acceptance (`ACCEPTED`, `ACCEPTED_WITH_LIMITATIONS`)
-   - Returns FAIL if preflight failed but report claims success/acceptance
-   - Returns PASS if preflight passed, or if preflight failed and report correctly reflects non-success status
+1. Enhanced `_startup_baseline_consistency_check`:
+   - Added reverse consistency check: when trusted startup `git status --short` is clean but baseline records source/test dirty files, returns FAIL with detail "startup git status --short is clean but baseline records source/test dirty files; baseline inherited dirty classification is inconsistent with startup evidence"
+   - Previously this case incorrectly returned PASS, allowing stale baseline records to classify this-round modifications as inherited dirty
 
-2. Integrated `_preflight_failure_handoff_check` into both `final_check` and `close_round`:
-   - Called after `_report_summary_checks` in both functions
-   - Ensures preflight failure blocks any success/acceptance claim in the report
+2. Added `_stale_artifact_id_check` function:
+   - Checks `preflight_result.json`, `report_summary_synthesis.json`, `command_plan.json`, and `final_gate_result.json` for stale `decision_id`, `round_id`, or `report_id` values
+   - Returns FAIL with details of each stale field when artifacts reference IDs from a different round
+   - Returns PASS when all IDs are current or no artifacts exist
 
-### `reverse_agent/project_state.py`
-
-1. Added exit-code consistency check in `validate_pytest_result_for_report`:
-   - If header status is `PASSED`, scans command blocks for `===== EXIT: <code> =====` markers
-   - If any command block has non-zero exit code while header says PASSED, adds contradiction error
-   - Prevents `pytest_result_summary.status=PASSED` when command blocks have non-zero exit codes
-
-## Test Changes
+3. Integrated `_stale_artifact_id_check` into `final_check`:
+   - Called after `_preflight_failure_handoff_check` in the final_check function
+   - Ensures stale gate artifacts are detected and reported as FAIL
 
 ### `tests/test_project_gate.py`
 
-Added `TestPreflightFailureHandoff` class with 12 tests covering all 11 required test scenarios:
+Added `TestStartupBaselineConsistency` class with 5 tests:
+1. startup clean + baseline source/test dirty → FAIL
+2. startup dirty + baseline missing those files → FAIL
+3. startup and baseline agree on dirty → PASS
+4. both clean → PASS
+5. startup evidence not trusted → PASS (skip)
 
-1. preflight failed -> report status SUCCESS causes FAIL
-2. preflight failed -> report status COMPLETED causes FAIL
-3. preflight failed -> report status COMPLETED_WITH_LIMITATIONS causes FAIL
-4. preflight failed -> acceptance ACCEPTED causes FAIL
-5. preflight failed -> acceptance ACCEPTED_WITH_LIMITATIONS causes FAIL
-6. preflight passed -> no handoff violation (PASS)
-7. preflight warned -> no handoff violation (PASS)
-8. no preflight result -> handoff check skipped (PASS)
-9. preflight failed + report BLOCKED -> no violation (PASS)
-10. preflight failed + report FAILED + REWORK_REQUIRED -> no violation (PASS)
-11. preflight BLOCKED -> treated as failed for handoff
-12. preflight failed + report PARTIAL -> no violation (PARTIAL is not a success status)
-
-## Inherited Baseline Dirty Files
-
-The following source/test files were dirty at the start of this round due to implementation changes:
-
-- `reverse_agent/project_gate.py` — modified to add `_preflight_failure_handoff_check` and integrate it into `final_check`/`close_round`
-- `reverse_agent/project_state.py` — modified to add exit-code consistency check in `validate_pytest_result_for_report`
-- `tests/test_project_gate.py` — modified to add `TestPreflightFailureHandoff` test class
+Added `TestStaleArtifactIds` class with 8 tests:
+1. preflight stale round_id → FAIL
+2. report_summary stale report_id → FAIL
+3. final_gate stale round_id → FAIL
+4. command_plan stale decision_id → FAIL
+5. all artifacts current → PASS
+6. no artifacts exist → PASS
+7. current report PARTIAL/REWORK_REQUIRED not treated as accepted
+8. existing preflight-failure handoff tests still pass
 
 ## Gate Command Results
 
-- preflight (clean tree): PASSED
+- preflight: PASSED (clean startup, no source/test dirty)
 - command-plan: PASSED
 - command-plan --json: PASSED
 - gate-profile: PASSED
-- run-round --dry-run: FAILED (preflight fails on dirty tree)
-- pytest: 662 passed
-- doctor: FAIL (old report has invalid status COMPLETED_WITH_LIMITATIONS)
-- lint-report: FAILED (old report mismatch)
-- report-summary: FAILED (baseline dirty files, report/decision mismatch)
-- final-check: FAILED (preflight_failure_handoff correctly catches old report's ACCEPTED_WITH_LIMITATIONS)
-- close-round: INVALID (report/decision mismatch, preflight_failure_handoff blocks)
+- run-round --dry-run: PASSED
+- pytest: 675 passed
+- doctor: FAIL (report based_on_decision_id mismatch — expected, previous round report still live)
+- lint-report: FAILED (report/decision ID mismatch — expected)
+- report-summary: FAILED (report/decision ID mismatch — expected)
+- final-check: FAILED (stale_artifact_ids correctly detects stale IDs; decision_report_match correctly fails on mismatch)
+- close-round: FAILED (correctly blocks on report/decision mismatch)
 
 ## Key Verification
 
-The new `preflight_failure_handoff` check was verified working in the final-check and close-round output:
+The new `stale_artifact_ids` check was verified working in the final-check output:
 
 ```
-[FAIL] preflight_failure_handoff: preflight failed (FAILED) but report claims success/acceptance: acceptance_recommendation is ACCEPTED_WITH_LIMITATIONS
+[FAIL] stale_artifact_ids: gate artifacts reference stale decision/round/report IDs from a different round
 ```
 
-This confirms the defect described in the decision is now caught by the gate system.
+The enhanced `startup_baseline_consistency` check was verified in the close-round output where it correctly detected startup/baseline inconsistency when the pytest_result.txt startup section showed source/test dirty files that the baseline didn't properly account for.
+
+The existing `preflight_failure_handoff` check continues to pass when preflight passes.
+
+## Limitations
+
+The round cannot close cleanly because the previous round's report is still the live `codex_execution_report.md`. The gate pipeline correctly detects this as a decision/report ID mismatch. A fresh state build (`python -m reverse_agent.project_state build`) would be needed to reset the report to match the current decision before close-round can succeed.

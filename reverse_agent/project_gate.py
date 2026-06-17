@@ -2229,7 +2229,19 @@ def _startup_baseline_consistency_check(
         )
 
     if not startup_source_test_dirty:
-        # Startup git status is clean for source/test files
+        # Startup git status is clean for source/test files.
+        # Check reverse: startup is clean but baseline claims source/test dirty.
+        baseline_source_test_dirty = baseline_dirty_files & source_test_scope
+        if baseline_source_test_dirty:
+            return _check(
+                "startup_baseline_consistency",
+                "FAIL",
+                "startup git status --short is clean but baseline records source/test dirty files; baseline inherited dirty classification is inconsistent with startup evidence",
+                startup_source_test_dirty=[],
+                baseline_dirty_files=sorted(baseline_dirty_files),
+                inherited_dirty_files=sorted(inherited_dirty_files),
+                baseline_source_test_dirty=sorted(baseline_source_test_dirty),
+            )
         return _check(
             "startup_baseline_consistency",
             "PASS",
@@ -2917,6 +2929,134 @@ def _preflight_failure_handoff_check(
         preflight_status=preflight_status,
         report_status=report_status,
         acceptance_recommendation=acceptance,
+    )
+
+
+def _stale_artifact_id_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+) -> dict[str, Any]:
+    """Check that key gate artifacts carry current decision/round/report IDs.
+
+    Stale artifacts from a previous round must not be used as current evidence.
+    """
+    stale_artifacts: list[dict[str, Any]] = []
+
+    # Check preflight_result.json
+    preflight_path = state_dir / "gates" / PREFLIGHT_RESULT_NAME
+    preflight_payload = _read_json(preflight_path)
+    if preflight_payload:
+        pf_decision_id = str(preflight_payload.get("decision_id") or "")
+        pf_round_id = str(preflight_payload.get("round_id") or "")
+        if pf_decision_id and pf_decision_id != decision_id:
+            stale_artifacts.append({
+                "artifact": PREFLIGHT_RESULT_NAME,
+                "field": "decision_id",
+                "expected": decision_id,
+                "actual": pf_decision_id,
+            })
+        if pf_round_id and pf_round_id != round_id:
+            stale_artifacts.append({
+                "artifact": PREFLIGHT_RESULT_NAME,
+                "field": "round_id",
+                "expected": round_id,
+                "actual": pf_round_id,
+            })
+
+    # Check report_summary_synthesis.json
+    synthesis_path = state_dir / "gates" / REPORT_SUMMARY_RESULT_NAME
+    synthesis_payload = _read_json(synthesis_path)
+    if synthesis_payload:
+        syn_decision_id = str(synthesis_payload.get("decision_id") or "")
+        syn_round_id = str(synthesis_payload.get("round_id") or "")
+        syn_report_id = str(synthesis_payload.get("report_id") or "")
+        if syn_decision_id and syn_decision_id != decision_id:
+            stale_artifacts.append({
+                "artifact": REPORT_SUMMARY_RESULT_NAME,
+                "field": "decision_id",
+                "expected": decision_id,
+                "actual": syn_decision_id,
+            })
+        if syn_round_id and syn_round_id != round_id:
+            stale_artifacts.append({
+                "artifact": REPORT_SUMMARY_RESULT_NAME,
+                "field": "round_id",
+                "expected": round_id,
+                "actual": syn_round_id,
+            })
+        if syn_report_id and syn_report_id != report_id:
+            stale_artifacts.append({
+                "artifact": REPORT_SUMMARY_RESULT_NAME,
+                "field": "report_id",
+                "expected": report_id,
+                "actual": syn_report_id,
+            })
+
+    # Check command_plan.json
+    command_plan_path = state_dir / "gates" / COMMAND_PLAN_RESULT_NAME
+    command_plan_payload = _read_json(command_plan_path)
+    if command_plan_payload:
+        cp_decision_id = str(command_plan_payload.get("decision_id") or "")
+        cp_round_id = str(command_plan_payload.get("round_id") or "")
+        if cp_decision_id and cp_decision_id != decision_id:
+            stale_artifacts.append({
+                "artifact": COMMAND_PLAN_RESULT_NAME,
+                "field": "decision_id",
+                "expected": decision_id,
+                "actual": cp_decision_id,
+            })
+        if cp_round_id and cp_round_id != round_id:
+            stale_artifacts.append({
+                "artifact": COMMAND_PLAN_RESULT_NAME,
+                "field": "round_id",
+                "expected": round_id,
+                "actual": cp_round_id,
+            })
+
+    # Check final_gate_result.json
+    final_gate_path = state_dir / "gates" / FINAL_GATE_RESULT_NAME
+    final_gate_payload = _read_json(final_gate_path)
+    if final_gate_payload:
+        fg_decision_id = str(final_gate_payload.get("decision_id") or "")
+        fg_round_id = str(final_gate_payload.get("round_id") or "")
+        fg_report_id = str(final_gate_payload.get("report_id") or "")
+        if fg_decision_id and fg_decision_id != decision_id:
+            stale_artifacts.append({
+                "artifact": FINAL_GATE_RESULT_NAME,
+                "field": "decision_id",
+                "expected": decision_id,
+                "actual": fg_decision_id,
+            })
+        if fg_round_id and fg_round_id != round_id:
+            stale_artifacts.append({
+                "artifact": FINAL_GATE_RESULT_NAME,
+                "field": "round_id",
+                "expected": round_id,
+                "actual": fg_round_id,
+            })
+        if fg_report_id and fg_report_id != report_id:
+            stale_artifacts.append({
+                "artifact": FINAL_GATE_RESULT_NAME,
+                "field": "report_id",
+                "expected": report_id,
+                "actual": fg_report_id,
+            })
+
+    if stale_artifacts:
+        return _check(
+            "stale_artifact_ids",
+            "FAIL",
+            "gate artifacts reference stale decision/round/report IDs from a different round",
+            stale_artifacts=stale_artifacts,
+        )
+
+    return _check(
+        "stale_artifact_ids",
+        "PASS",
+        "gate artifacts carry current decision/round/report IDs",
     )
 
 
@@ -3791,6 +3931,16 @@ def final_check(
         _preflight_failure_handoff_check(
             state_dir=state_dir,
             report=report,
+        )
+    )
+
+    # Stale artifact ID check: gate artifacts must carry current IDs
+    checks.append(
+        _stale_artifact_id_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
         )
     )
 
