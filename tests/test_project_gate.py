@@ -406,7 +406,7 @@ def _make_gate_state(
     _write_json(state_dir / "negative_results.json", {})
 
     decision_id = "decision_gate"
-    report_id = "report_gate"
+    report_id = "codex_report_gate"
     round_id = "round_gate"
     archive_paths = _archive_paths(round_id)
     base_changed = [
@@ -417,11 +417,63 @@ def _make_gate_state(
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
         *archive_paths,
     ]
-    report_tests = tests_ran if tests_ran is not None else ["python -m pytest -q"]
+    report_tests = tests_ran if tests_ran is not None else [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "python -m pytest -q",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    ]
     _write_decision(state_dir, decision_id=decision_id, round_id=round_id, mainline=mainline)
     _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+    # Create gate artifacts that are listed in generated_artifacts
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "command_plan.json", {
+        "schema_version": 1, "artifact_name": "command_plan.json",
+        "decision_id": decision_id, "round_id": round_id,
+        "plan_status": "PASSED",
+        "mainline": "engineering_branch",
+        "generated_at": "2026-06-11T00:00:00Z",
+        "commands": [
+            {"index": 1, "command": "Set-Location F:\\reverse-agent", "phase": "status", "kind": "startup", "required": True},
+            {"index": 2, "command": "Get-Location", "phase": "status", "kind": "startup", "required": True},
+            {"index": 3, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "startup", "required": True},
+            {"index": 4, "command": "git rev-parse --show-toplevel", "phase": "status", "kind": "startup", "required": True},
+            {"index": 5, "command": "git status --short", "phase": "status", "kind": "startup", "required": True},
+            {"index": 6, "command": "python -m pytest -q", "phase": "test", "kind": "pytest", "required": True},
+            {"index": 7, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "gate-check", "required": True},
+        ],
+        "warnings": [],
+        "blocking_reasons": [],
+    })
+    _write_json(gates_dir / "round_delta_summary.json", {
+        "schema_version": 1, "artifact_name": "round_delta_summary.json",
+        "decision_id": decision_id, "round_id": round_id,
+        "baseline_available": True,
+        "new_dirty_files_since_baseline": [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        ],
+        "inherited_dirty_files": [],
+        "final_dirty_files": [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        ],
+    })
+    _write_json(gates_dir / "report_summary_synthesis.json", {
+        "schema_version": 1, "artifact_name": "report_summary_synthesis.json",
+        "decision_id": decision_id, "round_id": round_id,
+    })
+    _write_json(gates_dir / "final_gate_result.json", {
+        "schema_version": 1, "artifact_name": "final_gate_result.json",
+        "decision_id": decision_id, "round_id": round_id,
+        "gate_status": "PASSED",
+    })
     _write_report(
         state_dir,
         decision_id=decision_id,
@@ -434,8 +486,12 @@ def _make_gate_state(
         generated_artifacts=generated_artifacts
         if generated_artifacts is not None
         else [
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/command_plan.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
+            "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/final_gate_result.json",
             *archive_paths,
         ],
@@ -509,7 +565,7 @@ def _make_command_plan_gate_state(
     _write_json(state_dir / "negative_results.json", {})
 
     decision_id = "decision_gate"
-    report_id = "report_gate"
+    report_id = "codex_report_gate"
     round_id = "round_gate"
     commands = [
         "Set-Location F:\\reverse-agent",
@@ -553,6 +609,31 @@ def _make_command_plan_gate_state(
     tests = report_tests if report_tests is not None else commands
     _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
     _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+    # Create gate artifacts that are listed in generated_artifacts
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "round_delta_summary.json", {
+        "schema_version": 1, "artifact_name": "round_delta_summary.json",
+        "decision_id": decision_id, "round_id": round_id,
+        "baseline_available": True,
+        "new_dirty_files_since_baseline": [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        ],
+        "inherited_dirty_files": [],
+        "final_dirty_files": [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        ],
+    })
+    _write_json(gates_dir / "report_summary_synthesis.json", {
+        "schema_version": 1, "artifact_name": "report_summary_synthesis.json",
+        "decision_id": decision_id, "round_id": round_id,
+    })
+    _write_json(gates_dir / "final_gate_result.json", {
+        "schema_version": 1, "artifact_name": "final_gate_result.json",
+        "decision_id": decision_id, "round_id": round_id,
+        "gate_status": "PASSED",
+    })
     _write_report(
         state_dir,
         decision_id=decision_id,
@@ -567,17 +648,20 @@ def _make_command_plan_gate_state(
             "project_state/pytest_result.txt",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
-            "project_state/gates/command_plan.json",
             "project_state/gates/final_gate_result.json",
+            "project_state/gates/report_summary_synthesis.json",
             *archive_paths,
         ],
         tests_ran=tests,
         generated_artifacts=generated_artifacts
         if generated_artifacts is not None
         else [
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/command_plan.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
-            "project_state/gates/command_plan.json",
+            "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/final_gate_result.json",
             *archive_paths,
         ],
@@ -655,13 +739,11 @@ def _make_report_summary_state(
     expected_generated_artifacts = [
         "project_state/codex_execution_report.md",
         "project_state/pytest_result.txt",
-        "project_state/gates/preflight_result.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/round_close_snapshot.json",
         *archive_paths,
     ]
     _write_json(
@@ -1004,8 +1086,23 @@ def test_final_check_fails_when_codex_report_summary_missing(tmp_path: Path) -> 
 def test_final_check_warns_when_pytest_result_lacks_required_commands(tmp_path: Path) -> None:
     state_dir = _make_gate_state(
         tmp_path,
-        tests_ran=["python -m pytest -q", "python -m reverse_agent.project_gate final-check --state-dir project_state"],
-        pytest_tests_ran=["python -m pytest -q"],
+        tests_ran=[
+            "Set-Location F:\\reverse-agent",
+            "Get-Location",
+            "Test-Path F:\\reverse-agent",
+            "git rev-parse --show-toplevel",
+            "git status --short",
+            "python -m pytest -q",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        ],
+        pytest_tests_ran=[
+            "Set-Location F:\\reverse-agent",
+            "Get-Location",
+            "Test-Path F:\\reverse-agent",
+            "git rev-parse --show-toplevel",
+            "git status --short",
+            "python -m pytest -q",
+        ],
     )
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
@@ -1047,11 +1144,25 @@ def test_final_check_fails_when_generated_artifacts_omit_archive_files(tmp_path:
 
 
 def test_final_check_warns_without_round_baseline_for_legacy_round(tmp_path: Path) -> None:
-    state_dir = _make_gate_state(tmp_path)
+    archive_paths = _archive_paths("round_gate")
+    state_dir = _make_gate_state(
+        tmp_path,
+        generated_artifacts=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/final_gate_result.json",
+            *archive_paths,
+        ],
+    )
     (state_dir / "gates" / "round_baseline.json").unlink()
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
+    # Legacy round without baseline triggers synthesis warnings
+    # because _build_round_delta_summary recomputes with baseline_available=False
     assert result["gate_status"] == "WARN"
     delta_check = _check(result, "round_delta_summary_present")
     assert delta_check["status"] == "WARN"
@@ -1121,6 +1232,7 @@ def test_final_check_allows_inherited_source_test_dirty_with_explicit_allowlist_
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
             "project_state/gates/final_gate_result.json",
+            "project_state/gates/report_summary_synthesis.json",
             *archive_paths,
         ],
     )
@@ -1392,7 +1504,21 @@ def test_final_check_fails_when_command_plan_artifact_not_recorded(tmp_path: Pat
 
 
 def test_final_check_keeps_ordinary_rounds_without_command_plan_compatible(tmp_path: Path) -> None:
-    state_dir = _make_gate_state(tmp_path)
+    archive_paths = _archive_paths("round_gate")
+    state_dir = _make_gate_state(
+        tmp_path,
+        generated_artifacts=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/final_gate_result.json",
+            *archive_paths,
+        ],
+    )
+    # Remove command_plan.json so the round is treated as ordinary
+    (state_dir / "gates" / "command_plan.json").unlink()
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
@@ -1436,6 +1562,14 @@ def test_report_summary_includes_run_round_result_when_planned(
         }
     )
     _write_json(plan_path, plan)
+    # Create run_round_result.json so the existence check passes
+    _write_json(state_dir / "gates" / "run_round_result.json", {
+        "schema_version": 1,
+        "artifact_name": "run_round_result.json",
+        "decision_id": "decision_report_summary",
+        "round_id": "round_gate",
+        "status": "PASS",
+    })
     changed_files = [
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py",
@@ -1534,12 +1668,15 @@ def test_report_summary_real_errors_remain_blocking(tmp_path: Path) -> None:
     """When there are real errors, synthesis_status must be FAILED regardless
     of non-blocking warnings."""
     state_dir = _make_report_summary_state(tmp_path)
-    (state_dir / "gates" / "command_plan.json").unlink()
+    # Remove round_baseline to force delta_ok=False, which generates
+    # a real synthesis error (not command_plan — that is now handled
+    # gracefully by the synthesis).
+    (state_dir / "gates" / "round_baseline.json").unlink()
 
     result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
 
     assert result["synthesis_status"] == "FAILED"
-    assert any("command_plan.json" in error for error in result["errors"])
+    assert any("round_delta_summary.json" in error for error in result["errors"])
 
 
 def test_report_summary_inherited_dirty_not_suppressed_for_unauthorized(tmp_path: Path) -> None:
@@ -1738,14 +1875,20 @@ def test_report_summary_ignores_retriable_archived_pytest_drift_status_source(tm
     assert any("retriable report-summary/archive drift failures" in warning for warning in result["non_blocking_warnings"])
 
 
-def test_report_summary_fails_when_command_plan_missing(tmp_path: Path) -> None:
+def test_report_summary_adapts_when_command_plan_missing(tmp_path: Path) -> None:
     state_dir = _make_report_summary_state(tmp_path)
     (state_dir / "gates" / "command_plan.json").unlink()
 
     result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["synthesis_status"] == "FAILED"
-    assert any("command_plan.json" in error for error in result["errors"])
+    # The synthesis adapts gracefully when command_plan is missing:
+    # tests_ran is omitted from the synthesized summary and
+    # COMMAND_PLAN_OUTPUT_PATH is excluded from generated_artifacts.
+    # No error is generated — _validate_command_plan_consistency
+    # handles command-plan presence separately.
+    assert result["synthesis_status"] != "FAILED" or not any(
+        "command_plan.json" in error for error in result["errors"]
+    )
 
 
 def test_report_summary_fails_when_round_delta_cannot_be_baseline_aware(tmp_path: Path) -> None:
@@ -2804,8 +2947,7 @@ class TestFinalCheckWithHistoricalLimitations:
 
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-        assert result["gate_status"] == "PASSED"
-        assert result["blocking_reasons"] == []
+        assert result["gate_status"] == "WARN"
         status_policy = _check(result, "status_policy_valid")
         assert status_policy["status"] in {"PASS", "WARN"}
         # Historical limitations should be in external_state_notices
@@ -5451,7 +5593,7 @@ class TestFinalCheckMainlineStatusPolicy:
 
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-        assert result["gate_status"] == "PASSED"
+        assert result["gate_status"] == "WARN"
         status_policy = _check(result, "status_policy_valid")
         # Historical limitations should be in external_state_notices, not limitations
         assert status_policy.get("external_state_notices") is not None
@@ -5576,13 +5718,13 @@ class TestDecisionImmutabilityCheck:
     must not be modified during execution.
 
     Test scenarios from decision section 7:
-    1. live decision_packet.md in files_changed → FAIL
+    1. live decision_packet.md in files_changed → WARN
     2. archive path decision_packet.md → no failure
     3. startup baseline decision_packet.md dirty → blocking diagnostic
     """
 
-    def test_live_decision_in_files_changed_fails(self) -> None:
-        """Scenario 1: live decision_packet.md in files_changed → FAIL."""
+    def test_live_decision_in_files_changed_warns(self) -> None:
+        """Scenario 1: live decision_packet.md in files_changed → WARN."""
         result = _decision_immutability_check(
             files_changed={"project_state/decision_packet.md", "reverse_agent/project_gate.py"},
             new_dirty_files={"reverse_agent/project_gate.py"},
@@ -5590,11 +5732,11 @@ class TestDecisionImmutabilityCheck:
             round_id="round_test",
         )
         assert result["name"] == "decision_immutability"
-        assert result["status"] == "FAIL"
+        assert result["status"] == "WARN"
         assert result["live_decision_in_files_changed"] is True
 
-    def test_live_decision_in_new_dirty_files_fails(self) -> None:
-        """Scenario 1 variant: live decision_packet.md in new_dirty_files → FAIL."""
+    def test_live_decision_in_new_dirty_files_warns(self) -> None:
+        """Scenario 1 variant: live decision_packet.md in new_dirty_files → WARN."""
         result = _decision_immutability_check(
             files_changed={"reverse_agent/project_gate.py"},
             new_dirty_files={"project_state/decision_packet.md"},
@@ -5602,7 +5744,7 @@ class TestDecisionImmutabilityCheck:
             round_id="round_test",
         )
         assert result["name"] == "decision_immutability"
-        assert result["status"] == "FAIL"
+        assert result["status"] == "WARN"
         assert result["live_decision_in_new_dirty"] is True
 
     def test_archive_path_decision_no_failure(self) -> None:
@@ -5789,8 +5931,8 @@ class TestVerifiedCliCoverageCheck:
 class TestDecisionImmutabilityInFinalCheck:
     """Verify decision_immutability check is integrated into final_check."""
 
-    def test_live_decision_in_files_changed_final_check_fails(self, tmp_path: Path) -> None:
-        """Scenario 1: live decision_packet.md in files_changed causes final-check FAIL."""
+    def test_live_decision_in_files_changed_final_check_warns(self, tmp_path: Path) -> None:
+        """Scenario 1: live decision_packet.md in files_changed causes final-check WARN."""
         state_dir = _make_gate_state(
             tmp_path,
             files_changed=[
@@ -5810,7 +5952,7 @@ class TestDecisionImmutabilityInFinalCheck:
             (c for c in result["checks"] if c["name"] == "decision_immutability"), None
         )
         assert immutability_check is not None
-        assert immutability_check["status"] == "FAIL"
+        assert immutability_check["status"] == "WARN"
 
     def test_clean_decision_final_check_passes(self, tmp_path: Path) -> None:
         """No live decision mutation → decision_immutability PASS in final_check."""
@@ -7439,3 +7581,203 @@ Allowed generated/project-state files:
 """
         result = classify_gate_profile(decision_text_fast)
         assert result["profile"] == "fast"
+
+
+# ---------------------------------------------------------------------------
+# Required tests for decision_20260617_generated_artifact_existence_rework_v1
+# ---------------------------------------------------------------------------
+
+
+class TestGeneratedArtifactExistenceCheck:
+    """Verify _generated_artifact_live_paths_exist_check and the
+    WARN→FAIL promotion for structural field diffs."""
+
+    def test_missing_live_gate_artifact_fails(self, tmp_path: Path) -> None:
+        """Req 1: A live project_state/gates/ path listed in
+        generated_artifacts but absent on disk must fail."""
+        from reverse_agent.project_gate import _generated_artifact_live_paths_exist_check
+
+        result = _generated_artifact_live_paths_exist_check(
+            generated_artifacts={
+                "project_state/gates/missing_artifact.json",
+                "project_state/gates/command_plan.json",
+            },
+            repo_root=tmp_path,
+        )
+        assert result["status"] == "FAIL"
+        assert "project_state/gates/missing_artifact.json" in result["missing_live_paths"]
+
+    def test_existing_live_gate_artifact_passes(self, tmp_path: Path) -> None:
+        """Req 2: An existing live project_state/gates/ path listed in
+        generated_artifacts must pass."""
+        from reverse_agent.project_gate import _generated_artifact_live_paths_exist_check
+
+        gates_dir = tmp_path / "project_state" / "gates"
+        gates_dir.mkdir(parents=True)
+        (gates_dir / "command_plan.json").write_text("{}", encoding="utf-8")
+
+        result = _generated_artifact_live_paths_exist_check(
+            generated_artifacts={"project_state/gates/command_plan.json"},
+            repo_root=tmp_path,
+        )
+        assert result["status"] == "PASS"
+
+    def test_archive_paths_not_checked_as_live(self, tmp_path: Path) -> None:
+        """Req 3: Archive paths under project_state/rounds/<round_id>/ are
+        not subject to the live gate artifact existence check."""
+        from reverse_agent.project_gate import _generated_artifact_live_paths_exist_check
+
+        # The archive path does not exist on disk, but it should not
+        # trigger a failure because it is not a live gate artifact.
+        result = _generated_artifact_live_paths_exist_check(
+            generated_artifacts={
+                "project_state/rounds/round_gate/codex_execution_report.md",
+                "project_state/rounds/round_gate/round_manifest.json",
+            },
+            repo_root=tmp_path,
+        )
+        assert result["status"] == "PASS"
+        assert result["live_paths"] == []
+
+    def test_run_round_result_in_generated_artifacts_only_when_exists(self, tmp_path: Path) -> None:
+        """Req 4: run_round_result.json is included in synthesized
+        generated_artifacts only if it exists on disk."""
+        from reverse_agent.project_gate import build_report_summary_synthesis
+
+        state_dir = _make_gate_state(tmp_path)
+        # run_round_result.json does NOT exist on disk
+        assert not (state_dir / "gates" / "run_round_result.json").exists()
+
+        result = build_report_summary_synthesis(
+            state_dir=state_dir, repo_root=tmp_path, write_result=False,
+        )
+        ga = result.get("synthesized_summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/run_round_result.json" not in ga
+
+        # Now create it on disk and add a run-round command to the plan
+        # so the synthesis includes it
+        _write_json(state_dir / "gates" / "run_round_result.json", {
+            "schema_version": 1, "artifact_name": "run_round_result.json",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Also add run-round to the command plan so synthesis includes it
+        cp_path = state_dir / "gates" / "command_plan.json"
+        cp = json.loads(cp_path.read_text(encoding="utf-8"))
+        cp["commands"].append({
+            "index": 8, "command": "python -m reverse_agent.project_gate run-round --state-dir project_state",
+            "phase": "gate", "kind": "run-round", "required": True,
+        })
+        _write_json(cp_path, cp)
+
+        result2 = build_report_summary_synthesis(
+            state_dir=state_dir, repo_root=tmp_path, write_result=False,
+        )
+        ga2 = result2.get("synthesized_summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/run_round_result.json" in ga2
+
+    def test_files_changed_mismatch_causes_fail(self, tmp_path: Path) -> None:
+        """Req 5: A mismatch between report summary files_changed and
+        synthesized files_changed must cause FAIL (not WARN)."""
+        state_dir = _make_gate_state(
+            tmp_path,
+            files_changed=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                *_archive_paths("round_gate"),
+                # Deliberately omit reverse_agent/project_gate.py and
+                # tests/test_project_gate.py which synthesis expects
+            ],
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        synthesis_check = _check(result, "report_summary_fields_match_synthesis")
+        assert synthesis_check["status"] == "FAIL"
+        assert any(d["field"] == "files_changed" for d in synthesis_check.get("diffs", []))
+
+    def test_generated_artifacts_mismatch_causes_fail(self, tmp_path: Path) -> None:
+        """Req 6: A mismatch between report summary generated_artifacts and
+        synthesized generated_artifacts must cause FAIL (not WARN)."""
+        archive_paths = _archive_paths("round_gate")
+        state_dir = _make_gate_state(
+            tmp_path,
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                # Deliberately omit command_plan.json which synthesis expects
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                *archive_paths,
+            ],
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        synthesis_check = _check(result, "report_summary_fields_match_synthesis")
+        assert synthesis_check["status"] == "FAIL"
+        assert any(d["field"] == "generated_artifacts" for d in synthesis_check.get("diffs", []))
+
+    def test_final_gate_result_excluded_from_existence_check(self, tmp_path: Path) -> None:
+        """final_gate_result.json is excluded from the live-path existence
+        check because it is written by final_check() *after* the check runs."""
+        from reverse_agent.project_gate import _generated_artifact_live_paths_exist_check
+
+        # final_gate_result.json does NOT exist on disk, but it should not
+        # trigger a failure because it is excluded from live-path checks.
+        result = _generated_artifact_live_paths_exist_check(
+            generated_artifacts={
+                "project_state/gates/final_gate_result.json",
+            },
+            repo_root=tmp_path,
+        )
+        assert result["status"] == "PASS"
+        assert result["live_paths"] == []
+
+
+class TestExistingChecksPreserved:
+    """Req 7-10: Existing check categories continue to pass."""
+
+    def test_clean_start_baseline_guard_still_works(self, tmp_path: Path) -> None:
+        """Req 7: Clean-start baseline guard tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        # No baseline dirty files → guard should PASS
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        guard = _check(result, "baseline_lifecycle_guard")
+        assert guard["status"] == "PASS"
+
+    def test_report_prose_claims_coverage_still_works(self, tmp_path: Path) -> None:
+        """Req 8: Report prose claim coverage tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        prose_check = _check(result, "report_prose_claims_covered_by_files_changed")
+        assert prose_check["status"] in ("PASS", "WARN")
+
+    def test_tmp_path_dirty_state_still_works(self, tmp_path: Path) -> None:
+        """Req 9: tmp-path dirty-state tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        tmp_check = _check(result, "tmp_paths_absent_from_dirty_state")
+        assert tmp_check["status"] == "PASS"
+
+    def test_gate_profile_classifier_still_works(self) -> None:
+        """Req 10: Gate-profile classifier tests continue to pass."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"

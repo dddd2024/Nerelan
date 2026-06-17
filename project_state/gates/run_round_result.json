@@ -1,11 +1,13 @@
 {
   "schema_version": 1,
-  "plan_name": "command-plan",
-  "plan_status": "PASSED",
+  "gate_name": "run-round",
+  "run_status": "PASSED",
   "decision_id": "decision_20260617_generated_artifact_existence_rework_v1",
   "round_id": "round_20260617_generated_artifact_existence_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-17T08:53:23.556665Z",
+  "generated_at": "2026-06-17T08:53:23.556952Z",
+  "mode": "dry-run",
+  "command_count": 16,
   "commands": [
     {
       "index": 1,
@@ -200,7 +202,15 @@
       "notes": "close-round expected to exit 0"
     }
   ],
-  "warnings": [],
+  "executed_commands": [],
+  "skipped_commands": [],
+  "recorded_command_blocks": [],
   "blocking_reasons": [],
-  "recommended_next_action": "record_and_follow_command_plan_manually"
+  "warnings": [],
+  "recommended_next_action": "review_plan_before_execute",
+  "artifacts": {
+    "preflight": "project_state/gates/preflight_result.json",
+    "command_plan": "project_state/gates/command_plan.json",
+    "run_round_result": "project_state/gates/run_round_result.json"
+  }
 }

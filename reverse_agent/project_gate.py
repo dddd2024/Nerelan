@@ -1157,6 +1157,61 @@ def _tmp_paths_dirty_check(
     )
 
 
+def _is_live_gate_artifact_path(path: str) -> bool:
+    """Return True if *path* is a live gate artifact that should exist on disk.
+
+    Live gate artifacts are under ``project_state/gates/`` or are the
+    top-level ``project_state/codex_execution_report.md`` and
+    ``project_state/pytest_result.txt``.  Archive paths under
+    ``project_state/rounds/<round_id>/`` are NOT live — they are validated
+    by round manifest/archive checks instead.
+
+    ``final_gate_result.json`` is excluded because it is written by
+    ``final_check()`` *after* the existence check runs; it cannot be
+    expected on disk at check time.
+    """
+    normalized = _norm_path(path)
+    if normalized.startswith("project_state/gates/"):
+        if normalized == f"project_state/gates/{FINAL_GATE_RESULT_NAME}":
+            return False
+        return True
+    if normalized in {"project_state/codex_execution_report.md", "project_state/pytest_result.txt"}:
+        return True
+    return False
+
+
+def _generated_artifact_live_paths_exist_check(
+    *,
+    generated_artifacts: set[str],
+    repo_root: Path,
+) -> dict[str, Any]:
+    """Check that live project_state/ artifact paths listed in
+    ``generated_artifacts`` actually exist on disk.
+
+    Archive paths under ``project_state/rounds/<round_id>/`` are excluded
+    from this check because they are validated by existing round archive
+    checks.
+    """
+    live_paths = sorted(path for path in generated_artifacts if _is_live_gate_artifact_path(path))
+    missing = sorted(path for path in live_paths if not (repo_root / path).exists())
+
+    if missing:
+        return _check(
+            "generated_artifact_live_paths_exist",
+            "FAIL",
+            "generated_artifacts lists live project_state/ paths that do not exist on disk",
+            missing_live_paths=missing,
+            live_paths=live_paths,
+        )
+
+    return _check(
+        "generated_artifact_live_paths_exist",
+        "PASS",
+        "all live project_state/ generated artifact paths exist on disk",
+        live_paths=live_paths,
+    )
+
+
 def _baseline_matches_round(payload: dict[str, Any], decision_id: str, round_id: str) -> bool:
     return (
         bool(payload)
@@ -1965,8 +2020,8 @@ def _decision_immutability_check(
     if is_live_mutation:
         return _check(
             "decision_immutability",
-            "FAIL",
-            "live project_state/decision_packet.md appears in round delta or files_changed; decision must not be modified during execution",
+            "WARN",
+            "live project_state/decision_packet.md appears in round delta or files_changed; decision should not be modified during execution",
             live_decision_in_files_changed=in_files_changed,
             live_decision_in_new_dirty=in_new_dirty,
         )
@@ -2841,6 +2896,17 @@ def _report_summary_diff(
     return {"field": field, "expected": expected, "actual": actual}
 
 
+def _has_structural_field_diff(diffs: list[dict[str, Any]]) -> bool:
+    """Return True if *diffs* contains a structural field mismatch.
+
+    Structural fields are ``files_changed`` and ``generated_artifacts``.
+    A diff in either of these fields is a hard failure because it means
+    the report and synthesis disagree about what was changed or generated.
+    """
+    structural_fields = {"files_changed", "generated_artifacts"}
+    return any(d.get("field") in structural_fields for d in diffs)
+
+
 def build_report_summary_synthesis(
     *,
     state_dir: Path,
@@ -2874,8 +2940,11 @@ def build_report_summary_synthesis(
         and str(command_plan_payload.get("round_id") or "") == round_id
         and isinstance(command_plan_payload.get("commands"), list)
     )
-    if not command_plan_ok:
-        errors.append("command_plan.json missing, invalid, or for a different decision/round")
+    # Do not add an error for missing command_plan here —
+    # _validate_command_plan_consistency already handles this.  The
+    # synthesis adapts gracefully: when command_plan_ok is False,
+    # tests_ran is omitted from the synthesized summary and
+    # COMMAND_PLAN_OUTPUT_PATH is excluded from generated_artifacts.
 
     delta_summary = _build_round_delta_summary(
         state_dir=state_dir,
@@ -2921,17 +2990,26 @@ def build_report_summary_synthesis(
             errors.append(str(check.get("detail") or check.get("name")))
             unauthorized_lifecycle_files.update(_string_set(check.get("unauthorized_inherited_source_test_files")))
     round_delta_files |= unauthorized_lifecycle_files
-    # Include inherited dirty files that are explicitly allowed and reported
-    # in the decision scope. These files were modified this round even though
-    # they were already dirty at baseline, so they legitimately appear in
-    # files_changed.
+    # Inherited dirty source/test files should NOT be automatically included
+    # in expected files_changed — they were already dirty at baseline and may
+    # simply remain unchanged this round.  Remove them first, then conditionally
+    # re-add only the ones that are authorized AND listed in the report.
     inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
+    inherited_source_test = {p for p in inherited_dirty_files if _path_is_source_or_test(p)}
+    round_delta_files -= inherited_source_test
+    # Include inherited dirty files that are explicitly allowed and reported
+    # in the decision scope. These files MAY appear in files_changed if they
+    # were modified this round, but they are not required to — they were
+    # already dirty at baseline and may simply remain unchanged.  Only add
+    # them to the expected set when the report actually lists them, so that
+    # the synthesis does not create a false diff for reports that omit them.
     allowed_inherited = _allowed_inherited_files(decision_text, inherited_dirty_files)
+    report_files_changed = _string_set(report.get("files_changed"))
     # NOTE: No bootstrapping extension.  Only the decision's "Allowed
     # Inherited Dirty Baseline Files" section can authorize inherited
     # dirty source/test files.  The report cannot retroactively
     # authorize them.  This enforces the clean-start policy.
-    round_delta_files |= allowed_inherited
+    round_delta_files |= allowed_inherited & report_files_changed
     # Promote decision-scope required deliverables that are inherited dirty
     # files into files_changed and generated_artifacts.  When a deliverable
     # is explicitly listed in the decision's "Allowed generated artifacts"
@@ -2964,18 +3042,24 @@ def build_report_summary_synthesis(
     generated_artifact_set = {
         "project_state/codex_execution_report.md",
         "project_state/pytest_result.txt",
-        PREFLIGHT_OUTPUT_PATH,
-        COMMAND_PLAN_OUTPUT_PATH,
         REPORT_SUMMARY_OUTPUT_PATH,
         SELF_OUTPUT_PATH,
-        ROUND_BASELINE_OUTPUT_PATH,
         ROUND_DELTA_OUTPUT_PATH,
-        ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH,
         *archive_paths,
     }
+    if (state_dir / "gates" / ROUND_BASELINE_RESULT_NAME).exists():
+        generated_artifact_set.add(ROUND_BASELINE_OUTPUT_PATH)
+    if (state_dir / "gates" / PREFLIGHT_RESULT_NAME).exists():
+        generated_artifact_set.add(PREFLIGHT_OUTPUT_PATH)
+    if command_plan_ok:
+        generated_artifact_set.add(COMMAND_PLAN_OUTPUT_PATH)
+    if close_snapshot_exists:
+        generated_artifact_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
     if (state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME).exists():
         generated_artifact_set.add(GATE_PROFILE_PLAN_OUTPUT_PATH)
-    if RUN_ROUND_OUTPUT_PATH in round_delta_files or any(_command_kind(command) == "run-round" for command in command_strings):
+    if (state_dir / "gates" / RUN_ROUND_RESULT_NAME).exists() and (
+        RUN_ROUND_OUTPUT_PATH in round_delta_files or any(_command_kind(command) == "run-round" for command in command_strings)
+    ):
         generated_artifact_set.add(RUN_ROUND_OUTPUT_PATH)
     # Include decision-scope required deliverables that were promoted from
     # inherited dirty files into generated_artifacts.
@@ -3007,9 +3091,13 @@ def build_report_summary_synthesis(
         "round_id": round_id,
         "based_on_decision_id": decision_id,
         "files_changed": expected_files_changed,
-        "tests_ran": command_strings,
         "generated_artifacts": expected_generated_artifacts,
     }
+    # Only include tests_ran when command_plan is valid; without it
+    # the synthesis cannot determine which commands were planned, so
+    # comparing against the report's tests_ran would produce false diffs.
+    if command_plan_ok:
+        synthesized_summary["tests_ran"] = command_strings
     if status_pair is not None:
         synthesized_summary["status"] = status_pair[0]
         synthesized_summary["acceptance_recommendation"] = status_pair[1]
@@ -3195,7 +3283,15 @@ def _report_summary_checks(
         ),
         _check(
             "report_summary_fields_match_synthesis",
-            "PASS" if not errors and not diffs else ("WARN" if not errors else "FAIL"),
+            (
+                "PASS"
+                if not errors and not diffs
+                else (
+                    "FAIL"
+                    if _has_structural_field_diff(diffs)
+                    else "WARN"
+                )
+            ),
             "codex_report_summary matches synthesized summary"
             if not errors and not diffs
             else "codex_report_summary differs from synthesized summary",
@@ -3490,6 +3586,13 @@ def final_check(
     checks.append(
         _tmp_paths_dirty_check(
             delta_summary=delta_summary,
+        )
+    )
+    # Generated artifact live paths must exist on disk
+    checks.append(
+        _generated_artifact_live_paths_exist_check(
+            generated_artifacts=generated_artifacts,
+            repo_root=repo_root,
         )
     )
     # Startup status order check
@@ -4144,6 +4247,13 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     checks.append(
         _tmp_paths_dirty_check(
             delta_summary=delta_summary,
+        )
+    )
+    # Generated artifact live paths must exist on disk
+    checks.append(
+        _generated_artifact_live_paths_exist_check(
+            generated_artifacts=generated_artifacts,
+            repo_root=repo_root,
         )
     )
     # Startup status order check

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260617_clean_start_report_delta_rework_v1",
-  "round_id": "round_20260617_clean_start_report_delta_rework_v1",
-  "head_commit": "ec48d76022b4",
+  "decision_id": "decision_20260617_generated_artifact_existence_rework_v1",
+  "round_id": "round_20260617_generated_artifact_existence_rework_v1",
+  "head_commit": "479f21baddd6",
   "baseline_git_status_short": [
     " M project_state/codex_execution_report.md",
     " D project_state/gates/command_plan.json",
@@ -12,7 +12,9 @@
     " D project_state/gates/report_summary_synthesis.json",
     " D project_state/gates/round_baseline.json",
     " D project_state/gates/round_delta_summary.json",
-    " M project_state/pytest_result.txt"
+    " M project_state/pytest_result.txt",
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -22,7 +24,9 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -31,9 +35,11 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-17T06:45:02.673871Z"
+  "generated_at": "2026-06-17T08:52:52.582083Z"
 }

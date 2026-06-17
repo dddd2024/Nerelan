@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260617_clean_start_report_delta_rework_v1",
-  "report_id": "codex_report_20260617_clean_start_report_delta_rework_v1",
-  "round_id": "round_20260617_clean_start_report_delta_rework_v1",
-  "generated_at": "2026-06-17T06:48:38.368962Z",
+  "gate_status": "WARN",
+  "decision_id": "decision_20260617_generated_artifact_existence_rework_v1",
+  "report_id": "codex_report_20260617_generated_artifact_existence_rework_v1",
+  "round_id": "round_20260617_generated_artifact_existence_rework_v1",
+  "generated_at": "2026-06-17T09:49:14.185413Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260617_clean_start_report_delta_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260617_generated_artifact_existence_rework_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -55,43 +55,51 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt"
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "new_dirty_files_since_baseline": [
+        "project_state/decision_packet.md",
         "project_state/gates/final_gate_result.json",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
+        "project_state/gates/run_round_result.json",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/round_manifest.json"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
-      "status": "PASS",
-      "detail": "files_changed excludes inherited baseline dirty files",
-      "inherited_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt"
-      ]
+      "status": "WARN",
+      "detail": "round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
+      "inherited_files_in_files_changed": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
+      "source_test_inherited_in_files_changed": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
+      "close_worktree_clean": false
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -100,24 +108,30 @@
       "missing_files": [],
       "git_changed_files": [
         "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
+        "project_state/decision_packet.md",
         "project_state/gates/final_gate_result.json",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
+        "project_state/gates/run_round_result.json",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -126,7 +140,9 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt"
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
@@ -157,8 +173,25 @@
       "name": "baseline_lifecycle_guard",
       "status": "PASS",
       "detail": "baseline source/test dirty files are absent or explicitly allowed",
-      "source_test_baseline_dirty": [],
-      "allowed_inherited_dirty_files": [],
+      "source_test_baseline_dirty": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
+      "allowed_inherited_dirty_files": [
+        "Preserve backward compatibility for existing command-plan/final-check/close-round tests.",
+        "Preserve path normalization across Windows and POSIX separators.",
+        "Preserve the existing clean-start baseline guard behavior.",
+        "Preserve the gate-profile classifier behavior.",
+        "Preserve the report-prose claimed source/test coverage behavior.",
+        "project_state/",
+        "project_state/gates/",
+        "project_state/rounds/<round_id>/",
+        "report_summary_fields_match_synthesis",
+        "reverse_agent/project_gate.py",
+        "run_round_result.json",
+        "tests/test_project_gate.py",
+        "tmp*/"
+      ],
       "generated_or_archive_baseline_dirty_files": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
@@ -172,28 +205,46 @@
     {
       "name": "baseline_inherited_allowlist_explained",
       "status": "PASS",
-      "detail": "no source/test inherited baseline explanation is required",
-      "inherited_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt"
+      "detail": "report explains explicitly allowed inherited baseline files",
+      "allowed_inherited_source_test_files": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
       "name": "baseline_capture_order",
-      "status": "PASS",
-      "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
+      "status": "WARN",
+      "detail": "source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
       "suspected_late_baseline_files": [],
-      "allowed_inherited_dirty_files": [],
-      "baseline_dirty_source_test_files": [],
-      "files_changed_overlap": [],
-      "confirmed_inherited_from_startup_evidence": [],
+      "allowed_inherited_dirty_files": [
+        "Preserve backward compatibility for existing command-plan/final-check/close-round tests.",
+        "Preserve path normalization across Windows and POSIX separators.",
+        "Preserve the existing clean-start baseline guard behavior.",
+        "Preserve the gate-profile classifier behavior.",
+        "Preserve the report-prose claimed source/test coverage behavior.",
+        "project_state/",
+        "project_state/gates/",
+        "project_state/rounds/<round_id>/",
+        "report_summary_fields_match_synthesis",
+        "reverse_agent/project_gate.py",
+        "run_round_result.json",
+        "tests/test_project_gate.py",
+        "tmp*/"
+      ],
+      "baseline_dirty_source_test_files": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
+      "files_changed_overlap": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
+      "confirmed_inherited_from_startup_evidence": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
       "startup_status_evidence_trusted": true,
-      "capture_order_status": "clean"
+      "capture_order_status": "confirmed_inherited"
     },
     {
       "name": "report_prose_claims_covered_by_files_changed",
@@ -211,6 +262,22 @@
       "tmp_paths": []
     },
     {
+      "name": "generated_artifact_live_paths_exist",
+      "status": "PASS",
+      "detail": "all live project_state/ generated artifact paths exist on disk",
+      "live_paths": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/pytest_result.txt"
+      ]
+    },
+    {
       "name": "startup_status_order_valid",
       "status": "PASS",
       "detail": "startup git status --short appears after path confirmation commands",
@@ -226,10 +293,10 @@
     },
     {
       "name": "decision_immutability",
-      "status": "PASS",
-      "detail": "live project_state/decision_packet.md was not modified during execution",
-      "live_decision_in_files_changed": false,
-      "live_decision_in_new_dirty": false
+      "status": "WARN",
+      "detail": "live project_state/decision_packet.md appears in round delta or files_changed; decision should not be modified during execution",
+      "live_decision_in_files_changed": true,
+      "live_decision_in_new_dirty": true
     },
     {
       "name": "build_output_scope",
@@ -246,8 +313,11 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
-      "startup_source_test_dirty": [],
+      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
+      "startup_source_test_dirty": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
       "baseline_dirty_files": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
@@ -255,7 +325,20 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt"
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
+      "inherited_dirty_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "missing_from_baseline": []
     },
@@ -277,8 +360,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260617_clean_start_report_delta_rework_v1",
-      "command_plan_round_id": "round_20260617_clean_start_report_delta_rework_v1"
+      "command_plan_decision_id": "decision_20260617_generated_artifact_existence_rework_v1",
+      "command_plan_round_id": "round_20260617_generated_artifact_existence_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -327,21 +410,28 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
+      "status": "WARN",
+      "detail": "codex_report_summary differs from synthesized summary",
       "errors": [],
-      "diffs": []
+      "diffs": [
+        {
+          "field": "status",
+          "expected": "PARTIAL",
+          "actual": "FAILED"
+        },
+        {
+          "field": "acceptance_recommendation",
+          "expected": "NEEDS_REVIEW",
+          "actual": "REWORK_REQUIRED"
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [
-        "files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/gates/command_plan.json', 'project_state/gates/preflight_result.json', 'project_state/gates/report_summary_synthesis.json', 'project_state/gates/round_baseline.json', 'project_state/gates/round_delta_summary.json', 'project_state/pytest_result.txt']"
-      ],
-      "non_blocking_warnings": [
-        "files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/gates/command_plan.json', 'project_state/gates/preflight_result.json', 'project_state/gates/report_summary_synthesis.json', 'project_state/gates/round_baseline.json', 'project_state/gates/round_delta_summary.json', 'project_state/pytest_result.txt']"
-      ]
+      "warnings": [],
+      "non_blocking_warnings": []
     },
     {
       "name": "forbidden_paths_absent",
@@ -351,12 +441,15 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
+      "status": "WARN",
+      "detail": "current-round artifacts complete; historical sample artifacts non-blocking",
       "lint_errors": [],
-      "warnings": [],
-      "doctor_status": "PASS",
-      "report_status": "SUCCESS",
+      "warnings": [
+        "report_status is FAILED",
+        "doctor status is WARN (historical artifacts non-blocking)"
+      ],
+      "doctor_status": "WARN",
+      "report_status": "FAILED",
       "limitations": null,
       "external_state_notices": [
         "50 missing historical sample artifacts"
@@ -371,14 +464,20 @@
     }
   ],
   "blocking_reasons": [],
-  "warnings": [],
-  "recommended_next_action": "no_action_required",
+  "warnings": [
+    "files_changed_excludes_inherited_dirty_files: round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
+    "baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
+    "decision_immutability: live project_state/decision_packet.md appears in round delta or files_changed; decision should not be modified during execution",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary",
+    "status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking"
+  ],
+  "recommended_next_action": "review_warnings_before_closeout",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
     "archive_status": "archived",
-    "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED"
+    "report_status": "PARTIAL",
+    "report_acceptance_recommendation": "NEEDS_REVIEW"
   }
 }
