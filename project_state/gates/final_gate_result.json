@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260616_training_dataset_historical_artifact_policy_v1",
-  "report_id": "codex_report_20260616_training_dataset_historical_artifact_policy_v1",
-  "round_id": "round_20260616_training_dataset_historical_artifact_policy_v1",
-  "generated_at": "2026-06-16T16:36:35.467299Z",
+  "gate_status": "PASSED_WITH_LIMITATIONS",
+  "decision_id": "decision_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "report_id": "codex_report_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "round_id": "round_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "generated_at": "2026-06-17T03:27:22.293201Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260616_training_dataset_historical_artifact_policy_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260617_training_dataset_cipher_static_evidence_profile_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -49,10 +49,8 @@
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
       "inherited_dirty_files": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "project_state/local_reverse_cipher_static_evidence_profile.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.md"
       ],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
@@ -61,13 +59,14 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/decision_packet.md",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/round_manifest.json"
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/round_manifest.json"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -76,34 +75,25 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/decision_packet.md",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/round_manifest.json"
       ]
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
-      "status": "WARN",
-      "detail": "files_changed includes inherited baseline dirty files (may have been modified this round; possible late baseline capture)",
-      "inherited_files_in_files_changed": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
-      ],
-      "source_test_inherited_in_files_changed": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+      "status": "PASS",
+      "detail": "files_changed excludes inherited baseline dirty files",
+      "inherited_dirty_files": [
+        "project_state/local_reverse_cipher_static_evidence_profile.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.md"
       ]
     },
     {
@@ -118,17 +108,16 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/decision_packet.md",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/round_manifest.json"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -137,19 +126,18 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/decision_packet.md",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/round_manifest.json"
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "project_state/local_reverse_cipher_static_evidence_profile.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.md"
       ]
     },
     {
@@ -172,53 +160,34 @@
     {
       "name": "baseline_lifecycle_guard",
       "status": "PASS",
-      "detail": "baseline source/test dirty files are absent or explicitly allowed",
-      "source_test_baseline_dirty": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
-      ],
+      "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
+      "source_test_baseline_dirty": [],
+      "close_source_test_dirty": [],
       "allowed_inherited_dirty_files": [],
-      "generated_or_archive_baseline_dirty_files": []
+      "generated_or_archive_baseline_dirty_files": [],
+      "close_worktree_clean": false,
+      "close_snapshot_available": true
     },
     {
       "name": "baseline_inherited_allowlist_explained",
       "status": "PASS",
       "detail": "no source/test inherited baseline explanation is required",
       "inherited_dirty_files": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "project_state/local_reverse_cipher_static_evidence_profile.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.md"
       ]
     },
     {
       "name": "baseline_capture_order",
-      "status": "WARN",
-      "detail": "source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
+      "status": "PASS",
+      "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [],
-      "baseline_dirty_source_test_files": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
-      ],
-      "files_changed_overlap": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
-      ],
-      "confirmed_inherited_from_startup_evidence": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
-      ],
+      "baseline_dirty_source_test_files": [],
+      "files_changed_overlap": [],
+      "confirmed_inherited_from_startup_evidence": [],
       "startup_status_evidence_trusted": true,
-      "capture_order_status": "confirmed_inherited"
+      "capture_order_status": "clean"
     },
     {
       "name": "startup_status_order_valid",
@@ -256,24 +225,11 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
-      "startup_source_test_dirty": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
-      ],
+      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
+      "startup_source_test_dirty": [],
       "baseline_dirty_files": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
-      ],
-      "inherited_dirty_files": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "project_state/local_reverse_cipher_static_evidence_profile.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.md"
       ],
       "missing_from_baseline": []
     },
@@ -295,8 +251,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260616_training_dataset_historical_artifact_policy_v1",
-      "command_plan_round_id": "round_20260616_training_dataset_historical_artifact_policy_v1"
+      "command_plan_decision_id": "decision_20260617_training_dataset_cipher_static_evidence_profile_v1",
+      "command_plan_round_id": "round_20260617_training_dataset_cipher_static_evidence_profile_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -326,9 +282,9 @@
     {
       "name": "close_round_is_last_command_block",
       "status": "PASS",
-      "detail": "close-round command block is pending until close-round completes",
-      "required": false,
-      "skipped_reason": "close_round_in_progress"
+      "detail": "close-round is the last command block in pytest_result",
+      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_training_dataset_cipher_static_evidence_profile_v1",
+      "last_kind": "close-round"
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
@@ -354,12 +310,8 @@
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [
-        "files_changed includes inherited dirty files (may have been modified this round): ['reverse_agent/project_gate.py', 'reverse_agent/project_state.py', 'tests/test_project_gate.py', 'tests/test_project_state.py']"
-      ],
-      "non_blocking_warnings": [
-        "files_changed includes inherited dirty files (may have been modified this round): ['reverse_agent/project_gate.py', 'reverse_agent/project_state.py', 'tests/test_project_gate.py', 'tests/test_project_state.py']"
-      ]
+      "warnings": [],
+      "non_blocking_warnings": []
     },
     {
       "name": "forbidden_paths_absent",
@@ -375,24 +327,19 @@
       "warnings": [],
       "doctor_status": "PASS",
       "report_status": "SUCCESS",
-      "limitations": null,
-      "external_state_notices": [
+      "limitations": [
         "50 missing historical sample artifacts"
       ]
     },
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "final-check stdout status is allowed to differ while close-round is in progress",
-      "required": false,
-      "skipped_reason": "close_round_in_progress"
+      "detail": "no recorded final-check stdout status to compare",
+      "required": false
     }
   ],
   "blocking_reasons": [],
-  "warnings": [
-    "files_changed_excludes_inherited_dirty_files: files_changed includes inherited baseline dirty files (may have been modified this round; possible late baseline capture)",
-    "baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable"
-  ],
+  "warnings": [],
   "recommended_next_action": "no_action_required",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
@@ -400,6 +347,6 @@
     "decision_consumed_by_report": true,
     "archive_status": "archived",
     "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED"
+    "report_acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS"
   }
 }

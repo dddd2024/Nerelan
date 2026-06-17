@@ -1,0 +1,415 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "round_id": "round_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "generated_at": "2026-06-17T00:30:00Z",
+  "source_artifacts": [
+    "project_state/local_reverse_training_resume_plan.json",
+    "project_state/local_reverse_type_coverage_matrix.json",
+    "project_state/local_reverse_training_status.json",
+    "training_materials/local_reverse/queue.json",
+    "training_materials/local_reverse/github_safe_status_overlay.json"
+  ],
+  "scope": "PE cipher samples only (DES and RC4 families)",
+  "cipher_families": ["DES", "RC4"],
+  "target_sample_ids_by_family": {
+    "DES": {
+      "pe_samples": [
+        {
+          "sample_id": "desenc_0e0b5203",
+          "relative_path": null,
+          "status": "inventory_only",
+          "first_bounded_triage_target": true
+        },
+        {
+          "sample_id": "desenc_14c58fcd",
+          "relative_path": null,
+          "status": "inventory_only",
+          "first_bounded_triage_target": false
+        },
+        {
+          "sample_id": "desenc_40cba418",
+          "relative_path": null,
+          "status": "inventory_only",
+          "first_bounded_triage_target": false
+        },
+        {
+          "sample_id": "desenc_fd9d0af6",
+          "relative_path": null,
+          "status": "inventory_only",
+          "first_bounded_triage_target": false
+        }
+      ],
+      "total_pe_samples": 4
+    },
+    "RC4": {
+      "pe_samples": [
+        {
+          "sample_id": "rc4enc_3480917d",
+          "relative_path": null,
+          "status": "inventory_only",
+          "first_bounded_triage_target": true
+        },
+        {
+          "sample_id": "rc4enc_f93c785f",
+          "relative_path": null,
+          "status": "inventory_only",
+          "first_bounded_triage_target": false
+        }
+      ],
+      "total_pe_samples": 2
+    }
+  },
+  "reference_material_sample_ids_by_family": {
+    "DES": {
+      "python_reference": [
+        {
+          "sample_id": "des_interactive_solver_256e1726",
+          "role": "reference_solver_implementation",
+          "usage": "algorithm_marker_and_key_schedule_validation_reference_only"
+        }
+      ]
+    },
+    "RC4": {
+      "python_reference": [
+        {
+          "sample_id": "rc4_add1978d",
+          "role": "reference_implementation",
+          "usage": "algorithm_marker_and_keystream_validation_reference_only"
+        },
+        {
+          "sample_id": "rc4_interactive_solver_773052ac",
+          "role": "reference_solver_implementation",
+          "usage": "algorithm_marker_and_sbox_init_validation_reference_only"
+        }
+      ]
+    }
+  },
+  "evidence_contract": {
+    "description": "Defines the exact evidence fields that future IDA/Ghidra/static extraction must collect for DES and RC4 PE cipher samples. Each field specifies what to extract, how it maps to training metadata, and validation preconditions.",
+    "required_evidence_fields": {
+      "algorithm_marker_evidence": {
+        "description": "Identify the cipher algorithm from static artifacts",
+        "DES": {
+          "markers": [
+            "DES initial permutation table (IP table, 64 bytes at known offsets)",
+            "DES S-box tables (8 S-boxes, each 64 entries of 4-bit values)",
+            "DES permutation tables (P-box, expansion E, PC-1, PC-2)",
+            "DES Feistel round structure (16 rounds of expansion, XOR, S-box, permutation)",
+            "Constant: 0x0E329B23 (DES S1 box first row checksum) or equivalent"
+          ],
+          "extraction_method": "IDA: search for 64-byte constant arrays matching IP/S-box patterns; strings: search for 'DES' or 'des' in binary strings; imports: check for CryptEncrypt/CryptDeriveKey with CALG_DES"
+        },
+        "RC4": {
+          "markers": [
+            "RC4 KSA (Key Scheduling Algorithm): swap loop with 256-iteration initialization",
+            "RC4 S-box initialization: identity permutation 0x00..0xFF",
+            "RC4 PRGA: two-index swap-and-output loop",
+            "Constant: 256 (S-box size) used in loop bound",
+            "Pattern: XOR with S-box indexed value in tight loop"
+          ],
+          "extraction_method": "IDA: search for 256-iteration initialization loop with swap pattern; strings: search for 'RC4' or 'rc4'; imports: check for CryptEncrypt with CALG_RC4"
+        },
+        "maps_to": "training_metadata.algorithm_identification",
+        "confidence_threshold": "HIGH when 2+ markers found; MEDIUM when 1 marker found; LOW when no markers"
+      },
+      "string_evidence": {
+        "description": "Extract printable strings that indicate cipher type, mode, or key material",
+        "fields_to_extract": [
+          "algorithm_name_strings (e.g., 'DES', 'RC4', 'des', 'rc4')",
+          "mode_strings (e.g., 'ECB', 'CBC', 'CFB', 'OFB')",
+          "padding_strings (e.g., 'PKCS5', 'PKCS7', 'zero_padding')",
+          "key_derivation_strings (e.g., 'password', 'key', 'passphrase')",
+          "error_diagnostic_strings (e.g., 'decrypt failed', 'invalid key length')"
+        ],
+        "extraction_method": "existing static_feature_extractor.py string extraction; IDA strings window; `strings` command output",
+        "maps_to": "training_metadata.string_indicators"
+      },
+      "constant_table_evidence": {
+        "description": "Extract cipher-specific constant tables from .rdata or .data sections",
+        "DES": {
+          "tables": [
+            "IP (Initial Permutation): 64 bytes",
+            "FP (Final Permutation): 64 bytes",
+            "E (Expansion): 48 bytes",
+            "P (Permutation): 32 bytes",
+            "S1-S8 (Substitution boxes): 8 × 64 bytes = 512 bytes",
+            "PC1 (Permuted Choice 1): 56 bytes",
+            "PC2 (Permuted Choice 2): 48 bytes",
+            "left_shift_schedule: 16 entries"
+          ],
+          "extraction_method": "IDA: identify 64-byte aligned constant arrays in .rdata; cross-reference with Feistel round function"
+        },
+        "RC4": {
+          "tables": [
+            "S-box (256-byte permutation array, initialized to identity at KSA start)",
+            "No fixed constant tables beyond the 0x00-0xFF identity initialization"
+          ],
+          "extraction_method": "IDA: identify 256-byte array with identity initialization; trace KSA loop that swaps entries"
+        },
+        "maps_to": "training_metadata.constant_tables"
+      },
+      "import_api_evidence": {
+        "description": "Extract Windows API imports related to cryptography",
+        "apis_to_check": [
+          "CryptAcquireContext / CryptAcquireContextW",
+          "CryptCreateHash",
+          "CryptDeriveKey",
+          "CryptEncrypt / CryptEncrypt",
+          "CryptDecrypt / CryptDecrypt",
+          "CryptDestroyKey",
+          "CryptReleaseContext",
+          "BCryptGenerateSymmetricKey",
+          "BCryptEncrypt",
+          "BCryptDecrypt"
+        ],
+        "algorithm_hints": {
+          "CryptDeriveKey with CALG_DES": "DES algorithm",
+          "CryptDeriveKey with CALG_RC4": "RC4 algorithm",
+          "BCrypt with BCRYPT_DES_ALGORITHM": "DES algorithm",
+          "BCrypt with BCRYPT_RC4_ALGORITHM": "RC4 algorithm"
+        },
+        "extraction_method": "IDA imports view; PE import table parsing via existing local_reverse_inventory",
+        "maps_to": "training_metadata.api_imports"
+      },
+      "input_source_evidence": {
+        "description": "Identify where the plaintext input enters the cipher pipeline",
+        "fields_to_extract": [
+          "input_buffer_address (stack or heap location)",
+          "input_read_function (ReadFile, scanf, fgets, GetWindowText, etc.)",
+          "input_length_field (fixed or variable)",
+          "input_encoding (ASCII, UTF-8, UTF-16LE, raw bytes)"
+        ],
+        "extraction_method": "IDA: trace data flow from input API to cipher function entry; cross-reference with string evidence",
+        "maps_to": "training_metadata.input_source"
+      },
+      "key_source_evidence": {
+        "description": "Identify where the encryption key originates",
+        "DES": {
+          "key_characteristics": [
+            "8-byte key (56 effective bits + 8 parity bits)",
+            "May be derived from password via CryptDeriveKey or custom KDF",
+            "Triple-DES uses 16 or 24 byte keys"
+          ],
+          "fields_to_extract": [
+            "key_buffer_address",
+            "key_derivation_function (if any)",
+            "key_length (8, 16, or 24 bytes)",
+            "hardcoded_key_indicator (constant in .data section)"
+          ]
+        },
+        "RC4": {
+          "key_characteristics": [
+            "Variable-length key (1-256 bytes)",
+            "Key fed directly into KSA",
+            "May be derived from password or hardcoded"
+          ],
+          "fields_to_extract": [
+            "key_buffer_address",
+            "key_length",
+            "key_derivation_function (if any)",
+            "hardcoded_key_indicator"
+          ]
+        },
+        "extraction_method": "IDA: trace key parameter to cipher function; check for CryptDeriveKey or direct key buffer",
+        "maps_to": "training_metadata.key_source"
+      },
+      "iv_mode_padding_evidence": {
+        "description": "Identify cipher mode, initialization vector, and padding scheme",
+        "DES": {
+          "modes": ["ECB", "CBC", "CFB", "OFB"],
+          "iv_required": ["CBC", "CFB", "OFB"],
+          "iv_size": "8 bytes",
+          "padding": ["PKCS5/PKCS7", "zero_padding", "none"],
+          "fields_to_extract": [
+            "mode_indicator (API constant or code pattern)",
+            "iv_buffer_address (if applicable)",
+            "iv_value_or_source (hardcoded or random)",
+            "padding_scheme_indicator"
+          ]
+        },
+        "RC4": {
+          "modes": ["stream (no block mode)"],
+          "iv_required": false,
+          "padding": "none (stream cipher)",
+          "fields_to_extract": [
+            "stream_cipher_confirmation (no block mode logic)"
+          ]
+        },
+        "extraction_method": "IDA: check API mode parameter; trace IV parameter; identify padding logic after final block",
+        "maps_to": "training_metadata.iv_mode_padding"
+      },
+      "ciphertext_source_evidence": {
+        "description": "Identify where ciphertext is written and its format",
+        "fields_to_extract": [
+          "ciphertext_buffer_address",
+          "ciphertext_write_function (WriteFile, output parameter, etc.)",
+          "ciphertext_length (same as input for stream ciphers, padded for block ciphers)",
+          "ciphertext_encoding (raw bytes, Base64, hex string)"
+        ],
+        "extraction_method": "IDA: trace cipher function output to write/compare location",
+        "maps_to": "training_metadata.ciphertext_source"
+      },
+      "comparison_output_sink_evidence": {
+        "description": "Identify the comparison point where ciphertext is verified",
+        "fields_to_extract": [
+          "comparison_function_address",
+          "comparison_type (memcmp, string compare, byte-by-byte loop)",
+          "expected_ciphertext_location (hardcoded buffer or computed)",
+          "comparison_branch_direction (success/failure paths)"
+        ],
+        "extraction_method": "IDA: identify compare/cmp instructions after cipher output; trace branch targets",
+        "maps_to": "training_metadata.comparison_sink"
+      },
+      "candidate_input_domain_evidence": {
+        "description": "Define the bounded input domain for candidate generation",
+        "DES": {
+          "input_domain": [
+            "key_space: 2^56 (infeasible for brute force without constraints)",
+            "plaintext_space: depends on input source (typically printable ASCII or known format)",
+            "constrained_key: if hardcoded or derived from short password, key space reduces dramatically",
+            "known_plaintext: if comparison target is known, chosen-plaintext may apply"
+          ],
+          "domain_bounds": "requires key_source_evidence to determine if brute-force is feasible"
+        },
+        "RC4": {
+          "input_domain": [
+            "key_space: depends on key length (typically 5-16 bytes for password-derived)",
+            "plaintext_space: depends on input source",
+            "keystream_recovery: if known plaintext at known position, keystream bytes can be recovered",
+            "fluhrer_mantin_shamir: applicable if related keys used (unlikely in CTF)"
+          ],
+          "domain_bounds": "requires key_source_evidence to determine key length and derivation"
+        },
+        "extraction_method": "derived from input_source_evidence and key_source_evidence; not directly extracted by static tools",
+        "maps_to": "training_metadata.candidate_domain"
+      },
+      "validation_preconditions": {
+        "description": "Preconditions that must be met before attempting sample solution",
+        "preconditions": [
+          "algorithm_marker_evidence must have confidence >= MEDIUM",
+          "key_source_evidence must identify key origin (hardcoded, password-derived, or unknown)",
+          "comparison_output_sink_evidence must locate the comparison point",
+          "candidate_input_domain_evidence must establish bounded domain or confirm unbounded"
+        ],
+        "blocker_conditions": [
+          "algorithm_marker_evidence confidence = LOW: cannot confirm cipher algorithm",
+          "key_source_evidence = unknown and no hardcoded key: key recovery may be infeasible",
+          "comparison_output_sink_evidence = missing: cannot determine success criteria"
+        ]
+      },
+      "confidence_and_blocker_fields": {
+        "overall_confidence": "HIGH | MEDIUM | LOW | UNKNOWN",
+        "blocker": "none | pending_key_evidence | pending_algorithm_confirmation | pending_comparison_sink | unbounded_domain",
+        "next_action": "static_triage | bounded_runtime_probe | key_recovery | domain_reduction | blocked"
+      }
+    }
+  },
+  "structured_evidence_mapping_plan": {
+    "description": "How the evidence contract maps tool output into training metadata and later StructuredEvidence",
+    "mapping_steps": [
+      {
+        "step": 1,
+        "tool": "IDA / IDAPython static triage",
+        "output": "algorithm markers, constant tables, function boundaries, cross-references",
+        "mapping": "algorithm_marker_evidence + constant_table_evidence + import_api_evidence → algorithm_identification",
+        "structured_evidence_target": "StructuredEvidence.algorithm_identification"
+      },
+      {
+        "step": 2,
+        "tool": "existing static_feature_extractor.py",
+        "output": "string indicators, import table, section layout",
+        "mapping": "string_evidence + import_api_evidence → algorithm_identification (supplementary)",
+        "structured_evidence_target": "StructuredEvidence.string_indicators + StructuredEvidence.api_imports"
+      },
+      {
+        "step": 3,
+        "tool": "IDA data flow analysis",
+        "output": "input buffer, key buffer, IV, ciphertext buffer, comparison point",
+        "mapping": "input_source_evidence + key_source_evidence + iv_mode_padding_evidence + ciphertext_source_evidence + comparison_output_sink_evidence → data_flow_contract",
+        "structured_evidence_target": "StructuredEvidence.data_flow_contract"
+      },
+      {
+        "step": 4,
+        "tool": "derived analysis (not a tool run)",
+        "output": "candidate domain bounds, validation preconditions",
+        "mapping": "candidate_input_domain_evidence + validation_preconditions → solution_feasibility",
+        "structured_evidence_target": "StructuredEvidence.solution_feasibility"
+      }
+    ],
+    "structured_evidence_schema_note": "The StructuredEvidence type is the project's standard for recording extracted evidence. This profile defines what fields future static-triage runs must populate. The actual StructuredEvidence conversion happens in the triage round, not in this planning round."
+  },
+  "future_static_triage_sequence": [
+    {
+      "sequence_step": 1,
+      "description": "Run bounded static triage on desenc_0e0b5203 (first DES target)",
+      "tool": "IDA / IDAPython via existing tool runners",
+      "evidence_to_collect": "algorithm_marker_evidence, constant_table_evidence, import_api_evidence, string_evidence",
+      "expected_outcome": "confirm DES algorithm, locate S-box tables, identify key source",
+      "decision_after": "if DES confirmed and key source identified → proceed to key recovery; if algorithm uncertain → expand marker search"
+    },
+    {
+      "sequence_step": 2,
+      "description": "Run bounded static triage on rc4enc_3480917d (first RC4 target)",
+      "tool": "IDA / IDAPython via existing tool runners",
+      "evidence_to_collect": "algorithm_marker_evidence, import_api_evidence, string_evidence, KSA/PRGA pattern",
+      "expected_outcome": "confirm RC4 algorithm, locate KSA loop, identify key source",
+      "decision_after": "if RC4 confirmed and key source identified → proceed to key recovery; if algorithm uncertain → expand marker search"
+    },
+    {
+      "sequence_step": 3,
+      "description": "Based on step 1 and 2 results, run data flow analysis on confirmed samples",
+      "tool": "IDA data flow tracing",
+      "evidence_to_collect": "input_source_evidence, key_source_evidence, ciphertext_source_evidence, comparison_output_sink_evidence",
+      "expected_outcome": "locate input, key, ciphertext, and comparison points for each confirmed sample",
+      "decision_after": "if all data flow points located → proceed to candidate domain analysis; if key source unknown → consider runtime probe"
+    },
+    {
+      "sequence_step": 4,
+      "description": "Analyze candidate input domain feasibility",
+      "tool": "derived analysis (no tool run)",
+      "evidence_to_collect": "candidate_input_domain_evidence, validation_preconditions",
+      "expected_outcome": "determine if bounded solution is feasible for each sample",
+      "decision_after": "if domain bounded → schedule solver round; if unbounded → mark as BLOCKED with specific blocker"
+    },
+    {
+      "sequence_step": 5,
+      "description": "Apply learned patterns to remaining DES/RC4 PE samples",
+      "tool": "pattern matching from steps 1-4",
+      "evidence_to_collect": "same evidence contract fields, using patterns from first targets",
+      "expected_outcome": "triage remaining 3 DES and 1 RC4 samples using confirmed patterns",
+      "decision_after": "update training status for all cipher samples"
+    }
+  ],
+  "first_bounded_triage_targets": {
+    "DES": {
+      "sample_id": "desenc_0e0b5203",
+      "rationale": "first DES PE sample in inventory; name suggests 'DES encrypt' which provides algorithm hint",
+      "expected_evidence": "DES S-box tables, IP/FP permutation tables, Feistel round structure",
+      "triage_round_prerequisite": "this cipher_static_evidence_profile must be accepted first"
+    },
+    "RC4": {
+      "sample_id": "rc4enc_3480917d",
+      "rationale": "first RC4 PE sample in inventory; name suggests 'RC4 encrypt' which provides algorithm hint",
+      "expected_evidence": "RC4 KSA initialization loop, PRGA swap-and-output loop, S-box identity init",
+      "triage_round_prerequisite": "this cipher_static_evidence_profile must be accepted first"
+    }
+  },
+  "non_goals": [
+    "solving any DES or RC4 sample in this round",
+    "running IDA, Ghidra, debugger, emulator, or any runtime tool",
+    "modifying solver logic, tool runners, harness behavior, or raw sample files",
+    "marking any cipher sample as solved, blocked, or triaged",
+    "implementing a new IDA/Ghidra interface (existing ones must be reused)",
+    "committing full solve_reports",
+    "overwriting existing training status artifacts"
+  ],
+  "stop_conditions": [
+    "cipher_static_evidence_profile.json and .md exist and are well-formed",
+    "evidence_contract covers all required fields for DES and RC4",
+    "first_bounded_triage_targets are specified",
+    "no samples are solved, blocked, or triaged",
+    "no source/test code is modified",
+    "no IDA/Ghidra/debugger/harness/solver/sample binaries are executed"
+  ]
+}

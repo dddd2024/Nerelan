@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260616_training_dataset_historical_artifact_policy_v1",
-  "round_id": "round_20260616_training_dataset_historical_artifact_policy_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-16T16:32:16.509787Z",
+  "decision_id": "decision_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "round_id": "round_20260617_training_dataset_cipher_static_evidence_profile_v1",
+  "mainline": "training_dataset",
+  "generated_at": "2026-06-17T03:17:44.653814Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is engineering_branch",
+      "detail": "mainline is training_dataset",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260616_local_reverse_training_resume_plan_v1"
+      "report_id": "codex_report_20260616_training_dataset_historical_artifact_policy_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,7 +71,28 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "engineering_branch",
+        "BLOCKED",
+        "IV/mode/padding evidence when applicable",
+        "If and only if an existing test requires a small schema accommodation for the new additive profile artifact, modify only narrowly related tests and explain why.",
+        "Prefer no source/test changes.",
+        "algorithm marker evidence",
+        "candidate input domain evidence",
+        "cipher_families",
+        "ciphertext/source evidence",
+        "comparison/output sink evidence",
+        "confidence and blocker fields",
+        "constant/table evidence",
+        "decision_id",
+        "desenc_0e0b5203",
+        "evidence_contract",
+        "first_bounded_triage_targets",
+        "future_static_triage_sequence",
+        "generated_at",
+        "how DES and RC4 should be distinguished statically;",
+        "import/API evidence",
+        "input source evidence",
+        "key/source evidence",
+        "non_goals",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -81,16 +102,25 @@
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.json",
+        "project_state/local_reverse_cipher_static_evidence_profile.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_training_dataset_historical_artifact_policy_v1/*",
-        "report_summary_synthesis",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "reverse_solving",
-        "status_policy_valid",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py",
-        "training_dataset"
+        "project_state/rounds/round_20260617_training_dataset_cipher_static_evidence_profile_v1/*",
+        "rc4enc_3480917d",
+        "reference_material_sample_ids_by_family",
+        "round_id",
+        "schema_version",
+        "scope",
+        "source_artifacts",
+        "stop_conditions",
+        "string evidence",
+        "structured_evidence_mapping_plan",
+        "target_sample_ids_by_family",
+        "validation preconditions",
+        "what evidence future IDA/static-triage runs must extract;",
+        "which future round should run first after this artifact is accepted.",
+        "why no sample is solved in this round;",
+        "why this profile is needed;"
       ]
     },
     {
@@ -104,7 +134,9 @@
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
       "matched_terms": [],
-      "matched_paths": []
+      "matched_paths": [
+        "what evidence future IDA/static-triage runs must extract;"
+      ]
     },
     {
       "name": "artifact_freshness_policy",
@@ -120,7 +152,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": false
+      "capability_required": true
     }
   ],
   "blocking_reasons": [],
@@ -129,12 +161,10 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      "reverse_agent/project_gate.py",
-      "reverse_agent/project_state.py",
-      "tests/test_project_gate.py",
-      "tests/test_project_state.py"
+      "project_state/local_reverse_cipher_static_evidence_profile.json",
+      "project_state/local_reverse_cipher_static_evidence_profile.md"
     ],
-    "head_commit": "0e6df771191b"
+    "head_commit": "6a5d19fab140"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
