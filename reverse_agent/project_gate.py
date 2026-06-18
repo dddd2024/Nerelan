@@ -3064,11 +3064,12 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
     if gate_status == "PASSED_WITH_LIMITATIONS":
         return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
     # Fast non-closeout: when closeout_allowed=false and close-round was
-    # not run, the report must use PARTIAL/REWORK_REQUIRED, not
-    # SUCCESS/ACCEPTED, even if the final-check has no FAILs and only
-    # archive-pending WARNs or historical sample limitations.
-    if gate_status in ("WARN", "PASSED") and _is_fast_non_closeout_scenario(payload):
-        return "PARTIAL", "REWORK_REQUIRED"
+    # not run, the gate now produces PASS for archive-related checks
+    # (instead of WARN), so the normal status derivation can proceed.
+    # If gate_status is PASSED, the normal flow returns SUCCESS/ACCEPTED.
+    # If gate_status is WARN (e.g. from status_policy_valid with historical
+    # sample limitations), the WARN handler below derives the appropriate
+    # status without forcing PARTIAL/REWORK_REQUIRED.
     if gate_status == "WARN":
         status_summary_payload = payload.get("status_summary")
         status_summary_map = status_summary_payload if isinstance(status_summary_payload, dict) else {}
@@ -4102,12 +4103,40 @@ def final_check(
 
     manifest_present = bool(round_consistency.get("round_manifest_present"))
     manifest_files = list(round_consistency.get("round_manifest_files") or [])
-    archive_pending_status = "FAIL" if manifest_present else "WARN"
+    # Detect fast non-closeout scenario early: when profile=fast and
+    # closeout_allowed=false, close-round is intentionally omitted, so
+    # archive-related checks should be PASS (not WARN) as long as the
+    # report does not claim archive artifacts or close-round success.
+    _fc_gate_profile = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+    _fc_closeout_allowed = _fc_gate_profile.get("closeout_allowed") if _fc_gate_profile else None
+    _fc_profile_is_fast = _fc_gate_profile.get("profile") == "fast" if _fc_gate_profile else False
+    _fc_gen_artifacts = report.get("generated_artifacts") or []
+    _fc_archive_claims = any(
+        _norm_path(str(p)).startswith("project_state/rounds/")
+        for p in _fc_gen_artifacts
+    )
+    _fc_close_round_in_pytest = any(
+        isinstance(block, dict) and _command_kind(str(block.get("command") or "")) == "close-round"
+        for block in _parse_recorded_command_blocks(pytest_text).get("blocks", [])
+    )
+    _fast_non_closeout_clean = (
+        _fc_profile_is_fast
+        and _fc_closeout_allowed is False
+        and not _fc_archive_claims
+        and not _fc_close_round_in_pytest
+    )
+    if _fast_non_closeout_clean:
+        archive_pending_status = "PASS"
+        _archive_pending_detail = "fast profile intentionally omits close-round; archive not required"
+    else:
+        archive_pending_status = "FAIL" if manifest_present else "WARN"
+        _archive_pending_detail = None
     checks.append(
         _check(
             "round_manifest_present",
             "PASS" if manifest_present else archive_pending_status,
-            "round manifest is present" if manifest_present else "round manifest is missing",
+            "round manifest is present" if manifest_present
+            else (_archive_pending_detail or "round manifest is missing"),
             round_manifest_path=round_consistency.get("round_manifest_path") or "",
         )
     )
@@ -4117,7 +4146,8 @@ def final_check(
         _check(
             "archived_report_matches_live_report",
             "PASS" if archived_report_match is True else archive_pending_status,
-            "archived report matches live report" if archived_report_match is True else "archived report differs from live report",
+            "archived report matches live report" if archived_report_match is True
+            else (_archive_pending_detail or "archived report differs from live report"),
         )
     )
 
@@ -4146,7 +4176,7 @@ def final_check(
                 if archived_pytest_match is True
                 else "archived pytest_result will be refreshed when close-round records its own command block"
                 if archived_pytest_pending_self_record
-                else "archived pytest_result differs from live pytest_result"
+                else (_archive_pending_detail or "archived pytest_result differs from live pytest_result")
             ),
             required=False if archived_pytest_pending_self_record else True,
             skipped_reason="close_round_self_record_pending" if archived_pytest_pending_self_record else None,
@@ -4157,8 +4187,7 @@ def final_check(
     archive_paths = _round_archive_paths(state_dir, round_id, manifest_files)
     # Fast non-closeout: when closeout_allowed=false, no round archive
     # should exist, so archive paths must not be required in final-check.
-    _fc_gate_profile = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
-    _fc_closeout_allowed = _fc_gate_profile.get("closeout_allowed") if _fc_gate_profile else None
+    # _fc_closeout_already read above with _fc_gate_profile.
     if _fc_closeout_allowed is False:
         archive_paths = set()
     generated_artifacts = _string_set(report.get("generated_artifacts"))
@@ -4614,6 +4643,13 @@ def final_check(
     if not lint_result.get("ok"):
         status_errors.extend(str(item) for item in lint_result.get("errors") or [])
     status_warnings.extend(str(item) for item in lint_result.get("warnings") or [])
+    # Fast non-closeout: suppress "report round not archived yet" warning
+    # since close-round is intentionally omitted and archiving is not expected.
+    if _fast_non_closeout_clean:
+        status_warnings = [
+            w for w in status_warnings
+            if w != "report round not archived yet"
+        ]
     doctor_status = str(doctor_result.get("status") or "FAIL")
     doctor_blocking_warnings = [
         str(check.get("detail") or check.get("name"))

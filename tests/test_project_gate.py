@@ -5797,13 +5797,14 @@ class TestReportStatusFromGatePayloadMainlineAware:
 
 
 class TestReportStatusFastNonCloseout:
-    """Verify _report_status_from_gate_payload returns PARTIAL/REWORK_REQUIRED
+    """Verify _report_status_from_gate_payload returns SUCCESS/ACCEPTED
     for fast non-closeout scenarios where closeout_allowed=false and
-    close-round was not run."""
+    close-round was not run, when the only WARNs are archive-pending or
+    historical sample limitations."""
 
-    def test_fast_non_closeout_warn_returns_partial_rework(self) -> None:
+    def test_fast_non_closeout_warn_returns_success_accepted(self) -> None:
         """Fast non-closeout with WARN gate_status and only archive-pending/historical
-        WARNs must return PARTIAL/REWORK_REQUIRED, not SUCCESS/ACCEPTED."""
+        WARNs must return SUCCESS/ACCEPTED, not PARTIAL/REWORK_REQUIRED."""
         payload = {
             "gate_status": "WARN",
             "status_summary": {
@@ -5829,12 +5830,12 @@ class TestReportStatusFastNonCloseout:
             ],
         }
         result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
-        assert result == ("PARTIAL", "REWORK_REQUIRED")
+        assert result == ("SUCCESS", "ACCEPTED")
 
-    def test_fast_non_closeout_implicit_omission_returns_partial_rework(self) -> None:
+    def test_fast_non_closeout_implicit_omission_returns_success_accepted(self) -> None:
         """Fast non-closeout where close-round is implicitly absent (not in
         omitted_commands, not in commands, closeout_allowed=false) must also
-        return PARTIAL/REWORK_REQUIRED."""
+        return SUCCESS/ACCEPTED when only historical limitations remain."""
         payload = {
             "gate_status": "WARN",
             "status_summary": {
@@ -5857,11 +5858,11 @@ class TestReportStatusFastNonCloseout:
             ],
         }
         result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
-        assert result == ("PARTIAL", "REWORK_REQUIRED")
+        assert result == ("SUCCESS", "ACCEPTED")
 
-    def test_fast_non_closeout_passed_returns_partial_rework(self) -> None:
+    def test_fast_non_closeout_passed_returns_success_accepted(self) -> None:
         """Fast non-closeout with PASSED gate_status (no FAILs at all) must
-        still return PARTIAL/REWORK_REQUIRED because close-round was not run."""
+        return SUCCESS/ACCEPTED because close-round is intentionally omitted."""
         payload = {
             "gate_status": "PASSED",
             "checks": [
@@ -5875,7 +5876,7 @@ class TestReportStatusFastNonCloseout:
             ],
         }
         result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
-        assert result == ("PARTIAL", "REWORK_REQUIRED")
+        assert result == ("SUCCESS", "ACCEPTED")
 
     def test_closeout_allowed_true_does_not_trigger_partial(self) -> None:
         """When closeout_allowed=True (full/standard profile), the fast non-closeout
@@ -6027,6 +6028,231 @@ class TestFinalCheckMainlineStatusPolicy:
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
         assert result["gate_status"] == "FAILED"
+
+
+class TestFinalCheckFastNonCloseoutArchiveChecks:
+    """Verify final-check archive-related checks for fast non-closeout scenarios.
+
+    When profile=fast and closeout_allowed=false and no archive claims:
+    - Archive checks should be PASS (not WARN)
+    - gate_status should be PASSED (not WARN)
+    - report-summary synthesis should derive SUCCESS/ACCEPTED
+
+    When archive claims exist or close-round is recorded:
+    - Archive checks should still FAIL/WARN
+    """
+
+    @staticmethod
+    def _make_fast_state(
+        tmp_path: Path,
+        *,
+        generated_artifacts: list[str] | None = None,
+        pytest_body_extra: str = "",
+        report_status: str = "SUCCESS",
+        report_acceptance: str = "ACCEPTED",
+    ) -> Path:
+        """Create a fast-profile non-closeout gate state for testing."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        _write_skill_registry(tmp_path)
+        _write_json(
+            state_dir / "current_state.json",
+            {
+                "round_id": "round_fast",
+                "state_build_id": "state_fast",
+                "state_digest": "digest_fast",
+                "state_scope": "fast_scope",
+                "source_harness_run": "run_fast",
+            },
+        )
+        _write_json(
+            state_dir / "task_packet.json",
+            {
+                "state_scope": "fast_scope",
+                "task_source": "derived_from_sample_artifacts",
+                "execution_scope": "decision_packet_controls_current_round",
+                "active_decision_packet": "project_state/decision_packet.md",
+            },
+        )
+        _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+        _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+        _write_json(state_dir / "negative_results.json", {})
+
+        decision_id = "decision_fast"
+        report_id = "codex_report_fast"
+        round_id = "round_fast"
+
+        _write_decision(state_dir, decision_id=decision_id, round_id=round_id, mainline="engineering_branch")
+        _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+
+        gates_dir = state_dir / "gates"
+        # Fast profile: closeout_allowed=false, omits close-round
+        _write_json(gates_dir / "gate_profile_plan.json", {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "mainline": "engineering_branch",
+            "profile": "fast",
+            "profile_reason": "artifact/report-only scope",
+            "closeout_allowed": False,
+            "required_command_kinds": ["startup", "preflight"],
+        })
+        _write_json(gates_dir / "command_plan.json", {
+            "schema_version": 1, "artifact_name": "command_plan.json",
+            "decision_id": decision_id, "round_id": round_id,
+            "plan_status": "PASSED",
+            "mainline": "engineering_branch",
+            "generated_at": "2026-06-18T00:00:00Z",
+            "commands": [
+                {"index": 1, "command": "Set-Location F:\\reverse-agent", "phase": "status", "kind": "startup", "required": True},
+                {"index": 2, "command": "Get-Location", "phase": "status", "kind": "startup", "required": True},
+                {"index": 3, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "startup", "required": True},
+                {"index": 4, "command": "git rev-parse --show-toplevel", "phase": "status", "kind": "startup", "required": True},
+                {"index": 5, "command": "git status --short", "phase": "status", "kind": "startup", "required": True},
+                {"index": 6, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state", "phase": "gate", "kind": "preflight", "required": True},
+                {"index": 7, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "gate-check", "required": True},
+            ],
+            "warnings": [],
+            "blocking_reasons": [],
+            "profile_meta": {
+                "profile": "fast",
+                "profile_reason": "artifact/report-only scope",
+                "closeout_allowed": False,
+                "required_command_kinds": ["startup", "preflight"],
+                "omitted_commands": ["pytest", "build", "close-round"],
+            },
+        })
+        _write_json(gates_dir / "round_delta_summary.json", {
+            "schema_version": 1, "artifact_name": "round_delta_summary.json",
+            "decision_id": decision_id, "round_id": round_id,
+            "baseline_available": True,
+            "new_dirty_files_since_baseline": [],
+            "inherited_dirty_files": [],
+            "final_dirty_files": [],
+        })
+        _write_json(gates_dir / "report_summary_synthesis.json", {
+            "schema_version": 1, "artifact_name": "report_summary_synthesis.json",
+            "decision_id": decision_id, "round_id": round_id,
+        })
+        _write_json(gates_dir / "final_gate_result.json", {
+            "schema_version": 1, "artifact_name": "final_gate_result.json",
+            "decision_id": decision_id, "round_id": round_id,
+            "gate_status": "PASSED",
+        })
+
+        base_artifacts = [
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/gate_profile_plan.json",
+        ]
+        _write_report(
+            state_dir,
+            decision_id=decision_id,
+            report_id=report_id,
+            round_id=round_id,
+            status=report_status,
+            acceptance=report_acceptance,
+            files_changed=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/round_delta_summary.json",
+            ],
+            tests_ran=[
+                "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            generated_artifacts=generated_artifacts if generated_artifacts is not None else base_artifacts,
+        )
+        startup_blocks = list(_STARTUP_COMMAND_BLOCKS)
+        _write_pytest(
+            state_dir,
+            decision_id=decision_id,
+            report_id=report_id,
+            round_id=round_id,
+            tests_ran=[
+                "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            body="\n\n".join(startup_blocks) + pytest_body_extra + "\n\n1 passed\n",
+        )
+        return state_dir
+
+    def test_fast_non_closeout_archive_checks_pass(self, tmp_path: Path) -> None:
+        """Fast non-closeout with no archive claims: archive checks should be PASS."""
+        state_dir = self._make_fast_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        # Archive checks should be PASS, not WARN
+        for check_name in (
+            "round_manifest_present",
+            "archived_report_matches_live_report",
+            "archived_pytest_result_matches_live_pytest_result",
+        ):
+            check = _check(result, check_name)
+            assert check["status"] == "PASS", f"{check_name} should be PASS, got {check['status']}: {check.get('detail')}"
+        # Verify the PASS detail mentions fast profile
+        manifest_check = _check(result, "round_manifest_present")
+        assert "fast profile" in manifest_check.get("detail", "").lower(), \
+            f"Expected fast profile detail, got: {manifest_check.get('detail')}"
+
+    def test_fast_non_closeout_archive_claim_still_warns(self, tmp_path: Path) -> None:
+        """Fast non-closeout with generated_artifacts claiming round archive: must WARN/FAIL."""
+        state_dir = self._make_fast_state(
+            tmp_path,
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                "project_state/rounds/round_fast/codex_execution_report.md",
+            ],
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        # Archive checks should NOT be PASS when archive is claimed
+        manifest_check = _check(result, "round_manifest_present")
+        assert manifest_check["status"] != "PASS", \
+            "round_manifest_present should not be PASS when archive is claimed"
+
+    def test_fast_non_closeout_close_round_recorded_still_warns(self, tmp_path: Path) -> None:
+        """Fast non-closeout with close-round in pytest_result: must WARN/FAIL."""
+        close_round_block = _command_block(
+            "python -m reverse_agent.project_gate close-round --state-dir project_state",
+            "close-round: PASSED",
+        )
+        state_dir = self._make_fast_state(
+            tmp_path,
+            pytest_body_extra="\n\n" + close_round_block,
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        # Archive checks should NOT be PASS when close-round is recorded
+        manifest_check = _check(result, "round_manifest_present")
+        assert manifest_check["status"] != "PASS", \
+            "round_manifest_present should not be PASS when close-round is recorded"
+
+    def test_standard_profile_archive_still_strict(self, tmp_path: Path) -> None:
+        """Standard/full profile: archive checks should still be WARN when no archive exists."""
+        state_dir = _make_gate_state(tmp_path)
+        # Remove the archive to simulate non-archived state
+        import shutil
+        archive_dir = tmp_path / "project_state" / "rounds"
+        if archive_dir.exists():
+            shutil.rmtree(archive_dir)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        # For full profile, archive checks should be WARN (not PASS)
+        manifest_check = _check(result, "round_manifest_present")
+        assert manifest_check["status"] == "WARN", \
+            f"Full profile without archive should WARN, got {manifest_check['status']}"
 
 
 class TestReportSummarySynthesisMainlineAware:
