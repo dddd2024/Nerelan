@@ -1,94 +1,105 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
-  "round_id": "round_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
-  "based_on_decision_id": "decision_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
-  "status": "FAILED",
-  "acceptance_recommendation": "REWORK_REQUIRED",
+  "report_id": "codex_report_20260618_fast_report_summary_stale_snapshot_source_fix_v1",
+  "round_id": "round_20260618_fast_report_summary_stale_snapshot_source_fix_v1",
+  "based_on_decision_id": "decision_20260618_fast_report_summary_stale_snapshot_source_fix_v1",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
     "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/gate_profile_plan.json",
     "project_state/gates/command_plan.json",
-    "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/final_gate_result.json",
+    "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json"
+    "project_state/gates/round_delta_summary.json",
+    "project_state/gates/run_round_result.json",
+    "project_state/pytest_result.txt",
+    "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/decision_packet.md",
+    "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/pytest_result.txt",
+    "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/round_manifest.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "tests_ran": [
+    "git status --short",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "Set-Location F:\\reverse-agent",
     "Get-Location",
     "Test-Path F:\\reverse-agent",
     "git rev-parse --show-toplevel",
-    "git status --short",
-    "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
     "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state"
+    "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+    "python -m reverse_agent.project_state doctor --state-dir project_state",
+    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_report_summary_stale_snapshot_source_fix_v1"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/gate_profile_plan.json",
     "project_state/gates/command_plan.json",
-    "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/final_gate_result.json",
+    "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json"
+    "project_state/gates/round_delta_summary.json",
+    "project_state/gates/run_round_result.json",
+    "project_state/pytest_result.txt",
+    "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/decision_packet.md",
+    "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/pytest_result.txt",
+    "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/round_manifest.json"
   ]
 }
 ```
 
-# Codex Execution Report - Fast Artifact-Only Validation V5
+# Codex Execution Report - Fast Report Summary Stale Snapshot Source Fix V1
 
 ## Decision
 
-`decision_20260618_fast_artifact_only_validation_v5_parser_safe_scope`
+`decision_20260618_fast_report_summary_stale_snapshot_source_fix_v1`
 
 ## Summary
 
-This fast artifact-only validation did not reach an accepted closeout. The v5 parser-safe decision fixed the v4 preflight blocker, but the later report-summary/final-check gates still produced FAIL checks because the synthesized generated-artifact set expected `project_state/gates/round_close_snapshot.json`.
+Implemented a bounded source fix in `reverse_agent/project_gate.py` so `build_report_summary_synthesis` only treats optional gate artifacts as current when the active command plan includes the relevant command kind and the artifact IDs match the current decision and round.
 
-The v5 decision explicitly says the stale closeout snapshot must not be listed as current generated evidence. `project_state/gates/round_close_snapshot.json` still carries older `decision_20260618_fast_non_closeout_prose_precision_rework_v1` IDs and was not modified in this round, so it is excluded here.
+This repairs the stale fast non-closeout synthesis path:
 
-The work stayed inside the artifact-only boundary. No source files, test files, solver code, harness code, reverse-engineering integrations, samples, `.codex-skills/`, `solve_reports/`, or `project_state/rounds/` files were modified.
+- `project_state/gates/round_close_snapshot.json` is no longer pulled into fast non-closeout expected files/artifacts just because an old snapshot exists on disk.
+- `project_state/gates/run_round_result.json` is no longer pulled into expected files/artifacts when run-round is omitted and the file is stale.
+- Full profile closeout behavior remains strict for current close snapshots and archive paths.
+- Generated-artifact mismatch checking remains active.
 
-## Gate Results
+## Source Changes
 
-- `preflight`: PASSED
-- `gate-profile`: PASSED
-- `gate-profile` classified this round as `profile=fast`.
-- `gate-profile` set `closeout_allowed=false`.
-- `command-plan`: PASSED
-- `command-plan` omitted `pytest`.
-- `command-plan` omitted `close-round`.
-- Active `command-plan` commands did not include `pytest`.
-- Active `command-plan` commands did not include `close-round`.
-- `report-summary`: FAILED because synthesized `generated_artifacts` included stale `round_close_snapshot.json`.
-- `final-check`: FAILED because it preserved the same generated-artifact mismatch.
+- Added active command-kind and current-artifact predicates.
+- Filtered stale optional `round_close_snapshot.json` and `run_round_result.json` out of report-summary synthesis before building `files_changed` and `generated_artifacts`.
 
-## Fast Non-Closeout Scope
+## Test Changes
 
-`pytest` was intentionally omitted by fast profile. `close-round intentionally omitted because closeout_allowed=false`.
+- Added regression coverage for a fast non-closeout stale close snapshot.
+- Added regression coverage for a fast non-closeout stale run-round result when dry-run/run-round is omitted.
+- Added full-profile coverage proving a current close snapshot is still expected.
 
-No close command completion is claimed. No generated artifact path under `project_state/rounds/` is listed.
+## Validation
 
-## Artifact Freshness
+- Focused regression subset: `24 passed, 476 deselected`.
+- Full required test suite: `768 passed`.
+- Gate profile: full profile, closeout allowed.
+- Command plan: PASSED.
+- Run-round dry-run: PASSED.
+- Doctor and lint-report: rerun after metadata refresh and passed.
+- Report-summary/final-check/close-round are recorded in current gate artifacts and archive output.
 
-`run-round --dry-run --json` was not part of the active command-plan and was not run in this v5 round. `project_state/gates/run_round_result.json` still carries older v3 IDs and is not claimed as current generated evidence.
+## Scope Notes
 
-All generated/current gate artifacts listed in `generated_artifacts` are within the v5 Implementation Scope. Gate artifacts with ID fields carry the current v5 decision and round IDs.
-
-## Blocking Finding
-
-The current gate synthesis expects stale `round_close_snapshot.json` in generated artifacts even though the v5 decision prohibits listing stale snapshot data. Accepting that synthesized list would violate the task boundary, so this report uses `status=FAILED` and `acceptance_recommendation=REWORK_REQUIRED`.
-
-## Limitations
-
-This was a fast artifact-only validation. It deliberately did not run pytest, did not run close-round, did not create any `project_state/rounds/` output, and did not run reverse-solving or runtime tooling.
+No solver, harness, sample, `solve_reports/`, `.codex-skills/`, or reverse-engineering runtime files were modified.

@@ -1635,6 +1635,168 @@ def test_report_summary_includes_run_round_result_when_planned(
     assert "project_state/gates/run_round_result.json" in result["synthesized_summary"]["generated_artifacts"]
 
 
+def test_report_summary_fast_non_closeout_excludes_stale_close_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_json(
+        state_dir / "gates" / "gate_profile_plan.json",
+        {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "decision_report_summary",
+            "round_id": "round_gate",
+            "mainline": "engineering_branch",
+            "profile": "fast",
+            "profile_reason": "artifact-only",
+            "closeout_allowed": False,
+            "required_command_kinds": [
+                "startup",
+                "preflight",
+                "command-plan",
+                "report-summary",
+                "final-check",
+            ],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "round_close_snapshot.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "round_close_snapshot.json",
+            "decision_id": "old_decision",
+            "round_id": "old_round",
+            "round_closed": True,
+        },
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: ["project_state/gates/round_close_snapshot.json"],
+    )
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    summary = result["synthesized_summary"]
+
+    assert "project_state/gates/round_close_snapshot.json" not in summary["files_changed"]
+    assert "project_state/gates/round_close_snapshot.json" not in summary["generated_artifacts"]
+
+
+def test_report_summary_fast_non_closeout_excludes_stale_run_round_when_omitted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_json(
+        state_dir / "gates" / "gate_profile_plan.json",
+        {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "decision_report_summary",
+            "round_id": "round_gate",
+            "mainline": "engineering_branch",
+            "profile": "fast",
+            "profile_reason": "artifact-only",
+            "closeout_allowed": False,
+            "required_command_kinds": [
+                "startup",
+                "preflight",
+                "command-plan",
+                "report-summary",
+                "final-check",
+            ],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "run_round_result.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "run_round_result.json",
+            "decision_id": "old_decision",
+            "round_id": "old_round",
+            "run_status": "PASSED",
+        },
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: ["project_state/gates/run_round_result.json"],
+    )
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    summary = result["synthesized_summary"]
+
+    assert "project_state/gates/run_round_result.json" not in summary["files_changed"]
+    assert "project_state/gates/run_round_result.json" not in summary["generated_artifacts"]
+
+
+def test_report_summary_full_profile_includes_current_close_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_json(
+        state_dir / "gates" / "gate_profile_plan.json",
+        {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "decision_report_summary",
+            "round_id": "round_gate",
+            "mainline": "engineering_branch",
+            "profile": "full",
+            "profile_reason": "full profile",
+            "closeout_allowed": True,
+            "required_command_kinds": [
+                "startup",
+                "preflight",
+                "command-plan",
+                "run-round",
+                "pytest",
+                "doctor",
+                "lint-report",
+                "report-summary",
+                "final-check",
+                "close-round",
+            ],
+        },
+    )
+    command_plan_path = state_dir / "gates" / "command_plan.json"
+    command_plan_payload = json.loads(command_plan_path.read_text(encoding="utf-8"))
+    command_plan_payload["commands"].append(
+        {
+            "index": len(command_plan_payload["commands"]) + 1,
+            "command": "python -m reverse_agent.project_gate close-round --state-dir project_state",
+            "phase": "gate",
+            "kind": "close-round",
+            "required": True,
+            "expected_exit_codes": [0],
+        }
+    )
+    _write_json(command_plan_path, command_plan_payload)
+    _write_json(
+        state_dir / "gates" / "round_close_snapshot.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "round_close_snapshot.json",
+            "decision_id": "decision_report_summary",
+            "round_id": "round_gate",
+            "round_closed": True,
+        },
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: ["project_state/gates/round_close_snapshot.json"],
+    )
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    summary = result["synthesized_summary"]
+
+    assert "project_state/gates/round_close_snapshot.json" in summary["files_changed"]
+    assert "project_state/gates/round_close_snapshot.json" in summary["generated_artifacts"]
+
+
 def test_report_summary_fails_when_report_tests_ran_missing(tmp_path: Path) -> None:
     state_dir = _make_report_summary_state(tmp_path, tests_ran=[])
 

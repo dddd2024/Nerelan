@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
-  "round_id": "round_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
-  "head_commit": "553c9b325709",
+  "decision_id": "decision_20260618_fast_report_summary_stale_snapshot_source_fix_v1",
+  "round_id": "round_20260618_fast_report_summary_stale_snapshot_source_fix_v1",
+  "head_commit": "ac667c2cd311",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-18T06:31:10.813130Z"
+  "generated_at": "2026-06-18T06:42:19.763783Z"
 }

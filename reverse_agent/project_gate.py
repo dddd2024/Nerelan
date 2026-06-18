@@ -3400,6 +3400,23 @@ def _has_structural_field_diff(diffs: list[dict[str, Any]]) -> bool:
     return any(d.get("field") in structural_fields for d in diffs)
 
 
+def _command_plan_has_active_kind(commands: list[dict[str, Any]], kind: str) -> bool:
+    for item in commands:
+        declared_kind = str(item.get("kind") or "")
+        command = str(item.get("command") or "")
+        if declared_kind == kind or (command and _command_kind(command) == kind):
+            return True
+    return False
+
+
+def _artifact_matches_current_round(payload: dict[str, Any], *, decision_id: str, round_id: str) -> bool:
+    return (
+        bool(payload)
+        and str(payload.get("decision_id") or "") == decision_id
+        and str(payload.get("round_id") or "") == round_id
+    )
+
+
 def build_report_summary_synthesis(
     *,
     state_dir: Path,
@@ -3531,15 +3548,33 @@ def build_report_summary_synthesis(
     # even if it has already been committed and is no longer dirty.
     claimed_source_test = _extract_claimed_source_test_paths(report_text)
     round_delta_files |= claimed_source_test
-    # Only include close snapshot in expected files if it already exists
-    # (i.e., close-round has been run). During active rounds before
-    # close-round, the close snapshot doesn't exist yet.
-    close_snapshot_exists = _round_close_snapshot_path(state_dir).exists()
+    active_close_round = command_plan_ok and _command_plan_has_active_kind(commands, CLOSE_ROUND_NAME)
+    active_run_round = command_plan_ok and _command_plan_has_active_kind(commands, RUN_ROUND_NAME)
+    close_snapshot_payload = _read_json(_round_close_snapshot_path(state_dir))
+    include_close_snapshot = (
+        closeout_allowed is not False
+        and active_close_round
+        and _artifact_matches_current_round(
+            close_snapshot_payload,
+            decision_id=decision_id,
+            round_id=round_id,
+        )
+    )
+    run_round_payload = _read_json(state_dir / "gates" / RUN_ROUND_RESULT_NAME)
+    include_run_round = active_run_round and _artifact_matches_current_round(
+        run_round_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    )
+    if not include_close_snapshot:
+        round_delta_files.discard(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+    if not include_run_round:
+        round_delta_files.discard(RUN_ROUND_OUTPUT_PATH)
     expected_files_changed = sorted(
         round_delta_files
         | archive_paths
         | {REPORT_SUMMARY_OUTPUT_PATH}
-        | ({ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH} if close_snapshot_exists else set())
+        | ({ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH} if include_close_snapshot else set())
     )
     generated_artifact_set = {
         "project_state/codex_execution_report.md",
@@ -3555,13 +3590,11 @@ def build_report_summary_synthesis(
         generated_artifact_set.add(PREFLIGHT_OUTPUT_PATH)
     if command_plan_ok:
         generated_artifact_set.add(COMMAND_PLAN_OUTPUT_PATH)
-    if close_snapshot_exists:
+    if include_close_snapshot:
         generated_artifact_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
     if (state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME).exists():
         generated_artifact_set.add(GATE_PROFILE_PLAN_OUTPUT_PATH)
-    if (state_dir / "gates" / RUN_ROUND_RESULT_NAME).exists() and (
-        RUN_ROUND_OUTPUT_PATH in round_delta_files or any(_command_kind(command) == "run-round" for command in command_strings)
-    ):
+    if include_run_round:
         generated_artifact_set.add(RUN_ROUND_OUTPUT_PATH)
     # Include decision-scope required deliverables that were promoted from
     # inherited dirty files into generated_artifacts.
