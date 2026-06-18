@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_fast_report_summary_stale_snapshot_source_fix_v1",
-  "round_id": "round_20260618_fast_report_summary_stale_snapshot_source_fix_v1",
+  "decision_id": "decision_20260618_source_fix_closeout_record_rework_v1",
+  "round_id": "round_20260618_source_fix_closeout_record_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T06:48:43.622898Z",
+  "generated_at": "2026-06-18T07:42:56.421499Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260618_fast_artifact_only_validation_v5_parser_safe_scope"
+      "report_id": "codex_report_20260618_fast_report_summary_stale_snapshot_source_fix_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,6 +71,10 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "PARTIAL",
+        "Report body must explicitly state whether close-round was run, its exit status, and whether archive files were generated.",
+        "SUCCESS/ACCEPTED",
+        "files_changed",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -82,11 +86,12 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_report_summary_stale_snapshot_source_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260618_source_fix_closeout_record_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260618_source_fix_closeout_record_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260618_source_fix_closeout_record_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260618_source_fix_closeout_record_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
+        "round_close_snapshot.json",
         "tests/test_project_gate.py",
         "tests/test_project_state.py"
       ]
@@ -135,7 +140,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "ac667c2cd311"
+    "head_commit": "8fc931c33ef8"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
