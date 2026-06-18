@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260618_restore_gate_report_hygiene_v1",
-  "round_id": "round_20260618_restore_gate_report_hygiene_v1",
-  "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
-  "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
+  "decision_id": "decision_20260618_training_coverage_matrix_gap_report_v1",
+  "round_id": "round_20260618_training_coverage_matrix_gap_report_v1",
+  "based_on_state_build_id": "state_20260618_114539_14d4ec94f06b",
+  "based_on_state_digest": "14d4ec94f06bab113eb55fdf774e82b449b2851672e927f2b0df7a6052a95cc2",
   "status": "APPROVED",
-  "mainline": "engineering_branch",
+  "mainline": "training_dataset",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,67 +15,57 @@
 
 ## 1. Goal
 
-恢复并执行 gate report hygiene 修复轮。
+从已有本地逆向训练样本 inventory 出发，生成题型覆盖矩阵、solver/tool 能力映射和两周训练缺口报告。
 
-当前默认分支没有以 `decision_20260618_gate_report_hygiene_and_build_scope_v1` 为执行权威，live report 仍然基于 `decision_20260618_startup_command_coverage_logic_fix_v1`。本轮必须重新建立当前 decision，并清理上一轮残留的 report hygiene 问题。
+本轮不是从零建立 inventory。已有事实包括：`training_materials/local_reverse/inventory.json` 曾记录 50 个 metadata-only 样本，`status_overlay.json` 曾记录 1 solved、2 blocked、1 needs_triage、46 inventory_only，`project_state/local_reverse_evaluation_queue.json` 曾记录 41 个 static-triage-first 队列项。本轮目标是在这些已有基础上刷新 current 状态，并把“样本清单”推进到“能力建设地图”。
 
-目标行为：
+目标产物：
 
-1. live `project_state/decision_packet.md` 必须是本轮 `decision_20260618_restore_gate_report_hygiene_v1`。
-2. `codex_execution_report.md.based_on_decision_id` 必须匹配本轮 decision。
-3. 修正 report 正文中过期的 `close-round: To be run` 描述。
-4. 处理或解释 `build_output_scope_unverified` WARN。
-5. 重新运行 report-summary 和 final-check。
-6. 最终不得有 FAIL。
-7. 不改动已通过的 startup coverage 源码逻辑，除非发现新的 bounded bug。
+1. `project_state/local_reverse_training_inventory_refresh.json`
+2. `project_state/local_reverse_training_coverage_matrix.json`
+3. `project_state/local_reverse_solver_tool_capability_map.json`
+4. `project_state/local_reverse_training_gap_report.md`
+5. 必要时更新 `project_state/artifact_index.json`、`project_state/current_state.json`、`project_state/codex_execution_report.md`、`project_state/pytest_result.txt` 和 gate artifacts。
+
+覆盖矩阵必须面向用户两周目标，至少覆盖：字符串比较、XOR、移位、位运算、查表、RC4、DES、TEA、Base64、hash/MD5/SHA、GUI 校验、简单反调试、mixed/unknown。
+
+本轮不求解样本，不运行样本，不执行 runtime probe。只允许 metadata/status/coverage 层面的只读分析和已有工具接口审计。
 
 ## 2. Current Evidence
 
-上一轮 `startup_command_coverage_logic_fix_v1` 已经通过核心 gate：
+主线是 `training_dataset`。
 
-- pytest 通过。
-- final-check PASSED。
-- startup_command_coverage PASS。
-- command_plan_covers_report_tests PASS。
-- archive/live 一致。
+已有训练集基础不是空白：历史 `training_local_reverse_inventory_audit_v1` 已确认本地训练样本 inventory、status overlay 和 evaluation queue 存在。当前 `task_packet.json` 仍指向旧 `samplereverse` reverse-solving 建议，但执行权威是 `project_state/decision_packet.md`。
 
-但 hygiene 目标未完成：
+当前 `task_packet.json` 的 state build 已刷新为 `state_20260618_114539_14d4ec94f06b`，digest 为 `14d4ec94f06bab113eb55fdf774e82b449b2851672e927f2b0df7a6052a95cc2`，但内容仍偏 sample_state/reverse-solving，不足以支撑训练集能力建设。
 
-- live decision 仍是 `startup_command_coverage_logic_fix_v1`。
-- report 正文仍含 close-round 过期描述。
-- final gate 仍有 `build_output_scope_unverified` WARN。
+`negative_results.json` 中禁止旧 reverse-solving 方向，包括 old sample_solver blind search、budget-only expansion、compare_semantics_agree=false candidate、提交完整 solve_reports，以及重复旧 samplereverse 失败分支。本轮不触碰这些方向。
 
-`task_packet.json` 仍是旧 reverse-solving 建议，不是当前执行权威。
-
-本轮主线是 `engineering_branch`，不是 reverse-solving。
-
-`negative_results.json` 中 reverse-solving 禁止方向继续有效；本轮不触碰旧 sample_solver、budget-only expansion、compare_semantics_agree=false candidate frontier 或完整 solve_reports 提交。
-
-`.codex-skills/registry.json` 中 `reverse-agent-iteration@v2` 是 active skill。
+本轮进入 training_dataset 前必须检查已有能力：sample metadata、training inventory、status overlay、evaluation queue、solver 模板、static triage、IDA/Ghidra/debugger/tool runner/harness/StructuredEvidence 接口。成熟工具优先，不重复实现已有接口。
 
 ## 3. Do Not Do
 
 不要运行 reverse-solving。
 
-不要运行样本、IDA、Ghidra、OllyDbg、x64dbg、debugger hook、emulator、runtime probe。
+不要运行任何样本可执行文件。
 
-不要调用旧 `sample_solver`。
+不要运行 IDA、Ghidra、OllyDbg、x64dbg、debugger hook、emulator、runtime probe、sidecar、sample runner 或 GUI/frontend workflow。
+
+不要调用旧 `sample_solver`，不要扩大 beam/topN/budget/timeout。
 
 不要提交完整 `solve_reports/`。
 
 不要修改 `.codex-skills/`。
 
-不要新增 `medium` profile；当前 profile 名仍是 `standard`。
+不要把单个样本 candidate、flag、本地绝对路径、一次性运行结论写进 skill。
 
-不要降低 full profile closeout/archive/manifest 严格性。
+不要把训练集建设变成单样本硬编码。
 
-不要重写 startup coverage 修复逻辑，除非有明确 bounded bug。
+不要默认读取完整 `PROJECT_PROGRESS_LOG.txt` 或完整 `solve_reports/`。
 
-不要只改 report 正文而不重新运行 report-summary/final-check。
+不要把 `task_packet.task` 当成本轮执行权威。
 
-不要在 close-round 后再修改 live report/pytest_result；如果必须修改，必须重新 close-round。
-
-不要修改本 decision 文件；如果启动时本 decision 文件 dirty，立即停止。
+不要把 stale/missing artifact 当 current evidence。
 
 ## 4. Files To Inspect
 
@@ -90,46 +80,61 @@
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-重点检查：
+训练集相关重点检查：
 
-1. `project_state/codex_execution_report.md`
-2. `project_state/pytest_result.txt`
-3. `project_state/gates/final_gate_result.json`
-4. `project_state/gates/report_summary_synthesis.json`
-5. `project_state/gates/round_delta_summary.json`
-6. `project_state/gates/round_close_snapshot.json`
-7. `project_state/rounds/round_20260618_startup_command_coverage_logic_fix_v1/round_manifest.json`
-8. `reverse_agent/project_gate.py`
-9. `tests/test_project_gate.py`
+1. `training_materials/local_reverse/inventory.json`
+2. `training_materials/local_reverse/status_overlay.json`
+3. `project_state/local_reverse_evaluation_queue.json`
+4. `project_state/local_reverse_training_inventory_audit.md`
+5. `project_state/local_reverse_training_resume_plan.json`
+6. `reverse_agent/local_reverse_inventory.py`
+7. `reverse_agent/local_reverse_training_status.py`
+8. `reverse_agent/local_reverse_single_sample_static_triage.py`
+9. `reverse_agent/tool_runners.py`
+10. `tests/test_local_reverse_training_status.py`
+11. 与 solver/tool capability 直接相关的现有源码和测试入口。
+
+只允许有界读取历史 round：
+
+- `project_state/rounds/round_20260612_training_local_reverse_inventory_audit_v1/*`
+- `project_state/rounds/round_20260612_training_metadata_contract_repair_v1/*`
+- `project_state/rounds/round_20260616_local_reverse_training_resume_plan_v1/*`
 
 不要读取完整 `PROJECT_PROGRESS_LOG.txt` 或完整 `solve_reports/`。
 
 ## 5. Required Audit
 
-必须确认：
+执行前必须确认：
 
 1. 当前工作目录是 `F:\reverse-agent`。
 2. `Test-Path F:\reverse-agent` 为 `True`。
 3. `git rev-parse --show-toplevel` 指向当前仓库。
 4. 启动 `git status --short` 已记录。
-5. decision_meta 为 APPROVED。
-6. mainline 为 `engineering_branch`。
+5. `decision_meta.status=APPROVED`。
+6. `mainline=training_dataset`。
 7. `reverse-agent-iteration@v2` 是 active skill。
-8. 本轮 report 的 `based_on_decision_id` 匹配本 decision。
+8. 本轮是训练集 metadata/coverage 工作，不是逆向样本求解。
 
-必须解释：
+必须审计并记录：
 
-1. 为什么上一轮 startup coverage 修复可以保留。
-2. 为什么当前 report 正文仍不干净。
-3. `build_output_scope_unverified` 的原因。
-4. 本轮是否运行 `python -m reverse_agent.project_state build`。
-5. 本轮最终 final-check 是否无 FAIL。
-6. 如果 close-round 运行，archive/live 是否一致。
+1. 当前 inventory 样本数、metadata-only 策略是否仍有效。
+2. 当前 status overlay 的 solved/blocked/needs_triage/inventory_only 统计。
+3. 当前 evaluation queue 的 item 数、策略、允许/禁止动作。
+4. 每个样本已有 category/tags 是否足以映射到题型覆盖矩阵。
+5. 已有 solver/tool/harness/static-triage 能力入口有哪些，哪些题型已有能力，哪些只是未验证能力。
+6. 是否存在 IDA/IDAPython runner、Ghidra runner、debugger runner、strings/file/objdump/radare2 静态提取入口、StructuredEvidence 转换、candidate verification/harness。
+7. 题型覆盖矩阵中每个能力结论的证据来源和 freshness。
 
 ## 6. Implementation Scope
 
-优先只修改 project_state/report artifacts：
+优先只生成/更新 project_state training artifacts：
 
+- `project_state/local_reverse_training_inventory_refresh.json`
+- `project_state/local_reverse_training_coverage_matrix.json`
+- `project_state/local_reverse_solver_tool_capability_map.json`
+- `project_state/local_reverse_training_gap_report.md`
+- `project_state/artifact_index.json`
+- `project_state/current_state.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/preflight_result.json`
@@ -139,30 +144,41 @@
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260618_restore_gate_report_hygiene_v1/*`
+- `project_state/rounds/round_20260618_training_coverage_matrix_gap_report_v1/*` only if close-round actually runs and succeeds.
 
-允许在运行 state build 后更新：
+只有当现有 training status 工具无法输出所需 metadata/coverage 字段时，才允许小范围修改：
 
-- `project_state/artifact_index.json`
-- `project_state/current_state.json`
-- `project_state/model_gate.json`
-- `project_state/task_packet.json`
+- `reverse_agent/local_reverse_training_status.py`
+- `tests/test_local_reverse_training_status.py`
+- `reverse_agent/local_reverse_inventory.py`
 
-只有发现明确 bounded bug 时，才允许修改：
+不得修改 solver 主逻辑、harness 主逻辑、tool runner 主逻辑，除非只是只读 capability introspection 的小补丁且有测试覆盖。
 
-- `reverse_agent/project_gate.py`
-- `tests/test_project_gate.py`
-- `tests/test_project_state.py`
+`local_reverse_training_coverage_matrix.json` 至少包含：
 
-要求：
+- `schema_version`
+- `generated_at`
+- `based_on_inventory`
+- `type_rows`
+- 每类题的 `sample_count`、`sample_ids`、`known_solved_count`、`candidate_solver_modules`、`tool_evidence_available`、`harness_available`、`coverage_status`、`confidence`、`gap`、`next_minimal_task`。
 
-1. 删除或修正 report 正文中的 `close-round: To be run` 过期描述。
-2. 若 build-generated state files 出现在 round delta，必须在 pytest_result 中记录 build command，或在 report 中明确说明 non-blocking 依据。
-3. report-summary 必须 PASSED。
-4. final-check 不得有 FAIL。
-5. 若 final-check 无 FAIL 且 closeout_allowed=true，再 close-round。
-6. close-round 后不得再改 live report/pytest_result；如果改了，必须重新 close-round。
+`local_reverse_solver_tool_capability_map.json` 至少包含：
+
+- solver templates
+- static extraction tools
+- IDA/Ghidra/debugger interfaces
+- harness/candidate verification
+- StructuredEvidence path
+- GUI/CLI entry points
+- per-capability tests or evidence freshness
+
+`local_reverse_training_gap_report.md` 必须面向两周目标，输出：
+
+- 当前 50 样本状态摘要。
+- 每类题是否已有可复现解题能力。
+- 一周内优先补齐的 3-5 个能力缺口。
+- 每个缺口的最小下一步任务，不允许直接批量盲跑。
+- 哪些能力只能 metadata-level 判断，尚未 live/static triage 验证。
 
 ## 7. Tests
 
@@ -175,10 +191,19 @@ Test-Path F:\reverse-agent
 git rev-parse --show-toplevel
 git status --short
 
-python -m reverse_agent.project_state build
+python -m pytest tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q
+```
 
-python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+如果已有 training inventory/status CLI，运行只读命令并记录 stdout/stderr；没有则在 report 中明确说明缺口。优先尝试：
 
+```powershell
+python -m reverse_agent.local_reverse_training_status --help
+python -m reverse_agent.local_reverse_training_status --json
+```
+
+随后运行 gate：
+
+```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state --json
@@ -188,10 +213,10 @@ python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-如果 `final-check` 无 FAIL 且 `gate_profile_plan.closeout_allowed=true`：
+如果 `final-check` 无 FAIL 且 `gate_profile_plan.closeout_allowed=true`，运行 close-round 并再次 final-check：
 
 ```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_restore_gate_report_hygiene_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_training_coverage_matrix_gap_report_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -200,13 +225,14 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 立即停止并报告 `REWORK_REQUIRED` 或 `BLOCKED`，如果：
 
 1. 目录或仓库不正确。
-2. decision_meta 不合法。
-3. skill inactive。
-4. report 的 based_on_decision_id 不匹配本 decision。
-5. 需要修改允许范围外文件。
-6. 需要运行样本或逆向工具。
-7. 需要读取完整 solve_reports 或 PROJECT_PROGRESS_LOG。
-8. report 仍包含 close-round 事实冲突描述。
-9. `report-summary` 或 `final-check` 最终出现 FAIL。
-10. close-round 后又修改 live report/pytest_result 且未重新 close-round。
-11. 报告声称 closeout 成功但 archived report/pytest 与 live 不一致。
+2. `decision_meta` 缺失或不是 APPROVED。
+3. `mainline` 不是 `training_dataset`。
+4. `reverse-agent-iteration@v2` 不是 active。
+5. 需要运行样本、debugger、IDA/Ghidra、emulator、runtime probe 或 sidecar。
+6. 需要读取完整 `solve_reports/` 或 `PROJECT_PROGRESS_LOG.txt`。
+7. 需要修改允许范围之外的文件。
+8. 发现 inventory/status/queue 缺失且无法只读重建。
+9. 题型覆盖矩阵无法说明证据来源或 freshness。
+10. 把单次样本 flag/candidate/本地绝对路径写入长期 skill。
+11. `report-summary` 或 `final-check` 最终出现 FAIL。
+12. 报告声称题型能力已具备，但没有 solver/tool/harness 或测试证据支撑。
