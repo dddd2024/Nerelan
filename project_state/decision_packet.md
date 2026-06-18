@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260618_static_type_tag_contract_scope_repair_v1",
-  "round_id": "round_20260618_static_type_tag_contract_scope_repair_v1",
+  "decision_id": "decision_20260618_static_type_tag_contract_scope_wording_repair_v1",
+  "round_id": "round_20260618_static_type_tag_contract_scope_wording_repair_v1",
   "based_on_state_build_id": "state_20260618_114539_14d4ec94f06b",
   "based_on_state_digest": "14d4ec94f06bab113eb55fdf774e82b449b2851672e927f2b0df7a6052a95cc2",
   "status": "APPROVED",
@@ -15,9 +15,9 @@
 
 ## 1. Goal
 
-修复上一轮 `static_triage_type_tag_contract_v1` 的 scope 问题，并继续推进训练集静态题型标签契约。
+修复上一轮 `static_type_tag_contract_scope_repair_v1` 的 decision 文案解析问题，并继续推进训练集静态题型标签契约。
 
-上一轮被 preflight 阻断，原因是 Implementation Scope 允许修改 `reverse_agent/local_reverse_single_sample_static_triage.py`，该文件在当前 gate 规则下属于 forbidden path；`training_dataset` 主线当前不允许修改该路径。本轮返工目标是收窄范围：只生成 project_state contract artifact 和 synthetic/unit tests，不修改 static triage 主入口、evidence、tool runner、solver、harness 或 gate 源码。
+上一轮被 preflight 阻断，不是因为真实 allowed scope 越界，而是因为 `Implementation Scope` 中的中文标题“明确禁止修改”没有被 gate 的 allowed-scope parser 识别为 stop-word，导致该标题后面的 `.codex-skills/*` 与 `solve_reports/*` 被误解析为 allowed paths。本轮只修复 decision wording：Implementation Scope 只列允许修改的路径，不再在该 section 内列 forbidden path bullets。
 
 目标产物：
 
@@ -31,11 +31,11 @@
 
 主线是 `training_dataset`。
 
-上一轮 `decision_20260618_static_triage_type_tag_contract_v1` 当前状态为 `BLOCKED`：preflight 在 `forbidden_paths_not_allowed` 处失败；Implementation Scope 未开始；tests 未运行；type-tag contract artifacts 未创建。
+上一轮 `decision_20260618_static_type_tag_contract_scope_repair_v1` 当前状态为 `BLOCKED`：preflight 在 `forbidden_paths_not_allowed` 处失败；Implementation Scope 未开始；tests 未运行；type-tag contract artifacts 未创建。
 
-上一轮阻塞根因是 decision scope 过宽，而不是 Codex 执行错误。本轮必须移除 forbidden source paths，只保留 project_state artifact 与 tests 范围。
+阻塞根因是 gate parser 没有把“明确禁止修改”识别为 allowed block 的结束标记，从而误将 `.codex-skills/*`、`solve_reports/*` 解析为 allowed paths。当前实际意图没有允许修改这些路径。
 
-已有训练集事实来自上一轮已接受的 coverage matrix/gap report：local project_state inventory 有 65 个 metadata-only entries；read-only builder status 为 solved=1、blocked=2、needs_triage=0、inventory_only=62；coverage matrix 覆盖 string comparison、XOR、shift/affine、bit operations、lookup table、RC4、DES、TEA/XTEA、Base64、hash/MD5/SHA、GUI、simple anti-debug、mixed/unknown；多数类别仍是 metadata/source-audit level。
+已有训练集事实来自已接受的 coverage matrix/gap report：local project_state inventory 有 65 个 metadata-only entries；read-only builder status 为 solved=1、blocked=2、needs_triage=0、inventory_only=62；coverage matrix 覆盖 string comparison、XOR、shift/affine、bit operations、lookup table、RC4、DES、TEA/XTEA、Base64、hash/MD5/SHA、GUI、simple anti-debug、mixed/unknown；多数类别仍是 metadata/source-audit level。
 
 已有能力检查必须以当前 project_state 产物和 capability map 为依据，优先复用既有 sample metadata、inventory/status overlay、evaluation queue、solver/tool capability map、StructuredEvidence/tool-output 能力描述；不得重复实现成熟工具能力。
 
@@ -109,10 +109,11 @@
 7. `reverse-agent-iteration@v2` 是 active skill。
 8. 当前 decision 的 Implementation Scope 不包含 forbidden source paths。
 9. 本轮是 contract/schema artifact 工作，不是样本求解或工具执行。
+10. preflight 不再出现 `forbidden_paths_not_allowed`。
 
 必须审计并记录：
 
-1. 上一轮 BLOCKED 的具体原因，并确认本轮 scope 已移除 forbidden paths。
+1. 上一轮 BLOCKED 的具体原因，并确认本轮 wording 已避免 parser 误解析。
 2. capability map 中已有的 inventory、static triage、IDA static extraction、debugger dynamic extraction、StructuredEvidence、solver template、harness、GUI/CLI entrypoint 能力状态；只记录能力，不执行工具。
 3. coverage matrix/gap report 中每个目标 type 的 status、gap、next_minimal_task。
 4. contract 对每个 type tag 的 evidence requirements、allowed evidence sources、confidence rules、not sufficient conditions 是否明确。
@@ -120,7 +121,7 @@
 
 ## 6. Implementation Scope
 
-允许新增或修改：
+Allowed paths:
 
 - `project_state/local_reverse_static_type_tag_contract.json`
 - `project_state/local_reverse_static_type_tag_contract_report.md`
@@ -138,14 +139,7 @@
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260618_static_type_tag_contract_scope_repair_v1/*`
-
-明确禁止修改：
-
-- any `reverse_agent/` source file
-- `.codex-skills/*`
-- `solve_reports/*`
-- sample binaries or local training corpus files
+- `project_state/rounds/round_20260618_static_type_tag_contract_scope_wording_repair_v1/*`
 
 Contract 至少覆盖这些 tag ids：
 
@@ -208,7 +202,7 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 如果 `final-check` 无 FAIL 且 `gate_profile_plan.closeout_allowed=true`，运行：
 
 ```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_static_type_tag_contract_scope_repair_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_static_type_tag_contract_scope_wording_repair_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
