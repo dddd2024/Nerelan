@@ -4294,23 +4294,48 @@ def final_check(
             )
             if close_round_effectively_omitted and gp_closeout_allowed is False:
                 # close-round omitted/absent and closeout not allowed: report
-                # must not claim accepted closeout
+                # must not claim accepted closeout or archive success.
+                # However, a fast non-closeout validation may legitimately
+                # report status=SUCCESS / acceptance=ACCEPTED for the
+                # validation outcome itself, as long as it does not claim
+                # close-round ran, archive files were produced, or normal
+                # archived closeout success.
                 report_status_val = str(report.get("status") or "")
                 acceptance_val = str(report.get("acceptance_recommendation") or "")
+                # Detect actual closeout/archive claims, not just validation success
+                gen_artifacts = report.get("generated_artifacts") or []
+                archive_artifact_claims = any(
+                    _norm_path(str(p)).startswith("project_state/rounds/")
+                    for p in gen_artifacts
+                )
+                # Check report prose for close-round/archive success claims
+                claims_closeout_in_prose = False
+                if report_text:
+                    closeout_claim_patterns = [
+                        "close-round",
+                        "close_round",
+                        "closeout success",
+                        "archived closeout",
+                        "round archive",
+                        "round_archive",
+                    ]
+                    lower_text = report_text.lower()
+                    claims_closeout_in_prose = any(p in lower_text for p in closeout_claim_patterns)
                 claims_closeout = (
-                    "ACCEPTED" in acceptance_val
-                    or report_status_val == "SUCCESS"
+                    archive_artifact_claims
+                    or claims_closeout_in_prose
                 )
                 checks.append(
                     _check(
                         "fast_profile_closeout_consistency",
                         "FAIL" if claims_closeout else "PASS",
-                        "fast profile claims accepted closeout while close-round was omitted and closeout not allowed"
+                        "fast profile claims archived closeout while close-round was omitted and closeout not allowed"
                         if claims_closeout
-                        else "fast profile correctly omits close-round without claiming accepted closeout",
+                        else "fast profile correctly omits close-round; validation success does not imply closeout",
                         close_round_omitted=close_round_omitted,
                         close_round_in_commands=close_round_in_commands,
                         closeout_allowed=gp_closeout_allowed,
+                        archive_artifact_claims=archive_artifact_claims,
                     )
                 )
             else:

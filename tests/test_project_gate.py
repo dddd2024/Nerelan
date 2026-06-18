@@ -10275,24 +10275,32 @@ class TestFastNonCloseoutSemantics:
 
     def test_fast_non_closeout_consistency_fails_on_accepted_claim(self) -> None:
         """fast_profile_closeout_consistency fails if fast report claims
-        archived/closeout success while closeout_allowed=false."""
+        archived/closeout success (archive artifacts or closeout prose)
+        while closeout_allowed=false."""
         close_round_omitted = True
         closeout_allowed = False
+        # Under the new semantics, SUCCESS/ACCEPTED alone is NOT a closeout claim
         report_status = "SUCCESS"
         acceptance = "ACCEPTED"
-        claims_closeout = "ACCEPTED" in acceptance or report_status == "SUCCESS"
-        assert claims_closeout
-        # This should be a FAIL condition
+        archive_artifact_claims = False
+        claims_closeout_in_prose = False
+        claims_closeout = archive_artifact_claims or claims_closeout_in_prose
+        assert not claims_closeout  # SUCCESS/ACCEPTED alone is no longer a claim
+        # But archive artifact claims ARE closeout claims
+        archive_artifact_claims = True
+        claims_closeout = archive_artifact_claims or claims_closeout_in_prose
         assert close_round_omitted and not closeout_allowed and claims_closeout
 
     def test_fast_non_closeout_consistency_passes_on_non_accepted_report(self) -> None:
         """fast_profile_closeout_consistency passes when fast non-closeout report
-        does not claim accepted closeout."""
+        does not claim archive/closeout success (SUCCESS/ACCEPTED is now allowed)."""
         close_round_omitted = True
         closeout_allowed = False
         report_status = "PARTIAL"
         acceptance = "REWORK_REQUIRED"
-        claims_closeout = "ACCEPTED" in acceptance or report_status == "SUCCESS"
+        archive_artifact_claims = False
+        claims_closeout_in_prose = False
+        claims_closeout = archive_artifact_claims or claims_closeout_in_prose
         assert not claims_closeout
         # Should PASS
         should_fail = close_round_omitted and not closeout_allowed and claims_closeout
@@ -10419,3 +10427,343 @@ class TestFastNonCloseoutSemantics:
                 "exactly one implicit close-round omission with command=None expected"
             )
             assert implicit_omissions[0]["reason"] == "omitted by fast profile: closeout not allowed"
+
+
+class TestFastNonCloseoutStatusSemantics:
+    """Tests for fast-profile non-closeout status semantics fix.
+
+    Validates that:
+    - A fast non-closeout validation may report status=SUCCESS /
+      acceptance=ACCEPTED without being treated as a closeout claim.
+    - The check still fails when the report claims archive/close-round success.
+    - Full profile behavior is unchanged.
+    """
+
+    @staticmethod
+    def _make_fast_non_closeout_state(
+        tmpdir: str,
+    ) -> Path:
+        """Create a minimal project_state with fast non-closeout profile."""
+        state_dir = Path(tmpdir) / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+
+        decision_text = (
+            "```json decision_meta\n"
+            '{"schema_version": 1, "decision_id": "d_ns", "round_id": "r_ns", '
+            '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+            '"status": "APPROVED", "mainline": "engineering_branch", '
+            '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+            "```\n\n"
+            "## 1. Goal\n\nTest fast non-closeout status.\n\n"
+            "## 6. Implementation Scope\n\n"
+            "Allowed generated/project-state files:\n\n- `project_state/codex_execution_report.md`\n\n"
+            "## 7. Tests\n\n```powershell\npython -m pytest tests/\n```\n"
+        )
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+        profile_data = {
+            "schema_version": 1,
+            "gate_name": "gate-profile",
+            "gate_status": "PASSED",
+            "decision_id": "d_ns",
+            "round_id": "r_ns",
+            "mainline": "engineering_branch",
+            "profile": "fast",
+            "profile_reason": "artifact-only",
+            "closeout_allowed": False,
+            "required_command_kinds": [
+                "startup", "preflight", "command-plan", "report-summary", "final-check",
+            ],
+        }
+        (gates_dir / "gate_profile_plan.json").write_text(
+            json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return state_dir
+
+    @staticmethod
+    def _write_report(
+        state_dir: Path,
+        *,
+        status: str = "SUCCESS",
+        acceptance: str = "ACCEPTED",
+        generated_artifacts: list[str] | None = None,
+        prose_extra: str = "",
+    ) -> None:
+        """Write a codex_execution_report.md with the given fields."""
+        ga = generated_artifacts if generated_artifacts is not None else [
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ]
+        report_json = {
+            "schema_version": 1,
+            "report_id": "codex_report_r_ns",
+            "round_id": "r_ns",
+            "based_on_decision_id": "d_ns",
+            "status": status,
+            "acceptance_recommendation": acceptance,
+            "files_changed": ga,
+            "tests_ran": [],
+            "generated_artifacts": ga,
+        }
+        report_text = (
+            "```json codex_report_summary\n"
+            + json.dumps(report_json, ensure_ascii=True, indent=2)
+            + "\n```\n\n# Report\n\n"
+            + prose_extra
+        )
+        (state_dir / "codex_execution_report.md").write_text(report_text, encoding="utf-8")
+
+    @staticmethod
+    def _write_command_plan(state_dir: Path) -> None:
+        """Write a command_plan.json with close-round in omitted_commands."""
+        gates_dir = state_dir / "gates"
+        cp_data = {
+            "schema_version": 1,
+            "plan_name": "command-plan",
+            "plan_status": "PASSED",
+            "decision_id": "d_ns",
+            "round_id": "r_ns",
+            "mainline": "engineering_branch",
+            "profile_meta": {
+                "profile": "fast",
+                "profile_reason": "artifact-only",
+                "closeout_allowed": False,
+                "required_command_kinds": [
+                    "startup", "preflight", "command-plan", "report-summary", "final-check",
+                ],
+            },
+            "omitted_commands": [
+                {"command": None, "kind": "close-round", "reason": "omitted by fast profile: closeout not allowed"},
+            ],
+            "commands": [
+                {"index": 1, "command": "git status --short", "kind": "git status", "required": True, "expected_exit_codes": [0]},
+            ],
+        }
+        (gates_dir / "command_plan.json").write_text(
+            json.dumps(cp_data, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    def test_fast_non_closeout_success_accepted_passes_consistency(self) -> None:
+        """Fast non-closeout report with SUCCESS/ACCEPTED passes
+        fast_profile_closeout_consistency when no archive/closeout claims."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir)
+            self._write_report(state_dir, status="SUCCESS", acceptance="ACCEPTED")
+            self._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None, "fast_profile_closeout_consistency check not found"
+            assert closeout_check["status"] == "PASS", (
+                f"fast non-closeout SUCCESS/ACCEPTED should PASS closeout consistency, "
+                f"got: {closeout_check}"
+            )
+
+    def test_fast_non_closeout_success_with_archive_artifacts_fails(self) -> None:
+        """Fast non-closeout report with archive paths in generated_artifacts
+        fails fast_profile_closeout_consistency."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir)
+            self._write_report(
+                state_dir,
+                status="SUCCESS",
+                acceptance="ACCEPTED",
+                generated_artifacts=[
+                    "project_state/codex_execution_report.md",
+                    "project_state/rounds/r_ns/round_manifest.json",
+                ],
+            )
+            self._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "FAIL", (
+                f"fast non-closeout with archive artifacts should FAIL, got: {closeout_check}"
+            )
+
+    def test_fast_non_closeout_success_with_closeout_prose_fails(self) -> None:
+        """Fast non-closeout report with close-round/archive success prose
+        fails fast_profile_closeout_consistency."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir)
+            self._write_report(
+                state_dir,
+                status="SUCCESS",
+                acceptance="ACCEPTED",
+                prose_extra="The close-round succeeded and the round archive was created.\n",
+            )
+            self._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "FAIL", (
+                f"fast non-closeout with closeout prose should FAIL, got: {closeout_check}"
+            )
+
+    def test_fast_non_closeout_failed_rework_still_allowed(self) -> None:
+        """Fast non-closeout report with FAILED/REWORK_REQUIRED still passes
+        fast_profile_closeout_consistency (validation failure is allowed)."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir)
+            self._write_report(state_dir, status="FAILED", acceptance="REWORK_REQUIRED")
+            self._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "PASS", (
+                f"fast non-closeout FAILED/REWORK_REQUIRED should PASS, got: {closeout_check}"
+            )
+
+    def test_full_profile_closeout_consistency_unchanged(self) -> None:
+        """Full profile closeout consistency check is not affected by the
+        fast non-closeout status semantics fix."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = Path(tmpdir) / "project_state"
+            state_dir.mkdir()
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+
+            decision_text = (
+                "```json decision_meta\n"
+                '{"schema_version": 1, "decision_id": "d_full2", "round_id": "r_full2", '
+                '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+                '"status": "APPROVED", "mainline": "engineering_branch", '
+                '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+                "```\n\n"
+                "## 1. Goal\n\nTest.\n\n"
+                "## 6. Implementation Scope\n\n"
+                "Allowed source files:\n\n- `reverse_agent/project_gate.py`\n\n"
+                "## 7. Tests\n\n```powershell\npython -m pytest tests/\n```\n"
+            )
+            (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+            profile_data = {
+                "schema_version": 1,
+                "gate_name": "gate-profile",
+                "gate_status": "PASSED",
+                "decision_id": "d_full2",
+                "round_id": "r_full2",
+                "mainline": "engineering_branch",
+                "profile": "full",
+                "profile_reason": "full profile",
+                "closeout_allowed": True,
+                "required_command_kinds": [
+                    "startup", "preflight", "command-plan", "run-round", "pytest",
+                    "doctor", "lint-report", "report-summary", "final-check", "close-round",
+                ],
+            }
+            (gates_dir / "gate_profile_plan.json").write_text(
+                json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            cp_data = {
+                "schema_version": 1,
+                "plan_name": "command-plan",
+                "plan_status": "PASSED",
+                "decision_id": "d_full2",
+                "round_id": "r_full2",
+                "mainline": "engineering_branch",
+                "profile_meta": {
+                    "profile": "full",
+                    "closeout_allowed": True,
+                    "required_command_kinds": [
+                        "startup", "preflight", "command-plan", "run-round", "pytest",
+                        "doctor", "lint-report", "report-summary", "final-check", "close-round",
+                    ],
+                },
+                "omitted_commands": [],
+                "commands": [
+                    {"index": 1, "command": "git status --short", "kind": "git status", "required": True, "expected_exit_codes": [0]},
+                ],
+            }
+            (gates_dir / "command_plan.json").write_text(
+                json.dumps(cp_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            report_text = (
+                "```json codex_report_summary\n"
+                '{"schema_version": 1, "report_id": "codex_report_r_full2", '
+                '"round_id": "r_full2", "based_on_decision_id": "d_full2", '
+                '"status": "SUCCESS", "acceptance_recommendation": "ACCEPTED", '
+                '"files_changed": [], "tests_ran": [], "generated_artifacts": []}\n'
+                "```\n\n# Report\n"
+            )
+            (state_dir / "codex_execution_report.md").write_text(report_text, encoding="utf-8")
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            # Full profile should get "not applicable" PASS
+            assert closeout_check["status"] == "PASS"
+            assert "not fast" in closeout_check.get("detail", "").lower() or "not applicable" in closeout_check.get("detail", "").lower()
+
+    def test_command_plan_fast_still_omits_pytest_and_close_round(self) -> None:
+        """Command-plan for fast artifact-only decisions still includes
+        omitted pytest and omitted close-round entries."""
+        from reverse_agent.project_gate import command_plan
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_fast_non_closeout_state(tmpdir)
+            result = command_plan(state_dir=state_dir, write_result=False)
+            omitted_kinds = {oc["kind"] for oc in result["omitted_commands"]}
+            assert "close-round" in omitted_kinds, (
+                "fast non-closeout must still omit close-round"
+            )
+            # pytest should not be in active commands
+            command_kinds = {cmd.get("kind") for cmd in result.get("commands", [])}
+            assert "pytest" not in command_kinds, (
+                "fast non-closeout must not include pytest in active commands"
+            )
+            assert "close-round" not in command_kinds, (
+                "fast non-closeout must not include close-round in active commands"
+            )

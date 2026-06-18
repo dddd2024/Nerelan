@@ -284,6 +284,11 @@ recommended_next_action: review_warnings_before_closeout
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_non_closeout_status_semantics_fix_v1 =====
+close-round: PASSED
+decision_id: decision_20260618_fast_non_closeout_status_semantics_fix_v1
+round_id: round_20260618_fast_non_closeout_status_semantics_fix_v1
+===== EXIT: 0 =====
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_non_closeout_status_semantics_fix_v1 =====
 close-round: CLOSED
 decision_id: decision_20260618_fast_non_closeout_status_semantics_fix_v1
 report_id: codex_report_20260618_fast_non_closeout_status_semantics_fix_v1
