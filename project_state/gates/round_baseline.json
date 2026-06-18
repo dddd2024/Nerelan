@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260618_training_coverage_matrix_gap_report_v1",
-  "round_id": "round_20260618_training_coverage_matrix_gap_report_v1",
-  "head_commit": "69dad1792ad9",
+  "decision_id": "decision_20260618_build_output_scope_recording_fix_v1",
+  "round_id": "round_20260618_build_output_scope_recording_fix_v1",
+  "head_commit": "c8a6aea98500",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-18T12:01:16.684443Z"
+  "generated_at": "2026-06-18T12:38:20.671090Z"
 }
