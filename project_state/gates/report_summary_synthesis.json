@@ -3,14 +3,14 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "PASSED",
-  "decision_id": "decision_20260618_gate_report_hygiene_and_build_scope_v1",
-  "round_id": "round_20260618_gate_report_hygiene_and_build_scope_v1",
-  "report_id": "codex_report_20260618_gate_report_hygiene_and_build_scope_v1",
-  "generated_at": "2026-06-18T11:36:59.118621Z",
+  "decision_id": "decision_20260618_restore_gate_report_hygiene_v1",
+  "round_id": "round_20260618_restore_gate_report_hygiene_v1",
+  "report_id": "codex_report_20260618_restore_gate_report_hygiene_v1",
+  "generated_at": "2026-06-18T11:52:32.619341Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260618_gate_report_hygiene_and_build_scope_v1",
-    "round_id": "round_20260618_gate_report_hygiene_and_build_scope_v1",
-    "based_on_decision_id": "decision_20260618_gate_report_hygiene_and_build_scope_v1",
+    "report_id": "codex_report_20260618_restore_gate_report_hygiene_v1",
+    "round_id": "round_20260618_restore_gate_report_hygiene_v1",
+    "based_on_decision_id": "decision_20260618_restore_gate_report_hygiene_v1",
     "files_changed": [
       "project_state/artifact_index.json",
       "project_state/codex_execution_report.md",
@@ -38,13 +38,13 @@
       "project_state/pytest_result.txt"
     ],
     "tests_ran": [
-      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
       "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json"
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state"
     ],
     "status": "PARTIAL",
     "acceptance_recommendation": "REWORK_REQUIRED",

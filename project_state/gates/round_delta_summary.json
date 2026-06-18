@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260618_gate_report_hygiene_and_build_scope_v1",
-  "round_id": "round_20260618_gate_report_hygiene_and_build_scope_v1",
-  "head_commit": "e5faa8283742",
+  "decision_id": "decision_20260618_restore_gate_report_hygiene_v1",
+  "round_id": "round_20260618_restore_gate_report_hygiene_v1",
+  "head_commit": "0577f9078966",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -72,5 +72,5 @@
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-18T11:36:59.116197Z"
+  "generated_at": "2026-06-18T11:52:32.616366Z"
 }
