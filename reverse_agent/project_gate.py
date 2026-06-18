@@ -526,12 +526,13 @@ def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
     for raw_line in scope_text.splitlines():
         line = raw_line.strip()
         lowered = line.lower()
-        if lowered.startswith("allowed source") or lowered.startswith("allowed tests") or lowered.startswith("允许修改"):
+        if lowered.startswith("allowed source") or lowered.startswith("allowed tests") or lowered.startswith("allowed paths") or lowered.startswith("允许修改"):
             active = True
             continue
         if (
             lowered.startswith("allowed generated")
             or lowered.startswith("allowed state")
+            or lowered.startswith("allowed project")
             or lowered.startswith("disallowed")
             or lowered.startswith("不允许")
             or lowered.startswith("允许生成")

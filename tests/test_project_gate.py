@@ -7266,6 +7266,165 @@ class TestAllowedSourceTestScopePathsExcludesState:
         assert "reverse_agent/baz.py" not in result
 
 
+class TestAllowedPathsHeaderRecognized:
+    """Regression tests for _allowed_source_test_scope_paths recognizing
+    "Allowed paths:" as a source/test scope header.
+
+    Previous bug: only "allowed source", "allowed tests", and "允许修改"
+    triggered source/test scope parsing.  When a decision used
+    "Allowed paths:" as the header, the parser returned an empty set,
+    causing gate-profile to incorrectly select "fast" instead of
+    "standard" or "full".
+    """
+
+    def test_allowed_paths_header_parsed(self) -> None:
+        """'Allowed paths:' header should be recognized as a source/test scope trigger."""
+        from reverse_agent.project_gate import _allowed_source_test_scope_paths
+
+        scope_text = (
+            "Allowed paths:\n"
+            "- `reverse_agent/project_gate.py`\n"
+            "- `tests/test_project_gate.py`\n"
+        )
+        result = _allowed_source_test_scope_paths(scope_text)
+        assert "reverse_agent/project_gate.py" in result
+        assert "tests/test_project_gate.py" in result
+
+    def test_allowed_paths_header_with_project_state_stops(self) -> None:
+        """'Allowed project_state artifact paths:' should stop source/test scope parsing."""
+        from reverse_agent.project_gate import _allowed_source_test_scope_paths
+
+        scope_text = (
+            "Allowed paths:\n"
+            "- `reverse_agent/project_gate.py`\n"
+            "- `tests/test_project_gate.py`\n"
+            "\n"
+            "Allowed project_state artifact paths:\n"
+            "- `project_state/codex_execution_report.md`\n"
+            "- `project_state/pytest_result.txt`\n"
+        )
+        result = _allowed_source_test_scope_paths(scope_text)
+        assert "reverse_agent/project_gate.py" in result
+        assert "tests/test_project_gate.py" in result
+        # project_state paths must NOT leak into source/test scope
+        assert "project_state/codex_execution_report.md" not in result
+        assert "project_state/pytest_result.txt" not in result
+
+    def test_allowed_paths_with_test_files_classifies_standard(self) -> None:
+        """classify_gate_profile should select 'standard' when 'Allowed paths:'
+        contains ordinary source/test files (not gate/project_state)."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = (
+            "## 6. Implementation Scope\n\n"
+            "Allowed paths:\n\n"
+            "- `reverse_agent/some_module.py`\n"
+            "- `tests/test_some_module.py`\n\n"
+            "Allowed project_state artifact paths:\n\n"
+            "- `project_state/codex_execution_report.md`\n"
+        )
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "standard"
+        assert any("source/test" in r for r in result["reasons"])
+
+    def test_allowed_paths_with_gate_file_classifies_full(self) -> None:
+        """classify_gate_profile should select 'full' when 'Allowed paths:'
+        contains reverse_agent/project_gate.py (a full-scope path)."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = (
+            "## 6. Implementation Scope\n\n"
+            "Allowed paths:\n\n"
+            "- `reverse_agent/project_gate.py`\n"
+            "- `tests/test_project_gate.py`\n\n"
+            "Allowed project_state artifact paths:\n\n"
+            "- `project_state/codex_execution_report.md`\n"
+        )
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
+        assert any("gate/project_state" in r for r in result["reasons"])
+
+    def test_allowed_paths_empty_returns_empty_set(self) -> None:
+        """Empty 'Allowed paths:' section should return empty set."""
+        from reverse_agent.project_gate import _allowed_source_test_scope_paths
+
+        scope_text = (
+            "Allowed paths:\n"
+            "\n"
+            "Allowed project_state artifact paths:\n"
+            "- `project_state/foo.json`\n"
+        )
+        result = _allowed_source_test_scope_paths(scope_text)
+        assert len(result) == 0
+
+    def test_forbidden_paths_not_in_allowed_paths(self) -> None:
+        """Forbidden paths under 'Allowed paths:' should still be detected by
+        the forbidden path parser (tested via _allowed_scope_paths)."""
+        from reverse_agent.project_gate import _allowed_scope_paths
+
+        scope_text = (
+            "Allowed paths:\n"
+            "- `reverse_agent/project_gate.py`\n"
+            "- `tests/test_project_gate.py`\n"
+        )
+        result = _allowed_scope_paths(scope_text)
+        assert "reverse_agent/project_gate.py" in result
+        assert "tests/test_project_gate.py" in result
+
+
+class TestAllowedPathsHeaderGateProfileIntegration:
+    """Integration tests verifying that 'Allowed paths:' header correctly
+    drives gate-profile selection end-to-end."""
+
+    def test_allowed_paths_with_tests_not_fast(self) -> None:
+        """When 'Allowed paths:' contains tests/ files, gate-profile must NOT
+        be 'fast' — it should be at least 'standard'."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = (
+            "## 6. Implementation Scope\n\n"
+            "Allowed paths:\n\n"
+            "- `tests/test_local_reverse_static_type_tags.py`\n"
+            "- `tests/test_local_reverse_training_status.py`\n\n"
+            "Allowed project_state artifact paths:\n\n"
+            "- `project_state/local_reverse_static_type_tag_contract.json`\n"
+        )
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] != "fast"
+        assert result["profile"] in ("standard", "full")
+
+    def test_allowed_paths_with_only_artifacts_is_fast(self) -> None:
+        """When 'Allowed paths:' contains only project_state artifacts (no
+        source/test), gate-profile should still be 'fast'."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = (
+            "## 6. Implementation Scope\n\n"
+            "Allowed paths:\n\n"
+            "- `project_state/local_reverse_static_type_tag_contract.json`\n"
+            "- `project_state/local_reverse_static_type_tag_contract_report.md`\n"
+        )
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "fast"
+
+    def test_allowed_paths_closeout_allowed_when_standard(self) -> None:
+        """When 'Allowed paths:' contains source/test files and profile is
+        'standard', closeout_allowed should be True."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = (
+            "## 6. Implementation Scope\n\n"
+            "Allowed paths:\n\n"
+            "- `reverse_agent/some_module.py`\n"
+            "- `tests/test_some_module.py`\n\n"
+            "Allowed project_state artifact paths:\n\n"
+            "- `project_state/codex_execution_report.md`\n"
+        )
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "standard"
+        assert result["closeout_allowed"] is True
+
+
 class TestStatusPolicyHistoricalArtifactsOnly:
     """Verify _status_policy_failure_is_historical_artifacts_only allows training_dataset."""
 
