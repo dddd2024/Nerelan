@@ -2,32 +2,28 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "FAILED",
-  "decision_id": "decision_20260618_gate_profile_tier_verification_v1",
-  "round_id": "round_20260618_gate_profile_tier_verification_v1",
-  "report_id": "codex_report_20260618_gate_profile_tier_verification_v1",
-  "generated_at": "2026-06-18T09:55:00.950406Z",
+  "synthesis_status": "PASSED",
+  "decision_id": "decision_20260618_gate_profile_tier_commit_and_state_rebuild_v1",
+  "round_id": "round_20260618_gate_profile_tier_commit_and_state_rebuild_v1",
+  "report_id": "codex_report_20260618_gate_profile_tier_commit_and_state_rebuild_v1",
+  "generated_at": "2026-06-18T10:13:53.441145Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260618_gate_profile_tier_verification_v1",
-    "round_id": "round_20260618_gate_profile_tier_verification_v1",
-    "based_on_decision_id": "decision_20260618_gate_profile_tier_verification_v1",
+    "report_id": "codex_report_20260618_gate_profile_tier_commit_and_state_rebuild_v1",
+    "round_id": "round_20260618_gate_profile_tier_commit_and_state_rebuild_v1",
+    "based_on_decision_id": "decision_20260618_gate_profile_tier_commit_and_state_rebuild_v1",
     "files_changed": [
+      "project_state/artifact_index.json",
       "project_state/codex_execution_report.md",
-      "project_state/gate_profile_tier_verification.json",
+      "project_state/current_state.json",
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
       "project_state/gates/gate_profile_plan.json",
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
-      "project_state/gates/round_baseline.json",
-      "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
+      "project_state/model_gate.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/decision_packet.md",
-      "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/pytest_result.txt",
-      "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/round_manifest.json",
-      "tests/test_project_gate.py"
+      "project_state/task_packet.json"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -37,29 +33,12 @@
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
-      "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/decision_packet.md",
-      "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/pytest_result.txt",
-      "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/round_manifest.json"
+      "project_state/pytest_result.txt"
     ],
     "tests_ran": [
-      "git status --short",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "Set-Location F:\\reverse-agent",
-      "Get-Location",
-      "Test-Path F:\\reverse-agent",
-      "git rev-parse --show-toplevel",
-      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
-      "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_gate_profile_tier_verification_v1"
+      "python -m reverse_agent.project_gate final-check --state-dir project_state"
     ],
     "status": "FAILED",
     "acceptance_recommendation": "REWORK_REQUIRED",
@@ -68,9 +47,7 @@
     ]
   },
   "diffs": [],
-  "errors": [
-    "round closed with dirty worktree; close snapshot contains unauthorized source/test dirty files"
-  ],
+  "errors": [],
   "warnings": [],
   "non_blocking_warnings": [],
   "sources": {

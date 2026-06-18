@@ -2,7 +2,7 @@
   "active_decision_packet": "project_state/decision_packet.md",
   "active_strategy": "CompareAwareSearchStrategy",
   "artifact_refs": {},
-  "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
+  "based_on_state_digest": "bd49084abfb7e3a9405f343403fc6ec4b905b8c9537beb69460525267495ab72",
   "current_best": {
     "exact1": null,
     "exact2": null,
@@ -27,7 +27,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-06-15T15:02:20Z",
+  "generated_at": "2026-06-18T10:03:19Z",
   "included": [
     "artifact references",
     "missing evidence",
@@ -59,10 +59,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260615_150220",
+  "round_id": "round_20260618_100319",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260615_150220_24f61a9ac337",
+  "state_build_id": "state_20260618_100319_bd49084abfb7",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": false,
