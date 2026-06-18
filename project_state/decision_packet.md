@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260618_post_close_round_failure_report_reconciliation_v1",
-  "round_id": "round_20260618_post_close_round_failure_report_reconciliation_v1",
+  "decision_id": "decision_20260618_gate_profile_tier_verification_v1",
+  "round_id": "round_20260618_gate_profile_tier_verification_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,74 +15,71 @@
 
 ## 1. Goal
 
-修复上一轮 `non_closeout_synthesis_rework_required_fix` 的收尾报告不一致问题。
+验证 `project_gate` 的三档 gate profile 是否都能在当前工程状态下可运行、可审计、可收尾。
 
-上一轮源码修改和 pytest 有进展，但最终报告错误地写成 `SUCCESS/ACCEPTED`，而当前 gate evidence 显示：
+本项目当前代码中的三档名称是：
 
-- `final_gate_result.json.gate_status=FAILED`
-- `report_summary_synthesis.json` 期望 `FAILED/REWORK_REQUIRED`
-- `pytest_result_summary.status=SUCCESS` 被判定非法
-- `close-round` 失败
-- round archive 没有成功闭合
+- `fast`
+- `standard`
+- `full`
 
-本轮目标不是继续扩展功能，而是把 report、pytest_result、gate artifacts、close-round 记录修到一致。
+用户口中的 `medium` 对应本仓库当前实现里的 `standard`。本轮不要新增第四种 `medium` 命名，也不要把 `standard` 重命名成 `medium`。
 
-目标行为：
+本轮目标：
 
-- 若 close-round 失败，报告必须是 `FAILED` 或 `PARTIAL` + `REWORK_REQUIRED`。
-- 不得继续写 `SUCCESS/ACCEPTED`。
-- 不得声明不存在或未成功闭合的 archive evidence。
-- `report-summary` 和 `final-check` 最终不能有 FAIL。
-- 已实现的 fast non-closeout source fix 不要重写，除非发现明确源码 bug。
+1. 证明 `fast` profile 在 artifact-only/report-only 场景下可运行，且 close-round 被正确省略。
+2. 证明 `standard` profile 在普通 source/test 变更场景下可运行，且执行 targeted pytest / doctor / lint-report / report-summary / final-check，但不强制 close-round。
+3. 证明 `full` profile 在 gate/project_state/harness/solver/tool-runner 等高风险路径场景下可运行，且命令计划包含 run-round、pytest、doctor、lint-report、report-summary、final-check、close-round。
+4. 生成一个 gate tier verification artifact，总结三档触发条件、required_command_kinds、closeout_allowed、最终状态和限制。
+5. 如果发现某一档不能闭环，不要掩盖失败；报告 `REWORK_REQUIRED`，并精确指出失败档位和 gate check。
+
+本轮不是逆向解题，不进入训练样本求解，不运行 IDA/Ghidra/debugger/emulator。
 
 ## 2. Current Evidence
 
-当前主线是 `engineering_branch`。
+主线是 `engineering_branch`。
 
-`task_packet.json` 仍是建议；当前执行权威是 live `project_state/decision_packet.md`。`task_packet.json` 也明确 `execution_scope=decision_packet_controls_current_round`。
+上一轮 `post_close_round_failure_report_reconciliation_v1` 已把报告状态从错误的 `SUCCESS/ACCEPTED` 修正为 `PARTIAL/REWORK_REQUIRED`，并且 `report-summary` 已 PASSED、`final-check` 为 WARN 且无 FAIL。当前限制是 fast non-closeout 未生成 round archive。
 
-上一轮源码和测试情况：
+当前已知 gate profile 状态：
 
-- 修改了 `reverse_agent/project_gate.py`
-- 修改了 `tests/test_project_gate.py`
-- pytest：`774 passed`
+- `fast` 已在最近一轮真实 project_state 中跑通到 `final-check WARN` 且无 FAIL；`closeout_allowed=false`，`close-round` 正确省略。
+- `standard` 代码路径存在，但缺少最近一轮真实验证记录。
+- `full` 代码路径存在并曾被触发；上一轮涉及 `reverse_agent/project_gate.py` 时进入 full，但 close-round/报告一致性曾失败，之后通过 fast reconciliation 修正报告状态。本轮需重新验证 full profile 的计划和收尾链路，不得沿用旧失败结论。
 
-但 gate 状态不合格：
+`task_packet.json` 仍是旧 `samplereverse` reverse-solving 建议，且其 `execution_scope` 表示当前执行以 `decision_packet.md` 为准。不要把 `task_packet.task` 当成本轮执行权威。
 
-- `final_gate_result.json.gate_status=FAILED`
-- `report_summary_fields_match_synthesis` 仍 FAIL
-- `status_policy_valid` FAIL
-- `pytest_result_match` FAIL
+`current_state.json` 仍描述旧 `samplereverse` reverse-solving 状态；它不是本轮 gate tier verification 的 current evidence。
 
-上一轮不能 ACCEPTED。
+`artifact_index.json` 中多数历史 reverse-solving artifacts 仍为 missing；这些只能作为外部状态通知，不得作为当前 gate tier verification 的证据。
 
-`current_state.json` 仍描述旧 `samplereverse` reverse-solving 状态；该状态不是本轮 engineering_branch report reconciliation 的 current evidence。
-
-`artifact_index.json` 中多数历史 `samplereverse` artifacts 为 missing；这些历史样本 artifact 只能作为外部状态通知，不能作为本轮 current gate evidence。
-
-`negative_results.json` 仍禁止旧 reverse-solving 方向，包括 blind old solver search、budget-only expansion、compare_semantics_agree=false candidate frontier、提交完整 solve_reports，以及重复已失败的 `samplereverse` 分支。本轮不触碰这些方向。
+`negative_results.json` 禁止旧 sample_solver blind search、budget-only expansion、compare_semantics_agree=false candidate frontier、提交完整 solve_reports，以及重复旧 `samplereverse` 失败分支。本轮不触碰这些方向。
 
 `.codex-skills/registry.json` 中 `reverse-agent-iteration` 为 active 且 version=2，因此 `reverse-agent-iteration@v2` 有效。
 
-已有工具接口审计：本轮不进入 reverse_solving/tool_integration/training_dataset，不运行 IDA/Ghidra/debugger/emulator/solver/harness。若 Codex 在执行中发现需要运行逆向工具，必须停止并报告越界。
-
-允许读取重型 artifact：不允许默认读取完整 `solve_reports/` 或 `PROJECT_PROGRESS_LOG.txt`。只允许读取本 decision 明确列出的 project_state gate artifact 和相关源码/测试。
+已有工具能力规则：本轮不进入 reverse_solving/tool_integration/training_dataset；不运行 IDA/Ghidra/debugger/solver/harness。若验证过程中发现需要逆向工具，立即停止并报告越界。
 
 ## 3. Do Not Do
 
 不要运行 reverse-solving。
 
+不要运行任何样本可执行文件。
+
 不要运行 IDA、Ghidra、OllyDbg、x64dbg、debugger hook、emulator、runtime probe、sample runner 或 GUI/frontend workflow。
 
-不要修改 solver、harness、strategy、transform、tool-runner、debugger integration、sample 文件、`.codex-skills/`、`solve_reports/`。
+不要调用旧 `sample_solver`，不要扩大 beam/topN/budget/timeout。
 
-不要只改正文而不修 structured summary。
+不要提交完整 `solve_reports/`。
 
-不要把失败的 close-round 写成成功。
+不要修改 `.codex-skills/`。
 
-不要把不存在的 round archive 文件写入 `generated_artifacts`。
+不要把 `medium` 写入代码作为新 profile 名称；当前规范名是 `standard`。
 
-不要把 `final-check` 的 FAIL 当作可接受 warning。
+不要为了让三档通过而降低 full profile 的 closeout/archive/manifest 要求。
+
+不要把 WARN 说成 PASSED；报告必须区分 PASSED / WARN / FAILED。
+
+不要把旧 round archive 或 stale `round_close_snapshot.json` 当成本轮 current evidence。
 
 不要修改本 decision 文件；如果启动时本 decision 文件已 dirty，立即停止。
 
@@ -101,70 +98,105 @@
 
 重点检查：
 
-1. `project_state/codex_execution_report.md`
-2. `project_state/pytest_result.txt`
-3. `project_state/gates/report_summary_synthesis.json`
-4. `project_state/gates/final_gate_result.json`
+1. `reverse_agent/project_gate.py`
+2. `tests/test_project_gate.py`
+3. `tests/test_project_state.py`
+4. `project_state/gates/gate_profile_plan.json`
 5. `project_state/gates/command_plan.json`
-6. `project_state/gates/gate_profile_plan.json`
-7. `reverse_agent/project_gate.py`
-8. `tests/test_project_gate.py`
+6. `project_state/gates/report_summary_synthesis.json`
+7. `project_state/gates/final_gate_result.json`
+8. `project_state/codex_execution_report.md`
+9. `project_state/pytest_result.txt`
 
-只在证明源码仍有 bounded bug 时才修改源码。
+必要时读取历史 round，只允许有界读取：
 
-不要读取无关 reverse-solving 或 tool-integration 模块，除非 gate command 明确报告某个 forbidden-path blocker 且点名相关文件。
+- `project_state/rounds/round_20260617_gate_profile_tier_integration_v1/*`
+- 与最近 gate profile 修复直接相关的 round manifest/report/pytest
+
+不要读取完整 `PROJECT_PROGRESS_LOG.txt` 或完整 `solve_reports/`。
 
 ## 5. Required Audit
 
-修改前确认：
+执行前必须确认：
 
-1. 工作目录是 `F:\reverse-agent`。
+1. 当前工作目录是 `F:\reverse-agent`。
 2. `Test-Path F:\reverse-agent` 为 `True`。
-3. `git rev-parse --show-toplevel` 指向该仓库。
+3. `git rev-parse --show-toplevel` 指向 `F:/reverse-agent` 或等价路径。
 4. 启动 `git status --short` 已记录。
 5. `decision_meta.status=APPROVED`。
 6. `mainline=engineering_branch`。
 7. `reverse-agent-iteration@v2` 是 active skill。
-8. 本轮是 gate/report reconciliation，不是逆向样本求解。
-9. 启动时没有 source/test dirty；若已有 source/test dirty，停止并报告 baseline 状态，不修改文件。
+8. 本轮是 gate tier verification，不是逆向样本求解。
+9. 启动时 source/test dirty 状态已记录；若存在未记录 source/test dirty，停止并报告 baseline，不修改文件。
 
-必须解释清楚：
+必须审计并记录：
 
-1. 为什么上一轮 report 写成 `SUCCESS/ACCEPTED` 是错误的。
-2. close-round 是否成功。
-3. archive files 是否真实存在并匹配 current report/pytest。
-4. `pytest_result_summary.status` 应该使用什么非成功状态。
-5. `report_summary_synthesis.json` 与 `codex_report_summary` 是否最终一致。
-6. `final_gate_result.json` 是否最终无 FAIL。
+1. `fast` 的触发条件、required_command_kinds、closeout_allowed。
+2. `standard` 的触发条件、required_command_kinds、closeout_allowed。
+3. `full` 的触发条件、required_command_kinds、closeout_allowed。
+4. `profile_override` 是否支持三档显式选择，以及非法 profile 是否失败。
+5. command-plan 是否能按 profile 省略或要求对应命令。
+6. report-summary/final-check 对 fast non-closeout 的处理是否仍保持一致。
+7. full profile 是否仍保持严格 close-round/archive/manifest 要求。
+
+如果发现某档测试只能靠 mock 通过，必须在报告里区分：
+
+- unit-level verified
+- CLI-level verified
+- live project_state verified
+- closeout verified
 
 ## 6. Implementation Scope
 
-优先只修改 project_state/report artifacts：
+优先只增加/完善 gate profile 验证测试和 project_state artifact。
 
-- `project_state/codex_execution_report.md`
-- `project_state/pytest_result.txt`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/command_plan.json`
-- `project_state/gates/gate_profile_plan.json`
-- `project_state/gates/preflight_result.json`
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_delta_summary.json`
+允许修改：
 
-只有在证明确有 bounded gate bug 时，才允许修改：
+1. `tests/test_project_gate.py`
+2. `tests/test_project_state.py`
+3. `project_state/gate_profile_tier_verification.json`
+4. `project_state/codex_execution_report.md`
+5. `project_state/pytest_result.txt`
+6. `project_state/gates/preflight_result.json`
+7. `project_state/gates/gate_profile_plan.json`
+8. `project_state/gates/command_plan.json`
+9. `project_state/gates/report_summary_synthesis.json`
+10. `project_state/gates/final_gate_result.json`
+11. `project_state/gates/round_baseline.json`
+12. `project_state/gates/round_delta_summary.json`
+13. `project_state/rounds/round_20260618_gate_profile_tier_verification_v1/*` only if close-round actually runs and succeeds
+
+只有在测试暴露明确 bounded bug 时，才允许小范围修改：
 
 - `reverse_agent/project_gate.py`
-- `tests/test_project_gate.py`
-- `tests/test_project_state.py`
 
-要求：
+不得修改其它源码模块。
 
-1. 如果 close-round 失败，report summary 改为 `FAILED / REWORK_REQUIRED`。
-2. `pytest_result_summary.status` 不得继续写非法 `SUCCESS`。
-3. report body 必须说明 close-round 的真实 exit code 和失败原因。
-4. 不得列出不存在的 archive files。
-5. 若最终 final-check 无 FAIL 且 closeout_allowed=true，再重试 close-round。
-6. 如果 close-round 仍失败，报告必须保持 `FAILED/REWORK_REQUIRED`，并停止。
+建议实现方式：
+
+1. 在 `tests/test_project_gate.py` 中补足 profile tier 回归测试：
+   - artifact-only scope => `fast`
+   - ordinary source/test path scope => `standard`
+   - gate/project_state/harness/solver/tool-runner path scope => `full`
+   - explicit override `fast/standard/full` 生效
+   - invalid override 失败
+   - full profile required_command_kinds 包含 `close-round`
+   - standard profile required_command_kinds 不包含 `close-round`
+   - fast profile `closeout_allowed=false`
+
+2. 用 CLI 或最小 fixture 生成 `project_state/gate_profile_tier_verification.json`，至少包含：
+   - `schema_version`
+   - `decision_id`
+   - `round_id`
+   - `profiles.fast`
+   - `profiles.standard`
+   - `profiles.full`
+   - 每档的 `trigger_fixture`、`expected_profile`、`actual_profile`、`closeout_allowed`、`required_command_kinds`、`status`
+   - `overall_status`
+
+3. 本轮 live project_state 可以按当前 decision 自然进入 `fast` 或 `standard/full`，但不要为了验证三档而污染 live decision_packet。三档验证应优先通过 unit/fixture/CLI 层完成。
+
+4. 如果最终 live profile 是 fast，允许不运行 close-round；如果最终 live profile 是 full 且 final-check 无 FAIL，必须按 command-plan 执行 close-round。
 
 ## 7. Tests
 
@@ -188,39 +220,34 @@ python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-如果 `final-check` 无 FAIL 且 `closeout_allowed=true`：
+如果 `final-check` 无 FAIL 且 `gate_profile_plan.closeout_allowed=true`：
 
 ```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_post_close_round_failure_report_reconciliation_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_gate_profile_tier_verification_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-如果 source/test 文件被修改，必须保证 pytest 真实运行且结果写入 `project_state/pytest_result.txt`。
+报告必须列出：
 
-本轮报告必须包含：
-
-- `codex_report_summary` fenced JSON；
-- `based_on_decision_id=decision_20260618_post_close_round_failure_report_reconciliation_v1`；
-- `round_id=round_20260618_post_close_round_failure_report_reconciliation_v1`；
-- `files_changed`；
-- `tests_ran`；
-- `generated_artifacts`；
-- 每个 gate command 的执行结果摘要；
-- 如果 close-round 失败，必须明确说明 exit code 和 blocking reasons；
-- 如果未运行 close-round，必须明确说明原因。
+- 三档 profile 的 verified level：unit / CLI / live / closeout。
+- 三档是否可运行。
+- 哪一档仍未 closeout 验证。
+- 若 `standard` 仍无法真实触发，必须说明原因并给下一轮最小复现任务。
 
 ## 8. Stop Conditions
 
 立即停止并报告 `REWORK_REQUIRED` 或 `BLOCKED`，如果：
 
 1. 启动目录不是 `F:\reverse-agent`。
-2. decision 文件启动时 dirty。
+2. `decision_packet.md` 启动时 dirty。
 3. source/test 文件启动时已有未记录 dirty。
 4. `decision_meta` 缺失或不是 `APPROVED`。
 5. `reverse-agent-iteration@v2` 不是 active。
-6. 修复需要修改允许范围外文件。
-7. 最终 report 仍写 `SUCCESS/ACCEPTED`，但 close-round 失败或 final-check 有 FAIL。
-8. `pytest_result_summary.status` 仍被 gate 判定非法。
-9. `report-summary` 或 `final-check` 最终仍有 FAIL。
-10. archive files 不存在却被报告为 generated artifacts。
-11. 报告/pytest result 的 decision_id 或 round_id 与本 decision 不匹配。
+6. 需要修改允许范围之外的文件。
+7. 需要运行样本、debugger、IDA/Ghidra、emulator 或 runtime probe。
+8. 需要读取完整 `solve_reports/` 或 `PROJECT_PROGRESS_LOG.txt`。
+9. 把 `medium` 新增为第四档 profile。
+10. 降低 full profile closeout/archive/manifest 严格性。
+11. 测试没有真实运行或未写入 `project_state/pytest_result.txt`。
+12. `report-summary` 或 `final-check` 最终出现 FAIL。
+13. 报告中声称三档都可用，但 verification artifact 没有逐档证据。
