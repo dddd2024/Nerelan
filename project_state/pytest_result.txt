@@ -1,10 +1,10 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260618_static_triage_type_tag_contract_v1",
-  "report_id": "codex_report_20260618_static_triage_type_tag_contract_v1",
-  "round_id": "round_20260618_static_triage_type_tag_contract_v1",
-  "generated_at": "2026-06-18T14:30:00Z",
+  "decision_id": "decision_20260618_static_type_tag_contract_scope_repair_v1",
+  "report_id": "codex_report_20260618_static_type_tag_contract_scope_repair_v1",
+  "round_id": "round_20260618_static_type_tag_contract_scope_repair_v1",
+  "generated_at": "2026-06-18T14:45:00Z",
   "status": "BLOCKED",
   "tests_ran": [
     "python -m reverse_agent.project_gate preflight --state-dir project_state"
@@ -33,8 +33,8 @@ F:/reverse-agent
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
 preflight: FAILED
-decision_id: decision_20260618_static_triage_type_tag_contract_v1
-round_id: round_20260618_static_triage_type_tag_contract_v1
+decision_id: decision_20260618_static_type_tag_contract_scope_repair_v1
+round_id: round_20260618_static_type_tag_contract_scope_repair_v1
 mainline: training_dataset
   [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline
   [PASS] decision_meta_parse: decision_meta parsed
@@ -54,4 +54,6 @@ recommended_next_action: fix_preflight_failures_before_starting
 
 Conclusion: preflight FAILED. Per protocol §3 rules 2-4, implementation is blocked. No source/test files were modified. Only pytest_result.txt and codex_execution_report.md are updated.
 
-Root cause: decision_packet.md Implementation Scope lists `reverse_agent/local_reverse_single_sample_static_triage.py` as an allowed file, but this path is in FORBIDDEN_PATHS and is not in the training_dataset mainline exception set (only `reverse_agent/local_reverse_training_status.py` is excepted for training_dataset).
+Root cause: The gate's `_allowed_scope_paths` parser extracts paths from the "明确禁止修改" (Explicitly Forbidden) block within the Implementation Scope section, because "明确禁止修改" is not in the parser's stop-word list (which only recognizes "forbidden", "disallowed", "不允许", "禁止", etc.). The parser therefore treats `.codex-skills/*` and `solve_reports/*` from the forbidden block as allowed paths, triggering the `forbidden_paths_not_allowed` FAIL.
+
+This is a gate parser limitation, not a decision_packet scope error. The decision_packet.md Implementation Scope correctly lists only project_state artifacts and test files as allowed, and explicitly forbids `reverse_agent/` source files, `.codex-skills/*`, and `solve_reports/*`.
