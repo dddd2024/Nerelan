@@ -383,6 +383,7 @@ def _make_gate_state(
     tests_ran: list[str] | None = None,
     pytest_tests_ran: list[str] | None = None,
     generated_artifacts: list[str] | None = None,
+    startup_dirty_files: list[str] | None = None,
 ) -> Path:
     state_dir = tmp_path / "project_state"
     state_dir.mkdir()
@@ -426,11 +427,6 @@ def _make_gate_state(
         *archive_paths,
     ]
     report_tests = tests_ran if tests_ran is not None else [
-        "Set-Location F:\\reverse-agent",
-        "Get-Location",
-        "Test-Path F:\\reverse-agent",
-        "git rev-parse --show-toplevel",
-        "git status --short",
         "python -m pytest -q",
         "python -m reverse_agent.project_gate final-check --state-dir project_state",
     ]
@@ -520,12 +516,25 @@ def _make_gate_state(
             *archive_paths,
         ],
     )
+    # Build startup command blocks; if startup_dirty_files is provided,
+    # include them in the ``git status --short`` output so that
+    # startup_baseline_consistency can verify them against baseline records.
+    startup_blocks = list(_STARTUP_COMMAND_BLOCKS)
+    if startup_dirty_files:
+        # Replace the clean ``git status --short`` block with a dirty one.
+        dirty_output = "\n".join(f" M {f}" for f in startup_dirty_files)
+        startup_blocks[-1] = (
+            "===== COMMAND: git status --short =====\n"
+            f"{dirty_output}\n"
+            "===== EXIT: 0 =====\n"
+        )
     _write_pytest(
         state_dir,
         decision_id=decision_id,
         report_id=report_id,
         round_id=round_id,
         tests_ran=pytest_tests_ran if pytest_tests_ran is not None else report_tests,
+        body="\n\n".join(startup_blocks) + "\n\n1 passed\n",
     )
     archive_round(state_dir=state_dir, round_id=round_id)
     return state_dir
@@ -636,7 +645,14 @@ def _make_command_plan_gate_state(
     if command_plan_overrides:
         plan_payload.update(command_plan_overrides)
     archive_paths = _archive_paths(round_id)
-    tests = report_tests if report_tests is not None else commands
+    # Exclude startup commands from tests_ran — they are recorded as command
+    # blocks in pytest_result.txt and verified by startup_command_coverage,
+    # but they should not appear in the report's tests_ran.
+    tests = report_tests if report_tests is not None else [
+        cmd for cmd in commands if not any(
+            pat in cmd for pat in ("Set-Location", "Get-Location", "Test-Path", "git rev-parse", "git status")
+        )
+    ]
     _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
     _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
     # Create gate artifacts that are listed in generated_artifacts
@@ -867,6 +883,14 @@ Allowed tests:
             "checks": [],
         },
     )
+    # Exclude startup commands from tests_ran — they are recorded as command
+    # blocks in pytest_result.txt and verified by startup_command_coverage,
+    # but they should not appear in the report's tests_ran.
+    non_startup_commands = [
+        cmd for cmd in commands if not any(
+            pat in cmd for pat in ("Set-Location", "Get-Location", "Test-Path", "git rev-parse", "git status")
+        )
+    ]
     _write_report(
         state_dir,
         decision_id=decision_id,
@@ -875,11 +899,11 @@ Allowed tests:
         status=report_status,
         acceptance=acceptance,
         files_changed=files_changed if files_changed is not None else expected_files_changed,
-        tests_ran=tests_ran if tests_ran is not None else commands,
+        tests_ran=tests_ran if tests_ran is not None else non_startup_commands,
         generated_artifacts=generated_artifacts if generated_artifacts is not None else expected_generated_artifacts,
     )
     body = "\n\n".join(_command_block(command, "ok") for command in commands)
-    _write_pytest(state_dir, decision_id=decision_id, report_id=report_id, round_id=round_id, tests_ran=commands, body=body)
+    _write_pytest(state_dir, decision_id=decision_id, report_id=report_id, round_id=round_id, tests_ran=non_startup_commands, body=body)
     archive_round(state_dir=state_dir, round_id=round_id)
     return state_dir
 
@@ -1280,6 +1304,7 @@ def test_final_check_allows_inherited_source_test_dirty_with_explicit_allowlist_
             "project_state/gates/report_summary_synthesis.json",
             *archive_paths,
         ],
+        startup_dirty_files=["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
     )
     _write_decision(
         state_dir,
@@ -11584,3 +11609,246 @@ Allowed generated/project-state files:
             result = gate_profile(state_dir=state_dir, write_result=False, profile_override="medium")
             assert result["gate_status"] == "FAILED"
             assert "invalid profile name" in result["profile_reason"].lower()
+
+
+class TestStartupCommandCoverageLogicFix:
+    """Regression tests for the startup_command_coverage / command_plan_covers_report_tests
+    circular conflict fix.
+
+    The circular conflict was:
+    - startup_command_coverage expected startup commands in tests_ran
+    - command_plan_covers_report_tests expected tests_ran to match command_plan
+    - For fast profile, command_plan does not include startup commands
+
+    The fix:
+    - startup_command_coverage now checks recorded command blocks in pytest_result.txt
+    - command_plan_covers_report_tests excludes startup commands from the missing diff
+    """
+
+    @staticmethod
+    def _make_state_dir(
+        tmp_path: Path,
+        *,
+        command_plan_commands: list[dict[str, Any]],
+        report_tests: list[str],
+    ) -> Path:
+        """Create a minimal state_dir with a command_plan.json."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+
+        _write_json(
+            gates_dir / "command_plan.json",
+            {
+                "schema_version": 1,
+                "plan_name": "command-plan",
+                "plan_status": "PASSED",
+                "decision_id": "d_scov",
+                "round_id": "r_scov",
+                "mainline": "engineering_branch",
+                "generated_at": "2026-06-18T00:00:00Z",
+                "commands": command_plan_commands,
+                "warnings": [],
+                "blocking_reasons": [],
+            },
+        )
+        return state_dir
+
+    _STARTUP_BLOCKS = (
+        "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+        "F:\\reverse-agent\n===== EXIT: 0 =====\n"
+        "===== COMMAND: Get-Location =====\n"
+        "F:\\reverse-agent\n===== EXIT: 0 =====\n"
+        "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+        "True\n===== EXIT: 0 =====\n"
+        "===== COMMAND: git rev-parse --show-toplevel =====\n"
+        "F:/reverse-agent\n===== EXIT: 0 =====\n"
+        "===== COMMAND: git status --short =====\n"
+        "===== EXIT: 0 =====\n"
+    )
+
+    def test_startup_command_coverage_passes_with_command_blocks_only(self, tmp_path: Path) -> None:
+        """startup_command_coverage PASSes when startup commands are recorded
+        as command blocks in pytest_result.txt, even if they are NOT in tests_ran."""
+        report_cmd = "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+        final_cmd = "python -m reverse_agent.project_gate final-check --state-dir project_state"
+        cmd_plan_cmd = "python -m reverse_agent.project_gate command-plan --state-dir project_state"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {"index": 1, "command": cmd_plan_cmd, "phase": "gate", "kind": "command-plan", "required": True, "expected_exit_codes": [0]},
+                {"index": 2, "command": report_cmd, "phase": "gate", "kind": "report-summary", "required": True, "expected_exit_codes": [0, 1]},
+                {"index": 3, "command": final_cmd, "phase": "gate", "kind": "final-check", "required": True, "expected_exit_codes": [0, 1]},
+            ],
+            report_tests=[cmd_plan_cmd, report_cmd, final_cmd],
+        )
+        pytest_text = (
+            self._STARTUP_BLOCKS
+            + _command_block(cmd_plan_cmd, "command plan generated", exit_code=0)
+            + "\n"
+            + _command_block(report_cmd, "report summary generated", exit_code=0)
+            + "\n"
+            + _command_block(final_cmd, "final check done", exit_code=0)
+        )
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision={"decision_id": "d_scov", "round_id": "r_scov", "mainline": "engineering_branch"},
+            report={
+                "report_id": "codex_report_scov",
+                "round_id": "r_scov",
+                "based_on_decision_id": "d_scov",
+                "tests_ran": [cmd_plan_cmd, report_cmd, final_cmd],
+                "generated_artifacts": ["project_state/gates/command_plan.json"],
+            },
+            pytest_text=pytest_text,
+        )
+
+        startup_check = next(c for c in checks if c["name"] == "startup_command_coverage")
+        assert startup_check["status"] == "PASS", (
+            f"startup_command_coverage should PASS with command blocks, got: {startup_check}"
+        )
+
+    def test_startup_command_coverage_fails_without_command_blocks(self, tmp_path: Path) -> None:
+        """startup_command_coverage FAILs when startup command blocks are
+        absent from pytest_result.txt."""
+        report_cmd = "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+        cmd_plan_cmd = "python -m reverse_agent.project_gate command-plan --state-dir project_state"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {"index": 1, "command": cmd_plan_cmd, "phase": "gate", "kind": "command-plan", "required": True, "expected_exit_codes": [0]},
+                {"index": 2, "command": report_cmd, "phase": "gate", "kind": "report-summary", "required": True, "expected_exit_codes": [0, 1]},
+            ],
+            report_tests=[cmd_plan_cmd, report_cmd],
+        )
+        # pytest_text has NO startup command blocks
+        pytest_text = (
+            _command_block(cmd_plan_cmd, "command plan generated", exit_code=0)
+            + "\n"
+            + _command_block(report_cmd, "report summary generated", exit_code=0)
+        )
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision={"decision_id": "d_scov", "round_id": "r_scov", "mainline": "engineering_branch"},
+            report={
+                "report_id": "codex_report_scov",
+                "round_id": "r_scov",
+                "based_on_decision_id": "d_scov",
+                "tests_ran": [cmd_plan_cmd, report_cmd],
+                "generated_artifacts": ["project_state/gates/command_plan.json"],
+            },
+            pytest_text=pytest_text,
+        )
+
+        startup_check = next(c for c in checks if c["name"] == "startup_command_coverage")
+        assert startup_check["status"] == "FAIL", (
+            f"startup_command_coverage should FAIL without command blocks, got: {startup_check}"
+        )
+
+    def test_command_plan_covers_report_tests_ignores_startup_commands(self, tmp_path: Path) -> None:
+        """command_plan_covers_report_tests PASSes when tests_ran contains
+        startup commands that are NOT in command_plan (startup commands
+        are excluded from the coverage diff)."""
+        report_cmd = "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+        cmd_plan_cmd = "python -m reverse_agent.project_gate command-plan --state-dir project_state"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {"index": 1, "command": cmd_plan_cmd, "phase": "gate", "kind": "command-plan", "required": True, "expected_exit_codes": [0]},
+                {"index": 2, "command": report_cmd, "phase": "gate", "kind": "report-summary", "required": True, "expected_exit_codes": [0, 1]},
+            ],
+            report_tests=[cmd_plan_cmd, report_cmd],
+        )
+        # tests_ran includes startup commands that are NOT in command_plan
+        pytest_text = (
+            self._STARTUP_BLOCKS
+            + _command_block(cmd_plan_cmd, "command plan generated", exit_code=0)
+            + "\n"
+            + _command_block(report_cmd, "report summary generated", exit_code=0)
+        )
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision={"decision_id": "d_scov", "round_id": "r_scov", "mainline": "engineering_branch"},
+            report={
+                "report_id": "codex_report_scov",
+                "round_id": "r_scov",
+                "based_on_decision_id": "d_scov",
+                "tests_ran": [
+                    "Set-Location F:\\reverse-agent",
+                    "Get-Location",
+                    "Test-Path F:\\reverse-agent",
+                    "git rev-parse --show-toplevel",
+                    "git status --short",
+                    cmd_plan_cmd,
+                    report_cmd,
+                ],
+                "generated_artifacts": ["project_state/gates/command_plan.json"],
+            },
+            pytest_text=pytest_text,
+        )
+
+        coverage_check = next(c for c in checks if c["name"] == "command_plan_covers_report_tests")
+        assert coverage_check["status"] == "PASS", (
+            f"command_plan_covers_report_tests should PASS (startup commands excluded), got: {coverage_check}"
+        )
+
+    def test_command_plan_covers_report_tests_still_fails_for_missing_non_startup(self, tmp_path: Path) -> None:
+        """command_plan_covers_report_tests still FAILs when tests_ran contains
+        a non-startup command that is NOT in command_plan."""
+        report_cmd = "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+        cmd_plan_cmd = "python -m reverse_agent.project_gate command-plan --state-dir project_state"
+        extra_cmd = "python -m reverse_agent.project_gate doctor --state-dir project_state"
+        state_dir = self._make_state_dir(
+            tmp_path,
+            command_plan_commands=[
+                {"index": 1, "command": cmd_plan_cmd, "phase": "gate", "kind": "command-plan", "required": True, "expected_exit_codes": [0]},
+                {"index": 2, "command": report_cmd, "phase": "gate", "kind": "report-summary", "required": True, "expected_exit_codes": [0, 1]},
+            ],
+            report_tests=[cmd_plan_cmd, report_cmd, extra_cmd],
+        )
+        pytest_text = (
+            self._STARTUP_BLOCKS
+            + _command_block(cmd_plan_cmd, "command plan generated", exit_code=0)
+            + "\n"
+            + _command_block(report_cmd, "report summary generated", exit_code=0)
+            + "\n"
+            + _command_block(extra_cmd, "doctor output", exit_code=0)
+        )
+
+        checks = _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision={"decision_id": "d_scov", "round_id": "r_scov", "mainline": "engineering_branch"},
+            report={
+                "report_id": "codex_report_scov",
+                "round_id": "r_scov",
+                "based_on_decision_id": "d_scov",
+                "tests_ran": [cmd_plan_cmd, report_cmd, extra_cmd],
+                "generated_artifacts": ["project_state/gates/command_plan.json"],
+            },
+            pytest_text=pytest_text,
+        )
+
+        coverage_check = next(c for c in checks if c["name"] == "command_plan_covers_report_tests")
+        assert coverage_check["status"] == "FAIL", (
+            f"command_plan_covers_report_tests should FAIL for missing non-startup command, got: {coverage_check}"
+        )
+
+    def test_is_startup_command_helper(self) -> None:
+        """_is_startup_command correctly identifies startup commands."""
+        from reverse_agent.project_gate import _is_startup_command
+
+        assert _is_startup_command("Set-Location F:\\reverse-agent")
+        assert _is_startup_command("Get-Location")
+        assert _is_startup_command("Test-Path F:\\reverse-agent")
+        assert _is_startup_command("git rev-parse --show-toplevel")
+        assert _is_startup_command("git status --short")
+
+        # Non-startup commands
+        assert not _is_startup_command("python -m pytest tests/")
+        assert not _is_startup_command("python -m reverse_agent.project_gate preflight --state-dir project_state")
+        assert not _is_startup_command("git add .")
+        assert not _is_startup_command("git commit -m test")

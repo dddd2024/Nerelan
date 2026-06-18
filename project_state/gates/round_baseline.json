@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260618_gate_profile_tier_commit_and_state_rebuild_v1",
-  "round_id": "round_20260618_gate_profile_tier_commit_and_state_rebuild_v1",
-  "head_commit": "f1bb43984f2f",
+  "decision_id": "decision_20260618_startup_command_coverage_logic_fix_v1",
+  "round_id": "round_20260618_startup_command_coverage_logic_fix_v1",
+  "head_commit": "124957301b05",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-18T10:02:10.749267Z"
+  "generated_at": "2026-06-18T10:21:09.834361Z"
 }

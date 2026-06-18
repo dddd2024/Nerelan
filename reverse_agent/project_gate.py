@@ -1741,7 +1741,25 @@ def _baseline_lifecycle_checks(
             # Round closed with dirty worktree: warn based on close snapshot
             # dirty files, not stale baseline dirty files.
             close_source_test_dirty = sorted(close_dirty_files & source_test_scope)
-            close_unauthorized = sorted((close_dirty_files & source_test_scope) - allowed_inherited)
+            # Source/test files in the Implementation Scope are authorized
+            # modifications for this round.  Only flag:
+            # 1. Source/test files NOT in the Implementation Scope and NOT in
+            #    the decision's "Allowed Inherited Dirty Baseline Files" section.
+            # 2. Inherited dirty source/test files (dirty at baseline) that are
+            #    NOT in the "Allowed Inherited Dirty Baseline Files" section.
+            close_unauthorized = sorted(
+                path for path in close_dirty_files
+                if _path_is_source_or_test(path)
+                and path not in source_test_scope
+                and path not in allowed_inherited
+            )
+            close_inherited_unauthorized = sorted(
+                path for path in close_dirty_files
+                if path in inherited_dirty_files
+                and _path_is_source_or_test(path)
+                and path not in allowed_inherited
+            )
+            close_unauthorized = sorted(set(close_unauthorized) | set(close_inherited_unauthorized))
             # NOTE: No bootstrapping exception for close snapshot either.
             # Only the decision's "Allowed Inherited Dirty Baseline Files"
             # section can authorize inherited dirty source/test files.
@@ -2584,6 +2602,25 @@ def _expected_exit_codes_by_command(
     return expected
 
 
+_STARTUP_COMMAND_PATTERNS: list[tuple[str, str]] = [
+    ("Set-Location", "Set-Location"),
+    ("Get-Location", "Get-Location"),
+    ("Test-Path", "Test-Path"),
+    ("git rev-parse", "git rev-parse --show-toplevel"),
+    ("git status", "git status"),
+]
+
+
+def _is_startup_command(command: str) -> bool:
+    """Return True if *command* is a startup path/status command.
+
+    Startup commands (Set-Location, Get-Location, Test-Path, git rev-parse,
+    git status) are recorded as command blocks in pytest_result.txt but are
+    not expected to appear in command_plan.json or codex_report_summary.tests_ran.
+    """
+    return any(pattern in command for pattern, _ in _STARTUP_COMMAND_PATTERNS)
+
+
 def _command_strings(command_plan_payload: dict[str, Any]) -> set[str]:
     commands = command_plan_payload.get("commands")
     if not isinstance(commands, list):
@@ -2762,8 +2799,17 @@ def _validate_command_plan_consistency(
     report_tests = _string_set(report.get("tests_ran"))
     pytest_header = parse_pytest_result_header(pytest_text)
     pytest_tests = {_norm_path(item) for item in (pytest_header.get("tests_ran") or []) if _norm_path(item)}
-    missing_report_tests = sorted(report_tests - plan_commands)
-    missing_pytest_tests = sorted(pytest_tests - plan_commands)
+    # Startup commands (Set-Location, Get-Location, Test-Path, git rev-parse,
+    # git status) are recorded as command blocks in pytest_result.txt but are
+    # not expected to appear in command_plan.json.  Exclude them from the
+    # coverage diff so they do not cause a circular conflict between
+    # startup_command_coverage and command_plan_covers_report_tests.
+    missing_report_tests = sorted(
+        cmd for cmd in (report_tests - plan_commands) if not _is_startup_command(cmd)
+    )
+    missing_pytest_tests = sorted(
+        cmd for cmd in (pytest_tests - plan_commands) if not _is_startup_command(cmd)
+    )
     coverage_ok = not missing_report_tests and not missing_pytest_tests
     checks.append(
         _check(
@@ -2777,34 +2823,37 @@ def _validate_command_plan_consistency(
         )
     )
 
-    REQUIRED_STARTUP_PATTERNS: list[tuple[str, str]] = [
-        ("Set-Location", "Set-Location"),
-        ("Get-Location", "Get-Location"),
-        ("Test-Path", "Test-Path"),
-        ("git rev-parse", "git rev-parse --show-toplevel"),
-        ("git status", "git status"),
-    ]
+    # startup_command_coverage checks the actual recorded command blocks in
+    # pytest_result.txt (the ``===== COMMAND: ... =====`` sections), not the
+    # ``tests_ran`` JSON array.  This decouples startup coverage from
+    # command_plan coverage: startup commands satisfy this check via their
+    # recorded command blocks without needing to be listed in tests_ran or
+    # command_plan.json.
+    recorded_for_startup = _parse_recorded_command_blocks(pytest_text)
+    recorded_commands = {
+        str(block.get("command") or "")
+        for block in (recorded_for_startup.get("blocks") or [])
+        if str(block.get("command") or "")
+    }
 
     missing_startup: list[dict[str, str]] = []
-    all_commands = pytest_tests | plan_commands
-    for pattern, description in REQUIRED_STARTUP_PATTERNS:
-        if not any(pattern in cmd for cmd in all_commands):
+    for pattern, description in _STARTUP_COMMAND_PATTERNS:
+        if not any(pattern in cmd for cmd in recorded_commands):
             missing_startup.append({"pattern": pattern, "description": description})
 
     checks.append(
         _check(
             "startup_command_coverage",
             "PASS" if not missing_startup else "FAIL",
-            "pytest_result covers required startup commands"
+            "pytest_result command blocks cover required startup commands"
             if not missing_startup
-            else "pytest_result is missing required startup commands",
+            else "pytest_result is missing required startup command blocks",
             missing_startup_commands=missing_startup,
         )
     )
 
-    recorded = _parse_recorded_command_blocks(pytest_text)
-    blocks = list(recorded.get("blocks") or [])
-    malformed_commands = list(recorded.get("malformed_commands") or [])
+    blocks = list(recorded_for_startup.get("blocks") or [])
+    malformed_commands = list(recorded_for_startup.get("malformed_commands") or [])
     blocks_by_command: dict[str, list[dict[str, Any]]] = {}
     for block in blocks:
         blocks_by_command.setdefault(str(block.get("command") or ""), []).append(block)
@@ -3481,6 +3530,11 @@ def build_report_summary_synthesis(
 
     commands = _command_plan_json_commands(command_plan_payload)
     command_strings = [str(item.get("command") or "") for item in commands if str(item.get("command") or "")]
+    # Synthesis tests_ran excludes startup commands (Set-Location, Get-Location,
+    # Test-Path, git rev-parse, git status).  These are recorded as command
+    # blocks in pytest_result.txt and verified by startup_command_coverage,
+    # but they are not "tests" and should not appear in the report's tests_ran.
+    non_startup_command_strings = [cmd for cmd in command_strings if not _is_startup_command(cmd)]
     command_plan_ok = (
         bool(command_plan_payload)
         and command_plan_path.exists()
@@ -3587,7 +3641,11 @@ def build_report_summary_synthesis(
     close_snapshot_payload = _read_json(_round_close_snapshot_path(state_dir))
     include_close_snapshot = (
         closeout_allowed is not False
-        and active_close_round
+        and (active_close_round or _artifact_matches_current_round(
+            close_snapshot_payload,
+            decision_id=decision_id,
+            round_id=round_id,
+        ))
         and _artifact_matches_current_round(
             close_snapshot_payload,
             decision_id=decision_id,
@@ -3666,7 +3724,7 @@ def build_report_summary_synthesis(
     # the synthesis cannot determine which commands were planned, so
     # comparing against the report's tests_ran would produce false diffs.
     if command_plan_ok:
-        synthesized_summary["tests_ran"] = command_strings
+        synthesized_summary["tests_ran"] = non_startup_command_strings
     if status_pair is not None:
         synthesized_summary["status"] = status_pair[0]
         synthesized_summary["acceptance_recommendation"] = status_pair[1]
@@ -3693,7 +3751,7 @@ def build_report_summary_synthesis(
         errors.append("pytest_result_summary.tests_ran missing or empty")
     else:
         pytest_tests = {str(item) for item in pytest_header.get("tests_ran") or []}
-        missing_pytest_tests = sorted(set(command_strings) - pytest_tests)
+        missing_pytest_tests = sorted(set(non_startup_command_strings) - pytest_tests)
         if missing_pytest_tests:
             errors.append(f"pytest_result_summary.tests_ran omits command_plan commands: {missing_pytest_tests}")
 
