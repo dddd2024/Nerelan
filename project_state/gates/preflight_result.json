@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_static_type_tag_contract_acceptance_rerun_v1",
-  "round_id": "round_20260618_static_type_tag_contract_acceptance_rerun_v1",
+  "decision_id": "decision_20260618_training_first_static_triage_queue_v1",
+  "round_id": "round_20260618_training_first_static_triage_queue_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-18T15:20:53.725092Z",
+  "generated_at": "2026-06-18T16:10:59.347889Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -55,8 +55,8 @@
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
-      "report_id": "codex_report_20260618_allowed_paths_source_test_scope_parser_fix_v1"
+      "decision_execution_state": "READY_FOR_EXECUTION",
+      "report_id": "codex_report_20260618_static_type_tag_contract_acceptance_rerun_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,9 +71,16 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "project_state/artifact_index.json",
+        "allowed_existing_routes",
+        "based_on_artifacts",
+        "blocked_categories",
+        "coverage_status_before_triage",
+        "decision_id",
+        "expected_next_artifacts",
+        "forbidden_actions",
+        "limitations",
+        "metadata_confidence",
         "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
@@ -82,12 +89,23 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_static_type_tag_contract.json",
-        "project_state/local_reverse_static_type_tag_contract_report.md",
+        "project_state/local_reverse_first_static_triage_queue.json",
+        "project_state/local_reverse_first_static_triage_queue_report.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_static_type_tag_contract_acceptance_rerun_v1/*",
-        "tests/test_local_reverse_static_type_tags.py",
-        "tests/test_local_reverse_training_status.py"
+        "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/*",
+        "promotion_rule",
+        "queue_id",
+        "queue_policy",
+        "queued_items",
+        "required_static_evidence",
+        "round_id",
+        "sample_id",
+        "schema_version",
+        "selection_source",
+        "stop_condition",
+        "tests/test_local_reverse_first_static_triage_queue.py",
+        "type_id",
+        "why_selected"
       ]
     },
     {
@@ -133,10 +151,10 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "4551c4395194"
+    "head_commit": "6331ac4559c4"
   },
   "status_summary": {
-    "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
+    "decision_execution_state": "READY_FOR_EXECUTION",
     "decision_report_id_match": false,
     "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",

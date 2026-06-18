@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_static_type_tag_contract_acceptance_rerun_v1",
-  "round_id": "round_20260618_static_type_tag_contract_acceptance_rerun_v1",
+  "decision_id": "decision_20260618_training_first_static_triage_queue_v1",
+  "round_id": "round_20260618_training_first_static_triage_queue_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-18T15:21:12.369032Z",
+  "generated_at": "2026-06-18T16:10:59.620762Z",
   "profile": "standard",
   "profile_reason": "source/test changes require targeted pytest and gate validation",
   "risk_reasons": [
@@ -23,7 +23,7 @@
     "final-check"
   ],
   "reasons": [
-    "decision scope includes source/test changes: tests/test_local_reverse_static_type_tags.py, tests/test_local_reverse_training_status.py"
+    "decision scope includes source/test changes: tests/test_local_reverse_first_static_triage_queue.py"
   ],
   "suggested_commands": [
     {

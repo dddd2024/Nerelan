@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260618_static_type_tag_contract_acceptance_rerun_v1",
-  "round_id": "round_20260618_static_type_tag_contract_acceptance_rerun_v1",
-  "head_commit": "4551c4395194",
+  "decision_id": "decision_20260618_training_first_static_triage_queue_v1",
+  "round_id": "round_20260618_training_first_static_triage_queue_v1",
+  "head_commit": "6331ac4559c4",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-18T15:17:59.188173Z"
+  "generated_at": "2026-06-18T16:02:14.801525Z"
 }

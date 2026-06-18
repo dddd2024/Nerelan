@@ -1,0 +1,432 @@
+{
+  "schema_version": 1,
+  "artifact_name": "local_reverse_first_static_triage_queue",
+  "decision_id": "decision_20260618_training_first_static_triage_queue_v1",
+  "round_id": "round_20260618_training_first_static_triage_queue_v1",
+  "generated_at": "2026-06-18T16:20:00Z",
+  "based_on_artifacts": [
+    "project_state/local_reverse_static_type_tag_contract.json",
+    "project_state/local_reverse_static_type_tag_contract_report.md",
+    "project_state/local_reverse_training_coverage_matrix.json",
+    "project_state/local_reverse_training_gap_report.md",
+    "project_state/local_reverse_solver_tool_capability_map.json",
+    "project_state/local_reverse_training_status.json",
+    "project_state/local_reverse_evaluation_queue.json",
+    "project_state/local_reverse_inventory.json"
+  ],
+  "queue_policy": {
+    "name": "first_static_triage_queue",
+    "mainline": "training_dataset",
+    "max_representatives_per_primary_type": 1,
+    "metadata_confidence_policy": "coverage_matrix_and_inventory_rows_are_selection_metadata_only",
+    "promotion_policy": "static_verified requires later authorized static triage evidence; runtime_validated requires later authorized runtime validation",
+    "bit_operations_policy": "secondary_cross_cutting_tag_only_in_this_queue",
+    "no_runtime_or_tool_execution_this_round": true,
+    "no_reverse_agent_source_changes_this_round": true,
+    "forbidden_claims": [
+      "solved",
+      "static_verified",
+      "runtime_validated",
+      "ida_executed",
+      "ghidra_executed",
+      "sample_executed"
+    ]
+  },
+  "queued_items": [
+    {
+      "queue_id": "first_static_triage_string_comparison_001",
+      "type_id": "string_comparison",
+      "sample_id": "cpp2_fc735338",
+      "selection_source": {
+        "coverage_matrix_type_id": "string_comparison",
+        "coverage_sample_count": 35,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json"
+      },
+      "metadata_confidence": "metadata_only_medium_from_partial_type_coverage",
+      "coverage_status_before_triage": "partial_validated_sample_plus_metadata_gap",
+      "why_selected": "First inventory_only cpp representative listed in the current string_comparison coverage row; selection is a queue seed only, not evidence that this sample is a verified string compare target.",
+      "required_static_evidence": [
+        "Identify compare function or inline compare that gates success/failure branch.",
+        "Record compare callsite address and operand source from static analysis.",
+        "Identify compared value or producer function from static decompilation or string extraction."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_string_solver",
+        "reverse_agent.local_reverse_direct_strcmp_handoff",
+        "reverse_agent.tool_runners IDA collect_evidence",
+        "reverse_agent.evidence StaticStringEvidence or CandidateEvidence"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_bruteforce",
+        "claim_static_verified_from_cpp_filename_or_category"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_cpp2_fc735338_static_triage.json",
+        "project_state/local_reverse_cpp2_fc735338_static_triage_report.md"
+      ],
+      "promotion_rule": "May advance beyond metadata_only only after a later authorized static triage artifact identifies compare callsite, operand source, and compared value or producer.",
+      "stop_condition": "Keep metadata_only if static triage does not identify a concrete compare gate."
+    },
+    {
+      "queue_id": "first_static_triage_xor_001",
+      "type_id": "xor",
+      "sample_id": "xor_array_solver_v2_fb15e14c",
+      "selection_source": {
+        "coverage_matrix_type_id": "xor",
+        "coverage_sample_count": 2,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json"
+      },
+      "metadata_confidence": "metadata_only_low",
+      "coverage_status_before_triage": "gap_or_tool_only",
+      "why_selected": "First current XOR row sample id; it is queued to audit the solver/support metadata gap and must not be treated as target proof or static evidence.",
+      "required_static_evidence": [
+        "Identify XOR instruction or XOR loop operating on input or derived data.",
+        "Identify XOR key or key derivation from static analysis.",
+        "Determine loop bounds and operand width from static analysis."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_cpp1_7b504c54_xor_handoff",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.tool_runners IDA collect_evidence",
+        "reverse_agent.evidence CandidateEvidence"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_bruteforce",
+        "claim_static_verified_from_xor_filename_or_solver_script"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_xor_array_solver_v2_fb15e14c_static_evidence_audit.json",
+        "project_state/local_reverse_xor_array_solver_v2_fb15e14c_static_evidence_audit_report.md"
+      ],
+      "promotion_rule": "May advance only after later authorized static evidence identifies a target XOR operation, key material, and loop structure; solver script naming alone never promotes confidence.",
+      "stop_condition": "If the queued id is only support code or metadata, keep the row blocked as gap_or_tool_only and select a concrete target in a later metadata refresh."
+    },
+    {
+      "queue_id": "first_static_triage_shift_affine_001",
+      "type_id": "shift_affine",
+      "sample_id": "affineenc_333f8ca9",
+      "selection_source": {
+        "coverage_matrix_type_id": "shift",
+        "coverage_sample_count": 4,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json"
+      },
+      "metadata_confidence": "metadata_only_low",
+      "coverage_status_before_triage": "metadata_level_unverified",
+      "why_selected": "First shift/affine row sample id and PE inventory entry; selected as a later static-only affine/shift evidence profile seed.",
+      "required_static_evidence": [
+        "Identify shift, rotate, or affine transform applied to input bytes.",
+        "Extract transform constants such as shift amount, affine multiplier, or affine offset.",
+        "Determine transform loop structure and iteration count from static decompilation."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_affine_inverse_handoff",
+        "reverse_agent.local_reverse_semantic_rules",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.tool_runners IDA collect_evidence"
+      ],
+      "secondary_tags": [
+        "bit_operations"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_bruteforce",
+        "claim_static_verified_from_affine_filename"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+        "project_state/local_reverse_affineenc_333f8ca9_static_triage_report.md"
+      ],
+      "promotion_rule": "May promote only after static triage identifies transform operations, constants, and loop structure.",
+      "stop_condition": "Keep metadata_level_unverified if constants or transform path are not identified."
+    },
+    {
+      "queue_id": "first_static_triage_lookup_table_001",
+      "type_id": "lookup_table",
+      "sample_id": "ascii_table_chinese_46efc7ea",
+      "selection_source": {
+        "coverage_matrix_type_id": "lookup_table",
+        "coverage_sample_count": 3,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json"
+      },
+      "metadata_confidence": "metadata_only_low",
+      "coverage_status_before_triage": "gap_or_tool_only",
+      "queue_readiness": "needs_static_triage_field_support_or_manual_static_evidence",
+      "why_selected": "First current lookup_table row id; because tool_evidence_available is false, this item records the table-evidence support gap instead of claiming automated proof readiness.",
+      "required_static_evidence": [
+        "Identify lookup table or array indexing operation used in a transform.",
+        "Identify table base address and size from static analysis.",
+        "Extract or verify table contents from static analysis."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners IDA collect_evidence",
+        "reverse_agent.evidence StaticStringEvidence"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_bruteforce",
+        "claim_static_verified_from_table_or_array_filename",
+        "claim_tool_ready_when_tool_evidence_available_is_false"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_lookup_table_field_support_plan.json",
+        "project_state/local_reverse_ascii_table_chinese_46efc7ea_manual_static_evidence_notes.md"
+      ],
+      "promotion_rule": "Do not promote until later authorized static triage or manual static evidence records table access, base/size, and contents.",
+      "stop_condition": "Remain needs_static_triage_field_support_or_manual_static_evidence while lookup-table extraction fields are absent."
+    },
+    {
+      "queue_id": "first_static_triage_rc4_001",
+      "type_id": "rc4",
+      "sample_id": "rc4enc_a1897c10",
+      "selection_source": {
+        "coverage_matrix_type_id": "rc4",
+        "coverage_sample_count": 8,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json"
+      },
+      "metadata_confidence": "metadata_only_low",
+      "coverage_status_before_triage": "metadata_level_unverified",
+      "why_selected": "First PE rc4enc target after solver-support scripts in the current RC4 row; selected for a later static cipher profile pass only.",
+      "required_static_evidence": [
+        "Identify RC4 KSA or PRGA loop structure.",
+        "Identify RC4 S-box initialization and 256-byte state array.",
+        "Identify key material or key derivation from static decompilation or string extraction."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners IDA collect_evidence",
+        "reverse_agent.evidence RC4MaterialEvidence",
+        "reverse_agent.local_reverse_solver_profiles"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_key_search",
+        "claim_static_verified_from_rc4_filename"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_rc4enc_a1897c10_static_cipher_profile.json",
+        "project_state/local_reverse_rc4enc_a1897c10_static_cipher_profile_report.md"
+      ],
+      "promotion_rule": "May promote only after static evidence identifies KSA/PRGA, S-box state, and key material.",
+      "stop_condition": "Keep metadata_level_unverified if RC4 structure or key source is not statically identified."
+    },
+    {
+      "queue_id": "first_static_triage_des_001",
+      "type_id": "des",
+      "sample_id": "desenc_40cba418",
+      "selection_source": {
+        "coverage_matrix_type_id": "des",
+        "coverage_sample_count": 5,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json"
+      },
+      "metadata_confidence": "metadata_only_low",
+      "coverage_status_before_triage": "metadata_level_unverified",
+      "why_selected": "First PE DES target after solver-support script in the current DES row; selected for later static cipher evidence profiling.",
+      "required_static_evidence": [
+        "Identify DES round function or S-box lookup pattern.",
+        "Identify DES key schedule or subkey derivation.",
+        "Identify DES permutation tables or constants from static analysis."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners IDA collect_evidence",
+        "reverse_agent.evidence CandidateEvidence"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_key_search",
+        "claim_static_verified_from_des_filename"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_desenc_40cba418_static_cipher_profile.json",
+        "project_state/local_reverse_desenc_40cba418_static_cipher_profile_report.md"
+      ],
+      "promotion_rule": "May promote only after static evidence identifies DES structure, constants, and key schedule.",
+      "stop_condition": "Keep metadata_level_unverified if DES structure or key schedule is not statically identified."
+    },
+    {
+      "queue_id": "first_static_triage_hash_md5_sha_001",
+      "type_id": "hash_md5_sha",
+      "sample_id": "sha_256_18019fca",
+      "selection_source": {
+        "coverage_matrix_type_id": "hash_md5_sha",
+        "coverage_sample_count": 2,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json",
+        "source_status_artifact": "project_state/local_reverse_training_status.json"
+      },
+      "metadata_confidence": "metadata_only_low_blocked_input_domain",
+      "coverage_status_before_triage": "metadata_level_unverified",
+      "bounded_domain_required": true,
+      "why_selected": "Current PE SHA-256 row sample with known blocked training status; selected to preserve the bounded-domain requirement before any solver attempt.",
+      "required_static_evidence": [
+        "Identify hash constants or hash round structure.",
+        "Identify or bound input domain including length, charset, or format.",
+        "Identify hash comparison point and compared hash value."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_constraint_recovery",
+        "reverse_agent.tool_runners IDA collect_evidence",
+        "reverse_agent.evidence ConstraintEvidence"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "unbounded_bruteforce",
+        "claim_static_verified_from_sha_filename",
+        "solver_attempt_without_bounded_domain"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_sha_256_18019fca_hash_static_domain_audit.json",
+        "project_state/local_reverse_sha_256_18019fca_hash_static_domain_audit_report.md"
+      ],
+      "promotion_rule": "May promote only after static triage identifies hash structure, comparison, and bounded input domain; hash constants alone are insufficient.",
+      "stop_condition": "Remain blocked if no bounded input domain evidence is recovered."
+    },
+    {
+      "queue_id": "first_static_triage_simple_antidebug_001",
+      "type_id": "simple_antidebug",
+      "sample_id": "seh_52be8d5c",
+      "selection_source": {
+        "coverage_matrix_type_id": "simple_antidebug",
+        "coverage_sample_count": 1,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json"
+      },
+      "metadata_confidence": "metadata_only_low",
+      "coverage_status_before_triage": "metadata_level_unverified",
+      "why_selected": "Only current simple_antidebug row sample; selected for static SEH/anti-debug triage only.",
+      "required_static_evidence": [
+        "Identify anti-debug technique such as IsDebuggerPresent, NtQueryInformationProcess, PEB BeingDebugged, INT trap, or SEH-based anti-debug.",
+        "Identify anti-debug check location and branch condition from static analysis.",
+        "Determine static bypass or patch strategy from decompilation without executing a debugger."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners IDA collect_evidence",
+        "reverse_agent.olly_scripts.collect_evidence only in a later decision that explicitly authorizes dynamic/debugger work"
+      ],
+      "secondary_tags": [
+        "bit_operations"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "ollydbg",
+        "x64dbg",
+        "claim_static_verified_from_seh_filename"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_seh_52be8d5c_static_antidebug_triage.json",
+        "project_state/local_reverse_seh_52be8d5c_static_antidebug_triage_report.md"
+      ],
+      "promotion_rule": "May promote only after static triage identifies the anti-debug technique, check location, and branch condition.",
+      "stop_condition": "Keep metadata_level_unverified if SEH filename metadata is the only signal."
+    },
+    {
+      "queue_id": "first_static_triage_mixed_unknown_001",
+      "type_id": "mixed_unknown",
+      "sample_id": "samplereverse_ca74a786",
+      "selection_source": {
+        "coverage_matrix_type_id": "mixed_unknown",
+        "coverage_sample_count": 7,
+        "source_sample_ids_artifact": "project_state/local_reverse_training_coverage_matrix.json",
+        "source_inventory_artifact": "project_state/local_reverse_inventory.json"
+      },
+      "metadata_confidence": "metadata_only_low",
+      "coverage_status_before_triage": "metadata_level_unverified",
+      "why_selected": "First current mixed_unknown PE sample id; selected to define a later one-sample static triage path that can re-tag from observed static evidence.",
+      "required_static_evidence": [
+        "Run static triage in a later authorized round to identify the actual transform type.",
+        "Assign at least one concrete transform tag from static evidence when observed.",
+        "If no recognized transform is found, document static_triage_completed evidence and keep mixed_unknown."
+      ],
+      "allowed_existing_routes": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners IDA collect_evidence",
+        "reverse_agent.local_reverse_training_status"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_bruteforce",
+        "claim_static_verified_from_unknown_category_or_sample_name"
+      ],
+      "expected_next_artifacts": [
+        "project_state/local_reverse_samplereverse_ca74a786_static_triage.json",
+        "project_state/local_reverse_samplereverse_ca74a786_static_triage_report.md"
+      ],
+      "promotion_rule": "May re-tag only from later authorized static evidence; unknown category and sample name are insufficient.",
+      "stop_condition": "Remain mixed_unknown if static triage cannot identify a concrete transform type."
+    }
+  ],
+  "blocked_categories": [
+    {
+      "type_id": "tea_xtea",
+      "coverage_matrix_type_id": "tea",
+      "reason": "blocked_no_current_sample",
+      "sample_count": 0,
+      "next_allowed_action": "Add or identify TEA/XTEA training material in a later metadata-only intake round before static triage planning."
+    },
+    {
+      "type_id": "base64",
+      "coverage_matrix_type_id": "base64",
+      "reason": "blocked_no_current_sample",
+      "sample_count": 0,
+      "next_allowed_action": "Add metadata/type tagging for Base64 only when a current sample or static evidence observes Base64 constants or transform material."
+    },
+    {
+      "type_id": "gui_validation",
+      "coverage_matrix_type_id": "gui_validation",
+      "reason": "blocked_no_current_sample",
+      "sample_count": 0,
+      "next_allowed_action": "Add GUI/static UI evidence fields after a current GUI sample is identified; do not plan runtime GUI workflows from empty inventory."
+    }
+  ],
+  "limitations": [
+    "This artifact is a planning queue and schema artifact, not a solver result.",
+    "All queued items remain metadata_only until a later authorized static triage or manual static evidence artifact proves otherwise.",
+    "No sample, solver, harness, IDA, Ghidra, debugger, emulator, runtime probe, sidecar, GUI workflow, or full solve_reports scan was run in this round.",
+    "Coverage matrix rows can select representatives but cannot prove static verification by filename, category, sample id, solver module name, or metadata alone.",
+    "The lookup_table representative records a field-support/manual-evidence gap because tool_evidence_available is false.",
+    "The XOR representative may be support-code metadata rather than a concrete target; it is queued only to preserve that gap for a later authorized triage or metadata refresh.",
+    "Hash samples require bounded input-domain evidence before any solver or brute-force attempt.",
+    "bit_operations is treated only as a secondary/cross-cutting tag in this first queue."
+  ]
+}
