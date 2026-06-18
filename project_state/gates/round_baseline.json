@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260618_startup_command_coverage_logic_fix_v1",
-  "round_id": "round_20260618_startup_command_coverage_logic_fix_v1",
-  "head_commit": "124957301b05",
+  "decision_id": "decision_20260618_gate_report_hygiene_and_build_scope_v1",
+  "round_id": "round_20260618_gate_report_hygiene_and_build_scope_v1",
+  "head_commit": "e5faa8283742",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-18T10:21:09.834361Z"
+  "generated_at": "2026-06-18T11:26:58.875098Z"
 }

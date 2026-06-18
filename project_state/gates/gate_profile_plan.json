@@ -2,30 +2,23 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_startup_command_coverage_logic_fix_v1",
-  "round_id": "round_20260618_startup_command_coverage_logic_fix_v1",
+  "decision_id": "decision_20260618_gate_report_hygiene_and_build_scope_v1",
+  "round_id": "round_20260618_gate_report_hygiene_and_build_scope_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T10:54:53.016561Z",
-  "profile": "full",
-  "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
-  "risk_reasons": [
-    "gate/project_state source changes require full validation"
-  ],
-  "closeout_allowed": true,
+  "generated_at": "2026-06-18T11:29:34.969958Z",
+  "profile": "fast",
+  "profile_reason": "artifact-only cleanup does not require close-round",
+  "risk_reasons": [],
+  "closeout_allowed": false,
   "required_command_kinds": [
     "startup",
     "preflight",
     "command-plan",
-    "run-round",
-    "pytest",
-    "doctor",
-    "lint-report",
     "report-summary",
-    "final-check",
-    "close-round"
+    "final-check"
   ],
   "reasons": [
-    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py"
+    "decision scope has no source/test or gate/project_state changes"
   ],
   "suggested_commands": [
     {
@@ -48,45 +41,15 @@
     },
     {
       "index": 4,
-      "command": "run-round",
-      "phase": "gate",
-      "kind": "run-round"
-    },
-    {
-      "index": 5,
-      "command": "full pytest for gate/project_state modules",
-      "phase": "test",
-      "kind": "pytest"
-    },
-    {
-      "index": 6,
-      "command": "doctor",
-      "phase": "status",
-      "kind": "doctor"
-    },
-    {
-      "index": 7,
-      "command": "lint-report",
-      "phase": "status",
-      "kind": "lint-report"
-    },
-    {
-      "index": 8,
       "command": "report-summary",
       "phase": "gate",
       "kind": "report-summary"
     },
     {
-      "index": 9,
+      "index": 5,
       "command": "final-check",
       "phase": "gate",
       "kind": "final-check"
-    },
-    {
-      "index": 10,
-      "command": "close-round",
-      "phase": "gate",
-      "kind": "close-round"
     }
   ],
   "future_phases": []

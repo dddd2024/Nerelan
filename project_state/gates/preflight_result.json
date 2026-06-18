@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_startup_command_coverage_logic_fix_v1",
-  "round_id": "round_20260618_startup_command_coverage_logic_fix_v1",
+  "decision_id": "decision_20260618_gate_report_hygiene_and_build_scope_v1",
+  "round_id": "round_20260618_gate_report_hygiene_and_build_scope_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T10:54:28.435758Z",
+  "generated_at": "2026-06-18T11:29:28.809645Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
-      "report_id": "codex_report_20260618_gate_profile_tier_commit_and_state_rebuild_v1"
+      "report_id": "codex_report_20260618_startup_command_coverage_logic_fix_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,15 +71,21 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/model_gate.json",
         "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260618_gate_report_hygiene_and_build_scope_v1/*",
+        "project_state/task_packet.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py",
         "tests/test_project_state.py"
@@ -128,7 +134,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "124957301b05"
+    "head_commit": "e5faa8283742"
   },
   "status_summary": {
     "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
@@ -136,6 +142,6 @@
     "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
-    "current_state_round_id": "round_20260618_104213"
+    "current_state_round_id": "round_20260618_112740"
   }
 }
