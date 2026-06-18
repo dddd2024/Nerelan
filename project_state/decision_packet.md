@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260618_fast_profile_non_closeout_success_policy_v1",
-  "round_id": "round_20260618_fast_profile_non_closeout_success_policy_v1",
+  "decision_id": "decision_20260618_static_triage_type_tag_contract_v1",
+  "round_id": "round_20260618_static_triage_type_tag_contract_v1",
   "based_on_state_build_id": "state_20260618_114539_14d4ec94f06b",
   "based_on_state_digest": "14d4ec94f06bab113eb55fdf774e82b449b2851672e927f2b0df7a6052a95cc2",
   "status": "APPROVED",
-  "mainline": "engineering_branch",
+  "mainline": "training_dataset",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,41 +15,38 @@
 
 ## 1. Goal
 
-修复 fast profile 下 `closeout_allowed=false` 与 final-check/report status 之间的策略不一致。
+把上一轮训练覆盖矩阵中的“metadata-level planning gaps”推进到可复用的静态分类契约：为本地逆向训练集建立 static triage type-tag contract，并用单元测试验证分类逻辑，但不运行任何样本和逆向工具。
 
-上一轮 `build_output_scope_recording_fix_v1` 已经完成核心目标：`build_output_scope` 由 WARN 变为 PASS，`python -m reverse_agent.project_state build` 已记录并 exit 0。但是本轮 final-check 仍为 WARN，report 仍为 `PARTIAL / REWORK_REQUIRED`，原因不是当前任务失败，而是 fast profile 本来不允许 close-round，却仍把缺少 round manifest、archive/live 不一致、report round not archived 作为 WARN，导致 artifact-only cleanup 无法产生干净成功态。
+上一轮已经完成训练覆盖矩阵，确认短期缺口集中在：type tag enrichment、simple transform recipes、cipher static evidence profile、hash bounded-domain policy、GUI/anti-debug metadata fields。本轮只做第一步：定义并落地静态证据到题型标签的契约，使后续每次 static triage 能把观察到的 evidence 映射为可审计 type tags。
 
-本轮目标：
+目标产物：
 
-1. 明确 fast profile 的成功语义：当 `closeout_allowed=false` 且 profile 为 fast 时，不应要求 close-round，也不应因为没有 round archive 而把当前轮标为 PARTIAL/REWORK_REQUIRED。
-2. 保持严格性：如果 fast profile 报告声称生成了 archive、或者 generated_artifacts 包含 round archive 文件、或者 close-round 被错误执行/记录，仍必须 FAIL/WARN。
-3. 修复 final-check/report-summary/status-policy 逻辑，使 artifact/report-only fast profile 在所有必需命令通过、无 blocking reasons、无 archive claims 时可以达到干净成功态。
-4. 补回归测试，覆盖 fast non-closeout clean success 与错误 archive claim 两类情况。
-5. 不改变 standard/full profile 的 closeout/archive/manifest 严格性。
+1. `project_state/local_reverse_static_type_tag_contract.json`
+2. `project_state/local_reverse_static_type_tag_contract_report.md`
+3. 必要的只读/纯函数分类逻辑和测试，优先复用现有 `StructuredEvidence`、`tool_runners`、`local_reverse_single_sample_static_triage` 能力。
 
-本轮不是逆向解题，不进入样本求解，不运行 IDA/Ghidra/debugger/emulator/runtime probe。
+本轮不求解样本，不运行样本，不运行 IDA/Ghidra/debugger/emulator/runtime probe，也不批量处理 inventory。
 
 ## 2. Current Evidence
 
-主线是 `engineering_branch`。
+主线是 `training_dataset`。
 
-上一轮事实：
+上一轮 `training_coverage_matrix_gap_report_v1` 给出的事实：
 
-- `decision_20260618_build_output_scope_recording_fix_v1` 合法，目标是清理 `build_output_scope_unverified`。
-- `python -m reverse_agent.project_state build` 已在 pytest_result 中记录并 exit 0。
-- `pytest` 通过，记录为 `789 passed`。
-- final-check 中 `build_output_scope` 已为 PASS，build-generated files 包括 `project_state/artifact_index.json`、`current_state.json`、`model_gate.json`、`task_packet.json`，且 `build_command_recorded=true`、`build_exit_zero=true`。
-- gate-profile 自动选择 fast，`closeout_allowed=false`，原因是 artifact-only cleanup。
-- 当前剩余 WARN 为 round manifest missing、archived report differs from live、archived pytest differs from live、status_policy_valid 中 report_status PARTIAL / report round not archived。
-- fast_profile_closeout_consistency 已 PASS，并确认 fast profile correctly omits close-round，validation success does not imply closeout。
+- local project_state inventory 有 65 个 metadata-only entries；GitHub-safe mirror 为 50 个 entries。
+- 当前 read-only builder status：solved=1、blocked=2、needs_triage=0、inventory_only=62。
+- queue 有 52 items，策略为 `simple_static_first_unsolved_only`。
+- coverage matrix 覆盖字符串比较、XOR、移位/仿射、位运算、查表、RC4、DES、TEA、Base64、hash/MD5/SHA、GUI、简单反调试、mixed/unknown。
+- 除字符串比较有一个已解样本外，大多数类别仍是 metadata/source-audit level，缺少 current static-triage evidence。
+- gap report 明确下一步应先做 type tag enrichment，并为 RC4/DES、simple transforms、hash/GUI/anti-debug 定义静态证据要求。
 
-因此下一步不是继续改 report 文本，也不是运行 close-round，而是修正 gate 对 fast non-closeout 的成功态表达。
+上一轮 gate 工程清理已 ACCEPTED：`fast_profile_non_closeout_success_policy_v1` final-check PASSED，archive_status=archived，report_status=SUCCESS，acceptance_recommendation=ACCEPTED。
 
 `task_packet.json` 仍保留旧 `samplereverse` sample_state/reverse-solving 内容；它不是本轮执行权威。本轮执行以 `project_state/decision_packet.md` 为准。
 
 `negative_results.json` 禁止旧 sample_solver blind search、budget-only expansion、compare_semantics_agree=false candidate frontier、提交完整 solve_reports。本轮不触碰这些方向。
 
-`.codex-skills/registry.json` 中 `reverse-agent-iteration@v2` 必须为 active。
+进入 training_dataset 前必须检查已有能力：sample metadata、inventory/status overlay、evaluation queue、solver templates、static triage、IDA/Ghidra/debugger/tool runner/harness/StructuredEvidence 接口。成熟工具优先，不重复实现已有工具能力。
 
 ## 3. Do Not Do
 
@@ -65,15 +62,13 @@
 
 不要修改 `.codex-skills/`。
 
-不要通过强行 close-round 规避 fast profile 的策略问题。
+不要把单次样本 candidate、flag、本地绝对路径或 runtime metric 写进 skill。
 
-不要降低 standard/full profile 的 closeout/archive/manifest 严格性。
+不要把 metadata-level 标签声称为 solved 或 static-verified。
 
-不要让 fast profile 在存在 archive claims、round archive generated_artifacts、或 close-round 命令记录时静默通过。
+不要批量 backfill inventory type tags；本轮只定义 contract 和 synthetic/unit-level tests。
 
-不要修改训练覆盖矩阵、solver、harness、tool runner 或样本 metadata 语义。
-
-不要在 close-round 后再修改 live report 或 pytest_result；本轮预期 fast profile 不应 close-round。
+不要重复实现 IDA/Ghidra/debugger 已有能力；只做现有 evidence 输出的结构化映射。
 
 ## 4. Files To Inspect
 
@@ -88,19 +83,18 @@
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-重点检查：
+训练/静态证据重点检查：
 
-1. `reverse_agent/project_gate.py`
-2. `tests/test_project_gate.py`
-3. `tests/test_project_state.py`
-4. `project_state/gates/final_gate_result.json`
-5. `project_state/gates/report_summary_synthesis.json`
-6. `project_state/gates/gate_profile_plan.json`
-7. `project_state/gates/command_plan.json`
-8. `project_state/pytest_result.txt`
-9. `project_state/codex_execution_report.md`
-10. `project_state/gates/round_delta_summary.json`
-11. `project_state/gates/round_close_snapshot.json` if present
+1. `project_state/local_reverse_training_coverage_matrix.json`
+2. `project_state/local_reverse_training_gap_report.md`
+3. `project_state/local_reverse_solver_tool_capability_map.json`
+4. `project_state/local_reverse_training_inventory_refresh.json`
+5. `reverse_agent/local_reverse_single_sample_static_triage.py`
+6. `reverse_agent/evidence.py`
+7. `reverse_agent/tool_runners.py`
+8. `reverse_agent/local_reverse_training_status.py`
+9. `tests/test_local_reverse_training_status.py`
+10. 现有 static/solver/tool capability 相关测试，例如 `tests/test_tool_runners.py`、`tests/test_tool_capability_inventory.py`、`tests/test_simple_static_patterns.py`、`tests/test_static_feature_extractor.py`，只在直接相关时有界读取。
 
 不要读取完整 `PROJECT_PROGRESS_LOG.txt` 或完整 `solve_reports/`。
 
@@ -113,25 +107,26 @@
 3. `git rev-parse --show-toplevel` 指向当前仓库。
 4. 启动 `git status --short` 已记录。
 5. `decision_meta.status=APPROVED`。
-6. `mainline=engineering_branch`。
+6. `mainline=training_dataset`。
 7. `reverse-agent-iteration@v2` 是 active skill。
-8. 本轮是 fast profile gate status policy 修复，不是训练样本求解。
+8. 本轮是训练集 type-tag contract 工作，不是逆向样本求解。
 
 必须审计并记录：
 
-1. final-check 中 round manifest / archived report / archived pytest checks 的 fast profile 分支逻辑。
-2. status-policy 如何把 `PARTIAL / REWORK_REQUIRED` 派生出来。
-3. report-summary synthesis 如何根据 final_gate_result 派生 report status 与 acceptance recommendation。
-4. fast profile closeout_allowed=false 时，哪些 archive 相关检查应被标记为 PASS/SKIP/non-blocking，而不是 WARN。
-5. 哪些情况下 fast profile 仍必须失败：存在 archive claims、generated_artifacts 声称 round archive、close-round 命令被记录、或 closeout_allowed 与 profile 不一致。
+1. 现有 `StructuredEvidence` 或 tool output 中已经有哪些可用于题型判断的字段。
+2. `local_reverse_single_sample_static_triage` 当前是否已有 tags/category 输出；如果已有，不得重复造一套平行 schema。
+3. 现有 IDA/Ghidra/debugger/tool runner 接口是否能提供 strings、functions、constants、compare contexts、crypto/material evidence；本轮只登记能力，不执行工具。
+4. 每个目标题型的最低静态证据要求，特别是 string comparison、XOR、shift/affine、lookup table、RC4、DES、hash、GUI、anti-debug。
+5. 哪些标签只能 metadata-level planning，哪些可以由 synthetic static evidence 单元测试验证。
 
 ## 6. Implementation Scope
 
-允许修改：
+优先生成/更新 project_state training artifacts：
 
-- `reverse_agent/project_gate.py`
-- `tests/test_project_gate.py`
-- `tests/test_project_state.py`
+- `project_state/local_reverse_static_type_tag_contract.json`
+- `project_state/local_reverse_static_type_tag_contract_report.md`
+- `project_state/artifact_index.json`
+- `project_state/current_state.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/preflight_result.json`
@@ -141,19 +136,24 @@
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/gates/round_close_snapshot.json` only if generated by current gate logic
+- `project_state/gates/round_close_snapshot.json`
+- `project_state/rounds/round_20260618_static_triage_type_tag_contract_v1/*`
 
-建议实现方向：
+仅当现有代码缺少静态标签契约入口时，允许小范围新增或修改：
 
-1. 在 final-check 中识别 `profile=fast` 且 `closeout_allowed=false` 且无 archive claims 的状态。
-2. 对该状态下的 `round_manifest_present`、`archived_report_matches_live_report`、`archived_pytest_result_matches_live_pytest_result` 采用 non-required / SKIP / PASS-with-detail 的语义，不作为 WARN 推高 gate_status。
-3. 调整 status-policy 和 report-summary 派生规则，使 clean fast non-closeout round 可以输出 `SUCCESS / ACCEPTED` 或等价的干净成功态。
-4. 添加回归测试：
-   - fast profile artifact-only scope、无 archive claims、所有 required commands 通过 => final-check clean success，无 archive WARN。
-   - fast profile 若 generated_artifacts 声称 round archive 但未 close-round => FAIL/WARN。
-   - fast profile 若 tests_ran 记录 close-round 但 closeout_allowed=false => FAIL/WARN。
-   - standard/full profile archive/manifest 仍保持严格。
-5. 不修改训练 coverage matrix、solver/harness/tool runner 主逻辑。
+- `reverse_agent/local_reverse_single_sample_static_triage.py`
+- `reverse_agent/local_reverse_training_status.py`
+- `reverse_agent/evidence.py`
+- `tests/test_local_reverse_training_status.py`
+- `tests/test_local_reverse_static_type_tags.py` 或现有等价测试文件
+
+要求：
+
+1. Contract 至少覆盖这些 tag ids：`string_comparison`、`xor`、`shift_affine`、`bit_operations`、`lookup_table`、`rc4`、`des`、`tea_xtea`、`base64`、`hash_md5_sha`、`gui_validation`、`simple_antidebug`、`mixed_unknown`。
+2. 每个 tag 需包含：`evidence_requirements`、`allowed_evidence_sources`、`confidence_rules`、`solver_or_tool_route`、`not_sufficient_conditions`、`next_minimal_task`。
+3. 如果新增代码，必须是纯函数或只读 schema helper；不得执行样本或工具。
+4. 测试必须使用 synthetic evidence fixtures，验证至少 string comparison、XOR、shift/affine、lookup table、RC4、DES、hash、anti-debug 的分类输出与不充分证据场景。
+5. 不得把文件名启发式当成 static-verified evidence；文件名只能用于 metadata-level hints。
 
 ## 7. Tests
 
@@ -166,8 +166,24 @@ Test-Path F:\reverse-agent
 git rev-parse --show-toplevel
 git status --short
 
-python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+python -m pytest tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q
+```
 
+如果新增了独立 type tag 测试文件，还必须运行：
+
+```powershell
+python -m pytest tests/test_local_reverse_static_type_tags.py tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q
+```
+
+必须运行只读 CLI 或等价检查：
+
+```powershell
+python -m reverse_agent.local_reverse_training_status --json
+```
+
+随后运行 gate：
+
+```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state --json
@@ -177,23 +193,14 @@ python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-如果 gate-profile 仍选择 fast 且 `closeout_allowed=false`，不得运行 close-round。报告必须说明 fast non-closeout clean success 的最终状态，以及 archive/manifest checks 为什么不是 WARN。
-
-如果 gate-profile 因源码/test 修改选择 standard 或 full 且 `closeout_allowed=true`，则运行：
+如果 `final-check` 无 FAIL 且 `gate_profile_plan.closeout_allowed=true`，运行：
 
 ```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_profile_non_closeout_success_policy_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_static_triage_type_tag_contract_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-报告必须列出：
-
-- profile 与 closeout_allowed；
-- archive/manifest checks 最终状态；
-- status_policy_valid 最终状态；
-- report-summary 派生出的 `status` / `acceptance_recommendation`；
-- fast profile 下是否有 archive claims；
-- 是否有 final-check FAIL/WARN。
+报告必须列出：profile、closeout_allowed、是否运行 close-round、type-tag contract 产物路径、测试覆盖的 tag、哪些类别仍为 metadata-level only、final-check 状态。
 
 ## 8. Stop Conditions
 
@@ -201,12 +208,14 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 
 1. 目录或仓库不正确。
 2. `decision_meta` 缺失或不是 APPROVED。
-3. `mainline` 不是 `engineering_branch`。
+3. `mainline` 不是 `training_dataset`。
 4. `reverse-agent-iteration@v2` 不是 active。
 5. 需要运行样本、debugger、IDA/Ghidra、emulator、runtime probe 或 sidecar。
 6. 需要读取完整 `solve_reports/` 或 `PROJECT_PROGRESS_LOG.txt`。
 7. 需要修改允许范围之外的文件。
-8. 修改会削弱 standard/full closeout/archive/manifest 要求。
-9. fast profile 存在 archive claims 或 close-round 命令时仍被判为 clean success。
-10. `report-summary` 或 `final-check` 最终出现 FAIL。
-11. 报告声称 fast non-closeout policy 已修复，但没有覆盖错误 archive claim/close-round 误用的回归测试。
+8. 发现现有静态标签 schema 已存在但本轮准备重复实现。
+9. 合约把 metadata/file-name hints 声称为 current static evidence。
+10. 合约或测试把某类题声称为 solved/static-verified 但没有 evidence 规则支持。
+11. 修改会影响 solver、harness、tool runner 主逻辑。
+12. `report-summary` 或 `final-check` 最终出现 FAIL。
+13. 报告声称完成 type tag contract，但没有 project_state artifact 或没有 synthetic/unit tests。
