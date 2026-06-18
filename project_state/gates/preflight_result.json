@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
+  "gate_status": "BLOCKED",
   "decision_id": "decision_20260618_training_coverage_matrix_gap_report_v1",
   "round_id": "round_20260618_training_coverage_matrix_gap_report_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-18T12:12:29.712723Z",
+  "generated_at": "2026-06-18T12:32:23.617206Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -53,10 +53,10 @@
     },
     {
       "name": "decision_not_consumed_by_report",
-      "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260618_restore_gate_report_hygiene_v1"
+      "status": "FAIL",
+      "detail": "decision already appears consumed by report",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260618_training_coverage_matrix_gap_report_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -152,18 +152,20 @@
       "baseline_source_test_dirty": []
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "decision_not_consumed_by_report: decision already appears consumed by report"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "do_not_start_consumed_or_stale_decision",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
     "head_commit": "69dad1792ad9"
   },
   "status_summary": {
-    "decision_execution_state": "READY_FOR_EXECUTION",
-    "decision_report_id_match": false,
-    "decision_consumed_by_report": false,
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_report_id_match": true,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_114539"
