@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
-  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
+  "round_id": "round_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T06:15:33.435472Z",
+  "generated_at": "2026-06-18T06:31:10.813817Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260618_fast_artifact_only_validation_v3"
+      "report_id": "codex_report_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,7 +71,6 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        ".codex-skills/**",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -79,25 +78,15 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework/**",
-        "reverse_agent/*.py",
-        "reverse_agent/project_gate.py",
-        "solve_reports/**",
-        "tests/*.py"
+        "project_state/pytest_result.txt"
       ]
     },
     {
       "name": "forbidden_paths_not_allowed",
-      "status": "FAIL",
-      "detail": "allowed scope includes forbidden paths",
-      "forbidden_paths": [
-        ".codex-skills/**",
-        "solve_reports/**"
-      ]
+      "status": "PASS",
+      "detail": "allowed scope contains no forbidden paths",
+      "forbidden_paths": []
     },
     {
       "name": "mainline_scope_policy",
@@ -131,15 +120,13 @@
       "baseline_source_test_dirty": []
     }
   ],
-  "blocking_reasons": [
-    "forbidden_paths_not_allowed: allowed scope includes forbidden paths"
-  ],
+  "blocking_reasons": [],
   "warnings": [],
-  "recommended_next_action": "fix_preflight_failures_before_starting",
+  "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "45ea79f79306"
+    "head_commit": "553c9b325709"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

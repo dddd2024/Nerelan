@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
-  "report_id": "codex_report_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
-  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
-  "generated_at": "2026-06-18T06:21:35.587413Z",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
+  "report_id": "codex_report_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
+  "round_id": "round_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
+  "generated_at": "2026-06-18T06:35:32.901769Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "WARN",
       "detail": "round manifest is missing",
-      "round_manifest_path": "project_state\\rounds\\round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260618_fast_artifact_only_validation_v5_parser_safe_scope\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -231,8 +231,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
-      "command_plan_round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework"
+      "command_plan_decision_id": "decision_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
+      "command_plan_round_id": "round_20260618_fast_artifact_only_validation_v5_parser_safe_scope"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -261,17 +261,9 @@
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "FAIL",
-      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
-      "errors": [
-        {
-          "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-          "exit_code": 1,
-          "expected_exit_codes": [
-            0
-          ]
-        }
-      ]
+      "status": "PASS",
+      "detail": "recorded command exit codes match command_plan expected_exit_codes",
+      "errors": []
     },
     {
       "name": "report_summary_synthesis_required",
@@ -328,10 +320,8 @@
     {
       "name": "preflight_failure_handoff",
       "status": "PASS",
-      "detail": "preflight failed (FAILED) and report correctly reflects non-success status",
-      "preflight_status": "FAILED",
-      "report_status": "FAILED",
-      "acceptance_recommendation": "REWORK_REQUIRED"
+      "detail": "preflight passed or warned; no handoff violation",
+      "preflight_status": "PASSED"
     },
     {
       "name": "stale_artifact_ids",
@@ -347,8 +337,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
-      "gate_profile_round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework"
+      "gate_profile_decision_id": "decision_20260618_fast_artifact_only_validation_v5_parser_safe_scope",
+      "gate_profile_round_id": "round_20260618_fast_artifact_only_validation_v5_parser_safe_scope"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -411,7 +401,6 @@
     }
   ],
   "blocking_reasons": [
-    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
     "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
   ],
   "warnings": [
