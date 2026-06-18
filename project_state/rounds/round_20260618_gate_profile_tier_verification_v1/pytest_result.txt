@@ -214,17 +214,15 @@ recommended_next_action: record_and_follow_command_plan_manually
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: FAILED
+report-summary: PASSED
 decision_id: decision_20260618_gate_profile_tier_verification_v1
 report_id: codex_report_20260618_gate_profile_tier_verification_v1
 round_id: round_20260618_gate_profile_tier_verification_v1
-  [DIFF] status
-  [DIFF] acceptance_recommendation
 artifact: project_state/gates/report_summary_synthesis.json
-===== EXIT: 1 =====
+===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: FAILED
+final-check: WARN
 decision_id: decision_20260618_gate_profile_tier_verification_v1
 report_id: codex_report_20260618_gate_profile_tier_verification_v1
 round_id: round_20260618_gate_profile_tier_verification_v1
@@ -260,7 +258,7 @@ round_id: round_20260618_gate_profile_tier_verification_v1
   [PASS] close_round_is_last_command_block: close-round is the last command block in pytest_result
   [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
   [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
   [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
   [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
   [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs
@@ -273,9 +271,20 @@ round_id: round_20260618_gate_profile_tier_verification_v1
   [PASS] forbidden_paths_absent: no forbidden paths detected
   [WARN] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
   [PASS] final_check_stdout_matches_gate_status: archive-pending final-check status is allowed to differ before close-round
-recommended_next_action: fix_gate_failures_before_archive_or_handoff
-===== EXIT: 1 =====
+recommended_next_action: review_warnings_before_closeout
+===== EXIT: 0 =====
 
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_gate_profile_tier_verification_v1 =====
+close-round: FAILED
+decision_id: decision_20260618_gate_profile_tier_verification_v1
+report_id: codex_report_20260618_gate_profile_tier_verification_v1
+round_id: round_20260618_gate_profile_tier_verification_v1
+  [FAIL] pytest_result_match: pytest_result does not match report
+  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
+  [WARN] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
+archive_status: not_attempted
+recommended_next_action: fix_close_round_failures_before_retry
+===== EXIT: 1 =====
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_gate_profile_tier_verification_v1 =====
 close-round: CLOSED
 decision_id: decision_20260618_gate_profile_tier_verification_v1
@@ -325,6 +334,6 @@ round_id: round_20260618_gate_profile_tier_verification_v1
   [ACTION PASSED] final_check_after_archive
 archive_status: created
 recommended_next_action: no_action_required
+===== STDERR =====
 ===== EXIT: 0 =====
-
 

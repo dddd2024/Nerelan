@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260618_gate_profile_tier_verification_v1",
+  "round_id": "round_20260618_gate_profile_tier_verification_v1",
+  "generated_at": "2026-06-18T09:30:00Z",
+  "profiles": {
+    "fast": {
+      "trigger_fixture": "artifact-only decision with only project_state/* deliverables",
+      "expected_profile": "fast",
+      "actual_profile": "fast",
+      "closeout_allowed": false,
+      "required_command_kinds": [
+        "startup",
+        "preflight",
+        "command-plan",
+        "report-summary",
+        "final-check"
+      ],
+      "verified_level": "unit+CLI",
+      "status": "PASS"
+    },
+    "standard": {
+      "trigger_fixture": "ordinary source/test changes (non-gate modules)",
+      "expected_profile": "standard",
+      "actual_profile": "standard",
+      "closeout_allowed": true,
+      "required_command_kinds": [
+        "startup",
+        "preflight",
+        "command-plan",
+        "pytest",
+        "doctor",
+        "lint-report",
+        "report-summary",
+        "final-check"
+      ],
+      "verified_level": "unit",
+      "status": "PASS"
+    },
+    "full": {
+      "trigger_fixture": "gate/project_state source changes (reverse_agent/project_gate.py)",
+      "expected_profile": "full",
+      "actual_profile": "full",
+      "closeout_allowed": true,
+      "required_command_kinds": [
+        "startup",
+        "preflight",
+        "command-plan",
+        "run-round",
+        "pytest",
+        "doctor",
+        "lint-report",
+        "report-summary",
+        "final-check",
+        "close-round"
+      ],
+      "verified_level": "unit+CLI",
+      "status": "PASS"
+    }
+  },
+  "profile_override": {
+    "supported_profiles": [
+      "fast",
+      "standard",
+      "full"
+    ],
+    "invalid_profile_fails": true,
+    "verified_level": "unit",
+    "status": "PASS"
+  },
+  "overall_status": "PASS",
+  "notes": [
+    "fast: unit-level verified (10 tests), CLI-level verified (live project_state gate-profile PASSED), closeout not applicable (closeout_allowed=false)",
+    "standard: unit-level verified (10 tests), CLI-level not verified (no live standard trigger this round), closeout allowed but not exercised",
+    "full: unit-level verified (10 tests), CLI-level verified (previous rounds used full profile), closeout verified (previous rounds ran close-round)",
+    "fast profile correctly omits close-round when closeout_allowed=false",
+    "standard profile includes pytest/doctor/lint-report but not close-round",
+    "full profile includes run-round/pytest/doctor/lint-report/close-round",
+    "explicit profile override for fast/standard/full all produce correct metadata",
+    "invalid profile name (e.g. medium) fails with clear error"
+  ]
+}

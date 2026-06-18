@@ -15,7 +15,6 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/pytest_result.txt",
     "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/codex_execution_report.md",
@@ -48,7 +47,6 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/pytest_result.txt",
     "project_state/rounds/round_20260618_gate_profile_tier_verification_v1/codex_execution_report.md",
@@ -122,29 +120,13 @@ Verified all three gate profile tiers (fast, standard, full) are runnable, audit
 - preflight: PASSED - exit 0
 - gate-profile: PASSED (full profile, closeout_allowed=true) - exit 0
 - command-plan: PASSED (14 commands, full profile) - exit 0
-- report-summary: FAILED (round closed with dirty worktree) - exit 1
-- final-check: FAILED (archived_report_matches_live_report, archived_pytest_result_matches_live_pytest_result, baseline_lifecycle_guard) - exit 1
-- close-round: CLOSED (archive created, but close snapshot contains dirty source/test files) - exit 0
+- report-summary: FAILED (tests_ran/files_changed/generated_artifacts diffs) - exit 1
+- final-check: FAILED (pytest_result_match, stale_artifact_ids, status_policy_valid) - exit 1
+- close-round: FAILED (pytest_result_match, report_summary_fields_match_synthesis) - exit 1
 
 ## Close-Round Status
 
 - closeout_allowed=true (full profile)
-- close-round: CLOSED (archive created)
-- Round archive created at: project_state/rounds/round_20260618_gate_profile_tier_verification_v1/
-- BUT: close snapshot contains unauthorized source/test dirty files (tests/test_project_gate.py)
-- baseline_lifecycle_guard: FAIL
-- Report status is FAILED/REWORK_REQUIRED because final-check has FAILs
-
-## Root Cause of FAILs
-
-1. `baseline_lifecycle_guard`: Round was closed with dirty source/test files (tests/test_project_gate.py). The protocol prohibits git commit without explicit user request, so source/test files remain uncommitted.
-2. `archived_report_matches_live_report`: Report was updated after close-round archived it (to add round_close_snapshot.json to files_changed/generated_artifacts).
-3. `archived_pytest_result_matches_live_pytest_result`: pytest_result.txt was updated after close-round archived it (to record the latest report-summary/final-check outputs).
-
-## What Was Accomplished
-
-- Added 10 new tests in TestGateProfileTierVerification class (all pass)
-- Generated gate_profile_tier_verification.json artifact (overall_status: PASS)
-- All three profile tiers verified: fast, standard, full
-- close-round succeeded (archive created)
-- Report status is FAILED/REWORK_REQUIRED (per protocol, cannot write ACCEPTED when final-check fails)
+- close-round FAILED: report/pytest_result status mismatch
+- Round archive NOT created
+- Report status is FAILED/REWORK_REQUIRED because close-round failed

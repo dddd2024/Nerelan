@@ -11397,3 +11397,190 @@ class TestFastNonCloseoutProsePrecision:
             # Full profile should get "not applicable" PASS regardless of prose
             assert closeout_check["status"] == "PASS"
             assert "not fast" in closeout_check.get("detail", "").lower() or "not applicable" in closeout_check.get("detail", "").lower()
+
+
+class TestGateProfileTierVerification:
+    """Tests for gate profile tier verification (fast/standard/full).
+
+    Validates that:
+    - Explicit profile override for fast/standard/full works correctly.
+    - Each profile's required_command_kinds are complete and correct.
+    - Standard profile includes pytest/doctor/lint-report but not close-round.
+    - Full profile includes run-round/pytest/doctor/lint-report/close-round.
+    - Fast profile excludes pytest/run-round/doctor/lint-report/close-round.
+    """
+
+    _FAST_DECISION = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+
+    _STANDARD_DECISION = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/some_module.py`
+
+Allowed tests:
+
+- `tests/test_some_module.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+
+    _FULL_DECISION = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+
+    @staticmethod
+    def _make_state_dir(tmpdir: str, decision_text: str) -> Path:
+        state_dir = Path(tmpdir) / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        full_decision = (
+            "```json decision_meta\n"
+            '{"schema_version": 1, "decision_id": "d_tv", "round_id": "r_tv", '
+            '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+            '"status": "APPROVED", "mainline": "engineering_branch", '
+            '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+            "```\n\n"
+            "## 1. Goal\n\nTest.\n\n"
+            f"{decision_text}\n"
+            "## 7. Tests\n\n```powershell\npython -m pytest tests/\n```\n"
+        )
+        (state_dir / "decision_packet.md").write_text(full_decision, encoding="utf-8")
+        return state_dir
+
+    # --- Explicit override tests ---
+
+    def test_explicit_fast_override_works(self) -> None:
+        """Explicit --profile fast override produces correct metadata."""
+        from reverse_agent.project_gate import gate_profile
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_state_dir(tmpdir, self._FAST_DECISION)
+            result = gate_profile(state_dir=state_dir, write_result=False, profile_override="fast")
+            assert result["gate_status"] == "PASSED"
+            assert result["profile"] == "fast"
+            assert result["closeout_allowed"] is False
+            assert "close-round" not in result["required_command_kinds"]
+
+    def test_explicit_standard_override_works(self) -> None:
+        """Explicit --profile standard override produces correct metadata."""
+        from reverse_agent.project_gate import gate_profile
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_state_dir(tmpdir, self._STANDARD_DECISION)
+            result = gate_profile(state_dir=state_dir, write_result=False, profile_override="standard")
+            assert result["gate_status"] == "PASSED"
+            assert result["profile"] == "standard"
+            assert result["closeout_allowed"] is True
+            assert "pytest" in result["required_command_kinds"]
+            assert "close-round" not in result["required_command_kinds"]
+
+    def test_explicit_full_override_works(self) -> None:
+        """Explicit --profile full override produces correct metadata."""
+        from reverse_agent.project_gate import gate_profile
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_state_dir(tmpdir, self._FULL_DECISION)
+            result = gate_profile(state_dir=state_dir, write_result=False, profile_override="full")
+            assert result["gate_status"] == "PASSED"
+            assert result["profile"] == "full"
+            assert result["closeout_allowed"] is True
+            assert "close-round" in result["required_command_kinds"]
+            assert "run-round" in result["required_command_kinds"]
+
+    # --- required_command_kinds completeness tests ---
+
+    def test_fast_required_command_kinds_excludes_heavy_commands(self) -> None:
+        """Fast profile required_command_kinds excludes pytest, run-round, doctor, lint-report, close-round."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        result = classify_gate_profile(self._FAST_DECISION)
+        assert result["profile"] == "fast"
+        required = result["required_command_kinds"]
+        for excluded in ("pytest", "run-round", "doctor", "lint-report", "close-round"):
+            assert excluded not in required, f"fast profile must not include {excluded}"
+        for included in ("startup", "preflight", "command-plan", "report-summary", "final-check"):
+            assert included in required, f"fast profile must include {included}"
+
+    def test_standard_required_command_kinds_includes_targeted_pipeline(self) -> None:
+        """Standard profile required_command_kinds includes pytest, doctor, lint-report but not close-round."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        result = classify_gate_profile(self._STANDARD_DECISION)
+        assert result["profile"] == "standard"
+        required = result["required_command_kinds"]
+        for included in ("startup", "preflight", "command-plan", "pytest", "doctor", "lint-report", "report-summary", "final-check"):
+            assert included in required, f"standard profile must include {included}"
+        assert "close-round" not in required
+        assert "run-round" not in required
+
+    def test_full_required_command_kinds_includes_complete_pipeline(self) -> None:
+        """Full profile required_command_kinds includes run-round, pytest, doctor, lint-report, close-round."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        result = classify_gate_profile(self._FULL_DECISION)
+        assert result["profile"] == "full"
+        required = result["required_command_kinds"]
+        for included in ("startup", "preflight", "command-plan", "run-round", "pytest", "doctor", "lint-report", "report-summary", "final-check", "close-round"):
+            assert included in required, f"full profile must include {included}"
+
+    # --- closeout_allowed tests ---
+
+    def test_fast_closeout_not_allowed(self) -> None:
+        """Fast profile has closeout_allowed=False."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        result = classify_gate_profile(self._FAST_DECISION)
+        assert result["profile"] == "fast"
+        assert result["closeout_allowed"] is False
+
+    def test_standard_closeout_allowed(self) -> None:
+        """Standard profile has closeout_allowed=True."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        result = classify_gate_profile(self._STANDARD_DECISION)
+        assert result["profile"] == "standard"
+        assert result["closeout_allowed"] is True
+
+    def test_full_closeout_allowed(self) -> None:
+        """Full profile has closeout_allowed=True."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        result = classify_gate_profile(self._FULL_DECISION)
+        assert result["profile"] == "full"
+        assert result["closeout_allowed"] is True
+
+    # --- Invalid override test ---
+
+    def test_invalid_profile_override_fails(self) -> None:
+        """Invalid profile name fails with clear error."""
+        from reverse_agent.project_gate import gate_profile
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = self._make_state_dir(tmpdir, self._FAST_DECISION)
+            result = gate_profile(state_dir=state_dir, write_result=False, profile_override="medium")
+            assert result["gate_status"] == "FAILED"
+            assert "invalid profile name" in result["profile_reason"].lower()
