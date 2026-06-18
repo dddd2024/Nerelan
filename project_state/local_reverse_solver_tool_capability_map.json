@@ -1,0 +1,308 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-18T12:12:19Z",
+  "decision_id": "decision_20260618_training_coverage_matrix_gap_report_v1",
+  "round_id": "round_20260618_training_coverage_matrix_gap_report_v1",
+  "capabilities": [
+    {
+      "capability_id": "inventory_builder",
+      "name": "metadata inventory scanner",
+      "component_paths": [
+        "reverse_agent/local_reverse_inventory.py"
+      ],
+      "current_status": "implemented_not_run_this_round",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "tests/test_local_reverse_training_status.py exercises inventory-derived status output indirectly"
+      ],
+      "notes": "Can scan LOCAL_REVERSE_ROOT and emit metadata-only local/GitHub inventory; not executed this round to avoid corpus churn."
+    },
+    {
+      "capability_id": "training_status_builder",
+      "name": "training status overlay and static-first queue",
+      "component_paths": [
+        "reverse_agent/local_reverse_training_status.py",
+        "project_state/local_reverse_training_status.json",
+        "project_state/local_reverse_evaluation_queue.json"
+      ],
+      "current_status": "implemented_read_only_json_supported",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "tests/test_local_reverse_training_status.py",
+        "python -m reverse_agent.local_reverse_training_status --help passed",
+        "python -m reverse_agent.local_reverse_training_status --json passed and writes_files=false"
+      ],
+      "notes": "CLI now has a read-only --json summary mode for current audit capture."
+    },
+    {
+      "capability_id": "single_sample_static_triage",
+      "name": "single-sample static triage adapter",
+      "component_paths": [
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "reverse_agent/ida_scripts/collect_evidence.py"
+      ],
+      "current_status": "implemented_not_executed_this_round",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "tests/test_local_reverse_training_status.py validates static triage overlay handling"
+      ],
+      "notes": "Uses IDA evidence collection when authorized; this decision prohibited IDA/Ghidra/debugger/sample execution."
+    },
+    {
+      "capability_id": "ida_static_extraction",
+      "name": "IDA static evidence collector",
+      "component_paths": [
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/ida_scripts/collect_evidence.py"
+      ],
+      "current_status": "implemented_not_executed_this_round",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "tests/test_tool_runners.py covers IDA output parsing paths"
+      ],
+      "notes": "Parses strings, functions, compare contexts, local check contexts, validation function candidates, and solver hints."
+    },
+    {
+      "capability_id": "debugger_dynamic_extraction",
+      "name": "OllyDbg/CompareProbe dynamic extraction",
+      "component_paths": [
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/olly_scripts/collect_evidence.py",
+        "reverse_agent/olly_scripts/compare_probe.py"
+      ],
+      "current_status": "implemented_out_of_scope_this_round",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "tests/test_tool_runners.py covers dynamic artifact ingestion behavior"
+      ],
+      "notes": "Explicitly prohibited by current decision; mapped as capability only."
+    },
+    {
+      "capability_id": "structured_evidence",
+      "name": "StructuredEvidence normalization",
+      "component_paths": [
+        "reverse_agent/evidence.py",
+        "reverse_agent/tool_runners.py"
+      ],
+      "current_status": "implemented",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "tests/test_tool_runners.py covers Base64/RC4/UTF-16LE material evidence ingestion"
+      ],
+      "notes": "Supports CandidateEvidence, RuntimeCompareEvidence, StaticStringEvidence, ConstraintEvidence, Base64, RC4, and UTF-16LE material evidence."
+    },
+    {
+      "capability_id": "solver_templates",
+      "name": "local_reverse solver templates and semantic rules",
+      "component_paths": [
+        "reverse_agent/local_reverse_string_solver.py",
+        "reverse_agent/local_reverse_solver_profiles.py",
+        "reverse_agent/local_reverse_semantic_rules.py",
+        "reverse_agent/local_reverse_constraint_recovery.py",
+        "reverse_agent/advanced_solvers.py"
+      ],
+      "current_status": "implemented_mixed_validation",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "tests/test_simple_static_patterns.py",
+        "tests/test_static_feature_extractor.py",
+        "tests/test_tool_capability_inventory.py"
+      ],
+      "notes": "Useful for mapping capability, but current round did not run solvers or generate candidates."
+    },
+    {
+      "capability_id": "harness_candidate_verification",
+      "name": "harness and candidate verification",
+      "component_paths": [
+        "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_console_validator.py",
+        "reverse_agent/local_reverse_console_pair_validator.py",
+        "reverse_agent/local_reverse_console_mature_backend_probe.py"
+      ],
+      "current_status": "implemented_out_of_scope_this_round",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "tests/test_project_state.py includes harness artifact scenarios",
+        "tests/test_tool_capability_inventory.py checks harness capability inventory"
+      ],
+      "notes": "Runtime validation is explicitly out of scope for this metadata/coverage round."
+    },
+    {
+      "capability_id": "gui_cli_entrypoints",
+      "name": "GUI/CLI entry points",
+      "component_paths": [
+        "app.py",
+        "reverse_agent/gui.py",
+        "reverse_agent/pipeline.py",
+        "reverse_agent/local_reverse_training_status.py"
+      ],
+      "current_status": "implemented_cli_json_gap_closed",
+      "evidence_freshness": "source_audited_current_round",
+      "tests_or_evidence": [
+        "local_reverse_training_status --help works",
+        "local_reverse_training_status --json works without writing files"
+      ],
+      "notes": "Training status now exposes read-only JSON summary for audits."
+    }
+  ],
+  "per_type_capability_summary": [
+    {
+      "type_id": "string_comparison",
+      "type_name": "字符串比较",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_string_solver",
+        "reverse_agent.local_reverse_direct_strcmp_handoff",
+        "reverse_agent.local_reverse_single_sample_static_triage"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "partial_validated_sample_plus_metadata_gap"
+    },
+    {
+      "type_id": "xor",
+      "type_name": "XOR",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_cpp1_7b504c54_xor_handoff",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.local_reverse_string_solver"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "gap_or_tool_only"
+    },
+    {
+      "type_id": "shift",
+      "type_name": "移位/仿射",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_affine_inverse_handoff",
+        "reverse_agent.local_reverse_semantic_rules",
+        "reverse_agent.local_reverse_solver_profiles"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified"
+    },
+    {
+      "type_id": "bit_operations",
+      "type_name": "位运算",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_semantic_rules",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.local_reverse_single_sample_static_triage"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified"
+    },
+    {
+      "type_id": "lookup_table",
+      "type_name": "查表/数组",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners",
+        "reverse_agent.evidence"
+      ],
+      "tool_evidence_available": false,
+      "harness_available": true,
+      "coverage_status": "gap_or_tool_only"
+    },
+    {
+      "type_id": "rc4",
+      "type_name": "RC4",
+      "candidate_solver_modules": [
+        "reverse_agent.tool_runners",
+        "reverse_agent.evidence.rc4_material_evidence",
+        "reverse_agent.local_reverse_solver_profiles"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified"
+    },
+    {
+      "type_id": "des",
+      "type_name": "DES",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified"
+    },
+    {
+      "type_id": "tea",
+      "type_name": "TEA/XTEA",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners"
+      ],
+      "tool_evidence_available": false,
+      "harness_available": true,
+      "coverage_status": "gap_no_current_samples"
+    },
+    {
+      "type_id": "base64",
+      "type_name": "Base64",
+      "candidate_solver_modules": [
+        "reverse_agent.tool_runners",
+        "reverse_agent.evidence.base64_material_evidence"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "gap_no_current_samples"
+    },
+    {
+      "type_id": "hash_md5_sha",
+      "type_name": "hash/MD5/SHA",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_constraint_recovery",
+        "reverse_agent.local_reverse_single_sample_static_triage"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified"
+    },
+    {
+      "type_id": "gui_validation",
+      "type_name": "GUI 校验",
+      "candidate_solver_modules": [
+        "reverse_agent.tool_runners",
+        "reverse_agent.local_reverse_console_validator",
+        "reverse_agent.local_reverse_console_pair_validator"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "gap_no_current_samples"
+    },
+    {
+      "type_id": "simple_antidebug",
+      "type_name": "简单反调试/SEH",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners",
+        "reverse_agent.olly_scripts.collect_evidence"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified"
+    },
+    {
+      "type_id": "mixed_unknown",
+      "type_name": "mixed/unknown",
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_training_status",
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.harness"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified"
+    }
+  ],
+  "global_gaps": [
+    "Inventory/status split needs a deliberate sync policy: local project_state has 65 entries while GitHub-safe inventory has 50.",
+    "Most type labels are inferred from filename/category metadata rather than current static triage evidence.",
+    "Cipher rows need static evidence profiles before DES/RC4 coverage can be called reproducible.",
+    "GUI and anti-debug capability exists as tooling, but current inventory metadata does not prove dedicated sample coverage beyond low-confidence filenames."
+  ]
+}

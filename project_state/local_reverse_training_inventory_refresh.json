@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-18T12:12:19Z",
+  "decision_id": "decision_20260618_training_coverage_matrix_gap_report_v1",
+  "round_id": "round_20260618_training_coverage_matrix_gap_report_v1",
+  "source_files": {
+    "local_inventory": "project_state/local_reverse_inventory.json",
+    "github_safe_inventory": "training_materials/local_reverse/inventory.json",
+    "live_training_status_file": "project_state/local_reverse_training_status.json",
+    "github_status_overlay": "training_materials/local_reverse/status_overlay.json",
+    "evaluation_queue": "project_state/local_reverse_evaluation_queue.json",
+    "resume_plan": "project_state/local_reverse_training_resume_plan.json"
+  },
+  "inventory_refresh": {
+    "local_inventory_sample_count": 65,
+    "github_safe_inventory_sample_count": 50,
+    "current_builder_sample_count": 65,
+    "live_training_status_file_sample_count": 65,
+    "github_status_overlay_sample_count": 65,
+    "metadata_only_policy_valid": true,
+    "local_only_pair_count_vs_github_safe_inventory": 15,
+    "github_only_pair_count_vs_local_inventory": 0,
+    "category_counts": {
+      "cpp": 35,
+      "crypto/cipher": 13,
+      "crypto/hash": 1,
+      "unknown": 16
+    },
+    "guessed_file_type_counts": {
+      "pe": 55,
+      "python": 8,
+      "text": 1,
+      "unknown": 1
+    }
+  },
+  "status_refresh": {
+    "current_builder_status_summary": {
+      "solved": 1,
+      "blocked": 2,
+      "needs_triage": 0,
+      "inventory_only": 62
+    },
+    "current_builder_queue_item_count": 52,
+    "live_training_status_file_summary": {
+      "solved": 1,
+      "blocked": 2,
+      "needs_triage": 1,
+      "inventory_only": 61
+    },
+    "live_status_file_differs_from_current_builder": true,
+    "github_status_overlay_summary": {
+      "solved": 1,
+      "blocked": 2,
+      "needs_triage": 1,
+      "inventory_only": 61
+    },
+    "non_inventory_only_from_live_status_file": [
+      {
+        "sample_id": "cpp1_bcbd9979",
+        "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+        "training_status": "solved",
+        "blocked_reason": "",
+        "evidence_sources": [
+          "ida_solver_classification",
+          "runtime_validation",
+          "source:local_reverse_validated_candidate_handoff.json",
+          "source:local_reverse_constraint_recovery_result.json"
+        ],
+        "next_action": "inspect sub_40100A hook data flow and confirm file compare source"
+      },
+      {
+        "sample_id": "cpp2_4c69f173",
+        "relative_path": "逆向课程2022春02/CPP2.exe",
+        "training_status": "blocked",
+        "blocked_reason": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005",
+        "evidence_sources": [
+          "ida_solver_classification",
+          "source:local_reverse_validated_candidate_handoff.json",
+          "source:local_reverse_constraint_recovery_result.json"
+        ],
+        "next_action": "recover sub_401005 transform or bounded dictionary before inversion"
+      },
+      {
+        "sample_id": "sha_256_18019fca",
+        "relative_path": "逆向课程2024春01/sha_256.exe",
+        "training_status": "blocked",
+        "blocked_reason": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN",
+        "evidence_sources": [
+          "ida_solver_classification",
+          "source:local_reverse_validated_candidate_handoff.json",
+          "source:local_reverse_constraint_recovery_result.json"
+        ],
+        "next_action": "targeted static re-extraction of input length/domain or request problem statement hint"
+      },
+      {
+        "sample_id": "cpp1_2f6fcb63",
+        "relative_path": "逆向课程2023春01/CPP1.exe",
+        "training_status": "needs_triage",
+        "blocked_reason": "",
+        "evidence_sources": [
+          "source:local_reverse_cpp1_2f6fcb63_static_triage.json",
+          "static_triage_completed",
+          "tool_status:success",
+          "source_tool:IDA",
+          "hypothesis:string_compare_password_checker",
+          "hypothesis:standard_input_based"
+        ],
+        "next_action": "constraint recovery or targeted decompilation; runtime validation required"
+      }
+    ]
+  },
+  "evaluation_queue_refresh": {
+    "live_queue_policy": "simple_static_first_unsolved_only",
+    "live_queue_item_count": 51,
+    "current_builder_queue_policy": "simple_static_first_unsolved_only",
+    "current_builder_queue_item_count": 52,
+    "allowed_actions_union": [
+      "static_triage"
+    ],
+    "forbidden_actions_union": [
+      "bruteforce",
+      "runtime_probe",
+      "upload_binary"
+    ],
+    "top_items": [
+      {
+        "rank": 1,
+        "sample_id": "affine_8cfebe03",
+        "relative_path": "逆向课程2022春补考03/affine.exe",
+        "reason": "pe sample (196688 bytes), static triage tags: reverse, local, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 2,
+        "sample_id": "affine_8cfebe03",
+        "relative_path": "逆向课程2024春补考03/affine.exe",
+        "reason": "pe sample (196688 bytes), static triage tags: reverse, local, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 3,
+        "sample_id": "affineenc_333f8ca9",
+        "relative_path": "逆向课程2020秋04/affineenc.exe",
+        "reason": "pe sample (196691 bytes), static triage tags: reverse, local, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 4,
+        "sample_id": "cpp1_2f6fcb63",
+        "relative_path": "逆向课程2023春01/CPP1.exe",
+        "reason": "pe sample (196700 bytes), static triage tags: reverse, local, cpp, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 5,
+        "sample_id": "cpp1_378eeffd",
+        "relative_path": "逆向课程2022春01/CPP1.exe",
+        "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 6,
+        "sample_id": "cpp1_7b504c54",
+        "relative_path": "逆向课程2023春补考01/Cpp1.exe",
+        "reason": "pe sample (184398 bytes), static triage tags: reverse, local, cpp, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 7,
+        "sample_id": "cpp2_06917482",
+        "relative_path": "逆向课程2021春01/Cpp2.exe",
+        "reason": "pe sample (184401 bytes), static triage tags: reverse, local, cpp, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 8,
+        "sample_id": "cpp2_1264f47d",
+        "relative_path": "逆向课程2022春补考02/Cpp2.exe",
+        "reason": "pe sample (196686 bytes), static triage tags: reverse, local, cpp, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 9,
+        "sample_id": "cpp2_29ebb670",
+        "relative_path": "逆向课程2021春03/Cpp2.exe",
+        "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      },
+      {
+        "rank": 10,
+        "sample_id": "cpp2_2f64e68d",
+        "relative_path": "逆向课程2025春03/CPP2.exe",
+        "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
+        "proposed_next_mainline": "tool_integration",
+        "allowed_actions": [
+          "static_triage"
+        ],
+        "forbidden_actions": [
+          "runtime_probe",
+          "bruteforce",
+          "upload_binary"
+        ]
+      }
+    ]
+  },
+  "freshness_notes": [
+    "No samples, debugger, IDA/Ghidra, emulator, runtime probe, sidecar, GUI workflow, or solve_reports bulk scan were executed in this round.",
+    "Read-only local_reverse_training_status --json now reports current builder status without writing files.",
+    "project_state/local_reverse_inventory.json is the current richer local metadata inventory; training_materials/local_reverse/inventory.json remains a 50-entry GitHub-safe mirror.",
+    "The live project_state/local_reverse_training_status.json has older needs_triage overlay state; this artifact records both it and the current read-only builder result instead of silently overwriting it."
+  ]
+}

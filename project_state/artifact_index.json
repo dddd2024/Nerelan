@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-18T11:45:39Z",
+  "generated_at": "2026-06-18T12:12:19Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": null,
@@ -502,6 +502,42 @@
       "sha256": null,
       "size_bytes": null,
       "source_run": ""
+    },
+    "local_reverse_training_inventory_refresh": {
+      "freshness": "current",
+      "kind": "local_reverse_training_inventory_refresh",
+      "modified_at": "2026-06-18T12:12:19Z",
+      "path": "project_state/local_reverse_training_inventory_refresh.json",
+      "sha256": "410f013140d7bdd81c4d420c789ec6c21fff1efee51d153ee7dd3dfb6b9e36b2",
+      "size_bytes": 10187,
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1"
+    },
+    "local_reverse_training_coverage_matrix": {
+      "freshness": "current",
+      "kind": "local_reverse_training_coverage_matrix",
+      "modified_at": "2026-06-18T12:12:19Z",
+      "path": "project_state/local_reverse_training_coverage_matrix.json",
+      "sha256": "52808060afab11c18178864e0a28a6051d18a0498efd5001c8acbedb3369de1e",
+      "size_bytes": 17498,
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1"
+    },
+    "local_reverse_solver_tool_capability_map": {
+      "freshness": "current",
+      "kind": "local_reverse_solver_tool_capability_map",
+      "modified_at": "2026-06-18T12:12:19Z",
+      "path": "project_state/local_reverse_solver_tool_capability_map.json",
+      "sha256": "bf6f8be24d6b1049b6b49460070e369e1822edd0729edf105f31c2418bc655f4",
+      "size_bytes": 12422,
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1"
+    },
+    "local_reverse_training_gap_report": {
+      "freshness": "current",
+      "kind": "local_reverse_training_gap_report",
+      "modified_at": "2026-06-18T12:12:19Z",
+      "path": "project_state/local_reverse_training_gap_report.md",
+      "sha256": "6ba161a27fd4889c745b2511f3ca35fc6d6e0fb50738e19c37ba6bafb997b0dd",
+      "size_bytes": 6289,
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1"
     }
   },
   "latest_case_results": [],
@@ -514,7 +550,56 @@
     "strata_summary",
     "summary"
   ],
-  "recent_artifacts": [],
+  "recent_artifacts": [
+    {
+      "kind": "local_reverse_training_inventory_refresh",
+      "path": "project_state/local_reverse_training_inventory_refresh.json",
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1",
+      "freshness": "current"
+    },
+    {
+      "kind": "local_reverse_training_coverage_matrix",
+      "path": "project_state/local_reverse_training_coverage_matrix.json",
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1",
+      "freshness": "current"
+    },
+    {
+      "kind": "local_reverse_solver_tool_capability_map",
+      "path": "project_state/local_reverse_solver_tool_capability_map.json",
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1",
+      "freshness": "current"
+    },
+    {
+      "kind": "local_reverse_training_gap_report",
+      "path": "project_state/local_reverse_training_gap_report.md",
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1",
+      "freshness": "current"
+    },
+    {
+      "kind": "local_reverse_training_inventory_refresh",
+      "path": "project_state/local_reverse_training_inventory_refresh.json",
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1",
+      "freshness": "current"
+    },
+    {
+      "kind": "local_reverse_training_coverage_matrix",
+      "path": "project_state/local_reverse_training_coverage_matrix.json",
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1",
+      "freshness": "current"
+    },
+    {
+      "kind": "local_reverse_solver_tool_capability_map",
+      "path": "project_state/local_reverse_solver_tool_capability_map.json",
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1",
+      "freshness": "current"
+    },
+    {
+      "kind": "local_reverse_training_gap_report",
+      "path": "project_state/local_reverse_training_gap_report.md",
+      "source_run": "round_20260618_training_coverage_matrix_gap_report_v1",
+      "freshness": "current"
+    }
+  ],
   "reports_dir": "solve_reports",
   "sample": "samplereverse"
 }

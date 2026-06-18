@@ -105,6 +105,29 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
 
+    if args.json:
+        status_result = build_training_status(
+            inventory_path=Path(args.inventory),
+            validated_path=Path(args.validated),
+            constraint_path=Path(args.constraint_recovery),
+            solver_result_path=Path(args.solver_result),
+            artifact_index_path=Path(args.artifact_index),
+            out_path=None,
+            queue_out_path=None,
+            github_status_path=None,
+        )
+        print(json.dumps({
+            "schema_version": 1,
+            "sample_count": status_result["sample_count"],
+            "status_summary": status_result["status_summary"],
+            "queue_policy": status_result["queue"].get("queue_policy", ""),
+            "queue_item_count": len(status_result["queue"].get("items", [])),
+            "source_inventory": str(args.inventory),
+            "artifact_index": str(args.artifact_index),
+            "writes_files": False,
+        }, ensure_ascii=False, indent=2))
+        return 0
+
     status_result = build_training_status(
         inventory_path=Path(args.inventory),
         validated_path=Path(args.validated),
@@ -137,8 +160,8 @@ def build_training_status(
     constraint_path: Path,
     solver_result_path: Path,
     artifact_index_path: Path = DEFAULT_ARTIFACT_INDEX,
-    out_path: Path = DEFAULT_OUT,
-    queue_out_path: Path = DEFAULT_QUEUE_OUT,
+    out_path: Path | None = DEFAULT_OUT,
+    queue_out_path: Path | None = DEFAULT_QUEUE_OUT,
     github_status_path: Path | None = None,
 ) -> dict[str, Any]:
     inventory = _load_json(inventory_path, "inventory")
@@ -242,13 +265,15 @@ def build_training_status(
         "samples": samples,
     }
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    _write_json(out_path, training_status)
+    if out_path is not None:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(out_path, training_status)
 
     # Build evaluation queue (unsolved + inventory_only only)
     queue = _build_evaluation_queue(samples)
-    queue_out_path.parent.mkdir(parents=True, exist_ok=True)
-    _write_json(queue_out_path, queue)
+    if queue_out_path is not None:
+        queue_out_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(queue_out_path, queue)
 
     github_status: dict[str, Any] | None = None
     if github_status_path:
@@ -275,8 +300,8 @@ def build_training_status(
         _write_json(github_status_path, github_status)
 
     return {
-        "status_out_path": str(out_path),
-        "queue_out_path": str(queue_out_path),
+        "status_out_path": str(out_path) if out_path is not None else None,
+        "queue_out_path": str(queue_out_path) if queue_out_path is not None else None,
         "github_status_path": str(github_status_path) if github_status_path else None,
         "sample_count": len(samples),
         "status_summary": counts,
@@ -1047,6 +1072,8 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Path for local_reverse_evaluation_queue.json")
     parser.add_argument("--github-status-out", default=str(DEFAULT_GITHUB_STATUS),
                         help="Path for GitHub-safe status_overlay.json")
+    parser.add_argument("--json", action="store_true",
+                        help="Print a read-only JSON summary without writing output files")
     return parser
 
 

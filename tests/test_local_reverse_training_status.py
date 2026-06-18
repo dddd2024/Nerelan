@@ -561,6 +561,50 @@ def test_main_cli_build(tmp_path: Path) -> None:
     assert gh_path.exists()
 
 
+def test_main_cli_json_is_read_only(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    inventory = {
+        "entries": [
+            {
+                "sample_id": "todo1",
+                "relative_path": "todo.exe",
+                "sha256": "deadbeef",
+                "category": "cpp",
+                "tags": ["local", "reverse", "cpp", "pe"],
+                "extension": ".exe",
+                "guessed_file_type": "pe",
+            }
+        ]
+    }
+    inv_path = tmp_path / "inventory.json"
+    out_path = tmp_path / "status.json"
+    queue_path = tmp_path / "queue.json"
+    gh_path = tmp_path / "github_status.json"
+    _write_json(inv_path, inventory)
+
+    result = main([
+        "--inventory", str(inv_path),
+        "--validated", str(tmp_path / "missing_validated.json"),
+        "--constraint-recovery", str(tmp_path / "missing_constraint.json"),
+        "--solver-result", str(tmp_path / "missing_solver.json"),
+        "--artifact-index", str(tmp_path / "missing_artifact_index.json"),
+        "--out", str(out_path),
+        "--queue-out", str(queue_path),
+        "--github-status-out", str(gh_path),
+        "--json",
+    ])
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert result == 0
+    assert payload["sample_count"] == 1
+    assert payload["status_summary"]["inventory_only"] == 1
+    assert payload["queue_item_count"] == 1
+    assert payload["writes_files"] is False
+    assert not out_path.exists()
+    assert not queue_path.exists()
+    assert not gh_path.exists()
+
+
 def test_cpp1_not_mislabeled_as_solved_without_validation() -> None:
     """Cpp1 should only be solved if validation_status is 'validated'."""
     validated = {

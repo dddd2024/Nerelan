@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-18T12:18:30Z",
+  "decision_id": "decision_20260618_training_coverage_matrix_gap_report_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260618_training_coverage_matrix_gap_report_v1\\codex_execution_report.md",
+      "sha256": "53250c5a288d2cfac2e25254ff08958a6d00fa4c9c5b49b2abc2e6ed79fabe54",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260618_training_coverage_matrix_gap_report_v1\\decision_packet.md",
+      "sha256": "494e54c76c569b08de43cc270b0f3870adcefdaeae56ddde9218d23a8ce8be08",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260618_training_coverage_matrix_gap_report_v1\\pytest_result.txt",
+      "sha256": "8ecffba93e3ee2ef8c3005e364b80d9bab738410ad655fe90dd959cdc12db05a",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "training_dataset",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260618_training_coverage_matrix_gap_report_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260618_training_coverage_matrix_gap_report_v1",
+  "schema_version": 1,
+  "source_git_commit": "69dad1792ad9",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_114539_14d4ec94f06b",
+  "state_digest": "14d4ec94f06bab113eb55fdf774e82b449b2851672e927f2b0df7a6052a95cc2",
+  "workflow_status": "REPORT_AVAILABLE"
+}

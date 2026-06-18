@@ -1,0 +1,437 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-18T12:12:19Z",
+  "decision_id": "decision_20260618_training_coverage_matrix_gap_report_v1",
+  "round_id": "round_20260618_training_coverage_matrix_gap_report_v1",
+  "based_on_inventory": {
+    "path": "project_state/local_reverse_inventory.json",
+    "sample_count": 65,
+    "metadata_only_policy_valid": true,
+    "current_builder_status_summary": {
+      "solved": 1,
+      "blocked": 2,
+      "needs_triage": 0,
+      "inventory_only": 62
+    }
+  },
+  "type_rows": [
+    {
+      "type_id": "string_comparison",
+      "type_name": "字符串比较",
+      "sample_count": 35,
+      "sample_ids": [
+        "cpp2_fc735338",
+        "cpp2_5910fe3b",
+        "cpp2_6a58f5f7",
+        "cpp2_b210bced",
+        "cpp_6af7c7f1",
+        "cpp2_06917482",
+        "cpp2_f2738577",
+        "cpp2_29ebb670",
+        "cpp2_aa2b785b",
+        "cpp1_378eeffd",
+        "cpp2_4c69f173",
+        "cpp3_356dbdc7",
+        "cpp4_d420b8a8",
+        "cpp5_2ea076a7",
+        "cpp1_bcbd9979",
+        "cpp2_1264f47d",
+        "cpp3_e5a33e0b",
+        "cpp1_2f6fcb63",
+        "cpp2_35310f79",
+        "cpp3_019fcdc8",
+        "cpp4_c7cb6b0e",
+        "cpp5_79788295",
+        "cpp1_7b504c54",
+        "cpp2_32f1713e",
+        "cpp3_5c3b34d5",
+        "cpp4_ab1b6104",
+        "cpp5_8fae8fac",
+        "cpp2_883e67b9",
+        "cpp2_651d2ef7",
+        "cpp2_b7377e96"
+      ],
+      "known_solved_count": 1,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_string_solver",
+        "reverse_agent.local_reverse_direct_strcmp_handoff",
+        "reverse_agent.local_reverse_single_sample_static_triage"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "partial_validated_sample_plus_metadata_gap",
+      "confidence": "medium",
+      "gap": "cpp category and one solved sample suggest direct compare or serial-check style, but most entries still require static triage.",
+      "next_minimal_task": "Select one high-priority cpp inventory_only sample and run only bounded static_triage in a later authorized round.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "xor",
+      "type_name": "XOR",
+      "sample_count": 2,
+      "sample_ids": [
+        "xor_array_solver_v2_fb15e14c",
+        "xor_array_solver_4e6d25f0"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_cpp1_7b504c54_xor_handoff",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.local_reverse_string_solver"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "gap_or_tool_only",
+      "confidence": "low",
+      "gap": "Only solver/support filenames currently expose XOR metadata; capability exists but target sample evidence is thin.",
+      "next_minimal_task": "Promote XOR from solver/support metadata into first-class type tags during static triage; avoid assuming solver scripts are target evidence.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "shift",
+      "type_name": "移位/仿射",
+      "sample_count": 4,
+      "sample_ids": [
+        "affineenc_333f8ca9",
+        "byte_shift_transform_solver_3718a6fa",
+        "affine_8cfebe03",
+        "affine_8cfebe03"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_affine_inverse_handoff",
+        "reverse_agent.local_reverse_semantic_rules",
+        "reverse_agent.local_reverse_solver_profiles"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified",
+      "confidence": "low",
+      "gap": "affine and byte-shift names expose likely shift/affine material; current status is metadata-level.",
+      "next_minimal_task": "Define affine/shift static evidence profile and apply it to one queued affine sample in a later static-only round.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "bit_operations",
+      "type_name": "位运算",
+      "sample_count": 7,
+      "sample_ids": [
+        "xor_array_solver_v2_fb15e14c",
+        "seh_52be8d5c",
+        "affineenc_333f8ca9",
+        "byte_shift_transform_solver_3718a6fa",
+        "affine_8cfebe03",
+        "xor_array_solver_4e6d25f0",
+        "affine_8cfebe03"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_semantic_rules",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.local_reverse_single_sample_static_triage"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified",
+      "confidence": "low",
+      "gap": "Derived from XOR/shift/affine/SEH-style metadata; no broad per-sample static proof yet.",
+      "next_minimal_task": "Add metadata tags for bitwise transforms when static triage observes them; keep current row metadata-level.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "lookup_table",
+      "type_name": "查表/数组",
+      "sample_count": 3,
+      "sample_ids": [
+        "ascii_table_chinese_46efc7ea",
+        "xor_array_solver_v2_fb15e14c",
+        "xor_array_solver_4e6d25f0"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners",
+        "reverse_agent.evidence"
+      ],
+      "tool_evidence_available": false,
+      "harness_available": true,
+      "coverage_status": "gap_or_tool_only",
+      "confidence": "low",
+      "gap": "No confirmed lookup-table category; array solver filename is support material, so this is a planning gap.",
+      "next_minimal_task": "Add lookup-table detection fields to static triage output before claiming coverage.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "rc4",
+      "type_name": "RC4",
+      "sample_count": 8,
+      "sample_ids": [
+        "rc4_interactive_solver_773052ac",
+        "rc4_interactive_solver_v2_962a7427",
+        "rc4enc_a1897c10",
+        "rc4_add1978d",
+        "rc4enc_3480917d",
+        "rc4enc_210a1f33",
+        "rc4enc_2348c3cb",
+        "rc4enc_f93c785f"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.tool_runners",
+        "reverse_agent.evidence.rc4_material_evidence",
+        "reverse_agent.local_reverse_solver_profiles"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified",
+      "confidence": "low",
+      "gap": "Several RC4-named samples exist; current round did not run cipher static triage or material probes.",
+      "next_minimal_task": "Build cipher_static_evidence_profile for RC4 samples using static evidence only.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "des",
+      "type_name": "DES",
+      "sample_count": 5,
+      "sample_ids": [
+        "des_interactive_solver_256e1726",
+        "desenc_40cba418",
+        "desenc_0e0b5203",
+        "desenc_14c58fcd",
+        "desenc_fd9d0af6"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified",
+      "confidence": "low",
+      "gap": "Several DES-named samples exist; current round did not run cipher static triage.",
+      "next_minimal_task": "Build cipher_static_evidence_profile for DES samples using static evidence only.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "tea",
+      "type_name": "TEA/XTEA",
+      "sample_count": 0,
+      "sample_ids": [],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners"
+      ],
+      "tool_evidence_available": false,
+      "harness_available": true,
+      "coverage_status": "gap_no_current_samples",
+      "confidence": "low",
+      "gap": "No TEA/XTEA metadata appears in current inventory.",
+      "next_minimal_task": "Add or identify TEA/XTEA training material; none is visible in current inventory metadata.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "base64",
+      "type_name": "Base64",
+      "sample_count": 0,
+      "sample_ids": [],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.tool_runners",
+        "reverse_agent.evidence.base64_material_evidence"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "gap_no_current_samples",
+      "confidence": "low",
+      "gap": "No current training inventory metadata exposes Base64; Base64 material support exists in tooling only.",
+      "next_minimal_task": "Add metadata/type tagging for Base64 when static evidence observes encoding constants or material fields.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "hash_md5_sha",
+      "type_name": "hash/MD5/SHA",
+      "sample_count": 2,
+      "sample_ids": [
+        "sha_cd947414",
+        "sha_256_18019fca"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_constraint_recovery",
+        "reverse_agent.local_reverse_single_sample_static_triage"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified",
+      "confidence": "low",
+      "gap": "SHA samples exist and one SHA-256 target is blocked by missing bounded preimage domain.",
+      "next_minimal_task": "Recover bounded input domain evidence for SHA/MD5-style targets before solver attempts.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "gui_validation",
+      "type_name": "GUI 校验",
+      "sample_count": 0,
+      "sample_ids": [],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.tool_runners",
+        "reverse_agent.local_reverse_console_validator",
+        "reverse_agent.local_reverse_console_pair_validator"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "gap_no_current_samples",
+      "confidence": "low",
+      "gap": "GUI/tool support exists, but no current inventory metadata proves a GUI-specific training target.",
+      "next_minimal_task": "Add GUI-control/static UI evidence fields before planning GUI validation workflows.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "simple_antidebug",
+      "type_name": "简单反调试/SEH",
+      "sample_count": 1,
+      "sample_ids": [
+        "seh_52be8d5c"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners",
+        "reverse_agent.olly_scripts.collect_evidence"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified",
+      "confidence": "low",
+      "gap": "SEH.exe is a likely exception/anti-debug training target by filename only.",
+      "next_minimal_task": "Static triage SEH/exception metadata first; do not run debugger in this training coverage round.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    },
+    {
+      "type_id": "mixed_unknown",
+      "type_name": "mixed/unknown",
+      "sample_count": 7,
+      "sample_ids": [
+        "samplereverse_ca74a786",
+        "main_d44edbfe",
+        "pwd_030127ca",
+        "main_fb1f8cc0",
+        "main_ab1b6104",
+        "main_36c51ec1",
+        "main_6ae5a26d"
+      ],
+      "known_solved_count": 0,
+      "candidate_solver_modules": [
+        "reverse_agent.local_reverse_training_status",
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.harness"
+      ],
+      "tool_evidence_available": true,
+      "harness_available": true,
+      "coverage_status": "metadata_level_unverified",
+      "confidence": "low",
+      "gap": "Unknown category remains large and needs metadata enrichment before a precise solver route.",
+      "next_minimal_task": "Triage unknown PE samples one at a time and backfill type tags from static evidence.",
+      "evidence_sources": [
+        "project_state/local_reverse_inventory.json",
+        "python -m reverse_agent.local_reverse_training_status --json",
+        "reverse_agent/local_reverse_training_status.py",
+        "reverse_agent/tool_runners.py",
+        "reverse_agent/evidence.py"
+      ],
+      "freshness": "current_metadata_and_source_audit"
+    }
+  ],
+  "limitations": [
+    "Rows are metadata/source-audit coverage, not live solver validation, except samples with explicit solved evidence.",
+    "The 50-entry GitHub-safe inventory is behind the 65-entry local project_state inventory.",
+    "No runtime probe, debugger, IDA/Ghidra execution, or sample execution occurred in this round."
+  ]
+}
