@@ -19,6 +19,80 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+TYPE_EVIDENCE_SCHEMA_VERSION = 1
+TYPE_EVIDENCE_STATUSES = {
+    "not_observed",
+    "candidate_static_signal",
+    "observed_static_signal",
+    "blocked_missing_required_evidence",
+}
+TYPE_EVIDENCE_PROFILE_IDS = [
+    "string_comparison",
+    "xor",
+    "shift_affine",
+    "bit_operations",
+    "lookup_table",
+    "rc4",
+    "des",
+    "hash_md5_sha",
+    "simple_antidebug",
+    "mixed_unknown",
+]
+
+TYPE_EVIDENCE_REQUIRED: dict[str, list[str]] = {
+    "string_comparison": [
+        "compare callsite",
+        "operand source",
+        "compared value or producer",
+    ],
+    "xor": [
+        "xor operation",
+        "xor key or derivation",
+        "loop bounds or operand width",
+    ],
+    "shift_affine": [
+        "shift/rotate/affine operation",
+        "transform constants",
+        "loop structure",
+    ],
+    "bit_operations": [
+        "bit operation sequence",
+        "operand source",
+        "input-to-compare chain",
+    ],
+    "lookup_table": [
+        "table access",
+        "table base",
+        "table size",
+        "table contents",
+    ],
+    "rc4": [
+        "KSA or PRGA loop",
+        "S-box state",
+        "key material or derivation",
+    ],
+    "des": [
+        "DES round or S-box pattern",
+        "permutation tables or constants",
+        "key schedule",
+    ],
+    "hash_md5_sha": [
+        "hash constants or round structure",
+        "hash comparison point",
+        "bounded input domain",
+    ],
+    "simple_antidebug": [
+        "anti-debug API or SEH/static technique",
+        "check location",
+        "branch condition",
+    ],
+    "mixed_unknown": [
+        "static triage evidence",
+        "observed transform family",
+        "reason for remaining unknown",
+    ],
+}
+
 
 def _load_json(path: Path) -> dict[str, Any]:
     with open(path, encoding="utf-8") as fh:
@@ -50,6 +124,292 @@ def _read_tail(path: Path, *, limit: int = 2000) -> str:
         return _summarize_text(path.read_text(encoding="utf-8", errors="replace"), limit=limit)
     except OSError as exc:
         return f"<unable to read log: {exc}>"
+
+
+def _short_text(value: Any, *, limit: int = 240) -> str:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "...[truncated]"
+
+
+def _flatten_evidence_text(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        parts: list[str] = []
+        for item in value.values():
+            parts.extend(_flatten_evidence_text(item))
+        return parts
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            parts.extend(_flatten_evidence_text(item))
+        return parts
+    return [str(value)]
+
+
+def _evidence_text_blob(evidence: dict[str, Any], parsed_triage: dict[str, Any]) -> str:
+    relevant_fields = [
+        "strings",
+        "functions",
+        "compare_contexts",
+        "local_check_contexts",
+        "control_id_contexts",
+        "string_xrefs",
+        "validation_function_candidates",
+        "decompiler_snippets",
+        "forced_decompiler_snippets",
+        "solver_hints",
+    ]
+    parts: list[str] = []
+    for field in relevant_fields:
+        parts.extend(_flatten_evidence_text(evidence.get(field)))
+        parts.extend(_flatten_evidence_text(parsed_triage.get(field)))
+    return "\n".join(parts).lower()
+
+
+def _has_any(text: str, needles: list[str]) -> bool:
+    return any(needle.lower() in text for needle in needles)
+
+
+def _profile(status: str, *, observed: list[str] | None = None, missing: list[str] | None = None) -> dict[str, Any]:
+    if status not in TYPE_EVIDENCE_STATUSES:
+        raise ValueError(f"invalid type_evidence status: {status}")
+    return {
+        "status": status,
+        "required_evidence": [],
+        "observed_evidence": observed or [],
+        "missing_evidence": missing or [],
+        "promotion_blockers": [],
+    }
+
+
+def _profile_with_requirements(
+    profile_id: str,
+    status: str,
+    *,
+    observed: list[str] | None = None,
+    missing: list[str] | None = None,
+    blockers: list[str] | None = None,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    profile = _profile(status, observed=observed, missing=missing)
+    profile["required_evidence"] = list(TYPE_EVIDENCE_REQUIRED[profile_id])
+    profile["promotion_blockers"] = blockers or [
+        "static_verified is not emitted by static triage schema normalization",
+        "filename/sample_id/category/keyword/solver-module hits are not sufficient",
+    ]
+    if extra:
+        profile.update(extra)
+    return profile
+
+
+def _default_type_evidence(*, source: str = "adapter_schema_default") -> dict[str, Any]:
+    profiles = {
+        profile_id: _profile_with_requirements(
+            profile_id,
+            "not_observed",
+            missing=list(TYPE_EVIDENCE_REQUIRED[profile_id]),
+        )
+        for profile_id in TYPE_EVIDENCE_PROFILE_IDS
+    }
+    profiles["hash_md5_sha"]["bounded_domain_required"] = True
+    profiles["hash_md5_sha"]["bounded_domain_evidence"] = {
+        "length": {"observed": False, "evidence": ""},
+        "charset": {"observed": False, "evidence": ""},
+        "format": {"observed": False, "evidence": ""},
+    }
+    profiles["lookup_table"]["table_evidence"] = {
+        "access": {"observed": False, "evidence": ""},
+        "base": {"observed": False, "evidence": ""},
+        "size": {"observed": False, "evidence": ""},
+        "contents": {"observed": False, "evidence": ""},
+    }
+    return {
+        "schema_version": TYPE_EVIDENCE_SCHEMA_VERSION,
+        "source": source,
+        "status_vocabulary": sorted(TYPE_EVIDENCE_STATUSES),
+        "type_tag_observations": [],
+        "profiles": profiles,
+        "promotion_safety": {
+            "emits_static_verified": False,
+            "metadata_only_is_not_static_evidence": True,
+            "keyword_hits_are_not_static_verification": True,
+            "filename_sample_id_category_solver_module_are_not_sufficient": True,
+            "runtime_validation_required_for_confirmed_candidate": True,
+        },
+    }
+
+
+def _extract_type_evidence(evidence: dict[str, Any], parsed_triage: dict[str, Any]) -> dict[str, Any]:
+    """Normalize static type evidence from already-collected IDA evidence.
+
+    This is a pure schema helper. It does not run external tools and it never
+    emits ``static_verified``.
+    """
+    result = _default_type_evidence(source="ida_evidence_adapter")
+    profiles = result["profiles"]
+    observations: list[dict[str, str]] = []
+    text = _evidence_text_blob(evidence, parsed_triage)
+
+    compare_contexts = parsed_triage.get("compare_contexts") or evidence.get("compare_contexts") or []
+    if compare_contexts or _has_any(text, ["strcmp", "memcmp", "lstrcmp", "strncmp"]):
+        observed = ["compare context or compare API name observed"]
+        if compare_contexts:
+            observed.append(f"compare_context_count={len(compare_contexts)}")
+        profiles["string_comparison"] = _profile_with_requirements(
+            "string_comparison",
+            "candidate_static_signal",
+            observed=observed,
+            missing=["operand source", "compared value or producer"],
+        )
+        observations.append({"type_id": "string_comparison", "status": "candidate_static_signal"})
+
+    if _has_any(text, [" xor ", "\txor", "^=", " xor(", "xor loop", "xor key"]):
+        profiles["xor"] = _profile_with_requirements(
+            "xor",
+            "candidate_static_signal",
+            observed=["xor operation keyword or instruction text observed"],
+            missing=["xor key or derivation", "loop bounds or operand width"],
+        )
+        observations.append({"type_id": "xor", "status": "candidate_static_signal"})
+
+    if _has_any(text, [" shl ", " shr ", " rol ", " ror ", "shift", "rotate", "affine", "mod "]) or (
+        _has_any(text, ["imul", "mul"]) and _has_any(text, [" add ", "+"])
+    ):
+        profiles["shift_affine"] = _profile_with_requirements(
+            "shift_affine",
+            "candidate_static_signal",
+            observed=["shift/rotate/affine transform text observed"],
+            missing=["complete transform constants", "loop structure"],
+        )
+        observations.append({"type_id": "shift_affine", "status": "candidate_static_signal"})
+
+    if _has_any(text, [" xor ", "\txor", " shl ", " shr ", " rol ", " ror ", " and ", " or ", " not "]):
+        profiles["bit_operations"] = _profile_with_requirements(
+            "bit_operations",
+            "candidate_static_signal",
+            observed=["bitwise operation text observed"],
+            missing=["operand source", "input-to-compare chain"],
+        )
+        observations.append({"type_id": "bit_operations", "status": "candidate_static_signal"})
+
+    table_access = _has_any(text, ["lookup", "table", "array[", "s-box", "sbox", "index"])
+    table_base = _has_any(text, ["base address", "table base", "base=0x", "base 0x"])
+    table_size = _has_any(text, ["table size", "size=256", "256-byte", "size 256"])
+    table_contents = _has_any(text, ["table contents", "contents=", "dumped table", "s-box contents"])
+    if table_access:
+        missing = []
+        if not table_base:
+            missing.append("table base")
+        if not table_size:
+            missing.append("table size")
+        if not table_contents:
+            missing.append("table contents")
+        profiles["lookup_table"] = _profile_with_requirements(
+            "lookup_table",
+            "observed_static_signal" if not missing else "blocked_missing_required_evidence",
+            observed=["lookup table or indexed table access text observed"],
+            missing=missing,
+            extra={
+                "table_evidence": {
+                    "access": {"observed": True, "evidence": "lookup/table/index text observed"},
+                    "base": {"observed": table_base, "evidence": "base text observed" if table_base else ""},
+                    "size": {"observed": table_size, "evidence": "size text observed" if table_size else ""},
+                    "contents": {"observed": table_contents, "evidence": "contents text observed" if table_contents else ""},
+                }
+            },
+        )
+        observations.append({"type_id": "lookup_table", "status": profiles["lookup_table"]["status"]})
+
+    rc4_parts = {
+        "ksa_or_prga": _has_any(text, ["ksa", "prga", "key scheduling", "pseudo-random generation"]),
+        "sbox": _has_any(text, ["s-box", "sbox", "256-byte state", "state array"]),
+        "key": _has_any(text, ["rc4 key", "key material", "key derivation"]),
+    }
+    if any(rc4_parts.values()) or _has_any(text, ["rc4"]):
+        profiles["rc4"] = _profile_with_requirements(
+            "rc4",
+            "candidate_static_signal",
+            observed=[name for name, ok in rc4_parts.items() if ok] or ["rc4 text observed"],
+            missing=[name for name, ok in rc4_parts.items() if not ok],
+        )
+        observations.append({"type_id": "rc4", "status": "candidate_static_signal"})
+
+    des_parts = {
+        "round_or_sbox": _has_any(text, ["des round", "s-box", "sbox"]),
+        "permutation": _has_any(text, ["permutation", "initial permutation", "pc1", "pc2", "ip table", "fp table"]),
+        "key_schedule": _has_any(text, ["key schedule", "subkey", "subkeys"]),
+    }
+    if any(des_parts.values()) or _has_any(text, [" des "]):
+        profiles["des"] = _profile_with_requirements(
+            "des",
+            "candidate_static_signal",
+            observed=[name for name, ok in des_parts.items() if ok] or ["des text observed"],
+            missing=[name for name, ok in des_parts.items() if not ok],
+        )
+        observations.append({"type_id": "des", "status": "candidate_static_signal"})
+
+    hash_signal = _has_any(text, ["sha", "sha-256", "sha256", "md5", "67452301", "6a09e667", "hash"])
+    domain = {
+        "length": {"observed": _has_any(text, ["length", "len=", "input length"]), "evidence": ""},
+        "charset": {"observed": _has_any(text, ["charset", "alphabet", "digits", "lowercase", "uppercase"]), "evidence": ""},
+        "format": {"observed": _has_any(text, ["format", "prefix", "flag{", "regex"]), "evidence": ""},
+    }
+    for key, item in domain.items():
+        if item["observed"]:
+            item["evidence"] = f"{key} evidence text observed"
+    if hash_signal:
+        domain_present = any(item["observed"] for item in domain.values())
+        profiles["hash_md5_sha"] = _profile_with_requirements(
+            "hash_md5_sha",
+            "candidate_static_signal" if domain_present else "blocked_missing_required_evidence",
+            observed=["hash constants or hash text observed"] + [
+                f"bounded_domain_{key}" for key, item in domain.items() if item["observed"]
+            ],
+            missing=[] if domain_present else ["bounded input domain"],
+            extra={
+                "bounded_domain_required": True,
+                "bounded_domain_evidence": domain,
+                "solver_ready": False,
+            },
+        )
+        observations.append({"type_id": "hash_md5_sha", "status": profiles["hash_md5_sha"]["status"]})
+
+    if _has_any(text, ["isdebuggerpresent", "ntqueryinformationprocess", "beingdebugged", "int 2d", "int 3", "seh", "anti-debug", "antidebug"]):
+        profiles["simple_antidebug"] = _profile_with_requirements(
+            "simple_antidebug",
+            "candidate_static_signal",
+            observed=["anti-debug API/SEH/static technique text observed"],
+            missing=["check location", "branch condition"],
+            blockers=[
+                "debugger execution is outside this schema helper",
+                "static signal is not a bypass or runtime validation",
+            ],
+        )
+        observations.append({"type_id": "simple_antidebug", "status": "candidate_static_signal"})
+
+    if text and not observations:
+        profiles["mixed_unknown"] = _profile_with_requirements(
+            "mixed_unknown",
+            "candidate_static_signal",
+            observed=["static triage text exists but no specific type profile matched"],
+            missing=["observed transform family"],
+        )
+        observations.append({"type_id": "mixed_unknown", "status": "candidate_static_signal"})
+    elif observations:
+        profiles["mixed_unknown"] = _profile_with_requirements(
+            "mixed_unknown",
+            "not_observed",
+            missing=["reason for remaining unknown"],
+            blockers=["specific candidate signals were observed; do not keep mixed_unknown without a later triage reason"],
+        )
+
+    result["type_tag_observations"] = observations
+    return result
 
 
 def _find_sample_root() -> Path | None:
@@ -379,6 +739,7 @@ def _parse_ida_evidence(evidence: dict[str, Any], exit_code: int) -> dict[str, A
     if any("strcmp" in fn.get("name", "").lower() for fn in function_names):
         hypotheses.append("strcmp_direct_compare")
     triage["solver_profile_hypotheses"] = hypotheses
+    triage["type_evidence"] = _extract_type_evidence(evidence, triage)
 
     return triage
 
@@ -580,6 +941,7 @@ def run_static_triage(
             "solver_profile_hypotheses": ida_result.get("solver_profile_hypotheses", []),
             "decompiler_snippets": ida_result.get("decompiler_snippets", []),
             "solver_hints": ida_result.get("solver_hints", []),
+            "type_evidence": ida_result.get("type_evidence", _default_type_evidence()),
         },
         "candidate": None,
         "known_candidate": "",
@@ -653,6 +1015,7 @@ def _blocked_artifact(
             "solver_profile_hypotheses": [],
             "decompiler_snippets": [],
             "solver_hints": [],
+            "type_evidence": _default_type_evidence(source="blocked_artifact_default"),
         },
         "candidate": None,
         "known_candidate": "",

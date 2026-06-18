@@ -2,28 +2,30 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_training_first_static_triage_queue_v1",
-  "round_id": "round_20260618_training_first_static_triage_queue_v1",
-  "mainline": "training_dataset",
-  "generated_at": "2026-06-18T16:10:59.620762Z",
-  "profile": "standard",
-  "profile_reason": "source/test changes require targeted pytest and gate validation",
+  "decision_id": "decision_20260619_static_triage_type_evidence_schema_v1",
+  "round_id": "round_20260619_static_triage_type_evidence_schema_v1",
+  "mainline": "tool_integration",
+  "generated_at": "2026-06-18T16:38:41.841583Z",
+  "profile": "full",
+  "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [
-    "source/test changes require targeted pytest and gate validation"
+    "gate/project_state source changes require full validation"
   ],
   "closeout_allowed": true,
   "required_command_kinds": [
     "startup",
     "preflight",
     "command-plan",
+    "run-round",
     "pytest",
     "doctor",
     "lint-report",
     "report-summary",
-    "final-check"
+    "final-check",
+    "close-round"
   ],
   "reasons": [
-    "decision scope includes source/test changes: tests/test_local_reverse_first_static_triage_queue.py"
+    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/ida_scripts/collect_evidence.py, reverse_agent/tool_runners.py"
   ],
   "suggested_commands": [
     {
@@ -46,33 +48,45 @@
     },
     {
       "index": 4,
-      "command": "focused pytest for touched modules",
+      "command": "run-round",
+      "phase": "gate",
+      "kind": "run-round"
+    },
+    {
+      "index": 5,
+      "command": "full pytest for gate/project_state modules",
       "phase": "test",
       "kind": "pytest"
     },
     {
-      "index": 5,
+      "index": 6,
       "command": "doctor",
       "phase": "status",
       "kind": "doctor"
     },
     {
-      "index": 6,
+      "index": 7,
       "command": "lint-report",
       "phase": "status",
       "kind": "lint-report"
     },
     {
-      "index": 7,
+      "index": 8,
       "command": "report-summary",
       "phase": "gate",
       "kind": "report-summary"
     },
     {
-      "index": 8,
+      "index": 9,
       "command": "final-check",
       "phase": "gate",
       "kind": "final-check"
+    },
+    {
+      "index": 10,
+      "command": "close-round",
+      "phase": "gate",
+      "kind": "close-round"
     }
   ],
   "future_phases": []

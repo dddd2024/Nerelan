@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260618_training_first_static_triage_queue_v1",
-  "round_id": "round_20260618_training_first_static_triage_queue_v1",
-  "head_commit": "6331ac4559c4",
+  "decision_id": "decision_20260619_static_triage_type_evidence_schema_v1",
+  "round_id": "round_20260619_static_triage_type_evidence_schema_v1",
+  "head_commit": "a7ed6600e15e",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -18,16 +18,16 @@
     " M project_state/gates/preflight_result.json",
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
-    " M project_state/gates/round_close_snapshot.json",
     " M project_state/gates/round_delta_summary.json",
     " M project_state/pytest_result.txt",
-    "?? project_state/local_reverse_first_static_triage_queue.json",
-    "?? project_state/local_reverse_first_static_triage_queue_report.md",
-    "?? project_state/rounds/round_20260618_training_first_static_triage_queue_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260618_training_first_static_triage_queue_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260618_training_first_static_triage_queue_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260618_training_first_static_triage_queue_v1/round_manifest.json",
-    "?? tests/test_local_reverse_first_static_triage_queue.py"
+    " M reverse_agent/local_reverse_single_sample_static_triage.py",
+    "?? project_state/local_reverse_static_triage_type_evidence_schema.json",
+    "?? project_state/local_reverse_static_triage_type_evidence_schema_report.md",
+    "?? project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/round_manifest.json",
+    "?? tests/test_local_reverse_static_triage_type_evidence_schema.py"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -37,9 +37,9 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/local_reverse_single_sample_static_triage.py"
   ],
   "final_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -49,16 +49,16 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/local_reverse_first_static_triage_queue.json",
-    "project_state/local_reverse_first_static_triage_queue_report.md",
+    "project_state/local_reverse_static_triage_type_evidence_schema.json",
+    "project_state/local_reverse_static_triage_type_evidence_schema_report.md",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/decision_packet.md",
-    "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/pytest_result.txt",
-    "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/round_manifest.json",
-    "tests/test_local_reverse_first_static_triage_queue.py"
+    "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/decision_packet.md",
+    "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/pytest_result.txt",
+    "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/round_manifest.json",
+    "reverse_agent/local_reverse_single_sample_static_triage.py",
+    "tests/test_local_reverse_static_triage_type_evidence_schema.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -68,18 +68,18 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/local_reverse_first_static_triage_queue.json",
-    "project_state/local_reverse_first_static_triage_queue_report.md",
+    "project_state/local_reverse_static_triage_type_evidence_schema.json",
+    "project_state/local_reverse_static_triage_type_evidence_schema_report.md",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/decision_packet.md",
-    "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/pytest_result.txt",
-    "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/round_manifest.json",
-    "tests/test_local_reverse_first_static_triage_queue.py"
+    "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/decision_packet.md",
+    "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/pytest_result.txt",
+    "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/round_manifest.json",
+    "reverse_agent/local_reverse_single_sample_static_triage.py",
+    "tests/test_local_reverse_static_triage_type_evidence_schema.py"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-18T16:15:54.087856Z"
+  "generated_at": "2026-06-18T16:43:01.514217Z"
 }

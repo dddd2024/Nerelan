@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_training_first_static_triage_queue_v1",
-  "round_id": "round_20260618_training_first_static_triage_queue_v1",
-  "mainline": "training_dataset",
-  "generated_at": "2026-06-18T16:10:59.347889Z",
+  "decision_id": "decision_20260619_static_triage_type_evidence_schema_v1",
+  "round_id": "round_20260619_static_triage_type_evidence_schema_v1",
+  "mainline": "tool_integration",
+  "generated_at": "2026-06-18T16:38:41.633818Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is training_dataset",
+      "detail": "mainline is tool_integration",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260618_static_type_tag_contract_acceptance_rerun_v1"
+      "report_id": "codex_report_20260618_training_first_static_triage_queue_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,15 +71,21 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "allowed_existing_routes",
-        "based_on_artifacts",
-        "blocked_categories",
-        "coverage_status_before_triage",
-        "decision_id",
-        "expected_next_artifacts",
-        "forbidden_actions",
-        "limitations",
-        "metadata_confidence",
+        "DES S-box/permutation/key schedule text -> des candidate signal;",
+        "RC4 KSA/PRGA/S-box/key text -> rc4 candidate signal;",
+        "XOR/decompiler text -> xor/bit_operations candidate signal;",
+        "anti-debug API/SEH text -> simple_antidebug candidate signal;",
+        "bit_operations",
+        "blocked artifact path contains default empty type_evidence.",
+        "compare context -> string_comparison candidate signal;",
+        "des",
+        "hash constants with length/charset/format text -> bounded domain evidence present but still not static_verified;",
+        "hash constants without bounded domain -> blocked_missing_required_evidence;",
+        "hash_md5_sha",
+        "lookup table text without base/size/contents -> blocked/missing required evidence;",
+        "lookup_table",
+        "mixed_unknown",
+        "profiles",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -89,23 +95,22 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_first_static_triage_queue.json",
-        "project_state/local_reverse_first_static_triage_queue_report.md",
+        "project_state/local_reverse_static_triage_type_evidence_schema.json",
+        "project_state/local_reverse_static_triage_type_evidence_schema_report.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_training_first_static_triage_queue_v1/*",
-        "promotion_rule",
-        "queue_id",
-        "queue_policy",
-        "queued_items",
-        "required_static_evidence",
-        "round_id",
-        "sample_id",
+        "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/*",
+        "promotion_safety",
+        "rc4",
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
         "schema_version",
-        "selection_source",
-        "stop_condition",
-        "tests/test_local_reverse_first_static_triage_queue.py",
-        "type_id",
-        "why_selected"
+        "shift/affine text -> shift_affine candidate signal;",
+        "shift_affine",
+        "simple_antidebug",
+        "source",
+        "string_comparison",
+        "tests/test_local_reverse_static_triage_type_evidence_schema.py",
+        "type_tag_observations",
+        "xor"
       ]
     },
     {
@@ -151,7 +156,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "6331ac4559c4"
+    "head_commit": "a7ed6600e15e"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

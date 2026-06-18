@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "artifact_name": "local_reverse_static_triage_type_evidence_schema",
+  "decision_id": "decision_20260619_static_triage_type_evidence_schema_v1",
+  "round_id": "round_20260619_static_triage_type_evidence_schema_v1",
+  "generated_at": "2026-06-19T00:00:00Z",
+  "scope": "adapter schema contract for reverse_agent/local_reverse_single_sample_static_triage.py",
+  "field_path": "triage.type_evidence",
+  "source_policy": {
+    "external_tools_executed_by_schema_helper": false,
+    "synthetic_test_evidence_is_real_sample_evidence": false,
+    "metadata_only_is_static_verified": false,
+    "filename_sample_id_category_solver_module_are_sufficient": false
+  },
+  "top_level_fields": [
+    "schema_version",
+    "source",
+    "status_vocabulary",
+    "type_tag_observations",
+    "profiles",
+    "promotion_safety"
+  ],
+  "status_vocabulary": [
+    "not_observed",
+    "candidate_static_signal",
+    "observed_static_signal",
+    "blocked_missing_required_evidence"
+  ],
+  "forbidden_statuses": [
+    "static_verified",
+    "runtime_validated",
+    "solved"
+  ],
+  "profile_ids": [
+    "string_comparison",
+    "xor",
+    "shift_affine",
+    "bit_operations",
+    "lookup_table",
+    "rc4",
+    "des",
+    "hash_md5_sha",
+    "simple_antidebug",
+    "mixed_unknown"
+  ],
+  "profile_required_fields": [
+    "status",
+    "required_evidence",
+    "observed_evidence",
+    "missing_evidence",
+    "promotion_blockers"
+  ],
+  "profile_requirements": {
+    "string_comparison": [
+      "compare callsite",
+      "operand source",
+      "compared value or producer"
+    ],
+    "xor": [
+      "xor operation",
+      "xor key or derivation",
+      "loop bounds or operand width"
+    ],
+    "shift_affine": [
+      "shift/rotate/affine operation",
+      "transform constants",
+      "loop structure"
+    ],
+    "bit_operations": [
+      "bit operation sequence",
+      "operand source",
+      "input-to-compare chain"
+    ],
+    "lookup_table": [
+      "table access",
+      "table base",
+      "table size",
+      "table contents"
+    ],
+    "rc4": [
+      "KSA or PRGA loop",
+      "S-box state",
+      "key material or derivation"
+    ],
+    "des": [
+      "DES round or S-box pattern",
+      "permutation tables or constants",
+      "key schedule"
+    ],
+    "hash_md5_sha": [
+      "hash constants or round structure",
+      "hash comparison point",
+      "bounded input domain"
+    ],
+    "simple_antidebug": [
+      "anti-debug API or SEH/static technique",
+      "check location",
+      "branch condition"
+    ],
+    "mixed_unknown": [
+      "static triage evidence",
+      "observed transform family",
+      "reason for remaining unknown"
+    ]
+  },
+  "specialized_subfields": {
+    "hash_md5_sha": {
+      "bounded_domain_required": true,
+      "bounded_domain_evidence": {
+        "length": "records whether length evidence exists",
+        "charset": "records whether charset evidence exists",
+        "format": "records whether format evidence exists"
+      },
+      "solver_ready": false
+    },
+    "lookup_table": {
+      "table_evidence": {
+        "access": "records whether table/indexed access was observed",
+        "base": "records whether table base was observed",
+        "size": "records whether table size was observed",
+        "contents": "records whether table contents were observed"
+      }
+    }
+  },
+  "promotion_safety": {
+    "emits_static_verified": false,
+    "metadata_only_is_not_static_evidence": true,
+    "keyword_hits_are_not_static_verification": true,
+    "filename_sample_id_category_solver_module_are_not_sufficient": true,
+    "runtime_validation_required_for_confirmed_candidate": true
+  },
+  "blocked_artifact_contract": {
+    "triage.type_evidence": "present with all profiles defaulting to not_observed",
+    "source": "blocked_artifact_default"
+  }
+}

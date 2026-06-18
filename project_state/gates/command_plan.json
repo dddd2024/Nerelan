@@ -2,23 +2,25 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260618_training_first_static_triage_queue_v1",
-  "round_id": "round_20260618_training_first_static_triage_queue_v1",
-  "mainline": "training_dataset",
-  "generated_at": "2026-06-18T16:10:59.850124Z",
+  "decision_id": "decision_20260619_static_triage_type_evidence_schema_v1",
+  "round_id": "round_20260619_static_triage_type_evidence_schema_v1",
+  "mainline": "tool_integration",
+  "generated_at": "2026-06-18T16:38:42.042993Z",
   "profile_meta": {
-    "profile": "standard",
-    "profile_reason": "source/test changes require targeted pytest and gate validation",
+    "profile": "full",
+    "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
     "closeout_allowed": true,
     "required_command_kinds": [
       "startup",
       "preflight",
       "command-plan",
+      "run-round",
       "pytest",
       "doctor",
       "lint-report",
       "report-summary",
-      "final-check"
+      "final-check",
+      "close-round"
     ]
   },
   "omitted_commands": [],
@@ -90,7 +92,7 @@
     },
     {
       "index": 6,
-      "command": "python -m pytest tests/test_local_reverse_first_static_triage_queue.py tests/test_local_reverse_static_type_tags.py tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_local_reverse_static_triage_type_evidence_schema.py tests/test_local_reverse_first_static_triage_queue.py tests/test_tool_runners.py tests/test_tool_capability_inventory.py tests/test_project_gate.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -209,7 +211,7 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_training_first_static_triage_queue_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_static_triage_type_evidence_schema_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": false,
