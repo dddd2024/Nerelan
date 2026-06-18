@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260618_static_type_tag_contract_scope_repair_v1",
-  "round_id": "round_20260618_static_type_tag_contract_scope_repair_v1",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260618_static_type_tag_contract_scope_wording_repair_v1",
+  "round_id": "round_20260618_static_type_tag_contract_scope_wording_repair_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-18T14:12:05.205893Z",
+  "generated_at": "2026-06-18T14:20:29.424089Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
-      "report_id": "codex_report_20260618_static_triage_type_tag_contract_v1"
+      "report_id": "codex_report_20260618_static_type_tag_contract_scope_repair_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,7 +71,6 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        ".codex-skills/*",
         "allowed_evidence_sources",
         "base64",
         "bit_operations",
@@ -99,13 +98,10 @@
         "project_state/local_reverse_static_type_tag_contract.json",
         "project_state/local_reverse_static_type_tag_contract_report.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_static_type_tag_contract_scope_repair_v1/*",
+        "project_state/rounds/round_20260618_static_type_tag_contract_scope_wording_repair_v1/*",
         "rc4",
-        "reverse_agent/",
-        "sample binaries or local training corpus files",
         "shift_affine",
         "simple_antidebug",
-        "solve_reports/*",
         "solver_or_tool_route",
         "static_verified_requires",
         "string_comparison",
@@ -117,12 +113,9 @@
     },
     {
       "name": "forbidden_paths_not_allowed",
-      "status": "FAIL",
-      "detail": "allowed scope includes forbidden paths",
-      "forbidden_paths": [
-        ".codex-skills/*",
-        "solve_reports/*"
-      ]
+      "status": "PASS",
+      "detail": "allowed scope contains no forbidden paths",
+      "forbidden_paths": []
     },
     {
       "name": "mainline_scope_policy",
@@ -157,15 +150,13 @@
       "baseline_source_test_dirty": []
     }
   ],
-  "blocking_reasons": [
-    "forbidden_paths_not_allowed: allowed scope includes forbidden paths"
-  ],
+  "blocking_reasons": [],
   "warnings": [],
-  "recommended_next_action": "fix_preflight_failures_before_starting",
+  "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "b2d1efa85614"
+    "head_commit": "fe0aee4053c6"
   },
   "status_summary": {
     "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",

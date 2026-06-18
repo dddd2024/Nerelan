@@ -1,0 +1,495 @@
+{
+  "schema_version": 1,
+  "contract_name": "local_reverse_static_type_tag_contract",
+  "generated_at": "2026-06-18T14:50:00Z",
+  "decision_id": "decision_20260618_static_type_tag_contract_scope_wording_repair_v1",
+  "round_id": "round_20260618_static_type_tag_contract_scope_wording_repair_v1",
+  "based_on_artifacts": [
+    "project_state/local_reverse_training_coverage_matrix.json",
+    "project_state/local_reverse_training_gap_report.md",
+    "project_state/local_reverse_solver_tool_capability_map.json",
+    "project_state/local_reverse_training_inventory_refresh.json"
+  ],
+  "required_tag_ids": [
+    "string_comparison",
+    "xor",
+    "shift_affine",
+    "bit_operations",
+    "lookup_table",
+    "rc4",
+    "des",
+    "tea_xtea",
+    "base64",
+    "hash_md5_sha",
+    "gui_validation",
+    "simple_antidebug",
+    "mixed_unknown"
+  ],
+  "required_fields_per_tag": [
+    "evidence_requirements",
+    "allowed_evidence_sources",
+    "confidence_rules",
+    "solver_or_tool_route",
+    "not_sufficient_conditions",
+    "next_minimal_task",
+    "metadata_only_allowed",
+    "static_verified_requires"
+  ],
+  "global_rules": {
+    "filename_hint_alone_never_static_verified": true,
+    "solver_module_name_alone_never_static_verified": true,
+    "metadata_only_is_not_static_evidence": true,
+    "sample_name_pattern_alone_never_upgrades_confidence": true,
+    "static_verified_requires_runtime_validation_or_proven_static_inversion": true
+  },
+  "tags": {
+    "string_comparison": {
+      "evidence_requirements": [
+        "IDA static triage identifies a comparison function (strcmp, memcmp, or inline compare) that gates success/failure branch",
+        "Compare callsite address and compared operand source are identified from static analysis",
+        "The compared value or its producer function is identified from static decompilation or string extraction"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_string_solver",
+        "reverse_agent.local_reverse_direct_strcmp_handoff",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.evidence (StaticStringEvidence, CandidateEvidence)"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_compare_callsite": "medium",
+        "static_triage_with_compare_callsite_and_operand_source": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_string_solver or local_reverse_direct_strcmp_handoff after static triage identifies compare callsite",
+      "not_sufficient_conditions": [
+        "sample filename contains 'cpp' or 'Cpp'",
+        "sample category is 'cpp' in inventory metadata",
+        "solver module name contains 'string_solver'",
+        "inventory tag includes 'cpp' or 'pe'"
+      ],
+      "next_minimal_task": "Select one high-priority cpp inventory_only sample and run bounded static_triage in a later authorized round",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "compare callsite identified with address and operand source",
+        "operand producer function identified or value extracted",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "xor": {
+      "evidence_requirements": [
+        "Static analysis identifies XOR operation (xor instruction or XOR loop) operating on user input or derived data",
+        "XOR key or key derivation is identified from static decompilation",
+        "XOR loop bounds and operand width are determined from static analysis"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_cpp1_7b504c54_xor_handoff",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.evidence (CandidateEvidence)"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_xor_instruction": "medium",
+        "static_triage_with_xor_key_identified": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_solver_profiles with XOR profile after static triage identifies XOR operation and key",
+      "not_sufficient_conditions": [
+        "sample filename contains 'xor'",
+        "solver script filename contains 'xor_array_solver'",
+        "solver module name contains 'xor_handoff'",
+        "inventory tag includes 'xor'"
+      ],
+      "next_minimal_task": "Promote XOR from solver/support metadata into first-class type tags during static triage; avoid assuming solver scripts are target evidence",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "XOR instruction or loop identified with address",
+        "XOR key or key derivation identified",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "shift_affine": {
+      "evidence_requirements": [
+        "Static analysis identifies shift, rotate, or affine transform (y = ax + b mod n) applied to input bytes",
+        "Transform constants (shift amount, affine multiplier, affine offset) are extracted from static analysis",
+        "Transform loop structure and iteration count are determined from static decompilation"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_affine_inverse_handoff",
+        "reverse_agent.local_reverse_semantic_rules",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.tool_runners (IDA collect_evidence)"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_shift_or_affine_instruction": "medium",
+        "static_triage_with_transform_constants_extracted": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_affine_inverse_handoff after static triage identifies affine/shift transform and constants",
+      "not_sufficient_conditions": [
+        "sample filename contains 'affine' or 'shift'",
+        "sample filename contains 'byte_shift_transform_solver'",
+        "solver module name contains 'affine_inverse_handoff'",
+        "inventory category contains 'affine'"
+      ],
+      "next_minimal_task": "Define affine/shift static evidence profile and apply it to one queued affine sample in a later static-only round",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "shift or affine instruction identified with address",
+        "transform constants extracted (shift amount or affine a/b)",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "bit_operations": {
+      "evidence_requirements": [
+        "Static analysis identifies bitwise operations (AND, OR, NOT, XOR, shift) applied to input or intermediate values",
+        "Bit operation sequence and operand sources are identified from static decompilation",
+        "Combined bit operation chain is traced from input to comparison point"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_semantic_rules",
+        "reverse_agent.local_reverse_solver_profiles",
+        "reverse_agent.tool_runners (IDA collect_evidence)"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_bit_operation_identified": "medium",
+        "static_triage_with_full_bit_chain_traced": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_semantic_rules with bit operation profile after static triage identifies bit operation chain",
+      "not_sufficient_conditions": [
+        "sample filename contains 'xor' or 'affine' or 'seh'",
+        "sample is tagged with 'xor' or 'shift' in inventory",
+        "solver module name contains 'semantic_rules'",
+        "derived from other type metadata without direct bit operation evidence"
+      ],
+      "next_minimal_task": "Add metadata tags for bitwise transforms when static triage observes them; keep current row metadata-level",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "bit operation instruction(s) identified with addresses",
+        "bit operation chain traced from input to comparison",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "lookup_table": {
+      "evidence_requirements": [
+        "Static analysis identifies a lookup table or array indexing operation used in transform",
+        "Table base address and size are identified from static analysis",
+        "Table contents are extracted or verified from static analysis"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.evidence (StaticStringEvidence)"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_table_access_identified": "medium",
+        "static_triage_with_table_contents_extracted": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_single_sample_static_triage with table extraction after static triage identifies table access",
+      "not_sufficient_conditions": [
+        "sample filename contains 'table' or 'array'",
+        "solver script filename contains 'xor_array_solver'",
+        "inventory tag includes 'array'",
+        "solver module name contains 'table'"
+      ],
+      "next_minimal_task": "Add lookup-table detection fields to static triage output before claiming coverage",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "table access instruction identified with address",
+        "table base address and size determined",
+        "table contents extracted from static analysis",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "rc4": {
+      "evidence_requirements": [
+        "Static analysis identifies RC4 KSA (key scheduling) or PRGA (pseudo-random generation) loop structure",
+        "RC4 S-box (256-byte state array) initialization is identified from static analysis",
+        "RC4 key material or key derivation is identified from static decompilation or string extraction"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.evidence (RC4MaterialEvidence)",
+        "reverse_agent.local_reverse_solver_profiles"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_rc4_loop_structure": "medium",
+        "static_triage_with_sbox_and_key_identified": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_solver_profiles with RC4 profile after static triage identifies KSA/PRGA and key material",
+      "not_sufficient_conditions": [
+        "sample filename contains 'rc4'",
+        "sample filename contains 'rc4enc' or 'rc4_interactive_solver'",
+        "solver module name contains 'rc4_material_evidence'",
+        "inventory category is 'crypto/cipher' with rc4 in name"
+      ],
+      "next_minimal_task": "Build cipher_static_evidence_profile for RC4 samples using static evidence only",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "RC4 KSA or PRGA loop identified with address",
+        "S-box initialization identified",
+        "RC4 key material identified from static analysis",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "des": {
+      "evidence_requirements": [
+        "Static analysis identifies DES round function or S-box lookup pattern",
+        "DES key schedule or subkey derivation is identified from static analysis",
+        "DES permutation tables (IP, FP, PC1, PC2) or constants are identified from static analysis"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.evidence (CandidateEvidence)"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_des_round_identified": "medium",
+        "static_triage_with_des_constants_and_key_identified": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_single_sample_static_triage with DES identification after static triage identifies DES structure",
+      "not_sufficient_conditions": [
+        "sample filename contains 'des'",
+        "sample filename contains 'desenc' or 'des_interactive_solver'",
+        "solver module name contains 'des'",
+        "inventory category is 'crypto/cipher' with des in name"
+      ],
+      "next_minimal_task": "Build cipher_static_evidence_profile for DES samples using static evidence only",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "DES round function or S-box identified with address",
+        "DES permutation constants or tables identified",
+        "DES key schedule or subkey identified",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "tea_xtea": {
+      "evidence_requirements": [
+        "Static analysis identifies TEA/XTEA round function (delta constant 0x9E3779B9, 32-cycle loop)",
+        "TEA/XTEA key schedule (128-bit key split into 4 32-bit subkeys) is identified from static analysis",
+        "TEA/XTEA Feistel structure (v0/v1 split, sum accumulation) is identified from static decompilation"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.evidence (CandidateEvidence)"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_tea_round_identified": "medium",
+        "static_triage_with_tea_constants_and_key_identified": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_single_sample_static_triage with TEA/XTEA identification after static triage identifies TEA structure",
+      "not_sufficient_conditions": [
+        "sample filename contains 'tea' or 'xtea'",
+        "solver module name contains 'tea'",
+        "inventory tag includes 'tea'",
+        "no current inventory samples with TEA metadata"
+      ],
+      "next_minimal_task": "Add or identify TEA/XTEA training material; none is visible in current inventory metadata",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "TEA/XTEA round function identified with address",
+        "delta constant 0x9E3779B9 identified in code",
+        "128-bit key or subkeys identified from static analysis",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "base64": {
+      "evidence_requirements": [
+        "Static analysis identifies Base64 encoding/decoding table or constant pattern (ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/)",
+        "Base64 transform function (6-bit grouping, 3-to-4 byte mapping) is identified from static analysis",
+        "Base64 input source and output destination are identified from static decompilation"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.evidence (Base64MaterialEvidence)",
+        "reverse_agent.local_reverse_single_sample_static_triage"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_base64_table_identified": "medium",
+        "static_triage_with_base64_function_and_io_identified": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "tool_runners with Base64 material evidence after static triage identifies Base64 transform",
+      "not_sufficient_conditions": [
+        "sample filename contains 'base64'",
+        "solver module name contains 'base64_material_evidence'",
+        "inventory tag includes 'base64'",
+        "tool capability exists but no current inventory sample has Base64 metadata"
+      ],
+      "next_minimal_task": "Add metadata/type tagging for Base64 when static evidence observes encoding constants or material fields",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "Base64 encoding table or constant identified with address",
+        "Base64 transform function identified",
+        "input source and output destination identified",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "hash_md5_sha": {
+      "evidence_requirements": [
+        "Static analysis identifies hash function constants (MD5: 0x67452301 etc; SHA-256: 0x6a09e667 etc) or round structure",
+        "Hash input domain (length, charset, format) is identified or bounded from static analysis",
+        "Hash comparison point and compared hash value are identified from static analysis"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.local_reverse_constraint_recovery",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.evidence (ConstraintEvidence)"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_hash_constants_identified": "medium",
+        "static_triage_with_bounded_input_domain": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_constraint_recovery after static triage identifies hash function and bounded input domain",
+      "not_sufficient_conditions": [
+        "sample filename contains 'sha' or 'md5' or 'hash'",
+        "solver module name contains 'constraint_recovery'",
+        "inventory category is 'crypto/hash'",
+        "hash function identified but input domain is unbounded (NO_BOUNDED_HASH_PREIMAGE_DOMAIN)"
+      ],
+      "next_minimal_task": "Recover bounded input domain evidence for SHA/MD5-style targets before solver attempts",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "hash function constants or round structure identified",
+        "hash comparison point and value identified",
+        "bounded input domain (length, charset, format) established",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "gui_validation": {
+      "evidence_requirements": [
+        "Static analysis identifies GUI framework usage (Win32 API CreateWindow, DialogBox, message loop)",
+        "GUI input control (EditBox, TextBox) and input retrieval function (GetDlgItemText, GetWindowText) are identified",
+        "Validation callback or button-click handler that processes input is identified from static analysis"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.local_reverse_console_validator",
+        "reverse_agent.local_reverse_console_pair_validator"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_gui_framework_identified": "medium",
+        "static_triage_with_input_control_and_handler_identified": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_console_validator or local_reverse_console_pair_validator after static triage identifies GUI validation handler",
+      "not_sufficient_conditions": [
+        "sample filename contains 'gui' or 'window'",
+        "solver module name contains 'console_validator'",
+        "inventory tag includes 'gui'",
+        "tool capability exists but no current inventory sample has GUI-specific metadata"
+      ],
+      "next_minimal_task": "Add GUI-control/static UI evidence fields before planning GUI validation workflows",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "GUI framework API calls identified",
+        "input control and retrieval function identified",
+        "validation callback or handler identified with address",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "simple_antidebug": {
+      "evidence_requirements": [
+        "Static analysis identifies anti-debug technique (IsDebuggerPresent, NtQueryInformationProcess, PEB BeingDebugged, INT 2D, INT 3 trap, SEH-based anti-debug)",
+        "Anti-debug check location and branch condition are identified from static analysis",
+        "Bypass or patch strategy is determined from static decompilation"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.olly_scripts.collect_evidence"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_with_antidebug_api_identified": "medium",
+        "static_triage_with_check_location_and_bypass_identified": "high",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_single_sample_static_triage with anti-debug identification, then olly_scripts if dynamic bypass needed",
+      "not_sufficient_conditions": [
+        "sample filename contains 'seh' or 'debug' or 'anti'",
+        "solver module name contains 'olly_scripts'",
+        "inventory tag includes 'seh' or 'antidebug'",
+        "SEH.exe filename alone without static anti-debug evidence"
+      ],
+      "next_minimal_task": "Static triage SEH/exception metadata first; do not run debugger in this training coverage round",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "anti-debug technique identified with address",
+        "check location and branch condition identified",
+        "bypass or patch strategy determined",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof"
+      ]
+    },
+    "mixed_unknown": {
+      "evidence_requirements": [
+        "Static triage must be run to identify the actual transform type",
+        "At least one concrete transform type tag must be assigned from static evidence",
+        "If no recognized transform is found, sample remains mixed_unknown with static_triage_completed evidence"
+      ],
+      "allowed_evidence_sources": [
+        "reverse_agent.local_reverse_single_sample_static_triage",
+        "reverse_agent.tool_runners (IDA collect_evidence)",
+        "reverse_agent.local_reverse_training_status",
+        "reverse_agent.harness"
+      ],
+      "confidence_rules": {
+        "metadata_only": "low",
+        "static_triage_completed_no_recognized_transform": "low",
+        "static_triage_with_transform_identified": "medium (re-tag to specific type)",
+        "runtime_validated_candidate": "confirmed"
+      },
+      "solver_or_tool_route": "local_reverse_single_sample_static_triage first; re-tag to specific type after transform is identified",
+      "not_sufficient_conditions": [
+        "sample filename contains 'main' or 'pwd' or 'sample'",
+        "sample category is 'unknown' in inventory",
+        "solver module name contains 'training_status'",
+        "no static triage has been run on the sample"
+      ],
+      "next_minimal_task": "Triage unknown PE samples one at a time and backfill type tags from static evidence",
+      "metadata_only_allowed": true,
+      "static_verified_requires": [
+        "static_triage_completed with tool_status=success",
+        "if recognized transform found: re-tagged to specific type with that type's requirements",
+        "if no recognized transform: documented as mixed_unknown with static_triage evidence",
+        "runtime_validation with VALIDATED_SUCCESS or static inversion proof (if transform identified)"
+      ]
+    }
+  }
+}
