@@ -5771,6 +5771,155 @@ class TestReportStatusFromGatePayloadMainlineAware:
         assert result == ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS")
 
 
+class TestReportStatusFastNonCloseout:
+    """Verify _report_status_from_gate_payload returns PARTIAL/REWORK_REQUIRED
+    for fast non-closeout scenarios where closeout_allowed=false and
+    close-round was not run."""
+
+    def test_fast_non_closeout_warn_returns_partial_rework(self) -> None:
+        """Fast non-closeout with WARN gate_status and only archive-pending/historical
+        WARNs must return PARTIAL/REWORK_REQUIRED, not SUCCESS/ACCEPTED."""
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {"name": "round_manifest_present", "status": "WARN"},
+                {"name": "archived_report_matches_live_report", "status": "WARN"},
+                {"name": "archived_pytest_result_matches_live_pytest_result", "status": "WARN"},
+                {
+                    "name": "status_policy_valid",
+                    "status": "WARN",
+                    "limitations": ["50 missing historical sample artifacts"],
+                },
+                {
+                    "name": "fast_profile_closeout_consistency",
+                    "status": "PASS",
+                    "closeout_allowed": False,
+                    "close_round_omitted": True,
+                    "close_round_in_commands": False,
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("PARTIAL", "REWORK_REQUIRED")
+
+    def test_fast_non_closeout_implicit_omission_returns_partial_rework(self) -> None:
+        """Fast non-closeout where close-round is implicitly absent (not in
+        omitted_commands, not in commands, closeout_allowed=false) must also
+        return PARTIAL/REWORK_REQUIRED."""
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "WARN",
+                    "external_state_notices": ["50 missing historical sample artifacts"],
+                },
+                {
+                    "name": "fast_profile_closeout_consistency",
+                    "status": "PASS",
+                    "closeout_allowed": False,
+                    "close_round_omitted": False,
+                    "close_round_in_commands": False,
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("PARTIAL", "REWORK_REQUIRED")
+
+    def test_fast_non_closeout_passed_returns_partial_rework(self) -> None:
+        """Fast non-closeout with PASSED gate_status (no FAILs at all) must
+        still return PARTIAL/REWORK_REQUIRED because close-round was not run."""
+        payload = {
+            "gate_status": "PASSED",
+            "checks": [
+                {
+                    "name": "fast_profile_closeout_consistency",
+                    "status": "PASS",
+                    "closeout_allowed": False,
+                    "close_round_omitted": True,
+                    "close_round_in_commands": False,
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("PARTIAL", "REWORK_REQUIRED")
+
+    def test_closeout_allowed_true_does_not_trigger_partial(self) -> None:
+        """When closeout_allowed=True (full/standard profile), the fast non-closeout
+        logic must NOT trigger, and the existing SUCCESS/ACCEPTED behavior is preserved."""
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "WARN",
+                    "limitations": ["50 missing historical sample artifacts"],
+                },
+                {
+                    "name": "fast_profile_closeout_consistency",
+                    "status": "PASS",
+                    "closeout_allowed": True,
+                    "close_round_omitted": False,
+                    "close_round_in_commands": True,
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("SUCCESS", "ACCEPTED")
+
+    def test_no_fast_profile_check_preserves_existing_behavior(self) -> None:
+        """When fast_profile_closeout_consistency check is absent, the existing
+        behavior is preserved (no fast non-closeout override)."""
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "WARN",
+                    "limitations": ["50 missing historical sample artifacts"],
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("SUCCESS", "ACCEPTED")
+
+    def test_fast_non_closeout_fail_check_does_not_trigger(self) -> None:
+        """When fast_profile_closeout_consistency check is FAIL (report claims
+        closeout), the fast non-closeout override must NOT trigger because the
+        existing FAIL handling takes precedence."""
+        payload = {
+            "gate_status": "FAILED",
+            "checks": [
+                {
+                    "name": "fast_profile_closeout_consistency",
+                    "status": "FAIL",
+                    "closeout_allowed": False,
+                    "close_round_omitted": True,
+                    "close_round_in_commands": False,
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        # FAILED gate_status maps to ("FAILED", "REWORK_REQUIRED") via fallback
+        assert result == ("FAILED", "REWORK_REQUIRED")
+
+
 class TestFinalCheckMainlineStatusPolicy:
     """Verify final_check mainline-aware status policy for engineering_branch."""
 

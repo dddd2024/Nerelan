@@ -541,7 +541,7 @@ def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
         ):
             active = False
             continue
-        if not active or not line.startswith("-"):
+        if not active or not (line.startswith("-") or re.match(r"^\d+\.\s", line)):
             continue
         item = _path_from_markdown_bullet(line)
         if item:
@@ -2982,10 +2982,44 @@ def _report_status_from_gate(gate_status: str) -> tuple[str, str] | None:
     return mapping.get(gate_status)
 
 
+def _is_fast_non_closeout_scenario(payload: dict[str, Any]) -> bool:
+    """Detect if the final gate payload indicates a fast non-closeout scenario.
+
+    Returns True when:
+    - ``fast_profile_closeout_consistency`` check is present and PASS
+    - ``closeout_allowed`` is False (closeout not permitted)
+    - close-round was effectively omitted (not in commands or explicitly omitted)
+    """
+    for check in payload.get("checks", []):
+        if not isinstance(check, dict):
+            continue
+        if check.get("name") != "fast_profile_closeout_consistency":
+            continue
+        if check.get("status") != "PASS":
+            continue
+        closeout_allowed = check.get("closeout_allowed")
+        close_round_omitted = check.get("close_round_omitted")
+        close_round_in_commands = check.get("close_round_in_commands")
+        # closeout_allowed is stored as ``gp_closeout_allowed = gate_profile_payload.get("closeout_allowed") is True``
+        # so it is a boolean: True only when closeout was explicitly allowed.
+        if closeout_allowed is False:
+            # close-round was effectively omitted when explicitly omitted OR
+            # absent from commands while closeout not allowed.
+            if close_round_omitted or not close_round_in_commands:
+                return True
+    return False
+
+
 def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str = "") -> tuple[str, str] | None:
     gate_status = str(payload.get("gate_status") or "")
     if gate_status == "PASSED_WITH_LIMITATIONS":
         return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
+    # Fast non-closeout: when closeout_allowed=false and close-round was
+    # not run, the report must use PARTIAL/REWORK_REQUIRED, not
+    # SUCCESS/ACCEPTED, even if the final-check has no FAILs and only
+    # archive-pending WARNs or historical sample limitations.
+    if gate_status in ("WARN", "PASSED") and _is_fast_non_closeout_scenario(payload):
+        return "PARTIAL", "REWORK_REQUIRED"
     if gate_status == "WARN":
         status_summary_payload = payload.get("status_summary")
         status_summary_map = status_summary_payload if isinstance(status_summary_payload, dict) else {}
