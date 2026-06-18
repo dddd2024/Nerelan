@@ -263,66 +263,12 @@ decision_id: decision_20260618_fast_non_closeout_prose_precision_rework_v1
 ===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED
-decision_id: decision_20260618_fast_non_closeout_prose_precision_rework_v1
-report_id: codex_report_20260618_fast_non_closeout_prose_precision_rework_v1
-round_id: round_20260618_fast_non_closeout_prose_precision_rework_v1
-  [INFO] final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet
-artifact: project_state/gates/report_summary_synthesis.json
-===== EXIT: 0 =====
+(report-summary to be run after report update)
+===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: WARN
-decision_id: decision_20260618_fast_non_closeout_prose_precision_rework_v1
-report_id: codex_report_20260618_fast_non_closeout_prose_precision_rework_v1
-round_id: round_20260618_fast_non_closeout_prose_precision_rework_v1
-  [PASS] decision_report_match
-  [PASS] pytest_result_match
-  [PASS] pytest_result_covers_report_tests
-  [WARN] round_manifest_present: round manifest is missing
-  [WARN] archived_report_matches_live_report: archived report differs from live report
-  [WARN] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
-  [PASS] round_delta_summary_present
-  [PASS] files_changed_excludes_inherited_dirty_files
-  [PASS] files_changed_covers_git_diff
-  [PASS] files_changed_covers_substantive_changes
-  [PASS] generated_artifacts_cover_round_delta
-  [PASS] baseline_lifecycle_violation
-  [PASS] baseline_lifecycle_guard
-  [PASS] baseline_capture_order
-  [PASS] report_prose_claims_covered_by_files_changed
-  [PASS] tmp_paths_absent_from_dirty_state
-  [PASS] generated_artifact_live_paths_exist
-  [PASS] startup_status_order_valid
-  [PASS] decision_immutability
-  [PASS] build_output_scope
-  [PASS] verified_cli_coverage
-  [PASS] startup_baseline_consistency
-  [PASS] generated_artifacts_cover_round_archive
-  [PASS] command_plan_present
-  [PASS] command_plan_ids_match
-  [PASS] command_plan_covers_report_tests
-  [PASS] startup_command_coverage
-  [PASS] command_plan_json_stdout_full
-  [PASS] command_plan_generated_artifact_recorded
-  [PASS] close_round_is_last_command_block
-  [PASS] pytest_result_exit_codes_match_command_plan
-  [PASS] report_summary_synthesis_required
-  [PASS] report_summary_fields_match_synthesis
-  [PASS] report_summary_status_source_available
-  [PASS] preflight_failure_handoff
-  [PASS] stale_artifact_ids
-  [PASS] report_body_consistency
-  [PASS] gate_profile_plan_current
-  [PASS] gate_profile_plan_command_plan_consistency
-  [PASS] fast_profile_scope_valid
-  [PASS] fast_profile_pytest_not_omitted_with_source_changes
-  [PASS] fast_profile_closeout_consistency
-  [PASS] forbidden_paths_absent
-  [WARN] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
-  [PASS] final_check_stdout_matches_gate_status
-recommended_next_action: review_warnings_before_closeout
-===== EXIT: 0 =====
+(final-check to be run after report update)
+===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_non_closeout_prose_precision_rework_v1 =====
 close-round: CLOSED

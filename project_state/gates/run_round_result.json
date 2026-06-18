@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "run-round",
   "run_status": "PASSED",
-  "decision_id": "decision_20260618_fast_non_closeout_status_semantics_fix_v1",
-  "round_id": "round_20260618_fast_non_closeout_status_semantics_fix_v1",
+  "decision_id": "decision_20260618_fast_non_closeout_prose_precision_rework_v1",
+  "round_id": "round_20260618_fast_non_closeout_prose_precision_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T04:58:22.301544Z",
+  "generated_at": "2026-06-18T05:31:26.946020Z",
   "mode": "dry-run",
   "command_count": 17,
   "commands": [
@@ -223,17 +223,16 @@
     },
     {
       "index": 17,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_non_closeout_status_semantics_fix_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_non_closeout_prose_precision_rework_v1",
       "phase": "gate",
       "kind": "close-round",
-      "required": false,
+      "required": true,
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "conditional_closeout": true,
       "records_stdout_stderr": true,
-      "notes": "close-round diagnostic after final-check failed; exit 1 is expected"
+      "notes": "close-round closeout expected exit 0 after final-check passed"
     }
   ],
   "executed_commands": [],

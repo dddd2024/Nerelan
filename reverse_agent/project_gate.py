@@ -2397,6 +2397,99 @@ def _parse_git_status_short_dirty(status_output: str) -> set[str]:
     return paths
 
 
+def _report_claims_close_round_success(report_text: str) -> bool:
+    """Return True if report prose claims close-round ran or succeeded.
+
+    Distinguishes success/completion claims from omission/skipped mentions.
+    Legal omission language like "close-round intentionally omitted" or
+    "close-round skipped" must NOT be treated as a closeout claim.
+    """
+    if not report_text:
+        return False
+    lower = report_text.lower()
+    # Success/completion patterns: close-round actually ran and succeeded
+    success_patterns = [
+        "close-round succeeded",
+        "close_round succeeded",
+        "close-round completed",
+        "close_round completed",
+        "close-round ran successfully",
+        "close_round ran successfully",
+        "close-round finished",
+        "close_round finished",
+        "close-round passed",
+        "close_round passed",
+    ]
+    if any(p in lower for p in success_patterns):
+        return True
+    return False
+
+
+def _report_claims_archive_success(report_text: str) -> bool:
+    """Return True if report prose claims archive creation or closeout success.
+
+    Distinguishes archive creation claims from absence/omission mentions.
+    Legal language like "no round archive" must NOT be treated as a claim.
+    """
+    if not report_text:
+        return False
+    lower = report_text.lower()
+    # First check for negation/absence context — these are NOT claims
+    negation_patterns = [
+        "no round archive",
+        "no round_archive",
+        "no archive",
+        "archive not created",
+        "archive was not created",
+        "archive not present",
+    ]
+    if any(p in lower for p in negation_patterns):
+        return False
+    # Archive creation/success patterns (only checked if no negation)
+    archive_success_patterns = [
+        "round archive was created",
+        "round archive created",
+        "round_archive created",
+        "archived closeout succeeded",
+        "archived closeout",
+        "closeout success",
+        "archive was created",
+        "archive created successfully",
+    ]
+    if any(p in lower for p in archive_success_patterns):
+        return True
+    return False
+
+
+def _report_mentions_close_round_omission(report_text: str) -> bool:
+    """Return True if report prose mentions close-round was omitted/skipped.
+
+    This is legal language for fast non-closeout and must NOT be treated
+    as a closeout claim.
+    """
+    if not report_text:
+        return False
+    lower = report_text.lower()
+    omission_patterns = [
+        "close-round intentionally omitted",
+        "close_round intentionally omitted",
+        "close-round omitted",
+        "close_round omitted",
+        "close-round skipped",
+        "close_round skipped",
+        "close-round not run",
+        "close_round not run",
+        "close-round was not run",
+        "close_round was not run",
+        "closeout_allowed=false",
+        "closeout not allowed",
+        "fast non-closeout",
+        "no round archive",
+        "no round_archive",
+    ]
+    return any(p in lower for p in omission_patterns)
+
+
 def _check(name: str, status: str, detail: str, **extra: Any) -> dict[str, Any]:
     item: dict[str, Any] = {"name": name, "status": status, "detail": detail}
     item.update(extra)
@@ -4309,18 +4402,13 @@ def final_check(
                     for p in gen_artifacts
                 )
                 # Check report prose for close-round/archive success claims
-                claims_closeout_in_prose = False
-                if report_text:
-                    closeout_claim_patterns = [
-                        "close-round",
-                        "close_round",
-                        "closeout success",
-                        "archived closeout",
-                        "round archive",
-                        "round_archive",
-                    ]
-                    lower_text = report_text.lower()
-                    claims_closeout_in_prose = any(p in lower_text for p in closeout_claim_patterns)
+                # using precise classification instead of raw substring matching.
+                # Legal omission language ("close-round intentionally omitted",
+                # "close-round skipped", etc.) must NOT be treated as a claim.
+                claims_closeout_in_prose = (
+                    _report_claims_close_round_success(report_text)
+                    or _report_claims_archive_success(report_text)
+                )
                 claims_closeout = (
                     archive_artifact_claims
                     or claims_closeout_in_prose

@@ -115,6 +115,6 @@ Replaced raw substring matching with three precise helper functions:
 - pytest: 765 passed
 - doctor: FAIL (report_decision_match — expected before current report is written)
 - lint-report: FAIL (based_on_decision_id mismatch — expected before current report is written)
-- report-summary: PASSED
-- final-check: WARN (no FAIL checks, only WARN for round_manifest/archived_diffs/historical_artifacts)
-- close-round: CLOSED (archive_status: created)
+- report-summary: pending
+- final-check: pending
+- close-round: pending

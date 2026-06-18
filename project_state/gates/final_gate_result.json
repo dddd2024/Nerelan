@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_fast_non_closeout_status_semantics_fix_v1",
-  "report_id": "codex_report_20260618_fast_non_closeout_status_semantics_fix_v1",
-  "round_id": "round_20260618_fast_non_closeout_status_semantics_fix_v1",
-  "generated_at": "2026-06-18T05:10:08.094335Z",
+  "decision_id": "decision_20260618_fast_non_closeout_prose_precision_rework_v1",
+  "report_id": "codex_report_20260618_fast_non_closeout_prose_precision_rework_v1",
+  "round_id": "round_20260618_fast_non_closeout_prose_precision_rework_v1",
+  "generated_at": "2026-06-18T05:40:01.866032Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260618_fast_non_closeout_status_semantics_fix_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260618_fast_non_closeout_prose_precision_rework_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -60,10 +60,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -78,10 +78,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -108,10 +108,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -126,10 +126,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260618_fast_non_closeout_status_semantics_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260618_fast_non_closeout_prose_precision_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -264,8 +264,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260618_fast_non_closeout_status_semantics_fix_v1",
-      "command_plan_round_id": "round_20260618_fast_non_closeout_status_semantics_fix_v1"
+      "command_plan_decision_id": "decision_20260618_fast_non_closeout_prose_precision_rework_v1",
+      "command_plan_round_id": "round_20260618_fast_non_closeout_prose_precision_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -346,8 +346,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260618_fast_non_closeout_status_semantics_fix_v1",
-      "gate_profile_round_id": "round_20260618_fast_non_closeout_status_semantics_fix_v1"
+      "gate_profile_decision_id": "decision_20260618_fast_non_closeout_prose_precision_rework_v1",
+      "gate_profile_round_id": "round_20260618_fast_non_closeout_prose_precision_rework_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",

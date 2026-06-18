@@ -10767,3 +10767,322 @@ class TestFastNonCloseoutStatusSemantics:
             assert "close-round" not in command_kinds, (
                 "fast non-closeout must not include close-round in active commands"
             )
+
+
+class TestFastNonCloseoutProsePrecision:
+    """Tests for precise prose classification in fast_profile_closeout_consistency.
+
+    Validates that:
+    - Legal omission/skipped/not-run prose does NOT fail the check.
+    - Success/completion/created prose still fails the check.
+    - Archive paths in generated_artifacts still fail.
+    - Helper functions classify correctly.
+    """
+
+    # --- Helper function unit tests ---
+
+    def test_report_claims_close_round_success_succeeded(self) -> None:
+        from reverse_agent.project_gate import _report_claims_close_round_success
+        assert _report_claims_close_round_success("close-round succeeded")
+
+    def test_report_claims_close_round_success_completed(self) -> None:
+        from reverse_agent.project_gate import _report_claims_close_round_success
+        assert _report_claims_close_round_success("close-round completed")
+
+    def test_report_claims_close_round_success_omitted_is_not_claim(self) -> None:
+        from reverse_agent.project_gate import _report_claims_close_round_success
+        assert not _report_claims_close_round_success("close-round intentionally omitted")
+
+    def test_report_claims_close_round_success_skipped_is_not_claim(self) -> None:
+        from reverse_agent.project_gate import _report_claims_close_round_success
+        assert not _report_claims_close_round_success("close-round skipped")
+
+    def test_report_claims_archive_success_created(self) -> None:
+        from reverse_agent.project_gate import _report_claims_archive_success
+        assert _report_claims_archive_success("round archive was created")
+
+    def test_report_claims_archive_success_archived_closeout(self) -> None:
+        from reverse_agent.project_gate import _report_claims_archive_success
+        assert _report_claims_archive_success("archived closeout succeeded")
+
+    def test_report_claims_archive_success_no_archive_is_not_claim(self) -> None:
+        from reverse_agent.project_gate import _report_claims_archive_success
+        assert not _report_claims_archive_success("no round archive was created")
+
+    def test_report_mentions_close_round_omission_omitted(self) -> None:
+        from reverse_agent.project_gate import _report_mentions_close_round_omission
+        assert _report_mentions_close_round_omission("close-round intentionally omitted because closeout_allowed=false")
+
+    def test_report_mentions_close_round_omission_skipped(self) -> None:
+        from reverse_agent.project_gate import _report_mentions_close_round_omission
+        assert _report_mentions_close_round_omission("close-round skipped for fast non-closeout")
+
+    def test_report_mentions_close_round_omission_not_run(self) -> None:
+        from reverse_agent.project_gate import _report_mentions_close_round_omission
+        assert _report_mentions_close_round_omission("close-round was not run")
+
+    def test_report_mentions_close_round_omission_succeeded_is_not_omission(self) -> None:
+        from reverse_agent.project_gate import _report_mentions_close_round_omission
+        assert not _report_mentions_close_round_omission("close-round succeeded")
+
+    # --- Integration tests with final_check ---
+
+    def test_fast_non_closeout_omission_prose_passes(self) -> None:
+        """Fast non-closeout with 'close-round intentionally omitted because
+        closeout_allowed=false' prose passes fast_profile_closeout_consistency."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = TestFastNonCloseoutStatusSemantics._make_fast_non_closeout_state(tmpdir)
+            TestFastNonCloseoutStatusSemantics._write_report(
+                state_dir,
+                status="SUCCESS",
+                acceptance="ACCEPTED",
+                prose_extra="close-round intentionally omitted because closeout_allowed=false\n",
+            )
+            TestFastNonCloseoutStatusSemantics._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "PASS", (
+                f"omission prose should PASS, got: {closeout_check}"
+            )
+
+    def test_fast_non_closeout_not_run_prose_passes(self) -> None:
+        """Fast non-closeout with 'close-round was not run' prose passes."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = TestFastNonCloseoutStatusSemantics._make_fast_non_closeout_state(tmpdir)
+            TestFastNonCloseoutStatusSemantics._write_report(
+                state_dir,
+                status="SUCCESS",
+                acceptance="ACCEPTED",
+                prose_extra="close-round was not run for this fast non-closeout round.\n",
+            )
+            TestFastNonCloseoutStatusSemantics._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "PASS", (
+                f"not-run prose should PASS, got: {closeout_check}"
+            )
+
+    def test_fast_non_closeout_skipped_prose_passes(self) -> None:
+        """Fast non-closeout with 'close-round skipped for fast non-closeout'
+        prose passes."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = TestFastNonCloseoutStatusSemantics._make_fast_non_closeout_state(tmpdir)
+            TestFastNonCloseoutStatusSemantics._write_report(
+                state_dir,
+                status="SUCCESS",
+                acceptance="ACCEPTED",
+                prose_extra="close-round skipped for fast non-closeout validation.\n",
+            )
+            TestFastNonCloseoutStatusSemantics._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "PASS", (
+                f"skipped prose should PASS, got: {closeout_check}"
+            )
+
+    def test_fast_non_closeout_succeeded_prose_fails(self) -> None:
+        """Fast non-closeout with 'close-round succeeded' prose fails."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = TestFastNonCloseoutStatusSemantics._make_fast_non_closeout_state(tmpdir)
+            TestFastNonCloseoutStatusSemantics._write_report(
+                state_dir,
+                status="SUCCESS",
+                acceptance="ACCEPTED",
+                prose_extra="The close-round succeeded.\n",
+            )
+            TestFastNonCloseoutStatusSemantics._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "FAIL", (
+                f"close-round succeeded prose should FAIL, got: {closeout_check}"
+            )
+
+    def test_fast_non_closeout_archive_created_prose_fails(self) -> None:
+        """Fast non-closeout with 'round archive was created' prose fails."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = TestFastNonCloseoutStatusSemantics._make_fast_non_closeout_state(tmpdir)
+            TestFastNonCloseoutStatusSemantics._write_report(
+                state_dir,
+                status="SUCCESS",
+                acceptance="ACCEPTED",
+                prose_extra="The round archive was created successfully.\n",
+            )
+            TestFastNonCloseoutStatusSemantics._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "FAIL", (
+                f"archive created prose should FAIL, got: {closeout_check}"
+            )
+
+    def test_fast_non_closeout_archive_paths_still_fail(self) -> None:
+        """Fast non-closeout with project_state/rounds/ in generated_artifacts
+        still fails (archive path detection unchanged)."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = TestFastNonCloseoutStatusSemantics._make_fast_non_closeout_state(tmpdir)
+            TestFastNonCloseoutStatusSemantics._write_report(
+                state_dir,
+                status="SUCCESS",
+                acceptance="ACCEPTED",
+                generated_artifacts=[
+                    "project_state/codex_execution_report.md",
+                    "project_state/rounds/r_ns/round_manifest.json",
+                ],
+            )
+            TestFastNonCloseoutStatusSemantics._write_command_plan(state_dir)
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            assert closeout_check["status"] == "FAIL", (
+                f"archive paths should FAIL, got: {closeout_check}"
+            )
+
+    def test_full_profile_closeout_prose_unchanged(self) -> None:
+        """Full profile closeout behavior is unchanged by the prose precision fix."""
+        from reverse_agent.project_gate import final_check
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            state_dir = Path(tmpdir) / "project_state"
+            state_dir.mkdir()
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+
+            decision_text = (
+                "```json decision_meta\n"
+                '{"schema_version": 1, "decision_id": "d_fp3", "round_id": "r_fp3", '
+                '"based_on_state_build_id": "b1", "based_on_state_digest": "h1", '
+                '"status": "APPROVED", "mainline": "engineering_branch", '
+                '"skill_profiles": ["reverse-agent-iteration@v2"]}\n'
+                "```\n\n"
+                "## 1. Goal\n\nTest.\n\n"
+                "## 6. Implementation Scope\n\n"
+                "Allowed source files:\n\n- `reverse_agent/project_gate.py`\n\n"
+                "## 7. Tests\n\n```powershell\npython -m pytest tests/\n```\n"
+            )
+            (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+
+            profile_data = {
+                "schema_version": 1,
+                "gate_name": "gate-profile",
+                "gate_status": "PASSED",
+                "decision_id": "d_fp3",
+                "round_id": "r_fp3",
+                "mainline": "engineering_branch",
+                "profile": "full",
+                "profile_reason": "full profile",
+                "closeout_allowed": True,
+                "required_command_kinds": [
+                    "startup", "preflight", "command-plan", "run-round", "pytest",
+                    "doctor", "lint-report", "report-summary", "final-check", "close-round",
+                ],
+            }
+            (gates_dir / "gate_profile_plan.json").write_text(
+                json.dumps(profile_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            cp_data = {
+                "schema_version": 1,
+                "plan_name": "command-plan",
+                "plan_status": "PASSED",
+                "decision_id": "d_fp3",
+                "round_id": "r_fp3",
+                "mainline": "engineering_branch",
+                "profile_meta": {
+                    "profile": "full",
+                    "closeout_allowed": True,
+                    "required_command_kinds": [
+                        "startup", "preflight", "command-plan", "run-round", "pytest",
+                        "doctor", "lint-report", "report-summary", "final-check", "close-round",
+                    ],
+                },
+                "omitted_commands": [],
+                "commands": [
+                    {"index": 1, "command": "git status --short", "kind": "git status", "required": True, "expected_exit_codes": [0]},
+                ],
+            }
+            (gates_dir / "command_plan.json").write_text(
+                json.dumps(cp_data, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            report_text = (
+                "```json codex_report_summary\n"
+                '{"schema_version": 1, "report_id": "codex_report_r_fp3", '
+                '"round_id": "r_fp3", "based_on_decision_id": "d_fp3", '
+                '"status": "SUCCESS", "acceptance_recommendation": "ACCEPTED", '
+                '"files_changed": [], "tests_ran": [], "generated_artifacts": []}\n'
+                "```\n\n# Report\n\nThe close-round succeeded.\n"
+            )
+            (state_dir / "codex_execution_report.md").write_text(report_text, encoding="utf-8")
+            (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+            result = final_check(state_dir=state_dir, repo_root=Path(tmpdir), write_result=False)
+            closeout_check = None
+            for check in result.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "fast_profile_closeout_consistency":
+                    closeout_check = check
+                    break
+            assert closeout_check is not None
+            # Full profile should get "not applicable" PASS regardless of prose
+            assert closeout_check["status"] == "PASS"
+            assert "not fast" in closeout_check.get("detail", "").lower() or "not applicable" in closeout_check.get("detail", "").lower()
