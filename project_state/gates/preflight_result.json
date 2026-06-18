@@ -1,75 +1,77 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-  "round_id": "round_20260618_fast_artifact_only_validation_v3",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T06:00:19.284222Z",
+  "generated_at": "2026-06-18T06:15:33.435472Z",
   "checks": [
     {
+      "name": "decision_not_dirty_in_baseline",
       "status": "PASS",
-      "detail": "live decision_packet.md is not dirty in startup baseline",
-      "name": "decision_not_dirty_in_baseline"
+      "detail": "live decision_packet.md is not dirty in startup baseline"
     },
     {
+      "name": "decision_meta_parse",
       "status": "PASS",
       "detail": "decision_meta parsed",
-      "parse_error": null,
-      "name": "decision_meta_parse"
+      "parse_error": null
     },
     {
+      "name": "decision_approved",
       "status": "PASS",
-      "detail": "decision status is APPROVED",
-      "name": "decision_approved"
+      "detail": "decision status is APPROVED"
     },
     {
+      "name": "mainline_valid",
       "status": "PASS",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
         "tool_integration",
         "training_dataset"
-      ],
-      "detail": "mainline is engineering_branch",
-      "name": "mainline_valid"
+      ]
     },
     {
+      "name": "skill_profiles_active",
+      "status": "PASS",
+      "detail": "skill profiles are active",
       "parsed_skill_profiles": [
         {
           "profile": "reverse-agent-iteration@v2",
-          "version": 2,
-          "registry_status": "active",
-          "draft": false,
           "skill_name": "reverse-agent-iteration",
+          "version": 2,
+          "draft": false,
+          "registry_status": "active",
           "registry_scope": "generic_workflow",
           "registry_version": 2
         }
       ],
-      "status": "PASS",
-      "detail": "skill profiles are active",
-      "errors": [],
-      "name": "skill_profiles_active"
+      "errors": []
     },
     {
-      "report_id": "codex_report_20260618_fast_non_closeout_prose_precision_rework_v1",
+      "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "decision_execution_state": "READY_FOR_EXECUTION",
       "detail": "decision has not been consumed by a report",
-      "name": "decision_not_consumed_by_report"
+      "decision_execution_state": "READY_FOR_EXECUTION",
+      "report_id": "codex_report_20260618_fast_artifact_only_validation_v3"
     },
     {
-      "task": "collect_missing_evidence",
-      "active_decision_packet": "project_state/decision_packet.md",
-      "detail": "decision_packet remains authoritative over task_packet suggestions",
-      "derived_task": "collect_missing_evidence",
       "name": "task_packet_is_non_authoritative",
-      "status": "PASS"
+      "status": "PASS",
+      "detail": "decision_packet remains authoritative over task_packet suggestions",
+      "task": "collect_missing_evidence",
+      "derived_task": "collect_missing_evidence",
+      "active_decision_packet": "project_state/decision_packet.md"
     },
     {
+      "name": "implementation_scope_present",
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        ".codex-skills/**",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -77,64 +79,74 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt"
-      ],
-      "name": "implementation_scope_present"
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework/**",
+        "reverse_agent/*.py",
+        "reverse_agent/project_gate.py",
+        "solve_reports/**",
+        "tests/*.py"
+      ]
     },
     {
-      "forbidden_paths": [],
-      "status": "PASS",
-      "detail": "allowed scope contains no forbidden paths",
-      "name": "forbidden_paths_not_allowed"
+      "name": "forbidden_paths_not_allowed",
+      "status": "FAIL",
+      "detail": "allowed scope includes forbidden paths",
+      "forbidden_paths": [
+        ".codex-skills/**",
+        "solve_reports/**"
+      ]
     },
     {
-      "matched_terms": [],
+      "name": "mainline_scope_policy",
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
-      "matched_paths": [],
-      "name": "mainline_scope_policy"
+      "matched_terms": [],
+      "matched_paths": []
     },
     {
-      "artifact_freshness": {
-        "missing": 50,
-        "current": 5
-      },
+      "name": "artifact_freshness_policy",
       "status": "PASS",
       "detail": "stale/missing artifacts are not claimed as current evidence",
-      "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6",
-      "name": "artifact_freshness_policy"
+      "artifact_freshness": {
+        "current": 5,
+        "missing": 50
+      },
+      "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6"
     },
     {
+      "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
-      "capability_required": false,
       "detail": "tool capability audit requirement is satisfied",
-      "name": "tool_capability_audit_required_when_applicable"
+      "capability_required": false
     },
     {
-      "allowed_inherited_dirty_baseline_files": [],
-      "baseline_source_test_dirty": [],
-      "detail": "no source/test files are dirty at startup baseline",
       "name": "source_test_clean_start",
       "status": "PASS",
-      "unauthorized_source_test_dirty": []
+      "detail": "no source/test files are dirty at startup baseline",
+      "unauthorized_source_test_dirty": [],
+      "allowed_inherited_dirty_baseline_files": [],
+      "baseline_source_test_dirty": []
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "forbidden_paths_not_allowed: allowed scope includes forbidden paths"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "fc3ed6bd18f4"
+    "head_commit": "45ea79f79306"
   },
   "status_summary": {
-    "task": "collect_missing_evidence",
-    "decision_report_id_match": false,
-    "current_state_round_id": "round_20260615_150220",
     "decision_execution_state": "READY_FOR_EXECUTION",
+    "decision_report_id_match": false,
+    "decision_consumed_by_report": false,
+    "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
-    "decision_consumed_by_report": false
+    "current_state_round_id": "round_20260615_150220"
   }
 }

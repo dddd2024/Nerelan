@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-  "round_id": "round_20260618_fast_artifact_only_validation_v3",
-  "head_commit": "fc3ed6bd18f4",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "head_commit": "45ea79f79306",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-18T06:00:18.651959Z"
+  "generated_at": "2026-06-18T06:15:33.434702Z"
 }

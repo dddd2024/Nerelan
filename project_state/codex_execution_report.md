@@ -1,18 +1,17 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260618_fast_artifact_only_validation_v3",
-  "round_id": "round_20260618_fast_artifact_only_validation_v3",
-  "based_on_decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
+  "report_id": "codex_report_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "based_on_decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "status": "FAILED",
+  "acceptance_recommendation": "REWORK_REQUIRED",
   "files_changed": [
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/preflight_result.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/command_plan.json",
-    "project_state/gates/run_round_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/round_baseline.json",
@@ -38,61 +37,62 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/command_plan.json",
-    "project_state/gates/run_round_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json"
   ]
 }
 ```
 
-# Codex Execution Report - Fast Artifact-Only Validation V3
+# Codex Execution Report - Fast Artifact-Only Validation V4
 
 ## Decision
 
-`decision_20260618_fast_artifact_only_validation_v3`
+`decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework`
 
 ## Summary
 
-This round validated the fast non-closeout gate behavior from generated artifacts only. No source files, tests, solver code, harness code, reverse-engineering integrations, samples, or `solve_reports/` files were modified.
+This fast artifact-only validation did not pass. It stopped at preflight because the generated `preflight_result.json` reported `forbidden_paths_not_allowed=FAIL`.
 
-The validation passed:
+The work stayed inside the artifact-only boundary. No source files, tests, solver code, harness code, reverse-engineering integrations, samples, `.codex-skills/`, `solve_reports/`, or `project_state/rounds/` files were modified.
+
+## Blocking Finding
+
+`preflight` parsed the current v4 decision scope and included explicitly forbidden paths in `allowed_paths`:
+
+- `.codex-skills/**`
+- `solve_reports/**`
+
+That produced:
+
+- `preflight`: FAILED
+- `forbidden_paths_not_allowed`: FAIL
+- `recommended_next_action`: `fix_preflight_failures_before_starting`
+
+Because this is a preflight failure, this report uses `status=FAILED` and `acceptance_recommendation=REWORK_REQUIRED`.
+
+## Fast Gate Observations
+
+The later fast-profile diagnostics were still useful:
 
 - `gate-profile` classified the decision as `profile=fast`.
 - `gate-profile` set `closeout_allowed=false`.
-- `command-plan` recorded omitted `pytest`, omitted `close-round`, and omitted `run-round` metadata for the fast profile.
+- `command-plan` omitted `pytest`.
+- `command-plan` omitted `close-round`.
 - Active `command-plan` commands did not include `pytest`.
 - Active `command-plan` commands did not include `close-round`.
-- `report-summary` and `final-check` were run as the final validation gates.
+
+`run-round --dry-run --json` was not part of the active command-plan and was not run in this v4 round. `project_state/gates/run_round_result.json` still carries older v3 IDs and is not claimed as current generated evidence.
+
+`project_state/gates/round_close_snapshot.json` still carries older `decision_20260618_fast_non_closeout_prose_precision_rework_v1` IDs and is not claimed as current generated evidence.
 
 ## Fast Non-Closeout Scope
 
-This `SUCCESS` / `ACCEPTED` result means the fast artifact-only validation passed. It does not claim normal close-round completion or a normal closed-round result.
+`pytest` was intentionally omitted by fast profile. `close-round` was intentionally omitted because `closeout_allowed=false`.
 
-`pytest` was intentionally omitted because the fast profile did not require it. `close-round` was intentionally omitted because `closeout_allowed=false`.
+No close-round success or closed-round success is claimed. No generated artifact path under `project_state/rounds/round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework/` is listed.
 
-No generated artifact path under `project_state/rounds/` is listed in this report.
+## Final Check
 
-## Evidence
-
-- Startup path was confirmed as `F:\reverse-agent`.
-- `git rev-parse --show-toplevel` pointed to `F:/reverse-agent`.
-- Startup `git status --short` was recorded after path confirmation and before file modifications.
-- `project_state/decision_packet.md` was not dirty at startup and was not modified.
-- Source and test paths were clean at startup and were not modified.
-- `.codex-skills/registry.json` contains active `reverse-agent-iteration` version 2.
-- `task_packet.json` remained non-authoritative for this execution; the live decision packet controlled the round.
-
-## Gate Results
-
-- `preflight`: PASSED
-- `gate-profile`: PASSED (`profile=fast`, `closeout_allowed=false`)
-- `command-plan`: PASSED
-- `report-summary`: PASSED
-- `final-check`: PASSED with no FAIL checks
-
-## Limitations
-
-This was an artifact-only fast validation. It deliberately did not run pytest and deliberately did not run close-round. Historical limitations from previous rounds remain historical only and were not reworked here.
+`final-check` is expected to report failures for this round because preflight failed and the report honestly marks the round as failed. This is an evidence handoff, not a successful validation closeout.

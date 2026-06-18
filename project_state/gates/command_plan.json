@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-  "round_id": "round_20260618_fast_artifact_only_validation_v3",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T06:06:30.512908Z",
+  "generated_at": "2026-06-18T06:18:53.863361Z",
   "profile_meta": {
     "profile": "fast",
     "profile_reason": "artifact-only cleanup does not require close-round",
@@ -20,17 +20,12 @@
   },
   "omitted_commands": [
     {
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
-      "kind": "run-round",
-      "reason": "omitted by fast profile: run-round not in required_command_kinds"
-    },
-    {
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "reason": "omitted by fast profile: pytest not in required_command_kinds"
     },
     {
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_artifact_only_validation_v3",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
       "kind": "close-round",
       "reason": "omitted by fast profile: close-round not in required_command_kinds"
     }

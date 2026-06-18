@@ -1,11 +1,11 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-  "report_id": "codex_report_20260618_fast_artifact_only_validation_v3",
-  "round_id": "round_20260618_fast_artifact_only_validation_v3",
-  "generated_at": "2026-06-18T06:00:00Z",
-  "status": "PASSED",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "report_id": "codex_report_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "generated_at": "2026-06-18T06:15:00Z",
+  "status": "FAILED",
   "tests_ran": [
     "git status --short",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
@@ -22,11 +22,13 @@
   ],
   "omitted_by_fast_profile": [
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_artifact_only_validation_v3"
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework"
   ],
   "notes": [
     "pytest intentionally omitted by fast profile",
-    "close-round intentionally omitted because closeout_allowed=false"
+    "close-round intentionally omitted because closeout_allowed=false",
+    "run-round dry-run was not part of the active command-plan and is not claimed as current v4 generated evidence",
+    "preflight failed because forbidden paths were parsed into allowed_paths"
   ]
 }
 ```
@@ -58,14 +60,13 @@ F:/reverse-agent
  M project_state/gates/report_summary_synthesis.json
  M project_state/gates/round_baseline.json
  M project_state/gates/round_delta_summary.json
- M project_state/gates/run_round_result.json
  M project_state/pytest_result.txt
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
-preflight: PASSED
-decision_id: decision_20260618_fast_artifact_only_validation_v3
-round_id: round_20260618_fast_artifact_only_validation_v3
+preflight: FAILED
+decision_id: decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
+round_id: round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
 mainline: engineering_branch
   [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline
   [PASS] decision_meta_parse: decision_meta parsed
@@ -75,18 +76,18 @@ mainline: engineering_branch
   [PASS] decision_not_consumed_by_report: decision has not been consumed by a report
   [PASS] task_packet_is_non_authoritative: decision_packet remains authoritative over task_packet suggestions
   [PASS] implementation_scope_present: implementation scope is present and parseable
-  [PASS] forbidden_paths_not_allowed: allowed scope contains no forbidden paths
+  [FAIL] forbidden_paths_not_allowed: allowed scope includes forbidden paths
   [PASS] mainline_scope_policy: mainline scope policy is satisfied
   [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence
   [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied
   [PASS] source_test_clean_start: no source/test files are dirty at startup baseline
-recommended_next_action: proceed_with_decision_scope
-===== EXIT: 0 =====
+recommended_next_action: fix_preflight_failures_before_starting
+===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state =====
 gate-profile: PASSED
-decision_id: decision_20260618_fast_artifact_only_validation_v3
-round_id: round_20260618_fast_artifact_only_validation_v3
+decision_id: decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
+round_id: round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
 mainline: engineering_branch
 profile: fast
 profile_reason: artifact-only cleanup does not require close-round
@@ -105,10 +106,10 @@ artifact: project_state/gates/gate_profile_plan.json
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-  "round_id": "round_20260618_fast_artifact_only_validation_v3",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T06:06:30.352920Z",
+  "generated_at": "2026-06-18T06:18:53.670830Z",
   "profile": "fast",
   "profile_reason": "artifact-only cleanup does not require close-round",
   "risk_reasons": [],
@@ -161,8 +162,8 @@ artifact: project_state/gates/gate_profile_plan.json
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
-decision_id: decision_20260618_fast_artifact_only_validation_v3
-round_id: round_20260618_fast_artifact_only_validation_v3
+decision_id: decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
+round_id: round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
 mainline: engineering_branch
   [1] status git status: git status --short expected_exit=[0]
   [2] gate final-check: python -m reverse_agent.project_gate final-check --state-dir project_state expected_exit=[0, 1]
@@ -184,10 +185,10 @@ recommended_next_action: record_and_follow_command_plan_manually
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-  "round_id": "round_20260618_fast_artifact_only_validation_v3",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T06:06:30.512908Z",
+  "generated_at": "2026-06-18T06:18:53.863361Z",
   "profile_meta": {
     "profile": "fast",
     "profile_reason": "artifact-only cleanup does not require close-round",
@@ -202,17 +203,12 @@ recommended_next_action: record_and_follow_command_plan_manually
   },
   "omitted_commands": [
     {
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
-      "kind": "run-round",
-      "reason": "omitted by fast profile: run-round not in required_command_kinds"
-    },
-    {
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "reason": "omitted by fast profile: pytest not in required_command_kinds"
     },
     {
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_artifact_only_validation_v3",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
       "kind": "close-round",
       "reason": "omitted by fast profile: close-round not in required_command_kinds"
     }
@@ -384,18 +380,20 @@ recommended_next_action: record_and_follow_command_plan_manually
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED
-decision_id: decision_20260618_fast_artifact_only_validation_v3
-report_id: codex_report_20260618_fast_artifact_only_validation_v3
-round_id: round_20260618_fast_artifact_only_validation_v3
+report-summary: FAILED
+decision_id: decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
+report_id: codex_report_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
+round_id: round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
+  [DIFF] generated_artifacts
+  [INFO] final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet
 artifact: project_state/gates/report_summary_synthesis.json
-===== EXIT: 0 =====
+===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: WARN
-decision_id: decision_20260618_fast_artifact_only_validation_v3
-report_id: codex_report_20260618_fast_artifact_only_validation_v3
-round_id: round_20260618_fast_artifact_only_validation_v3
+final-check: FAILED
+decision_id: decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
+report_id: codex_report_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
+round_id: round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework
   [PASS] decision_report_match: decision/report ids and round_id match
   [PASS] pytest_result_match: pytest_result matches report
   [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
@@ -425,11 +423,11 @@ round_id: round_20260618_fast_artifact_only_validation_v3
   [PASS] startup_command_coverage: pytest_result covers required startup commands
   [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
   [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
+  [FAIL] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
   [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
   [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
-  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [PASS] preflight_failure_handoff: preflight failed (FAILED) and report correctly reflects non-success status
   [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs
   [PASS] report_body_consistency: report body prose is consistent with structured JSON summary
   [PASS] gate_profile_plan_current: gate_profile_plan.json carries current decision/round IDs
@@ -440,6 +438,5 @@ round_id: round_20260618_fast_artifact_only_validation_v3
   [PASS] forbidden_paths_absent: no forbidden paths detected
   [WARN] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
   [PASS] final_check_stdout_matches_gate_status: archive-pending final-check status is allowed to differ before close-round
-recommended_next_action: review_warnings_before_closeout
-===== EXIT: 0 =====
-
+recommended_next_action: fix_gate_failures_before_archive_or_handoff
+===== EXIT: 1 =====

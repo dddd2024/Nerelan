@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "WARN",
-  "decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-  "report_id": "codex_report_20260618_fast_artifact_only_validation_v3",
-  "round_id": "round_20260618_fast_artifact_only_validation_v3",
-  "generated_at": "2026-06-18T06:07:27.171260Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "report_id": "codex_report_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+  "generated_at": "2026-06-18T06:21:35.587413Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "WARN",
       "detail": "round manifest is missing",
-      "round_manifest_path": "project_state\\rounds\\round_20260618_fast_artifact_only_validation_v3\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -58,7 +58,6 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt"
       ],
       "final_dirty_files": [
@@ -70,7 +69,6 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt"
       ]
     },
@@ -94,7 +92,6 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt"
       ],
       "required_round_delta_files": [
@@ -106,7 +103,6 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt"
       ],
       "inherited_dirty_files": []
@@ -172,9 +168,7 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt"
       ]
     },
@@ -237,8 +231,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-      "command_plan_round_id": "round_20260618_fast_artifact_only_validation_v3"
+      "command_plan_decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+      "command_plan_round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -267,9 +261,17 @@
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "PASS",
-      "detail": "recorded command exit codes match command_plan expected_exit_codes",
-      "errors": []
+      "status": "FAIL",
+      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+      "errors": [
+        {
+          "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        }
+      ]
     },
     {
       "name": "report_summary_synthesis_required",
@@ -280,23 +282,56 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
+      "status": "FAIL",
+      "detail": "codex_report_summary differs from synthesized summary",
       "errors": [],
-      "diffs": []
+      "diffs": [
+        {
+          "field": "generated_artifacts",
+          "expected": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/gate_profile_plan.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_close_snapshot.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt"
+          ],
+          "actual": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/gate_profile_plan.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt"
+          ]
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [],
-      "non_blocking_warnings": []
+      "warnings": [
+        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
+      ],
+      "non_blocking_warnings": [
+        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
+      ]
     },
     {
       "name": "preflight_failure_handoff",
       "status": "PASS",
-      "detail": "preflight passed or warned; no handoff violation",
-      "preflight_status": "PASSED"
+      "detail": "preflight failed (FAILED) and report correctly reflects non-success status",
+      "preflight_status": "FAILED",
+      "report_status": "FAILED",
+      "acceptance_recommendation": "REWORK_REQUIRED"
     },
     {
       "name": "stale_artifact_ids",
@@ -312,8 +347,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260618_fast_artifact_only_validation_v3",
-      "gate_profile_round_id": "round_20260618_fast_artifact_only_validation_v3"
+      "gate_profile_decision_id": "decision_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework",
+      "gate_profile_round_id": "round_20260618_fast_artifact_only_validation_v4_stale_gate_artifact_rework"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -355,11 +390,13 @@
       "detail": "current-round artifacts complete; historical sample artifacts non-blocking",
       "lint_errors": [],
       "warnings": [
+        "pytest_result header status is FAILED but body contains no failure markers",
+        "report_status is FAILED",
         "report round not archived yet",
         "doctor status is WARN (historical artifacts non-blocking)"
       ],
       "doctor_status": "WARN",
-      "report_status": "SUCCESS",
+      "report_status": "FAILED",
       "limitations": null,
       "external_state_notices": [
         "50 missing historical sample artifacts"
@@ -373,20 +410,23 @@
       "skipped_reason": "archive_pending_pre_close_round"
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
+  ],
   "warnings": [
     "round_manifest_present: round manifest is missing",
     "archived_report_matches_live_report: archived report differs from live report",
     "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
     "status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking"
   ],
-  "recommended_next_action": "review_warnings_before_closeout",
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
     "archive_status": "not_archived",
-    "report_status": "PARTIAL",
-    "report_acceptance_recommendation": "NEEDS_REVIEW"
+    "report_status": "FAILED",
+    "report_acceptance_recommendation": "REWORK_REQUIRED"
   }
 }
