@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260618_fast_profile_non_closeout_success_policy_v1",
-  "round_id": "round_20260618_fast_profile_non_closeout_success_policy_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T13:40:39.029281Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260618_static_triage_type_tag_contract_v1",
+  "round_id": "round_20260618_static_triage_type_tag_contract_v1",
+  "mainline": "training_dataset",
+  "generated_at": "2026-06-18T14:02:30.618307Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is engineering_branch",
+      "detail": "mainline is training_dataset",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
-      "report_id": "codex_report_20260618_build_output_scope_recording_fix_v1"
+      "report_id": "codex_report_20260618_fast_profile_non_closeout_success_policy_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,10 +71,9 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "fast profile artifact-only scope\u3001\u65e0 archive claims\u3001\u6240\u6709 required commands \u901a\u8fc7 => final-check clean success\uff0c\u65e0 archive WARN\u3002",
-        "fast profile \u82e5 generated_artifacts \u58f0\u79f0 round archive \u4f46\u672a close-round => FAIL/WARN\u3002",
-        "fast profile \u82e5 tests_ran \u8bb0\u5f55 close-round \u4f46 closeout_allowed=false => FAIL/WARN\u3002",
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
@@ -83,18 +82,24 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_static_type_tag_contract.json",
+        "project_state/local_reverse_static_type_tag_contract_report.md",
         "project_state/pytest_result.txt",
-        "reverse_agent/project_gate.py",
-        "standard/full profile archive/manifest \u4ecd\u4fdd\u6301\u4e25\u683c\u3002",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "project_state/rounds/round_20260618_static_triage_type_tag_contract_v1/*",
+        "reverse_agent/evidence.py",
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "reverse_agent/local_reverse_training_status.py",
+        "tests/test_local_reverse_static_type_tags.py",
+        "tests/test_local_reverse_training_status.py"
       ]
     },
     {
       "name": "forbidden_paths_not_allowed",
-      "status": "PASS",
-      "detail": "allowed scope contains no forbidden paths",
-      "forbidden_paths": []
+      "status": "FAIL",
+      "detail": "allowed scope includes forbidden paths",
+      "forbidden_paths": [
+        "reverse_agent/local_reverse_single_sample_static_triage.py"
+      ]
     },
     {
       "name": "mainline_scope_policy",
@@ -116,7 +121,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": false
+      "capability_required": true
     },
     {
       "name": "source_test_clean_start",
@@ -127,13 +132,15 @@
       "baseline_source_test_dirty": []
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "forbidden_paths_not_allowed: allowed scope includes forbidden paths"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "95bd0df3bec1"
+    "head_commit": "d21abc5dc7f6"
   },
   "status_summary": {
     "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
