@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260618_allowed_paths_source_test_scope_parser_fix_v1",
-  "round_id": "round_20260618_allowed_paths_source_test_scope_parser_fix_v1",
-  "head_commit": "31c66d5cee81",
+  "decision_id": "decision_20260618_static_type_tag_contract_acceptance_rerun_v1",
+  "round_id": "round_20260618_static_type_tag_contract_acceptance_rerun_v1",
+  "head_commit": "4551c4395194",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-18T14:48:04.419296Z"
+  "generated_at": "2026-06-18T15:17:59.188173Z"
 }

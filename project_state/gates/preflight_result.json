@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260618_allowed_paths_source_test_scope_parser_fix_v1",
-  "round_id": "round_20260618_allowed_paths_source_test_scope_parser_fix_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-18T14:55:18.368620Z",
+  "decision_id": "decision_20260618_static_type_tag_contract_acceptance_rerun_v1",
+  "round_id": "round_20260618_static_type_tag_contract_acceptance_rerun_v1",
+  "mainline": "training_dataset",
+  "generated_at": "2026-06-18T15:20:53.725092Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is engineering_branch",
+      "detail": "mainline is training_dataset",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
-      "report_id": "codex_report_20260618_static_type_tag_contract_scope_wording_repair_v1"
+      "report_id": "codex_report_20260618_allowed_paths_source_test_scope_parser_fix_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -85,11 +85,9 @@
         "project_state/local_reverse_static_type_tag_contract.json",
         "project_state/local_reverse_static_type_tag_contract_report.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260618_allowed_paths_source_test_scope_parser_fix_v1/*",
-        "reverse_agent/project_gate.py",
+        "project_state/rounds/round_20260618_static_type_tag_contract_acceptance_rerun_v1/*",
         "tests/test_local_reverse_static_type_tags.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "tests/test_local_reverse_training_status.py"
       ]
     },
     {
@@ -118,7 +116,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": false
+      "capability_required": true
     },
     {
       "name": "source_test_clean_start",
@@ -135,7 +133,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "31c66d5cee81"
+    "head_commit": "4551c4395194"
   },
   "status_summary": {
     "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
