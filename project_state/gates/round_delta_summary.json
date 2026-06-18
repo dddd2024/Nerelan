@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260617_fast_non_closeout_semantics_source_fix_v1",
-  "round_id": "round_20260617_fast_non_closeout_semantics_source_fix_v1",
-  "head_commit": "fa0a86ff054d",
+  "decision_id": "decision_20260618_fast_artifact_only_validation_v2",
+  "round_id": "round_20260618_fast_artifact_only_validation_v2",
+  "head_commit": "34f45b79e8af",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -19,13 +19,7 @@
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
-    " M project_state/pytest_result.txt",
-    " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/round_manifest.json"
+    " M project_state/pytest_result.txt"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -36,9 +30,7 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "project_state/pytest_result.txt"
   ],
   "final_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -49,13 +41,7 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/round_manifest.json",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "project_state/pytest_result.txt"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -66,15 +52,9 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_fast_non_closeout_semantics_source_fix_v1/round_manifest.json",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "project_state/pytest_result.txt"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-17T17:17:30.349390Z"
+  "generated_at": "2026-06-18T04:28:28.762486Z"
 }
