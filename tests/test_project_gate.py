@@ -1017,12 +1017,63 @@ def test_final_check_blocks_reverse_solving_when_report_claims_sample_artifacts(
     assert "stale artifacts" in " ".join(status_policy["lint_errors"])
 
 
-def test_final_check_blocks_historical_artifacts_for_tool_integration(
+def test_final_check_downgrades_historical_artifacts_for_tool_integration(
     tmp_path: Path,
 ) -> None:
-    """tool_integration must treat historical missing/stale artifacts as blocking
-    when the report does not claim sample artifact freshness."""
+    """tool_integration treats unclaimed historical artifacts as limitations."""
     state_dir = _make_gate_state(tmp_path, mainline="tool_integration")
+    _write_json(
+        state_dir / "artifact_index.json",
+        {
+            "latest_artifacts_v2": {
+                "old_probe": {"freshness": "stale"},
+                "missing_probe": {"freshness": "missing"},
+            }
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+    status_policy = _check(result, "status_policy_valid")
+    assert status_policy["status"] == "WARN"
+    assert status_policy["limitations"] is not None
+    assert status_policy["historical_backlog"] == ["1 missing, 1 stale artifacts"]
+    assert status_policy["required_current_artifacts"] == []
+    assert status_policy["claimed_evidence_artifacts"] == []
+
+
+def test_final_check_downgrades_historical_artifacts_for_training_dataset(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_gate_state(tmp_path, mainline="training_dataset")
+    _write_json(
+        state_dir / "artifact_index.json",
+        {
+            "latest_artifacts_v2": {
+                "old_probe": {"freshness": "stale"},
+                "missing_probe": {"freshness": "missing"},
+            }
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+    status_policy = _check(result, "status_policy_valid")
+    assert status_policy["status"] == "PASS"
+    assert status_policy["limitations"] is not None
+    assert "historical sample artifacts" in status_policy["historical_or_backlog_artifacts"][0]
+
+
+def test_final_check_blocks_tool_integration_when_report_claims_sample_artifacts(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_gate_state(
+        tmp_path,
+        mainline="tool_integration",
+        generated_artifacts=["solve_reports/harness_runs/current"],
+    )
     _write_json(
         state_dir / "artifact_index.json",
         {
@@ -1038,6 +1089,7 @@ def test_final_check_blocks_historical_artifacts_for_tool_integration(
     assert result["gate_status"] == "FAILED"
     status_policy = _check(result, "status_policy_valid")
     assert status_policy["status"] == "FAIL"
+    assert status_policy["claimed_evidence_artifacts"] == ["1 missing, 1 stale artifacts"]
 
 
 def test_final_check_fails_when_recorded_stdout_status_is_stale(tmp_path: Path) -> None:
@@ -7470,14 +7522,14 @@ class TestStatusPolicyHistoricalArtifactsOnly:
         )
         assert result is False
 
-    def test_returns_false_for_tool_integration(self) -> None:
+    def test_returns_true_for_tool_integration(self) -> None:
         from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
 
         result = _status_policy_failure_is_historical_artifacts_only(
             result=self._make_result(),
             mainline="tool_integration",
         )
-        assert result is False
+        assert result is True
 
     def test_returns_false_when_report_not_success(self) -> None:
         from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only

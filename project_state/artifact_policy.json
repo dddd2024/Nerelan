@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "policy_id": "claim_aware_artifact_freshness_policy_v1",
+  "blocking_rules": {
+    "missing_required_current_artifact": "FAIL",
+    "stale_or_missing_claimed_evidence_artifact": "FAIL",
+    "report_decision_pytest_mismatch": "FAIL",
+    "missing_historical_or_backlog_artifact": "LIMITATION"
+  },
+  "mainline_defaults": {
+    "reverse_solving": "strict_all_sample_artifact_freshness",
+    "tool_integration": "strict_required_or_claimed_evidence_only",
+    "training_dataset": "strict_required_or_claimed_evidence_only",
+    "engineering_branch": "strict_required_or_claimed_evidence_only"
+  },
+  "classification_rules": {
+    "required_current_artifacts": "Artifacts explicitly required by the active decision or current gate contract.",
+    "claimed_evidence_artifacts": "Artifacts listed as generated or verified evidence by the current report.",
+    "historical_or_backlog_artifacts": "Older sample artifacts retained for lineage or backlog visibility but not claimed as current evidence."
+  },
+  "gate_output_fields": [
+    "blocking_reasons",
+    "limitations",
+    "historical_backlog",
+    "required_current_artifacts",
+    "claimed_evidence_artifacts",
+    "historical_or_backlog_artifacts"
+  ]
+}

@@ -55,6 +55,12 @@ GATE_PROFILE_PLAN_RESULT_NAME = "gate_profile_plan.json"
 GATE_PROFILE_PLAN_OUTPUT_PATH = f"project_state/gates/{GATE_PROFILE_PLAN_RESULT_NAME}"
 CLOSE_ROUND_NAME = "close-round"
 
+CLAIM_AWARE_HISTORICAL_NON_BLOCKING_MAINLINES = {
+    "engineering_branch",
+    "tool_integration",
+    "training_dataset",
+}
+
 ARCHIVE_PENDING_CHECKS = {
     "round_manifest_present",
     "archived_report_matches_live_report",
@@ -3961,6 +3967,85 @@ def _is_historical_sample_limitation(limitation: str) -> bool:
     )
 
 
+def _is_artifact_freshness_detail(detail: str) -> bool:
+    lowered = detail.lower()
+    return bool(
+        "artifact" in lowered
+        and (
+            re.search(r"\d+\s+missing,\s+\d+\s+stale\s+artifacts", lowered)
+            or "missing historical" in lowered
+            or "historical artifact freshness" in lowered
+        )
+    )
+
+
+def _report_claims_current_artifact_evidence(report: dict[str, Any]) -> bool:
+    if _report_claims_sample_artifact_freshness(report):
+        return True
+    for field in ("required_current_artifacts", "claimed_evidence_artifacts", "verified_artifacts"):
+        value = report.get(field)
+        if isinstance(value, list) and value:
+            return True
+    return False
+
+
+def _artifact_status_policy(
+    *,
+    doctor_result: dict[str, Any],
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    report_status: str,
+) -> dict[str, Any]:
+    mainline = str(decision.get("mainline") or "")
+    claims_current_evidence = _report_claims_current_artifact_evidence(report)
+    artifact_checks = [
+        check for check in doctor_result.get("checks", [])
+        if isinstance(check, dict) and check.get("name") == "artifacts"
+    ]
+    blocking: list[str] = []
+    non_blocking: list[str] = []
+    historical_backlog: list[str] = []
+    limitations: list[str] = []
+
+    for check in artifact_checks:
+        detail = str(check.get("detail") or check.get("name") or "")
+        if check.get("limitations"):
+            limitations.extend(str(item) for item in check.get("limitations") or [])
+        is_historical = (
+            check.get("classification") == "historical_sample_artifacts_non_blocking"
+            or _is_artifact_freshness_detail(detail)
+        )
+        if not is_historical:
+            if check.get("status") == "WARN" and check.get("blocking") is True:
+                blocking.append(detail)
+            continue
+        historical_backlog.append(detail)
+        downgrade_allowed = (
+            mainline in CLAIM_AWARE_HISTORICAL_NON_BLOCKING_MAINLINES
+            and report_status == "SUCCESS"
+            and not claims_current_evidence
+        )
+        if downgrade_allowed and check.get("status") in ("WARN", "INFO"):
+            non_blocking.append(detail)
+            if not check.get("limitations"):
+                limitations.append(
+                    "historical sample artifacts missing; non-blocking for current non-sample evidence policy"
+                )
+        elif check.get("status") == "WARN" and check.get("blocking") is True:
+            blocking.append(detail)
+
+    return {
+        "required_current_artifacts": [],
+        "claimed_evidence_artifacts": historical_backlog if claims_current_evidence else [],
+        "historical_or_backlog_artifacts": historical_backlog,
+        "historical_backlog": historical_backlog,
+        "blocking_reasons": blocking,
+        "non_blocking_warnings": non_blocking,
+        "limitations": limitations,
+        "claims_current_evidence": claims_current_evidence,
+    }
+
+
 def _historical_sample_limitations_only(limitations: list[str]) -> bool:
     """Return True if all limitations are historical sample artifact limitations."""
     if not limitations:
@@ -4652,12 +4737,19 @@ def final_check(
             if w != "report round not archived yet"
         ]
     doctor_status = str(doctor_result.get("status") or "FAIL")
+    artifact_policy = _artifact_status_policy(
+        doctor_result=doctor_result,
+        decision=decision,
+        report=report,
+        report_status=report_status,
+    )
     doctor_blocking_warnings = [
         str(check.get("detail") or check.get("name"))
         for check in doctor_result.get("checks", [])
         if check.get("status") == "WARN" and check.get("blocking") is True
+        and check.get("name") != "artifacts"
     ]
-    # Detect whether doctor WARN is solely due to historical non-blocking artifacts
+    doctor_blocking_warnings.extend(str(item) for item in artifact_policy["blocking_reasons"])
     doctor_non_blocking_warnings = [
         str(check.get("detail") or check.get("name"))
         for check in doctor_result.get("checks", [])
@@ -4665,38 +4757,19 @@ def final_check(
         and check.get("name") == "artifacts"
         and check.get("classification") == "historical_sample_artifacts_non_blocking"
     ]
+    doctor_non_blocking_warnings.extend(str(item) for item in artifact_policy["non_blocking_warnings"])
     limitations: list[str] = []
     for check in doctor_result.get("checks", []):
-        if isinstance(check, dict) and check.get("limitations"):
+        if isinstance(check, dict) and check.get("name") != "artifacts" and check.get("limitations"):
             limitations.extend(check["limitations"])
+    limitations.extend(str(item) for item in artifact_policy["limitations"])
 
     if doctor_status == "FAIL":
         status_errors.append("doctor status is FAIL")
     elif doctor_blocking_warnings:
-        # If there are blocking warnings from doctor, they must be treated as errors
-        # unless they are historical artifacts downgraded for engineering_branch.
-        _all_historical = all(
-            re.match(r"\d+ missing, \d+ stale artifacts", w)
-            for w in doctor_blocking_warnings
-        )
-        mainline = str(decision.get("mainline") or "")
-        if (
-            _all_historical
-            and mainline == "engineering_branch"
-            and report_status == "SUCCESS"
-            and not _report_claims_sample_artifact_freshness(report)
-        ):
-            status_warnings.extend(doctor_blocking_warnings)
-            status_warnings.append(
-                "historical sample artifacts downgraded to non-blocking "
-                "(report does not claim sample artifact freshness)"
-            )
-        else:
-            status_errors.extend(doctor_blocking_warnings)
+        status_errors.extend(doctor_blocking_warnings)
     elif doctor_status == "WARN" and not doctor_blocking_warnings and doctor_non_blocking_warnings:
-        # Doctor is WARN only due to historical non-blocking artifacts -- treat as PASS
-        # with ACCEPTED_WITH_LIMITATIONS path
-        status_warnings.append("doctor status is WARN (historical artifacts non-blocking)")
+        status_warnings.append("doctor status is WARN (historical/backlog artifacts non-blocking)")
     elif doctor_status == "WARN":
         status_warnings.append("doctor status is WARN")
     if report_status == "SUCCESS" and not status_errors and doctor_status == "PASS":
@@ -4709,7 +4782,7 @@ def final_check(
         and doctor_non_blocking_warnings
         and not status_errors
     ):
-        status_detail = "current-round artifacts complete; historical sample artifacts non-blocking"
+        status_detail = "current-round artifacts complete; historical/backlog artifacts non-blocking"
     elif report_status in {"FAILED", "PARTIAL"} and not status_errors:
         status_detail = f"{report_status} report is internally consistent"
     else:
@@ -4733,6 +4806,11 @@ def final_check(
         "doctor_status": doctor_status,
         "report_status": report_status,
         "limitations": remaining_limitations if remaining_limitations else None,
+        "artifact_freshness_policy": "claim_aware",
+        "required_current_artifacts": artifact_policy["required_current_artifacts"],
+        "claimed_evidence_artifacts": artifact_policy["claimed_evidence_artifacts"],
+        "historical_or_backlog_artifacts": artifact_policy["historical_or_backlog_artifacts"],
+        "historical_backlog": artifact_policy["historical_backlog"],
     }
     if external_state_notices:
         check_kwargs["external_state_notices"] = external_state_notices
@@ -4871,9 +4949,9 @@ def _status_policy_failure_is_historical_artifacts_only(
 ) -> bool:
     """After archive, status_policy_valid FAIL from historical artifact freshness
     should not block closeout when report is SUCCESS and doctor is not FAIL.
-    engineering_branch and training_dataset are allowed this downgrade;
-    reverse_solving and tool_integration must remain strict."""
-    if mainline not in {"engineering_branch", "training_dataset"}:
+    Non-sample mainlines allow this downgrade when current evidence is not
+    claimed; reverse_solving remains strict."""
+    if mainline not in CLAIM_AWARE_HISTORICAL_NON_BLOCKING_MAINLINES:
         return False
     status_policy = _check_by_name(result, "status_policy_valid")
     if status_policy.get("status") != "FAIL":
@@ -4913,6 +4991,11 @@ def _patch_gate_result_historical_artifacts(
             check["status"] = "PASS" if is_eng else "WARN"
             check["detail"] = "historical artifact freshness non-blocking after archive"
             historical_msg = "historical sample artifacts missing; non-blocking for non-sample-solving closeout"
+            check["artifact_freshness_policy"] = "claim_aware"
+            check["historical_or_backlog_artifacts"] = check.get("historical_or_backlog_artifacts") or [
+                historical_msg
+            ]
+            check["historical_backlog"] = check.get("historical_backlog") or [historical_msg]
             if is_eng:
                 check["external_state_notices"] = [historical_msg]
                 check.pop("limitations", None)

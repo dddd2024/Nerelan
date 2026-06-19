@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260619_static_triage_type_evidence_schema_v1",
-  "round_id": "round_20260619_static_triage_type_evidence_schema_v1",
-  "mainline": "tool_integration",
-  "generated_at": "2026-06-18T16:38:41.633818Z",
+  "decision_id": "decision_20260619_claim_aware_artifact_freshness_policy_v1",
+  "round_id": "round_20260619_claim_aware_artifact_freshness_policy_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-18T17:08:38.414184Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is tool_integration",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260618_training_first_static_triage_queue_v1"
+      "report_id": "preflight_placeholder"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,21 +71,18 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "DES S-box/permutation/key schedule text -> des candidate signal;",
-        "RC4 KSA/PRGA/S-box/key text -> rc4 candidate signal;",
-        "XOR/decompiler text -> xor/bit_operations candidate signal;",
-        "anti-debug API/SEH text -> simple_antidebug candidate signal;",
-        "bit_operations",
-        "blocked artifact path contains default empty type_evidence.",
-        "compare context -> string_comparison candidate signal;",
-        "des",
-        "hash constants with length/charset/format text -> bounded domain evidence present but still not static_verified;",
-        "hash constants without bounded domain -> blocked_missing_required_evidence;",
-        "hash_md5_sha",
-        "lookup table text without base/size/contents -> blocked/missing required evidence;",
-        "lookup_table",
-        "mixed_unknown",
-        "profiles",
+        "blocking_reasons",
+        "blocking_rules",
+        "claimed_evidence_artifacts",
+        "classification_rules",
+        "engineering_branch",
+        "historical_backlog",
+        "historical_or_backlog_artifacts",
+        "limitations",
+        "mainline_defaults",
+        "missing historical/backlog artifact => LIMITATION",
+        "missing required current artifact => FAIL",
+        "project_state/artifact_policy.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -95,22 +92,19 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_static_triage_type_evidence_schema.json",
-        "project_state/local_reverse_static_triage_type_evidence_schema_report.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260619_static_triage_type_evidence_schema_v1/*",
-        "promotion_safety",
-        "rc4",
-        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/*",
+        "report/decision/pytest mismatch => FAIL",
+        "report/decision/pytest mismatch => FAIL\u3002",
+        "required_current_artifacts",
+        "reverse_agent/project_gate.py",
+        "reverse_solving",
         "schema_version",
-        "shift/affine text -> shift_affine candidate signal;",
-        "shift_affine",
-        "simple_antidebug",
-        "source",
-        "string_comparison",
-        "tests/test_local_reverse_static_triage_type_evidence_schema.py",
-        "type_tag_observations",
-        "xor"
+        "stale/missing claimed evidence artifact => FAIL",
+        "tests/test_project_gate.py",
+        "tool_integration",
+        "training_dataset",
+        "\u4efb\u610f mainline report claim missing/stale artifact as current evidence => FAIL\u3002"
       ]
     },
     {
@@ -139,7 +133,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": true
+      "capability_required": false
     },
     {
       "name": "source_test_clean_start",
@@ -156,7 +150,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "a7ed6600e15e"
+    "head_commit": "3b40c4a499fd"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
