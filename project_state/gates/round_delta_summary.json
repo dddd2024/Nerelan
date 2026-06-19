@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
-  "round_id": "round_20260619_affine_report_generated_artifacts_fix_v1",
-  "head_commit": "654fc71003fd",
+  "decision_id": "decision_20260619_report_closeout_artifact_summary_reconcile_v1",
+  "round_id": "round_20260619_report_closeout_artifact_summary_reconcile_v1",
+  "head_commit": "2135fe60f758",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -13,20 +13,24 @@
   "final_git_status_short": [
     " M project_state/codex_execution_report.md",
     " M project_state/gates/command_plan.json",
+    " M project_state/gates/final_gate_result.json",
     " M project_state/gates/gate_profile_plan.json",
     " M project_state/gates/preflight_result.json",
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
-    " M project_state/gates/round_delta_summary.json"
+    " M project_state/gates/round_delta_summary.json",
+    " M project_state/pytest_result.txt"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
+    "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json"
+    "project_state/gates/round_delta_summary.json",
+    "project_state/pytest_result.txt"
   ],
   "final_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -36,7 +40,8 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json"
+    "project_state/gates/round_delta_summary.json",
+    "project_state/pytest_result.txt"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -46,9 +51,10 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json"
+    "project_state/gates/round_delta_summary.json",
+    "project_state/pytest_result.txt"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-19T05:58:29.476226Z"
+  "generated_at": "2026-06-19T06:41:43.819987Z"
 }

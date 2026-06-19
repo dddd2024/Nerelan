@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
-  "report_id": "codex_report_20260619_affine_report_generated_artifacts_fix_v1",
-  "round_id": "round_20260619_affine_report_generated_artifacts_fix_v1",
-  "generated_at": "2026-06-19T05:58:29.543209Z",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260619_report_closeout_artifact_summary_reconcile_v1",
+  "report_id": "codex_report_20260619_report_closeout_artifact_summary_reconcile_v1",
+  "round_id": "round_20260619_report_closeout_artifact_summary_reconcile_v1",
+  "generated_at": "2026-06-19T06:41:43.885562Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -14,12 +14,9 @@
     },
     {
       "name": "pytest_result_match",
-      "status": "FAIL",
-      "detail": "pytest_result does not match report",
-      "errors": [
-        "pytest_result decision_id does not match codex_report_summary.based_on_decision_id",
-        "pytest_result header status is PASSED but 1 command block(s) have non-zero exit codes. Contradiction detected."
-      ]
+      "status": "PASS",
+      "detail": "pytest_result matches report",
+      "errors": []
     },
     {
       "name": "pytest_result_covers_report_tests",
@@ -29,19 +26,19 @@
     },
     {
       "name": "round_manifest_present",
-      "status": "WARN",
-      "detail": "round manifest is missing",
-      "round_manifest_path": "project_state\\rounds\\round_20260619_affine_report_generated_artifacts_fix_v1\\round_manifest.json"
+      "status": "PASS",
+      "detail": "fast profile intentionally omits close-round; archive not required",
+      "round_manifest_path": "project_state\\rounds\\round_20260619_report_closeout_artifact_summary_reconcile_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "WARN",
-      "detail": "archived report differs from live report"
+      "status": "PASS",
+      "detail": "fast profile intentionally omits close-round; archive not required"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "WARN",
-      "detail": "archived pytest_result differs from live pytest_result",
+      "status": "PASS",
+      "detail": "fast profile intentionally omits close-round; archive not required",
       "required": true,
       "skipped_reason": null
     },
@@ -60,7 +57,8 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json"
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -70,7 +68,8 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json"
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt"
       ]
     },
     {
@@ -92,7 +91,8 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json"
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -102,7 +102,8 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json"
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt"
       ],
       "inherited_dirty_files": []
     },
@@ -230,19 +231,15 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
-      "command_plan_round_id": "round_20260619_affine_report_generated_artifacts_fix_v1"
+      "command_plan_decision_id": "decision_20260619_report_closeout_artifact_summary_reconcile_v1",
+      "command_plan_round_id": "round_20260619_report_closeout_artifact_summary_reconcile_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
-      "status": "FAIL",
-      "detail": "command_plan commands do not cover report or pytest_result tests",
+      "status": "PASS",
+      "detail": "command_plan commands cover report and pytest_result tests",
       "missing_report_tests": [],
-      "missing_pytest_result_tests": [
-        "python -m pytest tests/test_static_evidence_bridge.py tests/test_solver_dispatch_plan.py tests/test_evidence.py tests/test_project_gate.py tests/test_project_state.py -q",
-        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_affine_current_static_bridge_report_fix_v1",
-        "python -m reverse_agent.project_state doctor --state-dir project_state"
-      ]
+      "missing_pytest_result_tests": []
     },
     {
       "name": "startup_command_coverage",
@@ -286,12 +283,8 @@
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [
-        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
-      ],
-      "non_blocking_warnings": [
-        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
-      ]
+      "warnings": [],
+      "non_blocking_warnings": []
     },
     {
       "name": "preflight_failure_handoff",
@@ -301,28 +294,8 @@
     },
     {
       "name": "stale_artifact_ids",
-      "status": "FAIL",
-      "detail": "gate artifacts reference stale decision/round/report IDs from a different round",
-      "stale_artifacts": [
-        {
-          "artifact": "final_gate_result.json",
-          "field": "decision_id",
-          "expected": "decision_20260619_affine_report_generated_artifacts_fix_v1",
-          "actual": "decision_20260619_affine_current_static_bridge_report_fix_v1"
-        },
-        {
-          "artifact": "final_gate_result.json",
-          "field": "round_id",
-          "expected": "round_20260619_affine_report_generated_artifacts_fix_v1",
-          "actual": "round_20260619_affine_current_static_bridge_report_fix_v1"
-        },
-        {
-          "artifact": "final_gate_result.json",
-          "field": "report_id",
-          "expected": "codex_report_20260619_affine_report_generated_artifacts_fix_v1",
-          "actual": "codex_report_20260619_affine_current_static_bridge_report_fix_v1"
-        }
-      ]
+      "status": "PASS",
+      "detail": "gate artifacts carry current decision/round/report IDs"
     },
     {
       "name": "report_body_consistency",
@@ -333,8 +306,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
-      "gate_profile_round_id": "round_20260619_affine_report_generated_artifacts_fix_v1"
+      "gate_profile_decision_id": "decision_20260619_report_closeout_artifact_summary_reconcile_v1",
+      "gate_profile_round_id": "round_20260619_report_closeout_artifact_summary_reconcile_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -372,30 +345,26 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "FAIL",
-      "detail": "status policy found blocking issues",
-      "lint_errors": [
-        "pytest_result decision_id does not match codex_report_summary.based_on_decision_id",
-        "pytest_result header status is PASSED but 1 command block(s) have non-zero exit codes. Contradiction detected.",
-        "doctor status is FAIL"
-      ],
+      "status": "WARN",
+      "detail": "current-round artifacts complete; historical/backlog artifacts non-blocking",
+      "lint_errors": [],
       "warnings": [
-        "pytest_result round_id does not match codex_report_summary.round_id",
-        "report round not archived yet"
+        "doctor status is WARN (historical/backlog artifacts non-blocking)"
       ],
-      "doctor_status": "FAIL",
+      "doctor_status": "WARN",
       "report_status": "SUCCESS",
-      "limitations": [
-        "historical sample artifacts missing; non-blocking for current non-sample evidence policy"
-      ],
+      "limitations": null,
       "artifact_freshness_policy": "claim_aware",
       "required_current_artifacts": [],
       "claimed_evidence_artifacts": [],
       "historical_or_backlog_artifacts": [
-        "50 missing, 0 stale artifacts"
+        "50 missing, 0 stale historical sample artifacts (non-blocking)"
       ],
       "historical_backlog": [
-        "50 missing, 0 stale artifacts"
+        "50 missing, 0 stale historical sample artifacts (non-blocking)"
+      ],
+      "external_state_notices": [
+        "50 missing historical sample artifacts"
       ]
     },
     {
@@ -406,24 +375,17 @@
       "skipped_reason": "archive_pending_pre_close_round"
     }
   ],
-  "blocking_reasons": [
-    "pytest_result_match: pytest_result does not match report",
-    "command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests",
-    "stale_artifact_ids: gate artifacts reference stale decision/round/report IDs from a different round",
-    "status_policy_valid: status policy found blocking issues"
-  ],
+  "blocking_reasons": [],
   "warnings": [
-    "round_manifest_present: round manifest is missing",
-    "archived_report_matches_live_report: archived report differs from live report",
-    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result"
+    "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
   ],
-  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
+  "recommended_next_action": "no_action_required",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
     "archive_status": "not_archived",
-    "report_status": "FAILED",
-    "report_acceptance_recommendation": "REWORK_REQUIRED"
+    "report_status": "SUCCESS",
+    "report_acceptance_recommendation": "ACCEPTED"
   }
 }
