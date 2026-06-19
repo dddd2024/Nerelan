@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260619_report_summary_referenced_artifacts_schema_v1",
-  "round_id": "round_20260619_report_summary_referenced_artifacts_schema_v1",
+  "decision_id": "decision_20260619_required_closeout_artifacts_contract_v1",
+  "round_id": "round_20260619_required_closeout_artifacts_contract_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,35 +15,43 @@
 
 ## 1. Goal
 
-Implement the first-stage report and decision guard improvements that prevent repeated closeout rework.
+Implement a small follow-up guard for required closeout artifact declarations.
 
-This is an engineering-branch gate/report metadata task. The current failure is structural: existing state records read for closeout traceability are not the same thing as files produced by the current round. Stop forcing referenced records into the current-round generated-artifacts field. Add a separate referenced-artifacts / required-closeout-artifacts path and make final-check validate that path.
+The previous round solved the structural conflict between generated artifacts and referenced artifacts. The remaining limitation is narrower: the live final-check path added a `required_closeout_artifacts_covered` check, but the current decision text did not produce a non-empty required list, so the check passed without exercising the intended required-artifact contract.
 
-This round should also add a lightweight decision-lint entry point and reduce scope false positives caused by protected terms inside code blocks or project_state file paths.
+This round must make required closeout artifact declarations stable and machine-readable. Prefer a structured declaration path, keep numbered-list parsing as backward-compatible fallback, and prove with tests that final-check fails when a required closeout record is missing from both referenced and generated artifacts.
 
-Keep this round small: implement the low-cost first-stage fixes now, and document follow-up compatibility notes for later repair-state and contract-based work. Do not implement a full lifecycle state machine or full contract IR in this round.
+Do not broaden this into a full decision contract IR or lifecycle state machine. This is a focused gate/report metadata repair.
 
 Success criteria:
 
-1. A lint command can check a decision before a normal execution round starts.
-2. The scope policy does not flag protected terms that appear only inside fenced code blocks or project_state file paths.
-3. The report summary model supports referenced artifacts and required closeout artifacts while preserving backward compatibility with existing reports.
-4. Final-check verifies required closeout artifacts are covered by referenced or generated artifacts.
-5. The failing closeout case is covered by tests without treating referenced records as current-round generated records.
-6. No external analysis tools or local binaries are run.
+1. Required closeout records can be declared by a structured field or block.
+2. Numbered markdown lists in the relevant decision section are also supported for backward compatibility.
+3. `read_codex_report_summary` preserves both `referenced_artifacts` and `required_closeout_artifacts`.
+4. report-summary synthesis includes `required_closeout_artifacts` when present or declared.
+5. final-check fails when a declared required closeout record is not covered by referenced or generated artifacts.
+6. decision-lint or preflight surfaces a clear warning or failure for malformed required closeout declarations.
+7. No external analysis tools or local binaries are run.
 
 ## 2. Current Evidence
 
-Current `task_packet.json` is still an old `samplereverse` / `collect_missing_evidence` suggestion. It is advisory only because execution authority is `project_state/decision_packet.md`.
+Current `task_packet.json` remains an old `samplereverse` / `collect_missing_evidence` suggestion. It is advisory only because execution authority is `project_state/decision_packet.md`.
 
-The latest closeout attempt `decision_20260619_report_generated_artifacts_json_field_fix_v1` proved a schema conflict:
+Previous round `decision_20260619_report_summary_referenced_artifacts_schema_v1` is accepted with limitations:
 
-- It added the six required existing state records to `codex_report_summary.generated_artifacts`.
-- `report-summary` then failed because synthesis did not include those referenced records in the generated-artifacts field.
-- final-check failed on `report_summary_fields_match_synthesis` and stale gate-artifact IDs.
-- Therefore the correct fix is not another manual report edit. The gate/report schema needs to represent referenced records separately.
+- It added `referenced_artifacts` support.
+- It added a final-check item named `required_closeout_artifacts_covered`.
+- It added decision-lint.
+- It fixed scope-policy false positives for protected terms inside fenced code blocks and `project_state/` paths.
+- It preserved the six closeout records as referenced records instead of generated records.
 
-Required existing state records for closeout traceability, to be represented as referenced or required closeout artifacts rather than current-round generated artifacts:
+Remaining limitation:
+
+- The live final gate said `no required closeout artifacts declared in decision` even though the six closeout records were present in the decision as a numbered list.
+- This indicates the extractor is too fragile and likely only handles one markdown list shape.
+- The next fix should stabilize declaration and extraction instead of relying on prose phrasing.
+
+Required existing state records for closeout traceability are listed below as the regression case. They are read-only inputs and must not be regenerated or modified:
 
 1. `project_state/artifact_index.json`
 2. `project_state/local_reverse_affine_8cfebe03_current_static_triage.json`
@@ -52,30 +60,31 @@ Required existing state records for closeout traceability, to be represented as 
 5. `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json`
 6. `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md`
 
-Known valid facts from those records:
+For this round, use this structured declaration as the target shape for future decisions and reports:
+
+```json closeout_artifacts_contract
+{
+  "required_closeout_artifacts": [
+    "project_state/artifact_index.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_triage.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json",
+    "project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md"
+  ]
+}
+```
+
+Known valid facts from those records remain unchanged:
 
 - The current static record reports `tool_status=success`, `executed_sample=false`, `static_only=true`, and `runtime_validated=false`.
 - The bridge result has four evidence families: StaticInputEvidence, StaticCompareEvidence, StaticTransformHintEvidence, and StaticAntiDebugEvidence.
 - The provenance report count fields have already been corrected: input=1, compare=1, transform_hints=1, anti_debug=1, all other tracked families=0.
 - The dispatch-plan state still lacks transform material and must not be treated as completion of solving.
 
-The repeated rework pattern also exposed wider structural issues. This round should handle the low-cost first-stage fixes:
-
-1. Add a decision-lint command.
-2. Make mainline scope text checks ignore fenced code blocks and project_state file paths.
-3. Keep long artifact paths out of the Goal section by policy and lint where practical.
-4. Add referenced-artifacts support in report summary.
-5. Make final-check validate required closeout artifact coverage.
-
-Second-stage repair-state fields such as `supersedes`, `repair_of`, and full `decision_execution_state` are useful, but they are not required to solve the current closeout failure. Do not implement the full state machine in this round unless the first-stage fix cannot pass without a very small compatibility shim.
-
-Third-stage contract IR and tool-generated summaries are long-term improvements. This round may document compatibility notes, but must not become a full redesign.
-
 `negative_results.json` remains valid: do not return to old blind search, do not only expand budgets, do not use compare-disagreed candidates as primary frontier, and do not commit the full reports directory.
 
 ## 3. Do Not Do
-
-Do not keep trying to satisfy closeout traceability by manually adding referenced existing records to the current-round generated-artifacts field.
 
 Do not run external analysis tools.
 
@@ -85,7 +94,7 @@ Do not perform answer-generation or candidate-generation work.
 
 Do not run dynamic probes, debuggers, emulators, harnesses, GUI workflows, or frontend workflows.
 
-Do not modify the six existing state records listed in Current Evidence.
+Do not modify the six existing closeout records listed in Current Evidence.
 
 Do not read complete heavy-history directories.
 
@@ -93,9 +102,11 @@ Do not modify `.codex-skills/`.
 
 Do not implement a full repair-decision lifecycle state machine in this round.
 
-Do not implement a full structured contract IR in this round.
+Do not implement a full structured decision contract IR in this round.
 
 Do not modify static-evidence bridge, dispatch-plan, reverse-solving, runtime, debugger, harness, GUI, or frontend modules.
+
+Do not revert the previous `referenced_artifacts` / generated-artifacts separation.
 
 ## 4. Files To Inspect
 
@@ -127,7 +138,7 @@ Gate/report artifacts:
 6. `project_state/gates/round_baseline.json`
 7. `project_state/gates/round_delta_summary.json`
 
-Read-only closeout records:
+Read-only regression records:
 
 1. `project_state/local_reverse_affine_8cfebe03_current_static_triage.json`
 2. `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json`
@@ -151,14 +162,14 @@ Before implementation, confirm:
 
 Implementation audit must answer:
 
-1. What is the current exact semantic of `generated_artifacts`?
-2. Where does report-summary synthesize generated artifacts?
-3. Where does final-check compare report summary against synthesis?
-4. Where does mainline scope policy scan text, and how can it skip code blocks and project_state paths safely?
-5. How should referenced existing records be represented without breaking generated-artifacts synthesis?
-6. What tests prove required closeout artifacts are covered by referenced or generated artifacts?
-7. What tests prove code-block and project_state-path protected terms no longer trigger false positives?
-8. What decision-lint checks are implemented, and what known future checks are intentionally deferred?
+1. How does the current code extract required closeout records from a decision?
+2. Why did the previous live decision produce an empty required list?
+3. Which structured declaration is supported after this round?
+4. Which markdown fallback shapes are supported after this round, including numbered lists?
+5. How does report-summary synthesis decide `required_closeout_artifacts`?
+6. How does final-check distinguish referenced records from generated records?
+7. What test proves final-check fails when a required closeout record is missing from both referenced and generated artifacts?
+8. What test proves current reports without required closeout fields remain backward compatible?
 
 ## 6. Implementation Scope
 
@@ -181,23 +192,17 @@ Allowed project_state outputs:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260619_report_summary_referenced_artifacts_schema_v1/*`
+- `project_state/rounds/round_20260619_required_closeout_artifacts_contract_v1/*`
 
 Expected implementation direction:
 
-1. Add backward-compatible fields to report summary handling:
-   - `referenced_artifacts`
-   - `required_closeout_artifacts`
-2. Ensure report-summary synthesis can include these fields when present in the report or decision closeout metadata.
-3. Ensure final-check validates:
-   - current-round generated artifacts still cover the round delta;
-   - required closeout artifacts are covered by referenced or generated artifacts;
-   - referenced existing records are not incorrectly treated as stale generated artifacts.
-4. Add or expose a `decision-lint` CLI path that checks a decision before implementation starts. At minimum it should run parse/status/mainline/skill/scope text checks and report whether the decision is likely to pass preflight.
-5. Update mainline scope policy text scanning to ignore fenced code blocks and project_state path tokens, while still blocking explicit action requests in normal prose.
-6. Add focused tests for the exact closeout case and the protected-term false-positive case.
-7. Preserve backward compatibility for old reports that only have `generated_artifacts`.
-8. Document in the report which second-stage and third-stage improvements remain future work.
+1. Add support for extracting `required_closeout_artifacts` from a fenced JSON block named `closeout_artifacts_contract` or another explicitly documented structured block.
+2. Keep backward-compatible markdown extraction, but support both bullet lists and numbered lists when the surrounding section clearly declares required closeout records.
+3. Add `required_closeout_artifacts` to `read_codex_report_summary` if not already present.
+4. Ensure report-summary synthesis includes `required_closeout_artifacts` and does not put referenced existing records into `generated_artifacts`.
+5. Ensure final-check validates: `required_closeout_artifacts` must be a subset of `referenced_artifacts ∪ generated_artifacts`.
+6. Add tests for structured block extraction, numbered-list extraction, missing coverage failure, and backward compatibility for reports without required closeout fields.
+7. Preserve the previous decision-lint behavior and scope-policy false-positive fixes.
 
 Do not modify modules unrelated to gate/report/project_state. Do not modify reverse-solving, static evidence bridge, dispatch-plan, harness, runtime, debugger, GUI, or frontend modules.
 
@@ -224,24 +229,25 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 If final-check passes or only has explicitly non-blocking warnings:
 
 ```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_report_summary_referenced_artifacts_schema_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_required_closeout_artifacts_contract_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-`project_state/codex_execution_report.md` must include a valid `codex_report_summary` with matching `based_on_decision_id`, `round_id`, `files_changed`, `tests_ran`, `generated_artifacts`, and, where applicable, `referenced_artifacts` / `required_closeout_artifacts`.
+`project_state/codex_execution_report.md` must include a valid `codex_report_summary` with matching `based_on_decision_id`, `round_id`, `files_changed`, `tests_ran`, `generated_artifacts`, `referenced_artifacts`, and `required_closeout_artifacts` where applicable.
 
 ## 8. Stop Conditions
 
 Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 
 1. preflight fails;
-2. decision-lint cannot be added without a larger CLI refactor;
-3. referenced artifacts cannot be represented without breaking backward compatibility;
+2. required closeout artifact extraction cannot be made stable without a larger contract redesign;
+3. structured declaration support would break backward compatibility;
 4. the fix would require external analysis tools;
 5. the fix would require executing local binaries;
 6. the fix would modify reverse-solving/runtime/debugger/harness/frontend logic;
 7. pytest fails;
 8. final-check has any FAIL;
 9. report/decision/pytest_result IDs mismatch;
-10. the fix requires a full repair-decision lifecycle state machine;
-11. the fix requires a full structured contract IR.
+10. the final gate still reports `no required closeout artifacts declared in decision` for this decision;
+11. the fix requires a full repair-decision lifecycle state machine;
+12. the fix requires a full structured contract IR.
