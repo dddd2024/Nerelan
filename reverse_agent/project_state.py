@@ -3222,7 +3222,7 @@ def _classify_artifact_freshness(
             "blocking": False,
             "counts": counts,
             "detail": f"{missing_count} missing, {stale_count} stale historical sample artifacts (non-blocking)",
-            "reason": "healthy engineering round does not claim current sample artifact freshness",
+            "reason": "current round does not claim current sample artifact freshness",
             "limitations": limitations,
         }
 
@@ -3245,7 +3245,18 @@ def _historical_artifact_freshness_is_non_blocking(
     pytest_validation: dict[str, Any],
 ) -> bool:
     ALLOWED_NON_BLOCKING_MAINLINES = {"engineering_branch", "training_dataset"}
-    if str(decision.get("mainline") or "") not in ALLOWED_NON_BLOCKING_MAINLINES:
+    mainline = str(decision.get("mainline") or "")
+    # Path 3: reverse_solving blocker-only report.  Historical/backlog
+    # artifacts are unrelated to a blocker-only round that does not claim
+    # any candidate, final answer, flag, or runtime-validated solution.
+    # They must remain blocking when the report claims a solution.
+    if mainline == "reverse_solving":
+        return _reverse_solving_blocker_only_report(
+            decision=decision,
+            report=report,
+            pytest_validation=pytest_validation,
+        )
+    if mainline not in ALLOWED_NON_BLOCKING_MAINLINES:
         return False
     # Path 1: fully consumed success report (existing behavior)
     if decision_execution_state == "CONSUMED_BY_SUCCESS_REPORT":
@@ -3261,7 +3272,7 @@ def _historical_artifact_freshness_is_non_blocking(
     # Historical sample artifacts are non-blocking unless the current report
     # explicitly depends on them.  reverse_solving and tool_integration must
     # always have strict freshness.
-    if str(decision.get("mainline") or "") in ALLOWED_NON_BLOCKING_MAINLINES:
+    if mainline in ALLOWED_NON_BLOCKING_MAINLINES:
         if str(report.get("status") or "") != "SUCCESS":
             return not _report_claims_sample_artifact_freshness(report)
     return False
@@ -3281,6 +3292,62 @@ def _report_claims_sample_artifact_freshness(report: dict[str, Any]) -> bool:
             if any(marker in text for marker in sample_artifact_markers):
                 return True
     return False
+
+
+def _reverse_solving_blocker_only_report(
+    *,
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    report_status: str = "",
+    pytest_validation: dict[str, Any] | None = None,
+) -> bool:
+    """Return True if this is a reverse_solving blocker-only report.
+
+    A blocker-only report is one that records a genuine reverse-solving blocker
+    (missing evidence, unresolved sample, etc.) without claiming any candidate,
+    final answer, flag, or runtime-validated solution.  For such reports,
+    historical/backlog missing artifacts are unrelated to the current round
+    and should not block the gate.
+
+    Conditions (all must hold):
+    1. mainline is reverse_solving
+    2. report status is non-success (FAILED, BLOCKED, PARTIAL)
+    3. acceptance_recommendation is not ACCEPTED / ACCEPTED_WITH_LIMITATIONS
+    4. no verified_artifacts (no runtime-validated solution)
+    5. generated_artifacts is non-empty (current-round artifacts present)
+    6. based_on_decision_id matches decision_id
+    7. next_suggested_task is non-empty (records missing evidence and next action)
+    8. report does not claim sample artifact freshness as current evidence
+    9. pytest matches report (when pytest_validation is available)
+    """
+    if str(decision.get("mainline") or "") != "reverse_solving":
+        return False
+    if not report_status:
+        report_status = str(report.get("status") or "")
+    if report_status not in ("FAILED", "BLOCKED", "PARTIAL"):
+        return False
+    acceptance = str(report.get("acceptance_recommendation") or "")
+    if acceptance in ("ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"):
+        return False
+    verified = report.get("verified_artifacts")
+    if isinstance(verified, list) and verified:
+        return False
+    generated = report.get("generated_artifacts")
+    if not isinstance(generated, list) or not generated:
+        return False
+    decision_id = str(decision.get("decision_id") or "")
+    based_on = str(report.get("based_on_decision_id") or "")
+    if not decision_id or not based_on or decision_id != based_on:
+        return False
+    next_task = str(report.get("next_suggested_task") or "")
+    if not next_task:
+        return False
+    if _report_claims_sample_artifact_freshness(report):
+        return False
+    if pytest_validation is not None:
+        if not bool(pytest_validation.get("matches_report")):
+            return False
+    return True
 
 
 def build_artifact_index(

@@ -15,6 +15,7 @@ from .project_state import (
     ARCHIVE_MANIFEST_NAME,
     DEFAULT_STATE_DIR,
     _report_claims_sample_artifact_freshness,
+    _reverse_solving_blocker_only_report,
     archive_round,
     build_round_consistency,
     doctor,
@@ -3205,6 +3206,24 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
             and (check.get("limitations") or check.get("external_state_notices"))
             for check in payload.get("checks", [])
         )
+        # reverse_solving blocker-only: status_policy_valid is PASS (not WARN)
+        # with external_state_notices for historical artifacts.  The gate is
+        # WARN only because the report status is non-success.  Return the
+        # actual report status so synthesis matches the report.
+        status_policy_pass_with_notices = any(
+            isinstance(check, dict)
+            and check.get("name") == "status_policy_valid"
+            and check.get("status") == "PASS"
+            and (check.get("limitations") or check.get("external_state_notices"))
+            for check in payload.get("checks", [])
+        )
+        if (
+            status_policy_pass_with_notices
+            and not warn_check_names
+            and report_status
+            and report_status not in ("PARTIAL", "SUCCESS")
+        ):
+            return report_status, acceptance if acceptance else "REWORK_REQUIRED"
         if status_policy_has_limitations and warn_check_names <= allowed_prearchive_warnings:
             # For engineering_branch, if the only limitations are historical sample
             # artifacts, these are external state notices, not current-round issues.
@@ -4139,6 +4158,13 @@ def _artifact_status_policy(
             mainline in CLAIM_AWARE_HISTORICAL_NON_BLOCKING_MAINLINES
             and report_status == "SUCCESS"
             and not claims_current_evidence
+        ) or (
+            mainline == "reverse_solving"
+            and _reverse_solving_blocker_only_report(
+                decision=decision,
+                report=report,
+                report_status=report_status,
+            )
         )
         if downgrade_allowed and check.get("status") in ("WARN", "INFO"):
             non_blocking.append(detail)
@@ -4195,6 +4221,11 @@ def _result_status(checks: list[dict[str, Any]], report_status: str, *, mainline
                     all_limitations.extend(check["external_state_notices"])
             if mainline == "engineering_branch" and _historical_sample_limitations_only(all_limitations):
                 return "PASSED"
+            # For non-success reports, do not upgrade to PASSED_WITH_LIMITATIONS
+            # based on historical artifact limitations.  The report status
+            # (FAILED/PARTIAL) takes precedence over the gate-derived status.
+            if report_status in {"FAILED", "PARTIAL"}:
+                return "WARN"
             return "PASSED_WITH_LIMITATIONS"
     # Also check if a PASS status_policy_valid has limitations or external_state_notices
     # (post-archive scenario where doctor is PASS but historical artifacts are still missing)
@@ -4212,6 +4243,11 @@ def _result_status(checks: list[dict[str, Any]], report_status: str, *, mainline
             combined = check_limitations + check_external
             if mainline == "engineering_branch" and _historical_sample_limitations_only(combined):
                 return "PASSED"
+            # For non-success reports, do not upgrade to PASSED_WITH_LIMITATIONS
+            # based on historical artifact limitations.  The report status
+            # (FAILED/PARTIAL) takes precedence over the gate-derived status.
+            if report_status in {"FAILED", "PARTIAL"}:
+                return "WARN"
             return "PASSED_WITH_LIMITATIONS"
     if report_status in {"FAILED", "PARTIAL"}:
         return "WARN"
@@ -4935,7 +4971,15 @@ def final_check(
     mainline = str(decision.get("mainline") or "")
     external_state_notices: list[str] = []
     remaining_limitations: list[str] = []
-    if limitations and mainline == "engineering_branch":
+    reverse_solving_blocker = (
+        mainline == "reverse_solving"
+        and _reverse_solving_blocker_only_report(
+            decision=decision,
+            report=report,
+            report_status=report_status,
+        )
+    )
+    if limitations and (mainline == "engineering_branch" or reverse_solving_blocker):
         for lim in limitations:
             if _is_historical_sample_limitation(lim):
                 external_state_notices.append(lim)
@@ -5013,8 +5057,13 @@ def final_check(
     }
     gate_status_pair = _report_status_from_gate(gate_status)
     if gate_status_pair is not None:
-        status_summary_payload["report_status"] = gate_status_pair[0]
-        status_summary_payload["report_acceptance_recommendation"] = gate_status_pair[1]
+        # For reverse_solving blocker-only reports, the report status
+        # (FAILED/BLOCKED/PARTIAL) takes precedence over the gate-derived
+        # status.  Keep the actual report status so that report-summary
+        # synthesis can match the report without a false status diff.
+        if not reverse_solving_blocker:
+            status_summary_payload["report_status"] = gate_status_pair[0]
+            status_summary_payload["report_acceptance_recommendation"] = gate_status_pair[1]
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "gate_name": FINAL_GATE_NAME,

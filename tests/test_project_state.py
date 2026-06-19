@@ -3,6 +3,7 @@ import json
 import subprocess
 import zipfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,6 +16,7 @@ from reverse_agent.project_state import (
     _historical_artifact_freshness_is_non_blocking,
     _is_historical_sample_limitation_text,
     _latest_closed_round_info,
+    _reverse_solving_blocker_only_report,
     archive_round,
     build_project_state,
     build_round_consistency,
@@ -6575,6 +6577,148 @@ class TestHistoricalArtifactFreshnessNonBlocking:
         assert _historical_artifact_freshness_is_non_blocking(
             decision={"mainline": "tool_integration"},
             report={"status": "SUCCESS", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="CONSUMED_BY_SUCCESS_REPORT",
+            round_consistency={},
+            pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        ) is False
+
+
+class TestReverseSolvingBlockerOnlyReport:
+    """Verify _reverse_solving_blocker_only_report and its integration with artifact freshness."""
+
+    def _blocker_decision(self) -> dict[str, Any]:
+        return {
+            "mainline": "reverse_solving",
+            "decision_id": "decision_test_v1",
+        }
+
+    def _blocker_report(self, **overrides: Any) -> dict[str, Any]:
+        report: dict[str, Any] = {
+            "status": "FAILED",
+            "acceptance_recommendation": "REWORK_REQUIRED",
+            "based_on_decision_id": "decision_test_v1",
+            "generated_artifacts": ["project_state/gates/preflight_result.json"],
+            "verified_artifacts": [],
+            "next_suggested_task": "Obtain expected ciphertext evidence for affine sample",
+        }
+        report.update(overrides)
+        return report
+
+    def test_blocker_only_report_returns_true(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(),
+            pytest_validation={"matches_report": True},
+        ) is True
+
+    def test_returns_false_for_engineering_branch(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision={"mainline": "engineering_branch", "decision_id": "d1"},
+            report=self._blocker_report(based_on_decision_id="d1"),
+        ) is False
+
+    def test_returns_false_for_success_report(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(status="SUCCESS", acceptance_recommendation="ACCEPTED"),
+        ) is False
+
+    def test_returns_false_when_acceptance_is_accepted(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(
+                status="PARTIAL", acceptance_recommendation="ACCEPTED_WITH_LIMITATIONS"
+            ),
+        ) is False
+
+    def test_returns_false_when_verified_artifacts_present(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(verified_artifacts=["solve_reports/run1"]),
+        ) is False
+
+    def test_returns_false_when_generated_artifacts_empty(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(generated_artifacts=[]),
+        ) is False
+
+    def test_returns_false_when_decision_id_mismatch(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(based_on_decision_id="other_decision"),
+        ) is False
+
+    def test_returns_false_when_next_suggested_task_empty(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(next_suggested_task=""),
+        ) is False
+
+    def test_returns_false_when_report_claims_sample_artifacts(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(
+                generated_artifacts=["solve_reports/sample_run/entry.json"],
+            ),
+        ) is False
+
+    def test_returns_false_when_pytest_does_not_match(self) -> None:
+        assert _reverse_solving_blocker_only_report(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(),
+            pytest_validation={"matches_report": False},
+        ) is False
+
+    def test_classify_freshness_non_blocking_for_blocker_only(self) -> None:
+        """_classify_artifact_freshness returns INFO/non-blocking for reverse_solving blocker-only."""
+        result = _classify_artifact_freshness(
+            freshness={"missing": 50, "stale": 0},
+            decision=self._blocker_decision(),
+            report=self._blocker_report(),
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        )
+        assert result["status"] == "INFO"
+        assert result["blocking"] is False
+        assert result["classification"] == "historical_sample_artifacts_non_blocking"
+        assert any("50 missing" in l for l in result["limitations"])
+
+    def test_classify_freshness_blocking_for_reverse_solving_success(self) -> None:
+        """reverse_solving SUCCESS report with verified artifacts must remain blocking."""
+        result = _classify_artifact_freshness(
+            freshness={"missing": 5},
+            decision=self._blocker_decision(),
+            report=self._blocker_report(
+                status="SUCCESS",
+                acceptance_recommendation="ACCEPTED",
+                verified_artifacts=["solve_reports/run1"],
+            ),
+            decision_execution_state="CONSUMED_BY_SUCCESS_REPORT",
+            round_consistency={},
+            pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        )
+        assert result["status"] == "WARN"
+        assert result["blocking"] is True
+
+    def test_historical_non_blocking_returns_true_for_blocker_only(self) -> None:
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(),
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        ) is True
+
+    def test_historical_non_blocking_returns_false_for_reverse_solving_success(self) -> None:
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision=self._blocker_decision(),
+            report=self._blocker_report(
+                status="SUCCESS",
+                acceptance_recommendation="ACCEPTED",
+                verified_artifacts=["solve_reports/run1"],
+            ),
             decision_execution_state="CONSUMED_BY_SUCCESS_REPORT",
             round_consistency={},
             pytest_validation={"matches_report": True, "tests_ran_covers_report": True},

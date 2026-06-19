@@ -18,6 +18,7 @@ from reverse_agent.project_gate import (
     _startup_baseline_consistency_check,
     _stale_artifact_id_check,
     _report_body_consistency_check,
+    _artifact_status_policy,
     _expected_report_id,
     _extract_bash_commands,
     _extract_unfenced_commands,
@@ -5850,6 +5851,169 @@ class TestReportStatusFromGatePayloadMainlineAware:
         }
         result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
         assert result == ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS")
+
+
+class TestReverseSolvingBlockerOnlyGatePolicy:
+    """Verify gate policy for reverse_solving blocker-only reports."""
+
+    def test_result_status_warn_for_failed_with_pass_external_notices(self) -> None:
+        """reverse_solving FAILED report with PASS status_policy_valid + external_state_notices
+        must return WARN, not PASSED_WITH_LIMITATIONS."""
+        checks = [
+            {
+                "name": "status_policy_valid",
+                "status": "PASS",
+                "external_state_notices": ["50 missing historical sample artifacts"],
+            },
+        ]
+        assert _result_status(checks, "FAILED", mainline="reverse_solving") == "WARN"
+
+    def test_result_status_warn_for_partial_with_pass_external_notices(self) -> None:
+        checks = [
+            {
+                "name": "status_policy_valid",
+                "status": "PASS",
+                "external_state_notices": ["50 missing historical sample artifacts"],
+            },
+        ]
+        assert _result_status(checks, "PARTIAL", mainline="reverse_solving") == "WARN"
+
+    def test_result_status_passed_for_success_with_pass_external_notices(self) -> None:
+        """reverse_solving SUCCESS report with PASS status_policy_valid + external_state_notices
+        still returns PASSED_WITH_LIMITATIONS (not upgraded to PASSED)."""
+        checks = [
+            {
+                "name": "status_policy_valid",
+                "status": "PASS",
+                "external_state_notices": ["50 missing historical sample artifacts"],
+            },
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="reverse_solving") == "PASSED_WITH_LIMITATIONS"
+
+    def test_report_status_from_gate_payload_returns_actual_failed(self) -> None:
+        """For reverse_solving blocker-only, synthesis returns actual report status."""
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "FAILED",
+                "report_acceptance_recommendation": "REWORK_REQUIRED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "PASS",
+                    "external_state_notices": ["50 missing historical sample artifacts"],
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="reverse_solving")
+        assert result == ("FAILED", "REWORK_REQUIRED")
+
+    def test_report_status_from_gate_payload_returns_actual_blocked(self) -> None:
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "BLOCKED",
+                "report_acceptance_recommendation": "BLOCKED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "PASS",
+                    "external_state_notices": ["50 missing historical sample artifacts"],
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="reverse_solving")
+        assert result == ("BLOCKED", "BLOCKED")
+
+    def test_report_status_from_gate_payload_does_not_trigger_for_success(self) -> None:
+        """When report_status is SUCCESS, the blocker-only path must not trigger."""
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "PASS",
+                    "external_state_notices": ["50 missing historical sample artifacts"],
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="reverse_solving")
+        # Should fall through to _report_status_from_gate("WARN") = ("PARTIAL", "NEEDS_REVIEW")
+        assert result == ("PARTIAL", "NEEDS_REVIEW")
+
+    def test_artifact_status_policy_downgrades_for_blocker_only(self) -> None:
+        """_artifact_status_policy allows downgrade for reverse_solving blocker-only."""
+        decision = {
+            "mainline": "reverse_solving",
+            "decision_id": "decision_test_v1",
+        }
+        report = {
+            "status": "FAILED",
+            "acceptance_recommendation": "REWORK_REQUIRED",
+            "based_on_decision_id": "decision_test_v1",
+            "generated_artifacts": ["project_state/gates/preflight_result.json"],
+            "verified_artifacts": [],
+            "next_suggested_task": "Obtain expected ciphertext evidence",
+        }
+        doctor_result = {
+            "checks": [
+                {
+                    "name": "artifacts",
+                    "status": "INFO",
+                    "blocking": False,
+                    "classification": "historical_sample_artifacts_non_blocking",
+                    "detail": "50 missing, 0 stale historical sample artifacts (non-blocking)",
+                    "limitations": ["50 missing historical sample artifacts"],
+                },
+            ],
+        }
+        policy = _artifact_status_policy(
+            doctor_result=doctor_result,
+            decision=decision,
+            report=report,
+            report_status="FAILED",
+        )
+        assert policy["blocking_reasons"] == []
+        assert len(policy["non_blocking_warnings"]) == 1
+
+    def test_artifact_status_policy_blocks_for_reverse_solving_success(self) -> None:
+        """_artifact_status_policy blocks for reverse_solving SUCCESS with verified artifacts."""
+        decision = {
+            "mainline": "reverse_solving",
+            "decision_id": "decision_test_v1",
+        }
+        report = {
+            "status": "SUCCESS",
+            "acceptance_recommendation": "ACCEPTED",
+            "based_on_decision_id": "decision_test_v1",
+            "generated_artifacts": ["project_state/gates/preflight_result.json"],
+            "verified_artifacts": ["solve_reports/run1"],
+            "next_suggested_task": "Continue with next sample",
+        }
+        doctor_result = {
+            "checks": [
+                {
+                    "name": "artifacts",
+                    "status": "WARN",
+                    "blocking": True,
+                    "classification": "artifact_freshness_requires_review",
+                    "detail": "50 missing, 0 stale artifacts",
+                },
+            ],
+        }
+        policy = _artifact_status_policy(
+            doctor_result=doctor_result,
+            decision=decision,
+            report=report,
+            report_status="SUCCESS",
+        )
+        assert len(policy["blocking_reasons"]) == 1
 
 
 class TestReportStatusFastNonCloseout:
