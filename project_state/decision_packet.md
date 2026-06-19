@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260619_state_build_decision_sync_workflow_v1",
-  "round_id": "round_20260619_state_build_decision_sync_workflow_v1",
+  "decision_id": "decision_20260619_staged_state_rebuild_workflow_v1",
+  "round_id": "round_20260619_staged_state_rebuild_workflow_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,44 +15,42 @@
 
 ## 1. Goal
 
-Define and implement a safe state rebuild workflow that does not break `decision_packet.md` / `current_state.json` consistency.
+Implement a staged state rebuild workflow so the proposed next compact state can be materialized and reviewed without mutating the live `project_state` used by the active decision.
 
-The previous hygiene round established that `python -m reverse_agent.project_state build` exists, but running it during an already-approved decision changes `state_build_id` / `state_digest` and causes `decision-lint` to fail because the live decision was based on the old state. This round must close that workflow gap.
+The previous accepted round added `project_state rebuild-preview`, which computes proposed `state_build_id` / `state_digest` in memory and writes `project_state/state_rebuild_handoff.json`. That handoff now says `live_files_would_change=true` and recommends running `python -m reverse_agent.project_state build` before generating the next decision. Running live `build` inside a normal approved decision would still invalidate the decision/state digest relation. This round must close the next workflow gap by adding a safe staged-output path.
 
-This is an engineering workflow round. The goal is not to solve any reverse sample. The goal is to make state rebuilds auditable and usable without forcing Codex or GPT into an invalid state.
+This is an engineering workflow round. Do not run live `project_state build` against `project_state` as part of this decision. Do not solve any reverse sample.
 
 Success criteria:
 
-1. Identify the exact state rebuild / digest / decision-lint interaction.
-2. Implement a bounded workflow improvement, preferably a dry-run or proposed-state handoff path, so a state rebuild can be prepared without mutating the live execution state under an already-approved decision.
-3. Produce clear operator guidance for the canonical sequence: build state, then generate decision against that state, then execute decision.
-4. Preserve `decision_packet.md` as the execution authority during Codex execution.
-5. Preserve strict gate behavior for stale/missing artifacts and reverse-solving candidate/solution claims.
+1. Add a non-mutating staged rebuild command or option that writes proposed state files to a separate staging directory, not to live `project_state`.
+2. The staged output must include proposed `artifact_index.json`, `current_state.json`, `negative_results.json`, `model_gate.json`, and `task_packet.json`, with their proposed `state_build_id` / `state_digest`.
+3. The workflow must produce an apply-plan artifact explaining how an operator should promote staged files only before generating a new decision.
+4. `decision-lint` must remain strict for the live state and must not allow arbitrary digest mismatches.
+5. Tests must prove staged rebuild does not mutate live `project_state` files.
 
 ## 2. Current Evidence
 
-The prior accepted round was `decision_20260619_project_state_hygiene_rebuild_v1` with conclusion `ACCEPTED_WITH_LIMITATIONS`.
+The current accepted state-rebuild preview round is `decision_20260619_state_build_decision_sync_workflow_v1`.
 
-What it established:
+It established:
 
-- `doctor`, `decision-lint`, `preflight`, pytest, `gate-profile`, `command-plan`, `report-summary`, and `final-check` all passed.
-- The round was archived successfully.
-- `status_policy_valid` passed and historical/backlog missing artifacts were classified as non-blocking external state notices for engineering hygiene.
-- No source files were modified in that hygiene round.
+- `rebuild-preview` exists and is non-mutating.
+- `state_rebuild_handoff.json` is generated.
+- `live_files_mutated=false`.
+- `live_files_would_change=true`.
+- Live state is still `state_20260618_134029_d6bd033d2532` / `d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5`.
+- Proposed state is `state_20260619_140730_d8f93e18db4b` / `d8f93e18db4b09c062c0086f6cc8a2d722184a0a0de11a1484cf854d3e4035e5`.
+- Recommended next action is to run `python -m reverse_agent.project_state build` before generating the next decision.
 
 Remaining workflow limitation:
 
-- `task_packet.json` still points to old `samplereverse` state.
-- `current_state.json` still points to old `samplereverse` state.
-- `artifact_index.json` still contains about 50 historical/backlog missing artifacts.
-- Running `python -m reverse_agent.project_state build` inside an already-approved decision changes `state_build_id` / `state_digest`, causing the current decision's `based_on_state_build_id` / `based_on_state_digest` to mismatch.
-- Therefore the system lacks a clean, explicit pre-decision state rebuild workflow or proposed-state handoff artifact.
+- `rebuild-preview` reports the proposed id/digest, but does not materialize the full proposed state files for review.
+- Live `task_packet.json` and `current_state.json` still point to old `samplereverse` state.
+- Directly running live `project_state build` under this already-approved decision would make the live decision stale.
+- A safe staged state package would let GPT/Codex review proposed state outputs before any live promotion.
 
-Important semantic rule:
-
-- The current `task_packet.json` remains advisory only.
-- This `decision_packet.md` controls the current round.
-- Do not use the old `samplereverse` task as execution authority.
+`task_packet.json` remains advisory only. This `decision_packet.md` controls the current round.
 
 Negative-results still apply:
 
@@ -60,16 +58,20 @@ Negative-results still apply:
 - Do not only increase beam/budget.
 - Do not use compare_semantics_agree=false candidates as primary frontier.
 - Do not commit full `solve_reports/`.
-- Do not repeat the current 5-candidate transform-trace audit without new runtime evidence.
+- Do not repeat current 5-candidate transform-trace audit without new runtime evidence.
 
-Existing relevant capabilities to check before changing code:
+Existing related capabilities to inspect first:
 
-- `reverse_agent.project_state` build/doctor/lint/status-summary logic.
-- `reverse_agent.project_gate` decision-lint/preflight/final-check/command-plan logic.
-- Existing state package classification for authoritative/advisory/derived_cache/archive/heavy_history.
-- Existing round archive and gate-profile behavior.
+- `reverse_agent.project_state build_project_state()` writes live state files.
+- `reverse_agent.project_state rebuild_preview()` computes proposed state in memory and writes handoff only.
+- `reverse_agent.project_state pack` packs context but does not produce proposed state files.
+- Gate policy already treats `decision_packet.md` as execution authority and `task_packet.json` as advisory.
 
 ## 3. Do Not Do
+
+Do not run live `python -m reverse_agent.project_state build` against `project_state` in this round.
+
+Do not mutate live `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/model_gate.json`, or `project_state/negative_results.json` unless this decision is explicitly revised later.
 
 Do not continue affine solving.
 
@@ -81,7 +83,7 @@ Do not read complete `solve_reports/` or `PROJECT_PROGRESS_LOG.txt`.
 
 Do not create fake historical artifacts or placeholder runtime outputs.
 
-Do not weaken decision-lint by allowing arbitrary state digest mismatches.
+Do not weaken `decision-lint` by allowing arbitrary state digest mismatches.
 
 Do not let Codex modify the live `decision_packet.md` as part of execution.
 
@@ -104,6 +106,10 @@ Default context:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
+State rebuild handoff:
+
+1. `project_state/state_rebuild_handoff.json`
+
 State/gate implementation:
 
 1. `reverse_agent/project_state.py`
@@ -122,59 +128,71 @@ Gate/status artifacts:
 
 Archive reference:
 
-1. `project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/round_manifest.json`
-2. `project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/codex_execution_report.md`
-3. `project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/pytest_result.txt`
+1. `project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/round_manifest.json`
+2. `project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/codex_execution_report.md`
+3. `project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/pytest_result.txt`
 
 ## 5. Required Audit
 
 Before implementation, answer:
 
-1. Where is `state_digest` computed and which fields are excluded from digest calculation?
-2. Which command mutates `current_state.json`, `task_packet.json`, and `artifact_index.json`?
-3. Why does running `project_state build` after a decision is approved break `decision-lint`?
-4. Is there already a dry-run, output-dir, or preview mode for state build?
-5. Is there already a state package / context pack command that can produce a proposed state without mutating live `project_state`?
-6. Can the workflow be fixed with documentation/reporting only, or does it require a small CLI improvement?
-7. Does the proposed fix preserve decision immutability during Codex execution?
-8. Does the proposed fix preserve strict checks for actual stale/missing evidence used as current evidence?
+1. Does `rebuild_preview()` already compute all proposed state payloads before discarding them?
+2. Can proposed state payloads be written to a separate staging directory without reusing live output paths?
+3. Which fields in staged files must match the proposed `state_build_id` and `state_digest`?
+4. What path should hold staged output so it is clearly not live execution state?
+5. How should the apply-plan explain promotion order: stage -> review -> live build/promote -> generate new decision?
+6. Can the implementation reuse `build_project_state()` logic without duplicating mature state-building code?
+7. Does the implementation preserve live decision immutability and live state digest matching during this round?
+8. Does it preserve strict stale/missing evidence checks for current evidence claims?
 
 ## 6. Implementation Scope
 
-Preferred implementation is small and workflow-oriented.
+Preferred implementation is a small extension of the existing rebuild-preview workflow.
 
-Acceptable fixes, in priority order:
+Acceptable approaches:
 
-1. Add or improve a non-mutating state rebuild preview path, for example a dry-run/proposed-state artifact, that computes the would-be `state_build_id` and `state_digest` without overwriting live `current_state.json` / `task_packet.json` under the current decision.
-2. Add an explicit state-rebuild handoff artifact, for example `project_state/state_rebuild_handoff.json`, containing:
-   - current live state id/digest;
-   - proposed next state id/digest;
-   - whether live files were mutated;
-   - recommended next GPT action;
-   - exact command that should be run before generating the next decision.
-3. Improve `doctor` / `decision-lint` messaging so it distinguishes:
-   - invalid decision/state mismatch;
-   - expected pre-decision rebuild mismatch;
-   - unsafe live mutation during decision execution.
-4. If no code change is needed, produce a precise blocker or operator guide artifact explaining the safe sequence and why no implementation change is appropriate.
+1. Add a new CLI subcommand, for example:
+   - `python -m reverse_agent.project_state rebuild-stage --state-dir project_state --out-dir project_state/proposed_state`
+2. Or add an option to existing preview, for example:
+   - `python -m reverse_agent.project_state rebuild-preview --write-staged --out-dir project_state/proposed_state`
+
+Required behavior:
+
+- It must compute the proposed state using existing build logic.
+- It must write proposed state files only under the staging directory.
+- It must not overwrite live files under `project_state/` root.
+- It must write an apply-plan artifact, for example `project_state/state_rebuild_apply_plan.json`, containing:
+  - live state id/digest;
+  - proposed state id/digest;
+  - staging directory path;
+  - list of proposed files;
+  - whether live files were mutated;
+  - exact safe promotion sequence;
+  - warning that a new decision must be generated after live promotion;
+  - warning that normal Codex execution must not promote state under an already-approved decision.
 
 Allowed source/test changes:
 
 - `reverse_agent/project_state.py`
-- `reverse_agent/project_gate.py`
 - `tests/test_project_state.py`
-- `tests/test_project_gate.py`
+- `reverse_agent/project_gate.py` only if command-plan/final-check coverage needs a small corresponding update
+- `tests/test_project_gate.py` only if `project_gate.py` is touched
 
 Allowed project_state outputs:
 
-- `project_state/state_rebuild_handoff.json`
-- `project_state/state_rebuild_handoff.md`
+- `project_state/state_rebuild_apply_plan.json`
+- `project_state/state_rebuild_handoff.json` if regenerated by the command
+- `project_state/proposed_state/artifact_index.json`
+- `project_state/proposed_state/current_state.json`
+- `project_state/proposed_state/negative_results.json`
+- `project_state/proposed_state/model_gate.json`
+- `project_state/proposed_state/task_packet.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/*`
+- `project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/*`
 
-Do not update live `current_state.json`, `task_packet.json`, or `artifact_index.json` unless the implementation explicitly proves that doing so is safe under the current decision and `decision-lint` remains valid. The safer default is to generate a proposed-state handoff artifact, not to mutate live state.
+Do not update live compact state files in `project_state/` root in this round.
 
 ## 7. Tests
 
@@ -199,16 +217,18 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 
 If a new CLI option/subcommand is added, add focused tests covering:
 
-1. preview/dry-run does not mutate live `current_state.json`, `task_packet.json`, or `artifact_index.json`;
-2. preview output contains proposed `state_build_id` and `state_digest`;
-3. decision-lint still fails on real live decision/state mismatch;
-4. doctor or handoff messaging gives the correct next action;
-5. reverse-solving candidate/solution gate behavior is unchanged.
+1. staged rebuild writes proposed files only under the staging directory;
+2. staged rebuild does not mutate live `current_state.json`, `task_packet.json`, `artifact_index.json`, `model_gate.json`, or `negative_results.json`;
+3. staged files contain internally consistent proposed `state_build_id` and `state_digest`;
+4. apply-plan contains the staging path and promotion sequence;
+5. CLI command returns exit 0;
+6. `decision-lint` still fails on real live decision/state mismatch;
+7. reverse-solving candidate/solution gate behavior is unchanged.
 
 If final-check passes, run close-round when gate-profile says closeout is allowed:
 
 ```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_state_build_decision_sync_workflow_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_staged_state_rebuild_workflow_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -220,10 +240,10 @@ Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 2. decision metadata is invalid;
 3. mainline is not `engineering_branch`;
 4. skill profile is not active;
-5. the proposed fix requires reading complete `solve_reports/` or `PROJECT_PROGRESS_LOG.txt`;
-6. the proposed fix requires fake historical artifacts;
-7. the proposed fix weakens decision-lint by allowing arbitrary digest mismatch;
-8. the proposed fix mutates live state and leaves `decision-lint` broken;
+5. the implementation requires reading complete `solve_reports/` or `PROJECT_PROGRESS_LOG.txt`;
+6. the implementation requires fake historical artifacts;
+7. the implementation weakens decision-lint by allowing arbitrary digest mismatch;
+8. the implementation mutates live state root files and leaves `decision-lint` broken;
 9. implementation changes solver logic;
 10. implementation weakens reverse-solving candidate/solution gates;
 11. source changes exceed allowed project-state/gate files;
