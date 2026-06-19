@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260619_affine_static_material_artifact_enrichment_v1",
-  "round_id": "round_20260619_affine_static_material_artifact_enrichment_v1",
-  "mainline": "tool_integration",
-  "generated_at": "2026-06-19T08:39:02.639199Z",
+  "decision_id": "decision_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "round_id": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "mainline": "reverse_solving",
+  "generated_at": "2026-06-19T10:27:59.836027Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -118,7 +118,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_static_evidence_bridge.py tests/test_solver_dispatch_plan.py tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_local_reverse_affine_inverse_handoff.py tests/test_static_evidence_bridge.py tests/test_solver_dispatch_plan.py tests/test_project_gate.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -185,16 +185,17 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_affine_static_material_artifact_enrichment_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
       "phase": "gate",
       "kind": "close-round",
-      "required": true,
+      "required": false,
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "conditional_closeout": true,
       "records_stdout_stderr": true,
-      "notes": "close-round closeout expected exit 0 after final-check passed"
+      "notes": "close-round diagnostic after final-check failed; exit 1 is expected"
     }
   ],
   "warnings": [],

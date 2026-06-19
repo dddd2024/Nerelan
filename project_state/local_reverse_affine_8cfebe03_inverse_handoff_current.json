@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "source_artifact": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json",
+  "analysis_mode": "affine_inverse_handoff_static_only",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "generated_at": "2026-06-19T10:22:57Z",
+  "cipher_type": "affine_cipher",
+  "domain": {
+    "alphabet": "lowercase_ascii",
+    "min_char": "a",
+    "max_char": "z",
+    "min_char_code": 97,
+    "max_char_code": 122,
+    "modulus": 26
+  },
+  "forward_transform": {
+    "a": 5,
+    "b": 5,
+    "formula": "c = (5 * p + 5) % 26",
+    "description": "Affine cipher: multiply by a, add b, mod 26"
+  },
+  "inverse_transform": {
+    "gcd_a_modulus": 1,
+    "inverse_a": 21,
+    "formula": "p = 21 * (c - 5) % 26",
+    "description": "Modular inverse of 5 mod 26 is 21 (since 5*21 = 105 = 1 mod 26)"
+  },
+  "per_char_mapping": [
+    {
+      "plain": "a",
+      "cipher": "f",
+      "forward": "c = (5 * 0 + 5) % 26 = 5 -> 'f'",
+      "inverse": "p = 21 * (5 - 5) % 26 = 0 -> 'a'"
+    },
+    {
+      "plain": "b",
+      "cipher": "k",
+      "forward": "c = (5 * 1 + 5) % 26 = 10 -> 'k'",
+      "inverse": "p = 21 * (10 - 5) % 26 = 1 -> 'b'"
+    },
+    {
+      "plain": "c",
+      "cipher": "p",
+      "forward": "c = (5 * 2 + 5) % 26 = 15 -> 'p'",
+      "inverse": "p = 21 * (15 - 5) % 26 = 2 -> 'c'"
+    },
+    {
+      "plain": "d",
+      "cipher": "u",
+      "forward": "c = (5 * 3 + 5) % 26 = 20 -> 'u'",
+      "inverse": "p = 21 * (20 - 5) % 26 = 3 -> 'd'"
+    },
+    {
+      "plain": "e",
+      "cipher": "z",
+      "forward": "c = (5 * 4 + 5) % 26 = 25 -> 'z'",
+      "inverse": "p = 21 * (25 - 5) % 26 = 4 -> 'e'"
+    },
+    {
+      "plain": "f",
+      "cipher": "e",
+      "forward": "c = (5 * 5 + 5) % 26 = 4 -> 'e'",
+      "inverse": "p = 21 * (4 - 5) % 26 = 5 -> 'f'"
+    },
+    {
+      "plain": "g",
+      "cipher": "j",
+      "forward": "c = (5 * 6 + 5) % 26 = 9 -> 'j'",
+      "inverse": "p = 21 * (9 - 5) % 26 = 6 -> 'g'"
+    },
+    {
+      "plain": "h",
+      "cipher": "o",
+      "forward": "c = (5 * 7 + 5) % 26 = 14 -> 'o'",
+      "inverse": "p = 21 * (14 - 5) % 26 = 7 -> 'h'"
+    },
+    {
+      "plain": "i",
+      "cipher": "t",
+      "forward": "c = (5 * 8 + 5) % 26 = 19 -> 't'",
+      "inverse": "p = 21 * (19 - 5) % 26 = 8 -> 'i'"
+    },
+    {
+      "plain": "j",
+      "cipher": "y",
+      "forward": "c = (5 * 9 + 5) % 26 = 24 -> 'y'",
+      "inverse": "p = 21 * (24 - 5) % 26 = 9 -> 'j'"
+    },
+    {
+      "plain": "k",
+      "cipher": "d",
+      "forward": "c = (5 * 10 + 5) % 26 = 3 -> 'd'",
+      "inverse": "p = 21 * (3 - 5) % 26 = 10 -> 'k'"
+    },
+    {
+      "plain": "l",
+      "cipher": "i",
+      "forward": "c = (5 * 11 + 5) % 26 = 8 -> 'i'",
+      "inverse": "p = 21 * (8 - 5) % 26 = 11 -> 'l'"
+    },
+    {
+      "plain": "m",
+      "cipher": "n",
+      "forward": "c = (5 * 12 + 5) % 26 = 13 -> 'n'",
+      "inverse": "p = 21 * (13 - 5) % 26 = 12 -> 'm'"
+    },
+    {
+      "plain": "n",
+      "cipher": "s",
+      "forward": "c = (5 * 13 + 5) % 26 = 18 -> 's'",
+      "inverse": "p = 21 * (18 - 5) % 26 = 13 -> 'n'"
+    },
+    {
+      "plain": "o",
+      "cipher": "x",
+      "forward": "c = (5 * 14 + 5) % 26 = 23 -> 'x'",
+      "inverse": "p = 21 * (23 - 5) % 26 = 14 -> 'o'"
+    },
+    {
+      "plain": "p",
+      "cipher": "c",
+      "forward": "c = (5 * 15 + 5) % 26 = 2 -> 'c'",
+      "inverse": "p = 21 * (2 - 5) % 26 = 15 -> 'p'"
+    },
+    {
+      "plain": "q",
+      "cipher": "h",
+      "forward": "c = (5 * 16 + 5) % 26 = 7 -> 'h'",
+      "inverse": "p = 21 * (7 - 5) % 26 = 16 -> 'q'"
+    },
+    {
+      "plain": "r",
+      "cipher": "m",
+      "forward": "c = (5 * 17 + 5) % 26 = 12 -> 'm'",
+      "inverse": "p = 21 * (12 - 5) % 26 = 17 -> 'r'"
+    },
+    {
+      "plain": "s",
+      "cipher": "r",
+      "forward": "c = (5 * 18 + 5) % 26 = 17 -> 'r'",
+      "inverse": "p = 21 * (17 - 5) % 26 = 18 -> 's'"
+    },
+    {
+      "plain": "t",
+      "cipher": "w",
+      "forward": "c = (5 * 19 + 5) % 26 = 22 -> 'w'",
+      "inverse": "p = 21 * (22 - 5) % 26 = 19 -> 't'"
+    },
+    {
+      "plain": "u",
+      "cipher": "b",
+      "forward": "c = (5 * 20 + 5) % 26 = 1 -> 'b'",
+      "inverse": "p = 21 * (1 - 5) % 26 = 20 -> 'u'"
+    },
+    {
+      "plain": "v",
+      "cipher": "g",
+      "forward": "c = (5 * 21 + 5) % 26 = 6 -> 'g'",
+      "inverse": "p = 21 * (6 - 5) % 26 = 21 -> 'v'"
+    },
+    {
+      "plain": "w",
+      "cipher": "l",
+      "forward": "c = (5 * 22 + 5) % 26 = 11 -> 'l'",
+      "inverse": "p = 21 * (11 - 5) % 26 = 22 -> 'w'"
+    },
+    {
+      "plain": "x",
+      "cipher": "q",
+      "forward": "c = (5 * 23 + 5) % 26 = 16 -> 'q'",
+      "inverse": "p = 21 * (16 - 5) % 26 = 23 -> 'x'"
+    },
+    {
+      "plain": "y",
+      "cipher": "v",
+      "forward": "c = (5 * 24 + 5) % 26 = 21 -> 'v'",
+      "inverse": "p = 21 * (21 - 5) % 26 = 24 -> 'y'"
+    },
+    {
+      "plain": "z",
+      "cipher": "a",
+      "forward": "c = (5 * 25 + 5) % 26 = 0 -> 'a'",
+      "inverse": "p = 21 * (0 - 5) % 26 = 25 -> 'z'"
+    }
+  ],
+  "expected_ciphertext": null,
+  "ciphertext_provenance": null,
+  "candidate": null,
+  "status": "BLOCKED",
+  "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
+  "recommended_next_action": "Provide expected ciphertext from challenge statement or another allowed evidence source before candidate generation."
+}

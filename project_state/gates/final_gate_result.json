@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "WARN",
-  "decision_id": "decision_20260619_affine_static_material_artifact_enrichment_v1",
-  "report_id": "codex_report_20260619_affine_static_material_artifact_enrichment_v1",
-  "round_id": "round_20260619_affine_static_material_artifact_enrichment_v1",
-  "generated_at": "2026-06-19T09:13:04.787240Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "report_id": "codex_report_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "round_id": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "generated_at": "2026-06-19T10:56:09.832339Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -26,19 +26,19 @@
     },
     {
       "name": "round_manifest_present",
-      "status": "PASS",
-      "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260619_affine_static_material_artifact_enrichment_v1\\round_manifest.json"
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": "project_state\\rounds\\round_20260619_affine_reverse_solving_ciphertext_handoff_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "PASS",
-      "detail": "archived report matches live report"
+      "status": "WARN",
+      "detail": "archived report differs from live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result",
+      "status": "WARN",
+      "detail": "archived pytest_result differs from live pytest_result",
       "required": true,
       "skipped_reason": null
     },
@@ -58,18 +58,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.md",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/decision_packet.md",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/round_manifest.json"
+        "project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json",
+        "project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_blocker.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.md",
+        "project_state/pytest_result.txt"
       ],
       "final_dirty_files": [
         "project_state/artifact_index.json",
@@ -80,18 +75,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.md",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/decision_packet.md",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/round_manifest.json"
+        "project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json",
+        "project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_blocker.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.md",
+        "project_state/pytest_result.txt"
       ]
     },
     {
@@ -114,18 +104,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.md",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/decision_packet.md",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/round_manifest.json"
+        "project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json",
+        "project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_blocker.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.md",
+        "project_state/pytest_result.txt"
       ],
       "required_round_delta_files": [
         "project_state/artifact_index.json",
@@ -136,18 +121,14 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.md",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+        "project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json",
+        "project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_blocker.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/decision_packet.md",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_static_material_artifact_enrichment_v1/round_manifest.json"
+        "project_state/rounds/round_20260619_affine_reverse_solving_ciphertext_handoff_v1/round_manifest.json"
       ],
       "inherited_dirty_files": []
     },
@@ -157,10 +138,10 @@
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
         "project_state/artifact_index.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
-        "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json"
+        "project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json",
+        "project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_blocker.json",
+        "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.json"
       ],
       "claimed_source_test_paths": []
     },
@@ -178,13 +159,10 @@
     {
       "name": "baseline_lifecycle_guard",
       "status": "PASS",
-      "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
+      "detail": "baseline source/test dirty files are absent or explicitly allowed",
       "source_test_baseline_dirty": [],
-      "close_source_test_dirty": [],
       "allowed_inherited_dirty_files": [],
-      "generated_or_archive_baseline_dirty_files": [],
-      "close_worktree_clean": false,
-      "close_snapshot_available": true
+      "generated_or_archive_baseline_dirty_files": []
     },
     {
       "name": "baseline_capture_order",
@@ -221,7 +199,6 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt"
       ]
@@ -281,20 +258,24 @@
       "status": "PASS",
       "detail": "required closeout artifacts covered by referenced or generated artifacts",
       "required_closeout_artifacts": [
-        "project_state/artifact_index.json",
-        "project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json",
-        "project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json",
-        "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json",
-        "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md",
-        "project_state/local_reverse_affine_8cfebe03_current_static_triage.json"
+        "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
+        "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
+        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
+        "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+        "project_state/local_reverse_affine_inverse_handoff.json",
+        "project_state/local_reverse_affine_main0_targeted_ida_decompile.json"
       ],
       "referenced_artifacts": [
-        "project_state/artifact_index.json",
-        "project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json",
         "project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json",
-        "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json",
-        "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md",
-        "project_state/local_reverse_affine_8cfebe03_current_static_triage.json"
+        "project_state/local_reverse_affine_8cfebe03_current_static_triage.json",
+        "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
+        "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
+        "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
+        "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
+        "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+        "project_state/local_reverse_affine_inverse_handoff.json",
+        "project_state/local_reverse_affine_main0_targeted_ida_decompile.json",
+        "training_materials/local_reverse/cases/affine_8cfebe03.json"
       ],
       "uncovered_artifacts": []
     },
@@ -310,8 +291,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260619_affine_static_material_artifact_enrichment_v1",
-      "command_plan_round_id": "round_20260619_affine_static_material_artifact_enrichment_v1"
+      "command_plan_decision_id": "decision_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+      "command_plan_round_id": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -342,7 +323,7 @@
       "name": "close_round_is_last_command_block",
       "status": "PASS",
       "detail": "close-round is the last command block in pytest_result",
-      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_affine_static_material_artifact_enrichment_v1",
+      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
       "last_kind": "close-round"
     },
     {
@@ -375,8 +356,10 @@
     {
       "name": "preflight_failure_handoff",
       "status": "PASS",
-      "detail": "preflight passed or warned; no handoff violation",
-      "preflight_status": "PASSED"
+      "detail": "preflight failed (BLOCKED) and report correctly reflects non-success status",
+      "preflight_status": "BLOCKED",
+      "report_status": "FAILED",
+      "acceptance_recommendation": "REWORK_REQUIRED"
     },
     {
       "name": "stale_artifact_ids",
@@ -392,8 +375,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260619_affine_static_material_artifact_enrichment_v1",
-      "gate_profile_round_id": "round_20260619_affine_static_material_artifact_enrichment_v1"
+      "gate_profile_decision_id": "decision_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+      "gate_profile_round_id": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -425,17 +408,19 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "WARN",
-      "detail": "current-round artifacts complete; historical/backlog artifacts non-blocking",
-      "lint_errors": [],
+      "status": "FAIL",
+      "detail": "status policy found blocking issues",
+      "lint_errors": [
+        "50 missing, 0 stale artifacts"
+      ],
       "warnings": [
-        "doctor status is WARN (historical/backlog artifacts non-blocking)"
+        "pytest_result header status is FAILED but body contains no failure markers",
+        "report_status is FAILED",
+        "report round not archived yet"
       ],
       "doctor_status": "WARN",
-      "report_status": "SUCCESS",
-      "limitations": [
-        "historical sample artifacts missing; non-blocking for current non-sample evidence policy"
-      ],
+      "report_status": "FAILED",
+      "limitations": null,
       "artifact_freshness_policy": "claim_aware",
       "required_current_artifacts": [],
       "claimed_evidence_artifacts": [],
@@ -449,22 +434,27 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "no recorded final-check stdout status to compare",
-      "required": false
+      "detail": "archive-pending final-check status is allowed to differ before close-round",
+      "required": false,
+      "skipped_reason": "archive_pending_pre_close_round"
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [
-    "build_output_scope: build_output_scope_unverified: build-generated state files in round delta without recorded build command",
-    "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
+  "blocking_reasons": [
+    "status_policy_valid: status policy found blocking issues"
   ],
-  "recommended_next_action": "review_warnings_before_closeout",
+  "warnings": [
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "build_output_scope: build_output_scope_unverified: build-generated state files in round delta without recorded build command"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
-    "archive_status": "archived",
-    "report_status": "PARTIAL",
-    "report_acceptance_recommendation": "NEEDS_REVIEW"
+    "archive_status": "not_archived",
+    "report_status": "FAILED",
+    "report_acceptance_recommendation": "REWORK_REQUIRED"
   }
 }

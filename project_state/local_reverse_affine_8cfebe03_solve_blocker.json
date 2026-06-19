@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "round_id": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "decision_id": "decision_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "generated_at": "2026-06-19T10:23:00Z",
+  "artifact_kind": "solve_blocker",
+  "status": "BLOCKED",
+  "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT_WITH_TRUSTED_PROVENANCE",
+  "candidate": null,
+  "candidate_label": null,
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "transform_material_status": "resolved",
+  "transform_material_reference": {
+    "static_extract": "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+    "evidence": "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
+    "dispatch_plan": "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
+    "targeted_decompile": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json"
+  },
+  "affine_parameters": {
+    "cipher_type": "affine_cipher",
+    "a": 5,
+    "b": 5,
+    "modulus": 26,
+    "a_inverse": 21,
+    "forward_formula": "c = (5 * p + 5) mod 26",
+    "inverse_formula": "p = 21 * (c - 5) mod 26",
+    "input_domain": "lowercase_ascii a-z (97..122)",
+    "program_type": "encoder",
+    "has_compare_site": false
+  },
+  "inverse_handoff_current": {
+    "artifact_path": "project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json",
+    "status": "BLOCKED",
+    "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
+    "interface_used": "reverse_agent.local_reverse_affine_inverse_handoff.run_affine_inverse_handoff",
+    "interface_unchanged": true
+  },
+  "expected_ciphertext_search": {
+    "evidence_artifact": "project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json",
+    "found": false,
+    "trusted_provenance": null,
+    "searched_location_count": 12,
+    "searched_location_kinds": [
+      "local_sample_metadata",
+      "current_static_evidence",
+      "challenge_statement_directory"
+    ]
+  },
+  "missing_evidence": [
+    "expected_ciphertext with trusted provenance (challenge_statement, allowed_static_evidence, or user_provided)"
+  ],
+  "blocker_detail": "The affine transform material is fully resolved (a=5, b=5, modulus=26, a_inverse=21, domain a-z). However, the program is a pure affine encoder with no compare/success branch in _main_0, so there is no embedded expected ciphertext. A bounded search of 12 locations (local sample metadata, current static evidence artifacts, and challenge statement directories under E:\\reverse) found no expected ciphertext with trusted provenance. No user_provided ciphertext artifact was supplied in this round. Without trusted expected ciphertext, the existing affine inverse handoff correctly refuses to generate a candidate (status=BLOCKED, blocked_reason=MISSING_EXPECTED_CIPHERTEXT).",
+  "do_not_do": [
+    "Do not invent or guess an expected ciphertext.",
+    "Do not derive a candidate without trusted ciphertext provenance.",
+    "Do not execute the target binary to obtain ciphertext.",
+    "Do not use ciphertext from unrelated samples (e.g. cpp_6af7c7f1)."
+  ],
+  "next_actions": [
+    "Obtain expected ciphertext from the original challenge statement or course materials (provenance=challenge_statement).",
+    "OR have the user explicitly provide an expected ciphertext artifact with provenance=user_provided.",
+    "Once trusted ciphertext is available, rerun reverse_agent.local_reverse_affine_inverse_handoff with the ciphertext input to produce a READY handoff and static_candidate."
+  ],
+  "next_safe_mainline": "reverse_solving (blocked on missing expected ciphertext evidence)"
+}

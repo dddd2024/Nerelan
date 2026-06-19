@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "round_id": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "decision_id": "decision_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+  "generated_at": "2026-06-19T10:23:00Z",
+  "artifact_kind": "expected_ciphertext_evidence",
+  "expected_ciphertext": null,
+  "expected_ciphertext_found": false,
+  "trusted_provenance": null,
+  "search_scope": {
+    "description": "Bounded search for expected ciphertext per decision_packet section 4 (Bounded possible ciphertext sources).",
+    "searched_locations": [
+      {
+        "location": "training_materials/local_reverse/cases/affine_8cfebe03.json",
+        "kind": "local_sample_metadata",
+        "result": "expected_flag field is empty string; no expected ciphertext",
+        "found": false
+      },
+      {
+        "location": "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+        "kind": "current_static_evidence",
+        "result": "no expected_ciphertext or expected_output field; notes explicitly state 'need expected ciphertext output from problem statement or external source'",
+        "found": false
+      },
+      {
+        "location": "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
+        "kind": "current_static_evidence",
+        "result": "StaticConstantEvidence only; no expected ciphertext field",
+        "found": false
+      },
+      {
+        "location": "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
+        "kind": "current_static_evidence",
+        "result": "has_compare_site=false; no expected ciphertext",
+        "found": false
+      },
+      {
+        "location": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json",
+        "kind": "current_static_evidence",
+        "result": "candidate_compare_sites is empty; program is pure encoder with no compare/success branch; no embedded expected ciphertext",
+        "found": false
+      },
+      {
+        "location": "project_state/local_reverse_affine_8cfebe03_current_static_triage.json",
+        "kind": "current_static_evidence",
+        "result": "compare_contexts only reference __GLOBAL_HEAP_SELECTED (CRT heap marker), not an affine ciphertext; no expected output field",
+        "found": false
+      },
+      {
+        "location": "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
+        "kind": "current_static_evidence",
+        "result": "candidate=null, known_candidate='', no_candidate=true; no expected ciphertext",
+        "found": false
+      },
+      {
+        "location": "project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json",
+        "kind": "current_static_evidence",
+        "result": "StaticCompareEvidence expected_value_location is empty; no expected ciphertext",
+        "found": false
+      },
+      {
+        "location": "E:\\reverse\\逆向课程2024春补考03 (directory listing)",
+        "kind": "challenge_statement_directory",
+        "result": "contains only affine.exe, cpp3.exe, and IDA database files (.id0/.id1/.id2/.nam/.til); no README, problem statement, or notes files",
+        "found": false
+      },
+      {
+        "location": "E:\\reverse\\逆向课程2022春补考03 (directory listing)",
+        "kind": "challenge_statement_directory",
+        "result": "contains only affine.exe, cpp3.exe, and IDA database files; no README, problem statement, or notes files",
+        "found": false
+      },
+      {
+        "location": "E:\\reverse\\逆向课程2023春补考03 (directory listing)",
+        "kind": "challenge_statement_directory",
+        "result": "no text/md/json/pdf/doc files present",
+        "found": false
+      },
+      {
+        "location": "E:\\reverse (root directory listing)",
+        "kind": "challenge_statement_directory",
+        "result": "only ascii_table_chinese.pdf present at root; not an affine problem statement",
+        "found": false
+      }
+    ],
+    "user_provided_ciphertext": "none; user has not provided a ciphertext artifact with provenance=user_provided in this round"
+  },
+  "conclusion": "No expected ciphertext with trusted provenance (challenge_statement, allowed_static_evidence, or user_provided) was found in any bounded searched location.",
+  "next_action": "Produce solve blocker artifact; do not derive a candidate without trusted ciphertext provenance."
+}

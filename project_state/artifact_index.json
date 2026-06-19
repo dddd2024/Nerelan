@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-18T13:40:29Z",
+  "generated_at": "2026-06-19T10:23:00Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": null,
@@ -548,6 +548,61 @@
       "path": "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
       "sample_id": "affine_8cfebe03",
       "source_run": "round_20260619_affine_static_material_artifact_enrichment_v1",
+      "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_expected_ciphertext_evidence": {
+      "freshness": "current",
+      "kind": "expected_ciphertext_evidence",
+      "modified_at": "2026-06-19T10:23:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json",
+      "sample_id": "affine_8cfebe03",
+      "sha256": "a611878c2e9ac4ac67b3fe1fa90159e604d99ea43d8602ac4118a9e5a6c8dbf8",
+      "size_bytes": 4450,
+      "source_run": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+      "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_inverse_handoff_current": {
+      "freshness": "current",
+      "kind": "affine_inverse_handoff_current",
+      "modified_at": "2026-06-19T10:22:57Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json",
+      "sample_id": "affine_8cfebe03",
+      "sha256": "ddb856bb80622fb2db59e6da2f6115aba8e44eb1170cb2976560a514368f98ac",
+      "size_bytes": 5591,
+      "source_run": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+      "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_solve_blocker": {
+      "freshness": "current",
+      "kind": "solve_blocker",
+      "modified_at": "2026-06-19T10:23:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_solve_blocker.json",
+      "sample_id": "affine_8cfebe03",
+      "sha256": "4add30bb21537f63c7ed6683dbe6cb47a3abdb8e7d9ca516898550a7fdb9efee",
+      "size_bytes": 3728,
+      "source_run": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+      "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_solve_provenance_report": {
+      "freshness": "current",
+      "kind": "solve_provenance_report",
+      "modified_at": "2026-06-19T10:23:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.json",
+      "sample_id": "affine_8cfebe03",
+      "sha256": "69337ed3ede2d270b1ccdd46f720500338cffcb20db04391a29543c5b2fb1f43",
+      "size_bytes": 2901,
+      "source_run": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
+      "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_solve_provenance_report_md": {
+      "freshness": "current",
+      "kind": "solve_provenance_report",
+      "modified_at": "2026-06-19T10:23:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.md",
+      "sample_id": "affine_8cfebe03",
+      "sha256": "e5fdda8b5f33e67e2d2f996ab4f5a6f44230f3574a1bcd7bf0ff0e97f8d9c960",
+      "size_bytes": 4833,
+      "source_run": "round_20260619_affine_reverse_solving_ciphertext_handoff_v1",
       "tool_status": "success"
     }
   },
