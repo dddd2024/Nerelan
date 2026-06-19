@@ -3819,6 +3819,10 @@ def build_report_summary_synthesis(
     # Include decision-scope required deliverables that were promoted from
     # inherited dirty files into generated_artifacts.
     generated_artifact_set |= inherited_scope_deliverables
+    # Include required closeout artifacts (e.g. staged/apply-plan artifacts)
+    # so that decision-required deliverables are visible in generated_artifacts.
+    required_closeout_artifacts = _string_set(report.get("required_closeout_artifacts"))
+    generated_artifact_set |= required_closeout_artifacts
     expected_generated_artifacts = sorted(generated_artifact_set)
 
     final_gate_status = ""

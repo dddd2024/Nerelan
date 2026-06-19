@@ -13085,3 +13085,43 @@ def test_read_codex_report_summary_backward_compat_without_closeout_fields(
     assert result["required_closeout_artifacts"] is None
     assert result["referenced_artifacts"] is None
     assert result["status"] == "SUCCESS"
+
+
+def test_report_summary_synthesis_includes_required_closeout_in_generated_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Synthesis includes required_closeout_artifacts in generated_artifacts."""
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_decision_with_structured_closeout_contract(
+        state_dir,
+        decision_id="decision_report_summary",
+        round_id="round_gate",
+    )
+    _add_referenced_artifacts_to_report(state_dir, _CLOSEOUT_CONTRACT_PATHS)
+    # Also add required_closeout_artifacts to the report so the synthesis
+    # can promote them into generated_artifacts.
+    from reverse_agent.project_state import extract_markdown_json_block, CODEX_REPORT_SUMMARY_BLOCK_NAME
+
+    report_path = state_dir / "codex_execution_report.md"
+    text = report_path.read_text(encoding="utf-8")
+    meta = extract_markdown_json_block(text, CODEX_REPORT_SUMMARY_BLOCK_NAME)
+    report = {k: v for k, v in meta.items() if k not in ("found", "parse_error")}
+    report["required_closeout_artifacts"] = _CLOSEOUT_CONTRACT_PATHS
+    report_path.write_text(
+        f"""```json {CODEX_REPORT_SUMMARY_BLOCK_NAME}
+{json.dumps(report, indent=2)}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    summary = result["synthesized_summary"]
+    assert "generated_artifacts" in summary
+    for path in _CLOSEOUT_CONTRACT_PATHS:
+        assert path in summary["generated_artifacts"], (
+            f"required_closeout_artifact {path} should be in generated_artifacts"
+        )
