@@ -6908,6 +6908,127 @@ def rebuild_preview(
     return handoff
 
 
+def rebuild_stage(
+    *,
+    state_dir: Path,
+    reports_dir: Path,
+    sample: str,
+    out_dir: Path | None = None,
+    run_name: str = "",
+    progress_log: Path | None = None,
+    max_artifacts: int = 20,
+) -> dict[str, Any]:
+    """Compute proposed state and write it to a staging directory without mutating live files.
+
+    Writes proposed ``artifact_index.json``, ``current_state.json``,
+    ``negative_results.json``, ``model_gate.json``, and ``task_packet.json``
+    to ``out_dir`` (default ``state_dir / proposed_state``).  Also writes
+    ``state_rebuild_apply_plan.json`` to ``state_dir`` with promotion guidance.
+
+    Live ``current_state.json``, ``task_packet.json``, ``artifact_index.json``,
+    ``model_gate.json``, and ``negative_results.json`` are never overwritten.
+    """
+    _ = progress_log
+    ensure_state_layout(state_dir)
+
+    staging_dir = out_dir if out_dir is not None else state_dir / "proposed_state"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+
+    # Read current live state (do NOT mutate)
+    live_current_state_path = state_dir / "current_state.json"
+    live_current_state: dict[str, Any] = {}
+    if live_current_state_path.exists():
+        try:
+            live_current_state = _read_json(live_current_state_path) or {}
+        except (OSError, json.JSONDecodeError):
+            live_current_state = {}
+
+    live_state_build_id = str(live_current_state.get("state_build_id") or "")
+    live_state_digest = str(live_current_state.get("state_digest") or "")
+
+    # Compute proposed state in-memory (same logic as build_project_state)
+    proposed_artifact_index = build_artifact_index(
+        reports_dir=reports_dir,
+        sample=sample,
+        run_name=run_name,
+        max_artifacts=max_artifacts,
+    )
+    proposed_current_state = build_current_state(artifact_index=proposed_artifact_index, sample=sample)
+    proposed_negative_results = build_negative_results(artifact_index=proposed_artifact_index)
+    proposed_model_gate = build_model_gate(
+        artifact_index=proposed_artifact_index,
+        current_state=proposed_current_state,
+        reports_dir=reports_dir,
+    )
+    proposed_task_packet = build_task_packet(
+        current_state=proposed_current_state,
+        negative_results=proposed_negative_results,
+        model_gate=proposed_model_gate,
+    )
+    # Apply identity to the in-memory copies only
+    apply_state_identity(
+        artifact_index=proposed_artifact_index,
+        current_state=proposed_current_state,
+        task_packet=proposed_task_packet,
+    )
+
+    proposed_state_build_id = str(proposed_current_state.get("state_build_id") or "")
+    proposed_state_digest = str(proposed_current_state.get("state_digest") or "")
+
+    # Write proposed state files ONLY to the staging directory
+    staged_outputs = {
+        "artifact_index": proposed_artifact_index,
+        "current_state": proposed_current_state,
+        "negative_results": proposed_negative_results,
+        "model_gate": proposed_model_gate,
+        "task_packet": proposed_task_packet,
+    }
+    proposed_files: list[str] = []
+    for name, payload in staged_outputs.items():
+        staged_path = staging_dir / f"{name}.json"
+        _write_json(staged_path, payload)
+        proposed_files.append(f"proposed_state/{name}.json")
+
+    # Determine if live files would change
+    live_files_would_change = live_state_digest != proposed_state_digest if live_state_digest else True
+
+    # Build apply-plan artifact
+    stamp, generated_at = _identity_timestamp()
+    apply_plan = {
+        "schema_version": 1,
+        "artifact_name": "state_rebuild_apply_plan.json",
+        "generated_at": generated_at,
+        "live_state_build_id": live_state_build_id,
+        "live_state_digest": live_state_digest,
+        "proposed_state_build_id": proposed_state_build_id,
+        "proposed_state_digest": proposed_state_digest,
+        "staging_directory": _path_for_json(staging_dir),
+        "proposed_files": proposed_files,
+        "live_files_mutated": False,
+        "live_files_would_change": live_files_would_change,
+        "sample": sample,
+        "run_name": run_name,
+        "promotion_sequence": [
+            "1. Review staged files under the staging directory",
+            "2. Run 'python -m reverse_agent.project_state build' to promote staged state to live project_state",
+            "3. Generate a new decision_packet.md based on the promoted live state",
+            "4. Only then begin execution under the new decision",
+        ],
+        "warnings": [
+            "A new decision_packet must be generated after live promotion; do not execute under the old approved decision after promoting state",
+            "Normal Codex execution must not promote state under an already-approved decision",
+            "Staged files are proposed only; they are not live execution state until promoted",
+        ],
+        "exact_command": "python -m reverse_agent.project_state build",
+    }
+
+    # Write apply-plan to live state_dir (not a state file, just a workflow artifact)
+    apply_plan_path = state_dir / "state_rebuild_apply_plan.json"
+    _write_json(apply_plan_path, apply_plan)
+
+    return apply_plan
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build low-token project state packets.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -6929,6 +7050,18 @@ def main(argv: list[str] | None = None) -> int:
     rebuild_preview_parser.add_argument("--run-name", default="")
     rebuild_preview_parser.add_argument("--progress-log", default=str(DEFAULT_PROGRESS_LOG))
     rebuild_preview_parser.add_argument("--max-artifacts", type=int, default=20)
+
+    rebuild_stage_parser = subparsers.add_parser(
+        "rebuild-stage",
+        help="Write proposed state files to a staging directory without mutating live project_state.",
+    )
+    rebuild_stage_parser.add_argument("--reports-dir", default=str(DEFAULT_REPORTS_DIR))
+    rebuild_stage_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    rebuild_stage_parser.add_argument("--out-dir", default="")
+    rebuild_stage_parser.add_argument("--sample", default=DEFAULT_SAMPLE)
+    rebuild_stage_parser.add_argument("--run-name", default="")
+    rebuild_stage_parser.add_argument("--progress-log", default=str(DEFAULT_PROGRESS_LOG))
+    rebuild_stage_parser.add_argument("--max-artifacts", type=int, default=20)
 
     new_round_parser = subparsers.add_parser("new-round", help="Initialize project_state workflow files.")
     new_round_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
@@ -6991,6 +7124,26 @@ def main(argv: list[str] | None = None) -> int:
         print(f"live_files_mutated: {handoff.get('live_files_mutated', False)}")
         print(f"recommended_next_action: {handoff.get('recommended_next_action', '')}")
         print(f"artifact: project_state/state_rebuild_handoff.json")
+        return 0
+    if args.command == "rebuild-stage":
+        out_dir = Path(args.out_dir) if args.out_dir else None
+        apply_plan = rebuild_stage(
+            state_dir=Path(args.state_dir),
+            reports_dir=Path(args.reports_dir),
+            sample=str(args.sample),
+            out_dir=out_dir,
+            run_name=str(args.run_name or ""),
+            progress_log=Path(args.progress_log),
+            max_artifacts=max(0, int(args.max_artifacts)),
+        )
+        print("rebuild-stage: COMPLETE")
+        print(f"live_state_build_id: {apply_plan.get('live_state_build_id', '')}")
+        print(f"proposed_state_build_id: {apply_plan.get('proposed_state_build_id', '')}")
+        print(f"staging_directory: {apply_plan.get('staging_directory', '')}")
+        print(f"live_files_would_change: {apply_plan.get('live_files_would_change', False)}")
+        print(f"live_files_mutated: {apply_plan.get('live_files_mutated', False)}")
+        print(f"proposed_files: {apply_plan.get('proposed_files', [])}")
+        print(f"artifact: project_state/state_rebuild_apply_plan.json")
         return 0
     if args.command == "new-round":
         new_round(state_dir=Path(args.state_dir))

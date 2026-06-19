@@ -32,6 +32,7 @@ from reverse_agent.project_state import (
     read_codex_report_summary,
     read_decision_meta,
     rebuild_preview,
+    rebuild_stage,
     status_summary,
     validate_pytest_result_for_report,
     write_pytest_result,
@@ -6950,6 +6951,230 @@ class TestRebuildPreview:
 
         assert exit_code == 0
         assert (state_dir / "state_rebuild_handoff.json").exists()
+
+
+class TestRebuildStage:
+    """Tests for the non-mutating rebuild_stage function."""
+
+    def test_rebuild_stage_writes_proposed_files_only_under_staging_dir(self, tmp_path: Path) -> None:
+        """rebuild_stage must write proposed state files only under the staging directory."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        staging_dir = state_dir / "proposed_state"
+        apply_plan = rebuild_stage(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        # Staging directory must contain all 5 proposed files
+        expected_files = [
+            "artifact_index.json",
+            "current_state.json",
+            "negative_results.json",
+            "model_gate.json",
+            "task_packet.json",
+        ]
+        for fname in expected_files:
+            assert (staging_dir / fname).exists(), f"Missing staged file: {fname}"
+
+        # proposed_files list must match
+        assert sorted(apply_plan["proposed_files"]) == sorted(
+            [f"proposed_state/{fname}" for fname in expected_files]
+        )
+
+    def test_rebuild_stage_does_not_mutate_live_state(self, tmp_path: Path) -> None:
+        """rebuild_stage must not overwrite live state files."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        # Snapshot live state before staging
+        live_files = [
+            "current_state.json",
+            "task_packet.json",
+            "artifact_index.json",
+            "model_gate.json",
+            "negative_results.json",
+        ]
+        live_before = {}
+        for fname in live_files:
+            live_before[fname] = (state_dir / fname).read_text(encoding="utf-8")
+
+        rebuild_stage(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        # Verify live files were NOT mutated
+        for fname in live_files:
+            live_after = (state_dir / fname).read_text(encoding="utf-8")
+            assert live_before[fname] == live_after, f"Live file {fname} was mutated"
+
+    def test_rebuild_stage_staged_files_contain_consistent_state_ids(self, tmp_path: Path) -> None:
+        """Staged files must contain internally consistent proposed state_build_id and state_digest."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        apply_plan = rebuild_stage(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        staging_dir = state_dir / "proposed_state"
+        staged_current_state = json.loads((staging_dir / "current_state.json").read_text(encoding="utf-8"))
+        staged_task_packet = json.loads((staging_dir / "task_packet.json").read_text(encoding="utf-8"))
+
+        # Staged current_state must have the proposed state_build_id and state_digest
+        assert staged_current_state["state_build_id"] == apply_plan["proposed_state_build_id"]
+        assert staged_current_state["state_digest"] == apply_plan["proposed_state_digest"]
+
+        # Staged task_packet must reference the same state_build_id and digest
+        assert staged_task_packet["state_build_id"] == apply_plan["proposed_state_build_id"]
+        assert staged_task_packet["based_on_state_digest"] == apply_plan["proposed_state_digest"]
+
+    def test_rebuild_stage_apply_plan_contains_staging_path_and_promotion_sequence(self, tmp_path: Path) -> None:
+        """Apply-plan must contain staging path and promotion sequence."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        apply_plan = rebuild_stage(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        # Staging directory path must be present
+        assert apply_plan["staging_directory"]
+        assert "proposed_state" in apply_plan["staging_directory"]
+
+        # Promotion sequence must be present and non-empty
+        assert len(apply_plan["promotion_sequence"]) >= 3
+        assert any("build" in step.lower() for step in apply_plan["promotion_sequence"])
+        assert any("decision" in step.lower() for step in apply_plan["promotion_sequence"])
+
+        # Warnings must be present
+        assert len(apply_plan["warnings"]) >= 2
+        assert any("new decision" in w.lower() for w in apply_plan["warnings"])
+        assert any("already-approved" in w.lower() for w in apply_plan["warnings"])
+
+        # live_files_mutated must be False
+        assert apply_plan["live_files_mutated"] is False
+
+    def test_rebuild_stage_apply_plan_written_to_state_dir(self, tmp_path: Path) -> None:
+        """rebuild_stage must write state_rebuild_apply_plan.json to state_dir."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        rebuild_stage(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        apply_plan_path = state_dir / "state_rebuild_apply_plan.json"
+        assert apply_plan_path.exists()
+        apply_plan = json.loads(apply_plan_path.read_text(encoding="utf-8"))
+        assert apply_plan["schema_version"] == 1
+        assert apply_plan["artifact_name"] == "state_rebuild_apply_plan.json"
+
+    def test_rebuild_stage_cli_subcommand(self, tmp_path: Path) -> None:
+        """The rebuild-stage CLI subcommand must work and return exit 0."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        exit_code = main([
+            "rebuild-stage",
+            "--state-dir", str(state_dir),
+            "--reports-dir", str(reports_dir),
+            "--sample", "samplereverse",
+        ])
+
+        assert exit_code == 0
+        assert (state_dir / "state_rebuild_apply_plan.json").exists()
+        assert (state_dir / "proposed_state" / "current_state.json").exists()
+        assert (state_dir / "proposed_state" / "task_packet.json").exists()
+        assert (state_dir / "proposed_state" / "artifact_index.json").exists()
+        assert (state_dir / "proposed_state" / "model_gate.json").exists()
+        assert (state_dir / "proposed_state" / "negative_results.json").exists()
+
+    def test_rebuild_stage_custom_out_dir(self, tmp_path: Path) -> None:
+        """rebuild_stage must respect a custom --out-dir for the staging directory."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        custom_out = tmp_path / "custom_staging"
+        exit_code = main([
+            "rebuild-stage",
+            "--state-dir", str(state_dir),
+            "--reports-dir", str(reports_dir),
+            "--out-dir", str(custom_out),
+            "--sample", "samplereverse",
+        ])
+
+        assert exit_code == 0
+        assert (custom_out / "current_state.json").exists()
+        assert (custom_out / "task_packet.json").exists()
+        # Default proposed_state dir should NOT be created when --out-dir is specified
+        assert not (state_dir / "proposed_state").exists()
 
 
 class TestBuildSummaryErrorDetailRunDirAbsent:

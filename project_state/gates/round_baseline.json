@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260619_state_build_decision_sync_workflow_v1",
-  "round_id": "round_20260619_state_build_decision_sync_workflow_v1",
-  "head_commit": "044b5bd8e273",
+  "decision_id": "decision_20260619_staged_state_rebuild_workflow_v1",
+  "round_id": "round_20260619_staged_state_rebuild_workflow_v1",
+  "head_commit": "b74bc91984c3",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-19T14:01:05.472512Z"
+  "generated_at": "2026-06-19T14:24:45.765782Z"
 }
