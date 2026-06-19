@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260619_affine_current_static_bridge_report_fix_v1",
-  "round_id": "round_20260619_affine_current_static_bridge_report_fix_v1",
+  "decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
+  "round_id": "round_20260619_affine_report_generated_artifacts_fix_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,57 +15,61 @@
 
 ## 1. Goal
 
-修复上一轮 `affine_current_static_bridge_validation` 的报告与 provenance artifact 一致性问题。不得重新求解，不得生成 candidate/flag，不得运行 runtime。
+只修复 `project_state/codex_execution_report.md` 顶部 `codex_report_summary.generated_artifacts` 不完整的问题。
 
-本轮不是重新做 static triage，也不是 reverse_solving。本轮只修复当前轮 project_state 报告一致性，使 live report、provenance report、bridge result、solver dispatch plan、pytest_result 和 final gate 互相一致。
+本轮是 metadata/report-only。不得重新运行 static triage，不得运行 IDA/Ghidra，不得运行 solver/runtime/debugger/harness，不得执行样本，不得生成 candidate/flag。
 
-必须修复：
+必须把 `codex_report_summary.generated_artifacts` 补全为能够覆盖上一轮 current static bridge validation 的核心产物和本轮修复产物。至少必须包含：
 
-1. `project_state/codex_execution_report.md` 中错误的 `executed_sample=true`，必须改为与 `project_state/local_reverse_affine_8cfebe03_current_static_triage.json` 一致的 `executed_sample=false`。
-2. `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json` 和 `.md` 中错误的 `evidence_counts`，必须从 `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json` 重新计算。
-3. `codex_report_summary.generated_artifacts` 必须补全上一轮核心产物：current static triage、bridge result、solver dispatch plan、provenance report json/md、artifact_index。
-4. `project_state/pytest_result.txt` summary 不得同时声明整体 `status=PASSED` 又保留未解释的 failed command。若 doctor 允许 exit 1，必须明确标注为 expected/non-blocking；否则重新运行到一致状态。
-5. 重新运行 gate，确保 final-check 不再显示 `report_status=PARTIAL` 或 `report_acceptance_recommendation=NEEDS_REVIEW`。
+```text
+project_state/artifact_index.json
+project_state/local_reverse_affine_8cfebe03_current_static_triage.json
+project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json
+project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json
+project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json
+project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md
+```
 
 成功标准：
 
-- current static triage artifact 仍保持 `tool_status=success`、`executed_sample=false`、`static_only=true`、`runtime_validated=false`、`source_run=round_20260619_affine_current_static_bridge_validation_v1`。
-- bridge result 仍显示 evidence families：StaticInputEvidence、StaticCompareEvidence、StaticTransformHintEvidence、StaticAntiDebugEvidence。
-- provenance report 的 evidence_counts 与 bridge result 一致。
-- solver dispatch plan 仍不 claim solve-ready。
-- final gate 对本修复轮给出可审计接受状态；若仍有 warning，必须是 historical/backlog artifact 或明确 non-blocking 的 gate policy warning。
+1. `codex_report_summary.generated_artifacts` 包含上述 6 个核心 artifact。
+2. `codex_report_summary.files_changed` 与本轮实际改动一致。
+3. report prose 不再声称 JSON summary 没有记录的事实。
+4. 不发生 source/test 修改。
+5. 不重新运行 static triage、IDA、solver、runtime 或样本。
+6. final-check 无 FAIL；若仍有 warning，只能是 historical/backlog artifact non-blocking 或 close-round 过程中的非阻塞提示。
 
 ## 2. Current Evidence
 
-上一轮 `decision_20260619_affine_current_static_bridge_validation_v1` 已执行并生成了 current static artifact，但审计结论是 `REWORK_REQUIRED`。
+上一轮 `decision_20260619_affine_current_static_bridge_report_fix_v1` 已修复大部分一致性问题，但审计结论仍为 `REWORK_REQUIRED`。
 
-已经确认的有效事实：
+已经通过的事实：
 
-- `project_state/local_reverse_affine_8cfebe03_current_static_triage.json` 显示：
-  - `sample_id=affine_8cfebe03`
-  - `tool_status=success`
-  - `executed_sample=false`
-  - `static_only=true`
-  - `runtime_validated=false`
-  - `source_tool=IDA`
-  - `source_run=round_20260619_affine_current_static_bridge_validation_v1`
-- `project_state/artifact_index.json` 已登记 `local_reverse_affine_8cfebe03_static_triage`，freshness 为 `current`，path 指向 `project_state/local_reverse_affine_8cfebe03_current_static_triage.json`，source_run 为上一轮 round。
-- `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json` 显示 4 条 evidence：
-  - `StaticInputEvidence`
-  - `StaticCompareEvidence`
-  - `StaticTransformHintEvidence`
-  - `StaticAntiDebugEvidence`
-- `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json` 显示：
-  - `readiness=needs_current_static_provenance`
-  - `recommended_solver_profiles=["string_compare", "anti_debug_precondition"]`
-  - `required_missing_evidence=["transform_constant_evidence"]`
+- `codex_execution_report.md` 已修正 `executed_sample=false`，不再声称样本被执行。
+- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json` 已修正 evidence_counts：
+  - input: 1
+  - compare: 1
+  - constants: 0
+  - transform_hints: 1
+  - crypto_signatures: 0
+  - gui: 0
+  - anti_debug: 1
+- `.md` provenance report 也同步修正。
+- pytest 记录启动路径正确，startup clean，pytest `844 passed`。
+- final gate 已从 `PARTIAL / NEEDS_REVIEW` 变成 `PASSED_WITH_LIMITATIONS`，status summary 为 `report_status=SUCCESS`、`report_acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS`。
 
-必须修复的错误事实：
+唯一未完成项：
 
-- `project_state/codex_execution_report.md` prose 错误声称 `executed_sample=true`，与 actual artifact 矛盾。
-- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json` 的 `evidence_counts` 全部为 0，和 bridge result 矛盾。
-- `project_state/codex_execution_report.md` 的 `generated_artifacts` 没有覆盖核心 current static/bridge/provenance artifacts。
-- `project_state/gates/final_gate_result.json` 显示 `report_status=PARTIAL`、`report_acceptance_recommendation=NEEDS_REVIEW`，不能接受。
+- `project_state/codex_execution_report.md` 顶部 `codex_report_summary.generated_artifacts` 仍未列出核心 current/bridge/provenance artifacts。
+
+当前有效核心 artifact：
+
+- `project_state/artifact_index.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_triage.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json`
+- `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md`
 
 当前 `task_packet.json` 仍是旧 `samplereverse` / `collect_missing_evidence` 建议，不是本轮执行权威。
 
@@ -73,15 +77,21 @@
 
 ## 3. Do Not Do
 
-不要重新运行 reverse-solving。
+不要重新运行 static triage。
+
+不要运行 IDA/Ghidra。
 
 不要执行任何本地样本二进制。
 
-不要重新运行 runtime probe、debugger、emulator、harness、GUI/frontend。
+不要运行 reverse-solving。
+
+不要运行 solver、runtime probe、debugger、emulator、harness、GUI/frontend。
 
 不要生成 candidate、flag、密码、key 或最终答案。
 
-不要修改 solver 搜索逻辑、beam/topN/budget、runtime validation、harness、debugger、GUI/frontend。
+不要修改 Python 源码。
+
+不要修改测试文件。
 
 不要读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
 
@@ -90,10 +100,6 @@
 不要修改 `.codex-skills/`。
 
 不要把历史 affine artifact 当 current evidence。
-
-不要再次运行 IDA/static triage，除非当前 artifact 文件缺失或损坏；若必须重跑，必须说明理由并保持 sample execution 禁止。
-
-不要把这轮扩展成 affine 求解；本轮只修报告和 provenance 统计一致性。
 
 ## 4. Files To Inspect
 
@@ -131,30 +137,26 @@ Before modifying files, audit and record:
 4. `mainline=tool_integration`.
 5. `reverse-agent-iteration@v2` is active in `.codex-skills/registry.json`.
 6. `task_packet.json` is advisory, not execution authority.
-7. Current static triage artifact exists and has `executed_sample=false`.
-8. Bridge result exists and is parseable.
-9. Solver dispatch plan exists and does not claim solve-ready.
-10. No source/test files need to change unless a reusable report-generation bug is found.
+7. Core artifacts listed in Goal exist and are parseable or readable.
+8. No source/test files need to change.
 
 Must verify after fixing:
 
-1. `codex_execution_report.md` does not claim `executed_sample=true`.
-2. `codex_execution_report.md` does not claim candidate/flag/solver/runtime execution.
-3. provenance report evidence_counts match bridge result exactly by evidence kind family.
-4. generated_artifacts includes all core artifacts created by the previous validation round and this fix round.
+1. `codex_report_summary.generated_artifacts` includes all 6 core artifact paths.
+2. `codex_report_summary.files_changed` reflects the actual current round delta.
+3. report prose is consistent with JSON summary.
+4. `codex_execution_report.md` does not claim candidate/flag/solver/runtime/static triage execution in this fix round.
 5. `pytest_result.txt` summary accurately reflects allowed/expected nonzero command exits.
-6. final-check does not leave `report_status=PARTIAL` or `report_acceptance_recommendation=NEEDS_REVIEW`.
-7. artifact_index entry for `local_reverse_affine_8cfebe03_static_triage` remains current and points to the current static triage artifact.
+6. final-check has no FAIL.
+7. If final gate remains `PASSED_WITH_LIMITATIONS`, limitations are explicitly non-blocking and do not include report/provenance mismatch.
 
 ## 6. Implementation Scope
 
-Preferred implementation is metadata/report-only. Do not modify Python source unless absolutely necessary.
+Preferred implementation is metadata/report-only. Do not modify Python source.
 
 Allowed files:
 
 - `project_state/codex_execution_report.md`
-- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json`
-- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/preflight_result.json`
 - `project_state/gates/gate_profile_plan.json`
@@ -164,31 +166,20 @@ Allowed files:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260619_affine_current_static_bridge_report_fix_v1/*`
+- `project_state/rounds/round_20260619_affine_report_generated_artifacts_fix_v1/*`
 
-Allowed only if gate/report synthesis requires them to stay consistent:
+Do not modify:
 
+- `reverse_agent/*.py`
+- `tests/*.py`
+- `project_state/local_reverse_affine_8cfebe03_current_static_triage.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json`
+- `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md`
 - `project_state/artifact_index.json`
 
-Allowed source files only if a reusable bug in report/provenance generation is found and tested:
-
-- `reverse_agent/static_evidence_bridge.py`
-- `reverse_agent/solver_dispatch_plan.py`
-- `reverse_agent/evidence.py`
-
-If source files are changed, add or update tests. If no source files are changed, do not add tests just to satisfy scope.
-
-Expected provenance evidence_counts:
-
-- `input`: 1
-- `compare`: 1
-- `constants`: 0
-- `transform_hints`: 1
-- `crypto_signatures`: 0
-- `gui`: 0
-- `anti_debug`: 1
-
-These counts must be computed from `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json`, not hardcoded blindly. If the bridge result differs, use the bridge result and explain the difference.
+Those core artifacts should be read and referenced, not regenerated or modified.
 
 ## 7. Tests
 
@@ -201,7 +192,6 @@ Test-Path F:\reverse-agent
 git rev-parse --show-toplevel
 git status --short
 
-python -m pytest tests/test_static_evidence_bridge.py tests/test_solver_dispatch_plan.py tests/test_evidence.py tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state
@@ -213,7 +203,7 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 If final-check passes or only has explicitly non-blocking warnings, close the round and rerun final-check:
 
 ```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_affine_current_static_bridge_report_fix_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_affine_report_generated_artifacts_fix_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -227,11 +217,11 @@ Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 2. `decision_meta` is missing or not `APPROVED`.
 3. `mainline` is not `tool_integration`.
 4. `reverse-agent-iteration@v2` is not active.
-5. Current static triage artifact is missing.
-6. Current bridge result is missing or unparsable.
-7. Provenance report cannot be made consistent with bridge result.
+5. Any of the 6 core artifacts listed in Goal is missing.
+6. Fix requires rerunning IDA/static triage.
+7. Fix requires modifying Python source or tests.
 8. Fix requires running sample binary, solver, runtime probe, debugger, emulator, harness, GUI/frontend, or candidate generation.
 9. Fix requires reading complete `solve_reports/` or complete `PROJECT_PROGRESS_LOG.txt`.
 10. report/decision/pytest_result IDs mismatch after regeneration.
 11. final-check has any FAIL.
-12. final-check still leaves `report_status=PARTIAL` or `report_acceptance_recommendation=NEEDS_REVIEW` without a precise non-blocking explanation.
+12. final-check still reports report/provenance mismatch or generated_artifacts mismatch.
