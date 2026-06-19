@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260619_status_policy_rework_closeout_v1",
-  "round_id": "round_20260619_status_policy_rework_closeout_v1",
+  "decision_id": "decision_20260619_project_state_hygiene_rebuild_v1",
+  "round_id": "round_20260619_project_state_hygiene_rebuild_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,53 +15,69 @@
 
 ## 1. Goal
 
-Finish and audit the engineering rework for reverse-solving blocker-only status policy.
+Clean up and rebuild the compact `project_state` package after the accepted status-policy closeout.
 
-The previous Codex attempt modified the likely correct files and pytest passed, but it did not run or record the full required gate pipeline. This round must first validate the existing implementation with the full gate sequence. Only change code if final-check or report-summary exposes a real policy/gate failure.
+The previous round was accepted with limitations: the full gate sequence now passes under fast profile, but `task_packet.json` and `current_state.json` still point to the older `samplereverse` state package, while `artifact_index.json` still carries many historical/backlog missing artifacts. This round must reduce state confusion and make the next execution handoff unambiguous.
+
+This is an engineering state-hygiene round. Do not solve `affine_8cfebe03` and do not resume `samplereverse` candidate search.
+
+Success criteria:
+
+1. Rebuild or normalize the compact project state so `decision_packet.md` remains the execution authority.
+2. Record whether `task_packet.json`, `current_state.json`, and `artifact_index.json` still represent stale `samplereverse` sample state or a valid compact advisory cache.
+3. Preserve the accepted blocker-only reverse-solving policy behavior; do not weaken solution/candidate gates.
+4. Leave a current, auditable state-hygiene report and pytest/gate evidence.
+5. Do not create fake historical artifacts and do not read full heavy-history directories.
 
 ## 2. Current Evidence
 
-Current decision is `decision_20260619_reverse_solving_status_policy_rework_v1`, `mainline=engineering_branch`, `status=APPROVED`.
+Current accepted audit result: `ACCEPTED_WITH_LIMITATIONS` for `decision_20260619_status_policy_rework_closeout_v1`.
 
-Current report claims `SUCCESS / ACCEPTED`, but only records pytest in `tests_ran`.
+The accepted closeout round established:
 
-Current `pytest_result.txt` only records:
+- `final-check` passed for `decision_20260619_status_policy_rework_closeout_v1`.
+- `final_gate_result.json` carried current matching decision/report/round IDs.
+- `status_policy_valid` was `WARN`, not `FAIL`.
+- Historical/backlog artifacts were classified as non-blocking external state notices.
+- Fast profile intentionally omitted close-round; this was accepted as a limitation.
 
-```powershell
-python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
-```
+Known remaining limitations:
 
-It does not record:
+1. `task_packet.json` still describes the older `samplereverse` package and says the task is `collect_missing_evidence`.
+2. `current_state.json` still describes `samplereverse`, `L15(prefix8)`, and older compare-aware state.
+3. `artifact_index.json` still has many `latest_artifacts_v2` entries with `freshness=missing` and null paths.
+4. Historical/backlog artifact warnings are now non-blocking for the accepted fast validation round, but they can still confuse future decisions if left unexplained.
+5. `pytest_result_summary.status` in the previous accepted round was `PARTIAL` although command bodies and final-check passed; this is not blocking but should be observed during the hygiene audit.
 
-- `Set-Location`
-- `Get-Location`
-- `Test-Path`
-- `git rev-parse`
-- `git status --short`
-- `decision-lint`
-- `preflight`
-- `gate-profile`
-- `command-plan`
-- `report-summary`
-- `final-check`
+`task_packet.json` remains advisory only. It must not override this `decision_packet.md`.
 
-Current `project_state/gates/final_gate_result.json` is stale/mismatched because it still belongs to `decision_20260619_affine_reverse_solving_ciphertext_handoff_v1`, not the current engineering rework decision.
+Negative-results still apply:
+
+- Do not return to old sample_solver blind search.
+- Do not only increase beam/budget.
+- Do not use compare_semantics_agree=false candidates as a primary frontier.
+- Do not commit full `solve_reports/`.
+- Do not repeat current 5-candidate transform-trace audit without new runtime evidence.
 
 ## 3. Do Not Do
 
 Do not continue affine solving.
 
-Do not modify solver logic.
+Do not invent or provide expected ciphertext for `affine_8cfebe03`.
 
-Do not create fake historical artifacts.
+Do not resume `samplereverse` reverse-solving or candidate generation.
 
-Do not weaken reverse-solving candidate/solution validation.
+Do not run target binaries, runtime probes, debuggers, emulators, hooks, or dynamic validation.
+
+Do not read complete `solve_reports/` or `PROJECT_PROGRESS_LOG.txt`.
+
+Do not create placeholder/fake historical artifacts to silence warnings.
 
 Do not modify `.codex-skills/`.
 
-Do not read full `solve_reports/` or `PROJECT_PROGRESS_LOG.txt`.
+Do not weaken status-policy handling for reverse-solving candidate, final answer, flag, or runtime validation claims.
 
-Do not claim ACCEPTED unless current final-check is actually recorded and passes or has only policy-approved non-blocking warnings.
+Do not change solver logic.
 
 ## 4. Files To Inspect
 
@@ -76,54 +92,79 @@ Default context:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Gate/report files:
+Gate/status files:
 
 1. `project_state/gates/final_gate_result.json`
 2. `project_state/gates/preflight_result.json`
 3. `project_state/gates/command_plan.json`
 4. `project_state/gates/report_summary_synthesis.json`
 5. `project_state/gates/round_delta_summary.json`
+6. `project_state/gates/gate_profile_plan.json`
 
-Implementation/test files:
+Implementation files to inspect before any change:
 
 1. `reverse_agent/project_state.py`
 2. `reverse_agent/project_gate.py`
 3. `tests/test_project_state.py`
 4. `tests/test_project_gate.py`
 
+Relevant current affine blocker artifacts only as regression context:
+
+1. `project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json`
+2. `project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json`
+3. `project_state/local_reverse_affine_8cfebe03_solve_blocker.json`
+4. `project_state/local_reverse_affine_8cfebe03_solve_provenance_report.json`
+5. `project_state/local_reverse_affine_8cfebe03_solve_provenance_report.md`
+
 ## 5. Required Audit
 
-Before any further source change, answer:
+Before implementation, answer:
 
-1. Did the previous implementation actually add guarded blocker-only reverse-solving handling?
-2. Does it preserve strict blocking for reverse-solving candidate/solution claims?
-3. Why was no current final-check result written?
-4. Is current `final_gate_result.json` stale/mismatched?
-5. Does `pytest_result.txt` contain all required command blocks?
-6. Does report/decision/pytest/final gate all refer to the same decision and round?
+1. Does `task_packet.json` still point to stale `samplereverse` state?
+2. Does `current_state.json` still point to stale `samplereverse` state?
+3. Which `artifact_index.json` entries are historical/backlog missing artifacts rather than current evidence?
+4. Is there an existing state build or doctor command that can rebuild compact state without reading heavy history?
+5. Does the existing gate policy already classify historical/backlog artifacts as non-blocking external notices for accepted engineering rounds?
+6. Are any source/test changes actually necessary, or is this an artifact-only state rebuild/normalization round?
 
 ## 6. Implementation Scope
 
-Preferred scope: validation and closeout only.
+Preferred implementation is artifact-only.
 
 Allowed actions:
 
-1. Run the full required command sequence.
-2. Update `project_state/pytest_result.txt` with all command blocks.
-3. Update `project_state/gates/*.json` through the gate commands.
-4. Update `project_state/codex_execution_report.md` so `tests_ran`, `status`, and `acceptance_recommendation` reflect the actual gate result.
-5. If final-check exposes a real defect in the policy implementation, minimally fix only:
-   - `reverse_agent/project_state.py`
-   - `reverse_agent/project_gate.py`
-   - `tests/test_project_state.py`
-   - `tests/test_project_gate.py`
+1. Run the compact state build/doctor/lint commands already provided by `reverse_agent.project_state` and `reverse_agent.project_gate`.
+2. If supported by existing CLI, run:
+   - `python -m reverse_agent.project_state build`
+   - `python -m reverse_agent.project_gate decision-lint --state-dir project_state`
+   - `python -m reverse_agent.project_gate preflight --state-dir project_state`
+   - `python -m reverse_agent.project_gate gate-profile --state-dir project_state`
+   - `python -m reverse_agent.project_gate command-plan --state-dir project_state`
+   - `python -m reverse_agent.project_gate report-summary --state-dir project_state`
+   - `python -m reverse_agent.project_gate final-check --state-dir project_state`
+3. Update `project_state/task_packet.json`, `project_state/current_state.json`, and `project_state/artifact_index.json` only if the existing build/normalization command does so legitimately.
+4. Produce a state-hygiene summary artifact if helpful, for example `project_state/project_state_hygiene_report.json` or `.md`.
+5. Update `project_state/codex_execution_report.md` and `project_state/pytest_result.txt` with this round's evidence.
+6. Update `project_state/gates/*.json` through the gate commands.
+
+Allowed source/test changes only if a real bug is found in existing state build or classification behavior:
+
+- `reverse_agent/project_state.py`
+- `reverse_agent/project_gate.py`
+- `tests/test_project_state.py`
+- `tests/test_project_gate.py`
 
 Allowed project_state outputs:
 
+- `project_state/task_packet.json`
+- `project_state/current_state.json`
+- `project_state/artifact_index.json`
+- `project_state/project_state_hygiene_report.json`
+- `project_state/project_state_hygiene_report.md`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260619_status_policy_rework_closeout_v1/*`
+- `project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/*`
 
 ## 7. Tests
 
@@ -138,32 +179,31 @@ git status --short
 
 python -m reverse_agent.project_gate decision-lint --state-dir project_state
 python -m reverse_agent.project_gate preflight --state-dir project_state
-python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
 python -m reverse_agent.project_gate gate-profile --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-If final-check passes or only has non-blocking warnings:
+If source files are changed, also run the broader project-state/gate test subset required by the command plan.
 
-```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_status_policy_rework_closeout_v1
-python -m reverse_agent.project_gate final-check --state-dir project_state
-```
+If the command plan requires a build command, record it explicitly in `pytest_result.txt` before the gate sequence.
 
 ## 8. Stop Conditions
 
-Stop and report `REWORK_REQUIRED` or `BLOCKED` if:
+Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 
 1. repository root cannot be confirmed;
 2. decision metadata is invalid;
 3. mainline is not `engineering_branch`;
 4. skill profile is not active;
-5. pytest fails;
-6. final-check has any FAIL;
-7. final gate/result IDs do not match current decision/report/round;
-8. `pytest_result.txt` lacks required command blocks;
-9. report claims SUCCESS without current final-check evidence;
-10. implementation weakens reverse-solving candidate/solution validation;
-11. source changes exceed allowed project gate/state files.
+5. existing build/normalization would require reading complete `solve_reports/` or `PROJECT_PROGRESS_LOG.txt`;
+6. implementation would need fake historical artifacts;
+7. implementation would change solver logic;
+8. implementation would weaken reverse-solving candidate/solution gates;
+9. source changes exceed allowed project-state/gate files;
+10. pytest fails;
+11. final-check has any FAIL;
+12. report/decision/pytest/final-gate IDs mismatch;
+13. report claims affine or samplereverse solving progress.
