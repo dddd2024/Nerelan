@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_close_snapshot.json",
-  "decision_id": "decision_20260619_staged_state_rebuild_workflow_v1",
-  "round_id": "round_20260619_staged_state_rebuild_workflow_v1",
-  "closed_at": "2026-06-19T14:40:45.874440Z",
+  "decision_id": "decision_20260619_staged_state_artifact_closeout_v1",
+  "round_id": "round_20260619_staged_state_artifact_closeout_v1",
+  "closed_at": "2026-06-19T14:59:15.503473Z",
   "round_closed": true,
   "baseline_active": false,
   "close_git_status_short": [
@@ -16,12 +16,16 @@
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
     " M project_state/pytest_result.txt",
-    " M reverse_agent/project_state.py",
-    " M tests/test_project_state.py",
-    "?? project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/round_manifest.json"
+    "?? project_state/proposed_state/artifact_index.json",
+    "?? project_state/proposed_state/current_state.json",
+    "?? project_state/proposed_state/model_gate.json",
+    "?? project_state/proposed_state/negative_results.json",
+    "?? project_state/proposed_state/task_packet.json",
+    "?? project_state/rounds/round_20260619_staged_state_artifact_closeout_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260619_staged_state_artifact_closeout_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260619_staged_state_artifact_closeout_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260619_staged_state_artifact_closeout_v1/round_manifest.json",
+    "?? project_state/state_rebuild_apply_plan.json"
   ],
   "close_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -32,9 +36,7 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py"
+    "project_state/pytest_result.txt"
   ],
   "close_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -44,13 +46,17 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
+    "project_state/proposed_state/artifact_index.json",
+    "project_state/proposed_state/current_state.json",
+    "project_state/proposed_state/model_gate.json",
+    "project_state/proposed_state/negative_results.json",
+    "project_state/proposed_state/task_packet.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/decision_packet.md",
-    "project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/pytest_result.txt",
-    "project_state/rounds/round_20260619_staged_state_rebuild_workflow_v1/round_manifest.json",
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py"
+    "project_state/rounds/round_20260619_staged_state_artifact_closeout_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260619_staged_state_artifact_closeout_v1/decision_packet.md",
+    "project_state/rounds/round_20260619_staged_state_artifact_closeout_v1/pytest_result.txt",
+    "project_state/rounds/round_20260619_staged_state_artifact_closeout_v1/round_manifest.json",
+    "project_state/state_rebuild_apply_plan.json"
   ],
   "close_worktree_clean": false,
   "baseline_dirty_files": [],

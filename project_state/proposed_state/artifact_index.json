@@ -1,0 +1,520 @@
+{
+  "generated_at": "2026-06-19T14:51:21Z",
+  "latest_artifacts": {
+    "base64_rc4_breakpoint_probe": null,
+    "base64_rc4_static_point_discovery": null,
+    "bridge_search_result": null,
+    "bridge_validation": null,
+    "checkpoint": null,
+    "compare_aware_result": null,
+    "compare_callsite_reanchor_and_lhs_provenance_audit": null,
+    "compare_esi_source_window_audit": null,
+    "compare_handoff_branch_operand_runtime_audit": null,
+    "compare_handoff_edge_operand_provenance_audit": null,
+    "compare_handoff_exit_classifier_audit": null,
+    "compare_handoff_hook_surface_repair_audit": null,
+    "compare_handoff_narrower_post_entry_breakpoint_audit": null,
+    "compare_handoff_path_divergence_audit": null,
+    "compare_handoff_post_entry_step_runtime_audit": null,
+    "compare_handoff_probe": null,
+    "compare_handoff_return_site_probe": null,
+    "compare_handoff_slice_probe": null,
+    "compare_hook_path_reachability_audit": null,
+    "compare_lhs_producer_audit": null,
+    "compare_lhs_slot_writer_predecessor_audit": null,
+    "compare_lhs_slot_writer_source_audit": null,
+    "compare_lhs_upstream_writer_audit": null,
+    "compare_pre_compare_handoff_target_probe": null,
+    "compare_probe": null,
+    "compare_probe_log": null,
+    "compare_producer_material_confirmation": null,
+    "compare_producer_trace_probe": null,
+    "compare_real_lhs_provenance_audit": null,
+    "compare_stack_pivot_probe": null,
+    "dynamic_compare_path_probe": null,
+    "exact2_basin_value_pool_result": null,
+    "exact2_basin_value_pool_validation": null,
+    "frontier_summary": null,
+    "function_semantic_audit": null,
+    "guided_pool_result": null,
+    "guided_pool_validation": null,
+    "h1_h3_boundary_validation": null,
+    "material_hook_runtime_validation": null,
+    "pairscan_summary": null,
+    "post_handoff_branch_outcome_audit": null,
+    "post_handoff_exception_unwind_audit": null,
+    "pre_rc4_material_probe": null,
+    "profile_transform_hypothesis_matrix": null,
+    "run_manifest": null,
+    "smt_result": null,
+    "smt_validation": null,
+    "strata_summary": null,
+    "summary": null,
+    "transform_trace_consistency": null
+  },
+  "latest_artifacts_v2": {
+    "base64_rc4_breakpoint_probe": {
+      "freshness": "missing",
+      "kind": "base64_rc4_breakpoint_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "base64_rc4_static_point_discovery": {
+      "freshness": "missing",
+      "kind": "base64_rc4_static_point_discovery",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "bridge_search_result": {
+      "freshness": "missing",
+      "kind": "bridge_search_result",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "bridge_validation": {
+      "freshness": "missing",
+      "kind": "bridge_validation",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "checkpoint": {
+      "freshness": "missing",
+      "kind": "checkpoint",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_aware_result": {
+      "freshness": "missing",
+      "kind": "compare_aware_result",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_callsite_reanchor_and_lhs_provenance_audit": {
+      "freshness": "missing",
+      "kind": "compare_callsite_reanchor_and_lhs_provenance_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_esi_source_window_audit": {
+      "freshness": "missing",
+      "kind": "compare_esi_source_window_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_branch_operand_runtime_audit": {
+      "freshness": "missing",
+      "kind": "compare_handoff_branch_operand_runtime_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_edge_operand_provenance_audit": {
+      "freshness": "missing",
+      "kind": "compare_handoff_edge_operand_provenance_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_exit_classifier_audit": {
+      "freshness": "missing",
+      "kind": "compare_handoff_exit_classifier_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_hook_surface_repair_audit": {
+      "freshness": "missing",
+      "kind": "compare_handoff_hook_surface_repair_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_narrower_post_entry_breakpoint_audit": {
+      "freshness": "missing",
+      "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_path_divergence_audit": {
+      "freshness": "missing",
+      "kind": "compare_handoff_path_divergence_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_post_entry_step_runtime_audit": {
+      "freshness": "missing",
+      "kind": "compare_handoff_post_entry_step_runtime_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_probe": {
+      "freshness": "missing",
+      "kind": "compare_handoff_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_return_site_probe": {
+      "freshness": "missing",
+      "kind": "compare_handoff_return_site_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_handoff_slice_probe": {
+      "freshness": "missing",
+      "kind": "compare_handoff_slice_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_hook_path_reachability_audit": {
+      "freshness": "missing",
+      "kind": "compare_hook_path_reachability_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_lhs_producer_audit": {
+      "freshness": "missing",
+      "kind": "compare_lhs_producer_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_lhs_slot_writer_predecessor_audit": {
+      "freshness": "missing",
+      "kind": "compare_lhs_slot_writer_predecessor_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_lhs_slot_writer_source_audit": {
+      "freshness": "missing",
+      "kind": "compare_lhs_slot_writer_source_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_lhs_upstream_writer_audit": {
+      "freshness": "missing",
+      "kind": "compare_lhs_upstream_writer_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_pre_compare_handoff_target_probe": {
+      "freshness": "missing",
+      "kind": "compare_pre_compare_handoff_target_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_probe": {
+      "freshness": "missing",
+      "kind": "compare_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_probe_log": {
+      "freshness": "missing",
+      "kind": "compare_probe_log",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_producer_material_confirmation": {
+      "freshness": "missing",
+      "kind": "compare_producer_material_confirmation",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_producer_trace_probe": {
+      "freshness": "missing",
+      "kind": "compare_producer_trace_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_real_lhs_provenance_audit": {
+      "freshness": "missing",
+      "kind": "compare_real_lhs_provenance_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "compare_stack_pivot_probe": {
+      "freshness": "missing",
+      "kind": "compare_stack_pivot_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "dynamic_compare_path_probe": {
+      "freshness": "missing",
+      "kind": "dynamic_compare_path_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "exact2_basin_value_pool_result": {
+      "freshness": "missing",
+      "kind": "exact2_basin_value_pool_result",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "exact2_basin_value_pool_validation": {
+      "freshness": "missing",
+      "kind": "exact2_basin_value_pool_validation",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "frontier_summary": {
+      "freshness": "missing",
+      "kind": "frontier_summary",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "function_semantic_audit": {
+      "freshness": "missing",
+      "kind": "function_semantic_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "guided_pool_result": {
+      "freshness": "missing",
+      "kind": "guided_pool_result",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "guided_pool_validation": {
+      "freshness": "missing",
+      "kind": "guided_pool_validation",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "h1_h3_boundary_validation": {
+      "freshness": "missing",
+      "kind": "h1_h3_boundary_validation",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "material_hook_runtime_validation": {
+      "freshness": "missing",
+      "kind": "material_hook_runtime_validation",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "pairscan_summary": {
+      "freshness": "missing",
+      "kind": "pairscan_summary",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "post_handoff_branch_outcome_audit": {
+      "freshness": "missing",
+      "kind": "post_handoff_branch_outcome_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "post_handoff_exception_unwind_audit": {
+      "freshness": "missing",
+      "kind": "post_handoff_exception_unwind_audit",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "pre_rc4_material_probe": {
+      "freshness": "missing",
+      "kind": "pre_rc4_material_probe",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "profile_transform_hypothesis_matrix": {
+      "freshness": "missing",
+      "kind": "profile_transform_hypothesis_matrix",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "run_manifest": {
+      "freshness": "missing",
+      "kind": "run_manifest",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "smt_result": {
+      "freshness": "missing",
+      "kind": "smt_result",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "smt_validation": {
+      "freshness": "missing",
+      "kind": "smt_validation",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "strata_summary": {
+      "freshness": "missing",
+      "kind": "strata_summary",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "summary": {
+      "freshness": "missing",
+      "kind": "summary",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    },
+    "transform_trace_consistency": {
+      "freshness": "missing",
+      "kind": "transform_trace_consistency",
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
+    }
+  },
+  "latest_case_results": [],
+  "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "latest_summary": null,
+  "missing": [
+    "case_results",
+    "frontier_summary",
+    "runtime_validation",
+    "strata_summary",
+    "summary"
+  ],
+  "recent_artifacts": [],
+  "reports_dir": "solve_reports",
+  "sample": "samplereverse"
+}

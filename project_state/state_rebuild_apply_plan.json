@@ -1,0 +1,33 @@
+{
+  "artifact_name": "state_rebuild_apply_plan.json",
+  "exact_command": "python -m reverse_agent.project_state build",
+  "generated_at": "2026-06-19T14:51:21Z",
+  "live_files_mutated": false,
+  "live_files_would_change": true,
+  "live_state_build_id": "state_20260618_134029_d6bd033d2532",
+  "live_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "promotion_sequence": [
+    "1. Review staged files under the staging directory",
+    "2. Run 'python -m reverse_agent.project_state build' to promote staged state to live project_state",
+    "3. Generate a new decision_packet.md based on the promoted live state",
+    "4. Only then begin execution under the new decision"
+  ],
+  "proposed_files": [
+    "proposed_state/artifact_index.json",
+    "proposed_state/current_state.json",
+    "proposed_state/negative_results.json",
+    "proposed_state/model_gate.json",
+    "proposed_state/task_packet.json"
+  ],
+  "proposed_state_build_id": "state_20260619_145121_617489dc6da8",
+  "proposed_state_digest": "617489dc6da8d60a156db9a83a188f9be6d62bfbf5032baaab0441fa5122361a",
+  "run_name": "",
+  "sample": "samplereverse",
+  "schema_version": 1,
+  "staging_directory": "project_state\\proposed_state",
+  "warnings": [
+    "A new decision_packet must be generated after live promotion; do not execute under the old approved decision after promoting state",
+    "Normal Codex execution must not promote state under an already-approved decision",
+    "Staged files are proposed only; they are not live execution state until promoted"
+  ]
+}

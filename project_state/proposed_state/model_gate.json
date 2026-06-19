@@ -1,0 +1,15 @@
+{
+  "context_level": 0,
+  "generated_at": "2026-06-19T14:51:21Z",
+  "missing_evidence": [
+    "case_results",
+    "frontier_summary",
+    "runtime_validation",
+    "strata_summary",
+    "summary"
+  ],
+  "next_local_action": "collect_artifacts",
+  "reason": "artifact evidence is incomplete; do not ask the model to guess",
+  "recommended_packet": "project_state/task_packet.json",
+  "should_call_model": false
+}

@@ -1,0 +1,76 @@
+{
+  "active_decision_packet": "project_state/decision_packet.md",
+  "active_strategy": "CompareAwareSearchStrategy",
+  "artifact_refs": {},
+  "based_on_state_digest": "617489dc6da8d60a156db9a83a188f9be6d62bfbf5032baaab0441fa5122361a",
+  "current_best": {
+    "exact1": null,
+    "exact2": null,
+    "frontier": null
+  },
+  "current_bottleneck": {
+    "blocker": "",
+    "confidence": "low",
+    "reason": null,
+    "stage": null
+  },
+  "derived_task": "collect_missing_evidence",
+  "do_not_do": [
+    "do not return to old sample_solver blind search",
+    "do not only increase beam or budget",
+    "do not use compare_semantics_agree=false candidates as primary frontier",
+    "do not commit full solve_reports directory",
+    "do not repeat: exact2 basin value-pool evaluation with pools 0:78 1:d5/3e/3c 2:40/7f/80 3:b4/8f 4:9c",
+    "do not repeat: H1/H3 fixed 8-candidate prefix8 plus Base64 boundary contrast set: 78d540b49c59077041414141414141, 78d540b49c59076f41414141414141, 78d540b49c59077141414141414141, 78d540b49c5907b041414141414141, 78d540b49c5907d041414141414141, 78d540b49c59077040414141414141, 78d540b49c59077042414141414141, 78d540b49c59076f42414141414141",
+    "do not repeat: repeat current 5-candidate transform trace consistency audit without new runtime evidence",
+    "do not scan entire solve_reports unless explicitly needed"
+  ],
+  "execution_scope": "decision_packet_controls_current_round",
+  "expected_gpt_output": "project_state/decision_packet.md",
+  "generated_at": "2026-06-19T14:51:21Z",
+  "included": [
+    "artifact references",
+    "missing evidence",
+    "model gate reason"
+  ],
+  "missing_evidence": [
+    "case_results",
+    "frontier_summary",
+    "runtime_validation",
+    "strata_summary",
+    "summary"
+  ],
+  "next_local_action": "collect_artifacts",
+  "omitted": [
+    {
+      "name": "full PROJECT_PROGRESS_LOG.txt",
+      "reason": "too long; use only for strategic review"
+    },
+    {
+      "name": "full solve_reports",
+      "reason": "runtime output; indexed via artifact_index.json"
+    }
+  ],
+  "profile": "samplereverse",
+  "reason": "artifact evidence is incomplete; do not ask the model to guess",
+  "relevant_files": [
+    "reverse_agent/function_semantics.py",
+    "reverse_agent/strategies/compare_aware_search.py",
+    "tests/test_compare_aware_search_strategy.py",
+    "tests/test_project_state.py"
+  ],
+  "round_id": "round_20260619_145121",
+  "sample": "samplereverse",
+  "schema_version": 2,
+  "state_build_id": "state_20260619_145121_617489dc6da8",
+  "state_scope": "sample_state",
+  "sufficiency_check": {
+    "has_artifact_refs": false,
+    "has_current_best": false,
+    "has_negative_results": true,
+    "has_runtime_validation": false,
+    "has_stall_stage": false
+  },
+  "task": "collect_missing_evidence",
+  "task_source": "derived_from_sample_artifacts"
+}
