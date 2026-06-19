@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "round_id": "round_20260619_affine_static_material_artifact_enrichment_v1",
+  "readiness": "transform_material_resolved",
+  "recommended_solver_profiles": [
+    "affine_inverse_solver"
+  ],
+  "required_missing_evidence": [],
+  "resolved_evidence": [
+    "transform_constant_evidence"
+  ],
+  "source_artifacts": [
+    "local_reverse_affine_8cfebe03_transform_material_static_extract",
+    "local_reverse_affine_8cfebe03_transform_material_evidence"
+  ],
+  "transform_material_summary": {
+    "cipher_type": "affine_cipher",
+    "a": 5,
+    "b": 5,
+    "modulus": 26,
+    "a_inverse": 21,
+    "input_domain": "a-z (lowercase ASCII)",
+    "program_type": "encoder",
+    "has_compare_site": false
+  },
+  "provenance_notes": [
+    "source_artifact: local_reverse_affine_8cfebe03_transform_material_static_extract",
+    "source_targeted_decompile: local_reverse_affine_main0_targeted_ida_decompile",
+    "transform_constant_evidence resolved via targeted IDA decompile of _main_0",
+    "runtime_validated=false; static-only artifact",
+    "next_safe_mainline: reverse_solving (if expected ciphertext is available)"
+  ],
+  "next_recommended_mainline": "reverse_solving"
+}

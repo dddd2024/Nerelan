@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "relative_path": "逆向课程2024春补考03/affine.exe",
+  "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+  "analysis_mode": "transform_material_static_extract",
+  "executed_sample": false,
+  "static_only": true,
+  "round_id": "round_20260619_affine_static_material_artifact_enrichment_v1",
+  "source_artifacts": [
+    "project_state/local_reverse_affine_8cfebe03_current_static_triage.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json",
+    "project_state/local_reverse_affine_main0_targeted_ida_decompile.json"
+  ],
+  "transform_material": {
+    "cipher_type": "affine_cipher",
+    "status": "resolved",
+    "formula": "c = (a * p + b) mod m",
+    "parameters": {
+      "a": 5,
+      "b": 5,
+      "modulus": 26,
+      "a_variable": "v11",
+      "b_variable": "v10",
+      "a_assignment_evidence": "v11 = 5; at _main_0 entry",
+      "b_assignment_evidence": "v10 = 5; at _main_0 entry"
+    },
+    "input_domain": {
+      "charset": "lowercase_ascii",
+      "min_char": 97,
+      "max_char": 122,
+      "min_char_repr": "'a'",
+      "max_char_repr": "'z'",
+      "enforcement": "hard_exit",
+      "exit_value": -1,
+      "normalization": "p = input_char - 97 (maps 'a'-'z' to 0..25)"
+    },
+    "output_domain": {
+      "charset": "lowercase_ascii",
+      "denormalization": "output_char = c + 97 (maps 0..25 back to 'a'-'z')"
+    },
+    "transform_loop": {
+      "function": "_main_0",
+      "ea_range": "0x401010-0x401100",
+      "loop_variable": "j",
+      "loop_bound": "v6 = strlen(Str)",
+      "in_place": true,
+      "pseudocode": "for ( j = 0; j < v6; ++j ) Str[j] = (v10 + v11 * (Str[j] - 97)) % 26 + 97;"
+    },
+    "modular_inverse": {
+      "a_inverse": 21,
+      "verification": "5 * 21 = 105 = 4 * 26 + 1 = 1 mod 26",
+      "inverse_formula": "p = a_inverse * (c - b) mod m = 21 * (c - 5) mod 26"
+    },
+    "program_type": "encoder",
+    "has_compare_site": false,
+    "notes": [
+      "This is a pure affine cipher encoder; no password validation or compare branch in _main_0",
+      "Program reads input, applies affine transform, prints ciphertext, then calls system(\"pause\")",
+      "To reverse: need expected ciphertext output from problem statement or external source",
+      "Inverse affine: p = 21 * (c - 5) mod 26, where c = ciphertext_char - 97"
+    ]
+  },
+  "extraction_method": {
+    "source": "targeted_ida_decompile",
+    "source_file": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json",
+    "pseudocode_available": true,
+    "hexrays_available": true,
+    "confidence": "high",
+    "blockers": []
+  },
+  "evidence_gap_resolution": {
+    "previous_gap": "transform_constant_evidence",
+    "resolution": "resolved",
+    "reason": "Targeted IDA decompile of _main_0 revealed affine cipher constants a=5, b=5, modulus=26"
+  }
+}

@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260619_required_closeout_artifacts_contract_v1",
-  "round_id": "round_20260619_required_closeout_artifacts_contract_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-19T07:57:39.545809Z",
+  "decision_id": "decision_20260619_affine_static_material_artifact_enrichment_v1",
+  "round_id": "round_20260619_affine_static_material_artifact_enrichment_v1",
+  "mainline": "tool_integration",
+  "generated_at": "2026-06-19T08:38:54.968009Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [
@@ -25,7 +25,7 @@
     "close-round"
   ],
   "reasons": [
-    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py, reverse_agent/project_state.py"
+    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/solver_dispatch_plan.py"
   ],
   "suggested_commands": [
     {

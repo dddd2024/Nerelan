@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "round_id": "round_20260619_affine_static_material_artifact_enrichment_v1",
+  "generated_at": "2026-06-19T09:30:00Z",
+  "transform_material_static_extract": {
+    "artifact_path": "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+    "source": "targeted_ida_decompile",
+    "tool_status": "success",
+    "executed_sample": false,
+    "static_only": true,
+    "runtime_validated": false
+  },
+  "transform_material_evidence": {
+    "artifact_path": "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
+    "evidence_counts": {
+      "constants": 6,
+      "transform_hints": 1,
+      "confirmed_transforms": 1
+    }
+  },
+  "transform_material_dispatch_plan": {
+    "artifact_path": "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
+    "readiness": "transform_material_resolved",
+    "required_missing_evidence": [],
+    "resolved_evidence": [
+      "transform_constant_evidence"
+    ]
+  },
+  "source_targeted_decompile": {
+    "artifact_path": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json",
+    "pseudocode_available": true,
+    "hexrays_available": true,
+    "confidence": "high"
+  },
+  "evidence_gap_resolution": {
+    "previous_gap": "transform_constant_evidence",
+    "resolution": "resolved",
+    "reason": "Targeted IDA decompile of _main_0 revealed affine cipher constants a=5, b=5, modulus=26"
+  },
+  "provenance_notes": [
+    "source_artifact: local_reverse_affine_8cfebe03_transform_material_static_extract",
+    "source_targeted_decompile: local_reverse_affine_main0_targeted_ida_decompile",
+    "transform_constant_evidence resolved via targeted IDA decompile of _main_0",
+    "runtime_validated=false; static-only artifact",
+    "No external analysis tools or local binaries were run in this round"
+  ],
+  "next_recommended_mainline": "reverse_solving"
+}

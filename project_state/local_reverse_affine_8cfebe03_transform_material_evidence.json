@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "round_id": "round_20260619_affine_static_material_artifact_enrichment_v1",
+  "generated_at": "2026-06-19T09:30:00Z",
+  "evidence": [
+    {
+      "kind": "StaticConstantEvidence",
+      "source_tool": "IDA",
+      "summary": "affine_cipher constants: a=5, b=5, modulus=26 from _main_0 targeted decompile",
+      "payload": {
+        "constants": [
+          {
+            "name": "affine_a",
+            "value": 5,
+            "source_variable": "v11",
+            "source_evidence": "v11 = 5; at _main_0 entry"
+          },
+          {
+            "name": "affine_b",
+            "value": 5,
+            "source_variable": "v10",
+            "source_evidence": "v10 = 5; at _main_0 entry"
+          },
+          {
+            "name": "affine_modulus",
+            "value": 26,
+            "source_evidence": "% 26 in transform loop"
+          },
+          {
+            "name": "affine_a_inverse",
+            "value": 21,
+            "source_evidence": "5 * 21 = 105 = 1 mod 26"
+          },
+          {
+            "name": "input_min_char",
+            "value": 97,
+            "source_evidence": "Str[i] < 97 || Str[i] > 122 range check in _main_0"
+          },
+          {
+            "name": "input_max_char",
+            "value": 122,
+            "source_evidence": "Str[i] < 97 || Str[i] > 122 range check in _main_0"
+          }
+        ],
+        "constant_table_kind": "affine_cipher",
+        "table_address": "0x401010",
+        "transform_formula": "c = (a * p + b) mod m = (5 * p + 5) mod 26",
+        "inverse_formula": "p = a_inv * (c - b) mod m = 21 * (c - 5) mod 26",
+        "input_normalization": "p = input_char - 97",
+        "output_denormalization": "output_char = c + 97"
+      },
+      "confidence": 0.95,
+      "derived_candidates": [
+        "affine_cipher_encoder",
+        "modular_inverse_21"
+      ]
+    },
+    {
+      "kind": "StaticTransformHintEvidence",
+      "source_tool": "IDA",
+      "summary": "affine cipher transform confirmed via _main_0 decompilation",
+      "payload": {
+        "transform_kind": "affine_cipher",
+        "loop_evidence": [
+          "_main_0 transform loop at 0x401010+"
+        ],
+        "arithmetic_ops": [
+          "mul",
+          "add",
+          "sub",
+          "mod"
+        ],
+        "bitwise_ops": [],
+        "table_lookup": false,
+        "confirmed": true,
+        "pseudocode_source": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json"
+      },
+      "confidence": 0.95,
+      "derived_candidates": []
+    }
+  ],
+  "evidence_counts": {
+    "constants": 6,
+    "transform_hints": 1,
+    "confirmed_transforms": 1
+  },
+  "source_static_extract": "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+  "source_targeted_decompile": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json"
+}

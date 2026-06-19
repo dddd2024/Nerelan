@@ -513,6 +513,42 @@
       "size_bytes": 34645,
       "source_run": "round_20260619_affine_current_static_bridge_validation_v1",
       "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_transform_material_static_extract": {
+      "freshness": "current",
+      "kind": "transform_material_static_extract",
+      "modified_at": "2026-06-19T09:30:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+      "sample_id": "affine_8cfebe03",
+      "source_run": "round_20260619_affine_static_material_artifact_enrichment_v1",
+      "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_transform_material_evidence": {
+      "freshness": "current",
+      "kind": "transform_material_evidence",
+      "modified_at": "2026-06-19T09:30:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
+      "sample_id": "affine_8cfebe03",
+      "source_run": "round_20260619_affine_static_material_artifact_enrichment_v1",
+      "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_transform_material_dispatch_plan": {
+      "freshness": "current",
+      "kind": "transform_material_dispatch_plan",
+      "modified_at": "2026-06-19T09:30:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
+      "sample_id": "affine_8cfebe03",
+      "source_run": "round_20260619_affine_static_material_artifact_enrichment_v1",
+      "tool_status": "success"
+    },
+    "local_reverse_affine_8cfebe03_transform_material_provenance_report": {
+      "freshness": "current",
+      "kind": "transform_material_provenance_report",
+      "modified_at": "2026-06-19T09:30:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
+      "sample_id": "affine_8cfebe03",
+      "source_run": "round_20260619_affine_static_material_artifact_enrichment_v1",
+      "tool_status": "success"
     }
   },
   "latest_case_results": [],
