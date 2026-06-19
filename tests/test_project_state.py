@@ -31,6 +31,7 @@ from reverse_agent.project_state import (
     parse_pytest_result_header,
     read_codex_report_summary,
     read_decision_meta,
+    rebuild_preview,
     status_summary,
     validate_pytest_result_for_report,
     write_pytest_result,
@@ -6723,6 +6724,232 @@ class TestReverseSolvingBlockerOnlyReport:
             round_consistency={},
             pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
         ) is False
+
+
+class TestRebuildPreview:
+    """Tests for the non-mutating rebuild_preview function."""
+
+    def test_rebuild_preview_does_not_mutate_live_state(self, tmp_path: Path) -> None:
+        """rebuild_preview must not overwrite live current_state.json/task_packet.json/artifact_index.json."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        # Build initial live state
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        # Snapshot live state before preview
+        live_current_state_before = json.loads((state_dir / "current_state.json").read_text(encoding="utf-8"))
+        live_task_packet_before = json.loads((state_dir / "task_packet.json").read_text(encoding="utf-8"))
+        live_artifact_index_before = json.loads((state_dir / "artifact_index.json").read_text(encoding="utf-8"))
+
+        # Run rebuild preview
+        handoff = rebuild_preview(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        # Verify live files were NOT mutated
+        live_current_state_after = json.loads((state_dir / "current_state.json").read_text(encoding="utf-8"))
+        live_task_packet_after = json.loads((state_dir / "task_packet.json").read_text(encoding="utf-8"))
+        live_artifact_index_after = json.loads((state_dir / "artifact_index.json").read_text(encoding="utf-8"))
+
+        assert live_current_state_before == live_current_state_after
+        assert live_task_packet_before == live_task_packet_after
+        assert live_artifact_index_before == live_artifact_index_after
+
+        # Verify handoff artifact was written
+        assert handoff["live_files_mutated"] is False
+        assert (state_dir / "state_rebuild_handoff.json").exists()
+
+    def test_rebuild_preview_contains_proposed_state_build_id_and_digest(self, tmp_path: Path) -> None:
+        """rebuild_preview output must contain proposed_state_build_id and proposed_state_digest."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        handoff = rebuild_preview(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        assert handoff["proposed_state_build_id"]
+        assert handoff["proposed_state_digest"]
+        assert handoff["proposed_state_build_id"].startswith("state_")
+        assert len(handoff["proposed_state_digest"]) == 64  # SHA256 hex
+
+    def test_rebuild_preview_contains_live_state_build_id_and_digest(self, tmp_path: Path) -> None:
+        """rebuild_preview output must contain live_state_build_id and live_state_digest."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        live_state = json.loads((state_dir / "current_state.json").read_text(encoding="utf-8"))
+
+        handoff = rebuild_preview(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        assert handoff["live_state_build_id"] == live_state["state_build_id"]
+        assert handoff["live_state_digest"] == live_state["state_digest"]
+
+    def test_rebuild_preview_live_files_would_change_is_false_when_state_matches(self, tmp_path: Path) -> None:
+        """When live state matches proposed state, live_files_would_change must be False."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        handoff = rebuild_preview(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        # Digests exclude generated_at/round_id/state_build_id/state_digest, so
+        # a rebuild with the same inputs should produce the same digest.
+        assert handoff["live_files_would_change"] is False
+
+    def test_rebuild_preview_recommended_next_action_when_no_change(self, tmp_path: Path) -> None:
+        """When no change needed, recommended_next_action must say so."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        handoff = rebuild_preview(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        assert "No state rebuild needed" in handoff["recommended_next_action"]
+
+    def test_rebuild_preview_exact_command_present(self, tmp_path: Path) -> None:
+        """rebuild_preview must include the exact command to run for applying the rebuild."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        handoff = rebuild_preview(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        assert handoff["exact_command"] == "python -m reverse_agent.project_state build"
+
+    def test_rebuild_preview_operator_guidance_present(self, tmp_path: Path) -> None:
+        """rebuild_preview must include operator guidance explaining the non-mutating nature."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        handoff = rebuild_preview(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        assert "non-mutating" in handoff["operator_guidance"]
+        assert "exact_command" in handoff["operator_guidance"]
+
+    def test_rebuild_preview_writes_handoff_json_to_state_dir(self, tmp_path: Path) -> None:
+        """rebuild_preview must write state_rebuild_handoff.json to state_dir."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        rebuild_preview(
+            state_dir=state_dir,
+            reports_dir=reports_dir,
+            sample="samplereverse",
+        )
+
+        handoff_path = state_dir / "state_rebuild_handoff.json"
+        assert handoff_path.exists()
+        handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
+        assert handoff["schema_version"] == 1
+        assert handoff["artifact_name"] == "state_rebuild_handoff.json"
+
+    def test_rebuild_preview_cli_subcommand(self, tmp_path: Path) -> None:
+        """The rebuild-preview CLI subcommand must work and return exit 0."""
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        ensure_state_layout(state_dir)
+
+        build_project_state(
+            reports_dir=reports_dir,
+            state_dir=state_dir,
+            sample="samplereverse",
+        )
+
+        exit_code = main([
+            "rebuild-preview",
+            "--state-dir", str(state_dir),
+            "--reports-dir", str(reports_dir),
+            "--sample", "samplereverse",
+        ])
+
+        assert exit_code == 0
+        assert (state_dir / "state_rebuild_handoff.json").exists()
 
 
 class TestBuildSummaryErrorDetailRunDirAbsent:

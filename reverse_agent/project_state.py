@@ -6810,6 +6810,104 @@ def _print_lint_handoff(result: dict[str, Any]) -> None:
     print(f"lint_report_ok: {result.get('lint_report_ok')}")
 
 
+def rebuild_preview(
+    *,
+    state_dir: Path,
+    reports_dir: Path,
+    sample: str,
+    run_name: str = "",
+    progress_log: Path | None = None,
+    max_artifacts: int = 20,
+) -> dict[str, Any]:
+    """Compute a proposed state rebuild without mutating live project_state files.
+
+    Produces ``state_rebuild_handoff.json`` in ``state_dir`` containing the current
+    live state id/digest, the proposed next state id/digest, and operator guidance.
+    Live ``current_state.json``, ``task_packet.json``, and ``artifact_index.json``
+    are never overwritten by this function.
+    """
+    _ = progress_log
+    ensure_state_layout(state_dir)
+
+    # Read current live state (do NOT mutate)
+    live_current_state_path = state_dir / "current_state.json"
+    live_current_state: dict[str, Any] = {}
+    if live_current_state_path.exists():
+        try:
+            live_current_state = _read_json(live_current_state_path) or {}
+        except (OSError, json.JSONDecodeError):
+            live_current_state = {}
+
+    live_state_build_id = str(live_current_state.get("state_build_id") or "")
+    live_state_digest = str(live_current_state.get("state_digest") or "")
+
+    # Compute proposed state in-memory (same logic as build_project_state but no writes to live files)
+    proposed_artifact_index = build_artifact_index(
+        reports_dir=reports_dir,
+        sample=sample,
+        run_name=run_name,
+        max_artifacts=max_artifacts,
+    )
+    proposed_current_state = build_current_state(artifact_index=proposed_artifact_index, sample=sample)
+    proposed_negative_results = build_negative_results(artifact_index=proposed_artifact_index)
+    proposed_model_gate = build_model_gate(
+        artifact_index=proposed_artifact_index,
+        current_state=proposed_current_state,
+        reports_dir=reports_dir,
+    )
+    proposed_task_packet = build_task_packet(
+        current_state=proposed_current_state,
+        negative_results=proposed_negative_results,
+        model_gate=proposed_model_gate,
+    )
+    # Apply identity to the in-memory copies only (does not write to disk)
+    apply_state_identity(
+        artifact_index=proposed_artifact_index,
+        current_state=proposed_current_state,
+        task_packet=proposed_task_packet,
+    )
+
+    proposed_state_build_id = str(proposed_current_state.get("state_build_id") or "")
+    proposed_state_digest = str(proposed_current_state.get("state_digest") or "")
+
+    # Determine if live files would change
+    live_files_would_change = live_state_digest != proposed_state_digest if live_state_digest else True
+
+    # Build handoff artifact
+    stamp, generated_at = _identity_timestamp()
+    handoff = {
+        "schema_version": 1,
+        "artifact_name": "state_rebuild_handoff.json",
+        "generated_at": generated_at,
+        "live_state_build_id": live_state_build_id,
+        "live_state_digest": live_state_digest,
+        "proposed_state_build_id": proposed_state_build_id,
+        "proposed_state_digest": proposed_state_digest,
+        "live_files_would_change": live_files_would_change,
+        "live_files_mutated": False,
+        "sample": sample,
+        "run_name": run_name,
+        "recommended_next_action": (
+            "Run 'python -m reverse_agent.project_state build' before generating the next decision_packet"
+            if live_files_would_change
+            else "No state rebuild needed; live state is already current"
+        ),
+        "exact_command": "python -m reverse_agent.project_state build",
+        "operator_guidance": (
+            "This is a non-mutating preview. The proposed state_build_id and state_digest "
+            "were computed in-memory without overwriting live current_state.json, "
+            "task_packet.json, or artifact_index.json. To apply the rebuild, run the "
+            "exact_command before generating the next decision_packet."
+        ),
+    }
+
+    # Write only the handoff artifact (never live state files)
+    handoff_path = state_dir / "state_rebuild_handoff.json"
+    _write_json(handoff_path, handoff)
+
+    return handoff
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build low-token project state packets.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -6820,6 +6918,17 @@ def main(argv: list[str] | None = None) -> int:
     build_parser.add_argument("--run-name", default="")
     build_parser.add_argument("--progress-log", default=str(DEFAULT_PROGRESS_LOG))
     build_parser.add_argument("--max-artifacts", type=int, default=20)
+
+    rebuild_preview_parser = subparsers.add_parser(
+        "rebuild-preview",
+        help="Compute a proposed state rebuild without mutating live project_state files.",
+    )
+    rebuild_preview_parser.add_argument("--reports-dir", default=str(DEFAULT_REPORTS_DIR))
+    rebuild_preview_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    rebuild_preview_parser.add_argument("--sample", default=DEFAULT_SAMPLE)
+    rebuild_preview_parser.add_argument("--run-name", default="")
+    rebuild_preview_parser.add_argument("--progress-log", default=str(DEFAULT_PROGRESS_LOG))
+    rebuild_preview_parser.add_argument("--max-artifacts", type=int, default=20)
 
     new_round_parser = subparsers.add_parser("new-round", help="Initialize project_state workflow files.")
     new_round_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
@@ -6865,6 +6974,23 @@ def main(argv: list[str] | None = None) -> int:
             progress_log=Path(args.progress_log),
             max_artifacts=max(0, int(args.max_artifacts)),
         )
+        return 0
+    if args.command == "rebuild-preview":
+        handoff = rebuild_preview(
+            state_dir=Path(args.state_dir),
+            reports_dir=Path(args.reports_dir),
+            sample=str(args.sample),
+            run_name=str(args.run_name or ""),
+            progress_log=Path(args.progress_log),
+            max_artifacts=max(0, int(args.max_artifacts)),
+        )
+        print("rebuild-preview: COMPLETE")
+        print(f"live_state_build_id: {handoff.get('live_state_build_id', '')}")
+        print(f"proposed_state_build_id: {handoff.get('proposed_state_build_id', '')}")
+        print(f"live_files_would_change: {handoff.get('live_files_would_change', False)}")
+        print(f"live_files_mutated: {handoff.get('live_files_mutated', False)}")
+        print(f"recommended_next_action: {handoff.get('recommended_next_action', '')}")
+        print(f"artifact: project_state/state_rebuild_handoff.json")
         return 0
     if args.command == "new-round":
         new_round(state_dir=Path(args.state_dir))

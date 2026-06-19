@@ -1,0 +1,16 @@
+{
+  "artifact_name": "state_rebuild_handoff.json",
+  "exact_command": "python -m reverse_agent.project_state build",
+  "generated_at": "2026-06-19T14:07:30Z",
+  "live_files_mutated": false,
+  "live_files_would_change": true,
+  "live_state_build_id": "state_20260618_134029_d6bd033d2532",
+  "live_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "operator_guidance": "This is a non-mutating preview. The proposed state_build_id and state_digest were computed in-memory without overwriting live current_state.json, task_packet.json, or artifact_index.json. To apply the rebuild, run the exact_command before generating the next decision_packet.",
+  "proposed_state_build_id": "state_20260619_140730_d8f93e18db4b",
+  "proposed_state_digest": "d8f93e18db4b09c062c0086f6cc8a2d722184a0a0de11a1484cf854d3e4035e5",
+  "recommended_next_action": "Run 'python -m reverse_agent.project_state build' before generating the next decision_packet",
+  "run_name": "",
+  "sample": "samplereverse",
+  "schema_version": 1
+}

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_close_snapshot.json",
-  "decision_id": "decision_20260619_project_state_hygiene_rebuild_v1",
-  "round_id": "round_20260619_project_state_hygiene_rebuild_v1",
-  "closed_at": "2026-06-19T12:50:50.908199Z",
+  "decision_id": "decision_20260619_state_build_decision_sync_workflow_v1",
+  "round_id": "round_20260619_state_build_decision_sync_workflow_v1",
+  "closed_at": "2026-06-19T14:11:54.206195Z",
   "round_closed": true,
   "baseline_active": false,
   "close_git_status_short": [
@@ -16,10 +16,13 @@
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
     " M project_state/pytest_result.txt",
-    "?? project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/round_manifest.json"
+    " M reverse_agent/project_state.py",
+    " M tests/test_project_state.py",
+    "?? project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/round_manifest.json",
+    "?? project_state/state_rebuild_handoff.json"
   ],
   "close_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -30,7 +33,9 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_state.py",
+    "tests/test_project_state.py"
   ],
   "close_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -41,10 +46,13 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/decision_packet.md",
-    "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/pytest_result.txt",
-    "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/round_manifest.json"
+    "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/decision_packet.md",
+    "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/pytest_result.txt",
+    "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/round_manifest.json",
+    "project_state/state_rebuild_handoff.json",
+    "reverse_agent/project_state.py",
+    "tests/test_project_state.py"
   ],
   "close_worktree_clean": false,
   "baseline_dirty_files": [],

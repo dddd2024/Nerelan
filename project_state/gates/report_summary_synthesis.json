@@ -3,14 +3,14 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "PASSED",
-  "decision_id": "decision_20260619_project_state_hygiene_rebuild_v1",
-  "round_id": "round_20260619_project_state_hygiene_rebuild_v1",
-  "report_id": "codex_report_20260619_project_state_hygiene_rebuild_v1",
-  "generated_at": "2026-06-19T12:54:28.890397Z",
+  "decision_id": "decision_20260619_state_build_decision_sync_workflow_v1",
+  "round_id": "round_20260619_state_build_decision_sync_workflow_v1",
+  "report_id": "codex_report_20260619_state_build_decision_sync_workflow_v1",
+  "generated_at": "2026-06-19T14:14:05.346376Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260619_project_state_hygiene_rebuild_v1",
-    "round_id": "round_20260619_project_state_hygiene_rebuild_v1",
-    "based_on_decision_id": "decision_20260619_project_state_hygiene_rebuild_v1",
+    "report_id": "codex_report_20260619_state_build_decision_sync_workflow_v1",
+    "round_id": "round_20260619_state_build_decision_sync_workflow_v1",
+    "based_on_decision_id": "decision_20260619_state_build_decision_sync_workflow_v1",
     "files_changed": [
       "project_state/codex_execution_report.md",
       "project_state/gates/command_plan.json",
@@ -22,10 +22,13 @@
       "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/decision_packet.md",
-      "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/pytest_result.txt",
-      "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/round_manifest.json"
+      "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/decision_packet.md",
+      "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/pytest_result.txt",
+      "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/round_manifest.json",
+      "project_state/state_rebuild_handoff.json",
+      "reverse_agent/project_state.py",
+      "tests/test_project_state.py"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -38,20 +41,21 @@
       "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/decision_packet.md",
-      "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/pytest_result.txt",
-      "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/round_manifest.json"
+      "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/decision_packet.md",
+      "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/pytest_result.txt",
+      "project_state/rounds/round_20260619_state_build_decision_sync_workflow_v1/round_manifest.json"
     ],
     "tests_ran": [
-      "python -m reverse_agent.project_state doctor --state-dir project_state",
       "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
+      "python -m reverse_agent.project_state doctor --state-dir project_state",
       "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state"
+      "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_state_build_decision_sync_workflow_v1"
     ],
     "status": "SUCCESS",
     "acceptance_recommendation": "ACCEPTED",

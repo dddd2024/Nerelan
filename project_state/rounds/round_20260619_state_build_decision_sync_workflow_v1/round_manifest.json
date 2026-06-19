@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-19T14:11:53Z",
+  "decision_id": "decision_20260619_state_build_decision_sync_workflow_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260619_state_build_decision_sync_workflow_v1\\codex_execution_report.md",
+      "sha256": "99a6819ae6f617bfd0e44cccdae3e5326f27b919946974b1829ec38bf2faee9e",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260619_state_build_decision_sync_workflow_v1\\decision_packet.md",
+      "sha256": "c7ccb1eea7b0056f9659a6c9cdfa087f3b5521775fc7a933b1e4431142a318d1",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260619_state_build_decision_sync_workflow_v1\\pytest_result.txt",
+      "sha256": "9f6e9048adc57b7b65ecb4ab81f7ae79dde845712514fbcdd9004dd7295ef478",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260619_state_build_decision_sync_workflow_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260619_state_build_decision_sync_workflow_v1",
+  "schema_version": 1,
+  "source_git_commit": "044b5bd8e273",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}
