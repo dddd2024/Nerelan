@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
+  "round_id": "round_20260619_generic_static_evidence_bridge_v1",
+  "tool_artifact_schemas_supported": [
+    "static triage JSON (triage.input_apis, triage.interesting_strings, triage.functions, triage.compare_contexts, triage.solver_hints, triage.decompiler_snippets)",
+    "static evidence summary JSON (evidence_summary.key_strings, evidence_summary.compare_contexts)",
+    "cipher static profile JSON (constants, constant_tables)",
+    "generic dict with functions/strings/compare_contexts/input_apis keys"
+  ],
+  "evidence_families_normalized": [
+    "StaticInputEvidence (input APIs, prompt strings)",
+    "StaticCompareEvidence (compare APIs, callsites)",
+    "StaticConstantEvidence (constants, tables)",
+    "StaticTransformHintEvidence (xor, affine, shift, lookup)",
+    "StaticCryptoSignatureEvidence (rc4, des, aes, md5, sha)",
+    "StaticGuiInputEvidence (GUI APIs, dialog strings)",
+    "StaticAntiDebugEvidence (anti-debug APIs, strings)"
+  ],
+  "solver_profile_hints_emitted": [
+    "string_compare",
+    "xor",
+    "affine_shift",
+    "lookup_table",
+    "rc4",
+    "des",
+    "aes",
+    "hash",
+    "gui_check",
+    "anti_debug_precondition"
+  ],
+  "insufficient_evidence_detection": [
+    "missing input_source_evidence when no input/gui evidence",
+    "missing comparison_sink_evidence when no compare evidence",
+    "missing key_or_constant_evidence when crypto signature without constants",
+    "missing transform_constant_evidence when transform hint without constants"
+  ],
+  "readiness_states": [
+    "not_solve_ready",
+    "needs_current_static_provenance",
+    "solver_profile_hint_only"
+  ],
+  "detection_method": "rule-based on artifact content; never branches on sample_id"
+}

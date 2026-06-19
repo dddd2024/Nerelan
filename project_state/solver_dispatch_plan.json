@@ -1,0 +1,17 @@
+{
+  "readiness": "needs_current_static_provenance",
+  "recommended_solver_profiles": [
+    "string_compare"
+  ],
+  "required_missing_evidence": [],
+  "source_artifacts": [
+    "synthetic_input_compare.json"
+  ],
+  "provenance_notes": [
+    "source_artifact: synthetic_input_compare.json",
+    "provenance: static-only; not current reverse-solving evidence unless rebuilt with current provenance this round"
+  ],
+  "schema_version": 1,
+  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
+  "round_id": "round_20260619_generic_static_evidence_bridge_v1"
+}

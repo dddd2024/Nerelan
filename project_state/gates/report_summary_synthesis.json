@@ -3,16 +3,15 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "PASSED",
-  "decision_id": "decision_20260619_claim_aware_artifact_freshness_policy_v1",
-  "round_id": "round_20260619_claim_aware_artifact_freshness_policy_v1",
-  "report_id": "codex_report_20260619_claim_aware_artifact_freshness_policy_v1",
-  "generated_at": "2026-06-18T17:11:20.702182Z",
+  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
+  "round_id": "round_20260619_generic_static_evidence_bridge_v1",
+  "report_id": "codex_report_20260619_generic_static_evidence_bridge_v1",
+  "generated_at": "2026-06-19T05:04:56.636565Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260619_claim_aware_artifact_freshness_policy_v1",
-    "round_id": "round_20260619_claim_aware_artifact_freshness_policy_v1",
-    "based_on_decision_id": "decision_20260619_claim_aware_artifact_freshness_policy_v1",
+    "report_id": "codex_report_20260619_generic_static_evidence_bridge_v1",
+    "round_id": "round_20260619_generic_static_evidence_bridge_v1",
+    "based_on_decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
     "files_changed": [
-      "project_state/artifact_policy.json",
       "project_state/codex_execution_report.md",
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
@@ -23,12 +22,20 @@
       "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/decision_packet.md",
-      "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/pytest_result.txt",
-      "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/round_manifest.json",
-      "reverse_agent/project_gate.py",
-      "tests/test_project_gate.py"
+      "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/decision_packet.md",
+      "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/pytest_result.txt",
+      "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/round_manifest.json",
+      "project_state/solver_dispatch_plan.json",
+      "project_state/static_evidence_bridge_capability_matrix.json",
+      "project_state/static_evidence_bridge_report.json",
+      "project_state/static_evidence_bridge_report.md",
+      "reverse_agent/evidence.py",
+      "reverse_agent/solver_dispatch_plan.py",
+      "reverse_agent/static_evidence_bridge.py",
+      "tests/test_evidence.py",
+      "tests/test_solver_dispatch_plan.py",
+      "tests/test_static_evidence_bridge.py"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -41,27 +48,25 @@
       "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/decision_packet.md",
-      "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/pytest_result.txt",
-      "project_state/rounds/round_20260619_claim_aware_artifact_freshness_policy_v1/round_manifest.json"
+      "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/decision_packet.md",
+      "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/pytest_result.txt",
+      "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/round_manifest.json"
     ],
     "tests_ran": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "python -m pytest tests/test_static_evidence_bridge.py tests/test_solver_dispatch_plan.py tests/test_evidence.py tests/test_project_gate.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_state doctor --state-dir project_state",
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
-      "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_claim_aware_artifact_freshness_policy_v1"
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_generic_static_evidence_bridge_v1"
     ],
     "status": "SUCCESS",
-    "acceptance_recommendation": "ACCEPTED",
-    "external_state_notices": [
-      "50 missing historical sample artifacts"
+    "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+    "limitations": [
+      "historical sample artifacts missing; non-blocking for current non-sample evidence policy"
     ]
   },
   "diffs": [],

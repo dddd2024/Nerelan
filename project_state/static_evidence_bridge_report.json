@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
+  "round_id": "round_20260619_generic_static_evidence_bridge_v1",
+  "bridge_results": {
+    "synthetic_input_compare": {
+      "evidence": [
+        {
+          "kind": "StaticInputEvidence",
+          "source_tool": "IDA",
+          "summary": "input APIs: __input prompts: please input a string:",
+          "payload": {
+            "input_apis": [
+              "__input"
+            ],
+            "prompt_strings": [
+              "please input a string:"
+            ],
+            "input_buffer_address": ""
+          },
+          "confidence": 0.7,
+          "derived_candidates": []
+        },
+        {
+          "kind": "StaticCompareEvidence",
+          "source_tool": "IDA",
+          "summary": "compare APIs: _strncmp 1 callsite(s)",
+          "payload": {
+            "compare_apis": [
+              "_strncmp"
+            ],
+            "compare_callsites": [
+              {
+                "call_ea": "0x40620E",
+                "caller_func": "sub_406150",
+                "callee": "_strncmp",
+                "ref_strings": "__GLOBAL_HEAP_SELECTED"
+              }
+            ],
+            "expected_value_location": ""
+          },
+          "confidence": 0.7,
+          "derived_candidates": []
+        }
+      ],
+      "plan": {
+        "readiness": "needs_current_static_provenance",
+        "recommended_solver_profiles": [
+          "string_compare"
+        ],
+        "required_missing_evidence": [],
+        "source_artifacts": [
+          "synthetic_input_compare"
+        ],
+        "provenance_notes": [
+          "source_artifact: synthetic_input_compare",
+          "provenance: static-only; not current reverse-solving evidence unless rebuilt with current provenance this round"
+        ]
+      }
+    }
+  }
+}
