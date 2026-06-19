@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -324,6 +325,7 @@ def _write_report(
     files_changed: list[str] | None = None,
     tests_ran: list[str] | None = None,
     generated_artifacts: list[str] | None = None,
+    referenced_artifacts: list[str] | None = None,
 ) -> None:
     payload = {
         "schema_version": 1,
@@ -337,6 +339,8 @@ def _write_report(
         "generated_artifacts": generated_artifacts if generated_artifacts is not None else [],
         "verified_artifacts": [],
     }
+    if referenced_artifacts is not None:
+        payload["referenced_artifacts"] = referenced_artifacts
     (state_dir / "codex_execution_report.md").write_text(
         f"""```json codex_report_summary
 {json.dumps(payload, indent=2)}
@@ -12289,3 +12293,211 @@ class TestStartupCommandCoverageLogicFix:
         assert not _is_startup_command("python -m reverse_agent.project_gate preflight --state-dir project_state")
         assert not _is_startup_command("git add .")
         assert not _is_startup_command("git commit -m test")
+
+
+# ---------------------------------------------------------------------------
+# Tests for referenced_artifacts / required_closeout_artifacts schema support
+# and decision-lint CLI command (decision_20260619_report_summary_referenced_artifacts_schema_v1)
+# ---------------------------------------------------------------------------
+
+_REQUIRED_CLOSEOUT_PATHS = [
+    "project_state/artifact_index.json",
+    "project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json",
+]
+
+
+def _write_decision_with_closeout_evidence(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    mainline: str = "engineering_branch",
+) -> None:
+    """Overwrite decision_packet.md to include Current Evidence with project_state paths."""
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": mainline,
+        "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    }
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Build a read-only project gate.
+
+## 2. Current Evidence
+
+Required existing state records for closeout traceability:
+
+- `project_state/artifact_index.json`
+- `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json`
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+""",
+        encoding="utf-8",
+    )
+
+
+def _add_referenced_artifacts_to_report(state_dir: Path, artifacts: list[str]) -> None:
+    """Read the existing codex_execution_report.md, add referenced_artifacts, and write it back."""
+    from reverse_agent.project_state import extract_markdown_json_block, CODEX_REPORT_SUMMARY_BLOCK_NAME
+
+    report_path = state_dir / "codex_execution_report.md"
+    text = report_path.read_text(encoding="utf-8")
+    meta = extract_markdown_json_block(text, CODEX_REPORT_SUMMARY_BLOCK_NAME)
+    report = {k: v for k, v in meta.items() if k not in ("found", "parse_error")}
+    report["referenced_artifacts"] = artifacts
+    report_path.write_text(
+        f"""```json {CODEX_REPORT_SUMMARY_BLOCK_NAME}
+{json.dumps(report, indent=2)}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+
+def test_preflight_skips_protected_terms_in_code_blocks(tmp_path: Path) -> None:
+    """Protected terms inside fenced code blocks do not trigger mainline_scope_policy."""
+    goal = """Build a read-only project gate.
+
+```python
+# This code block contains "solver" but should not trigger scope policy
+solver_config = {"runtime": True}
+```
+"""
+    state_dir = _make_preflight_state(tmp_path, goal=goal)
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert _check(result, "mainline_scope_policy")["status"] == "PASS"
+
+
+def test_preflight_skips_protected_terms_in_project_state_paths(tmp_path: Path) -> None:
+    """Protected terms in project_state file paths in Goal do not trigger mainline_scope_policy."""
+    goal = """Build a read-only project gate.
+
+Required existing state records for traceability:
+
+- `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json`
+"""
+    state_dir = _make_preflight_state(tmp_path, goal=goal)
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert _check(result, "mainline_scope_policy")["status"] == "PASS"
+
+
+def test_report_summary_includes_referenced_and_required_closeout_artifacts(tmp_path: Path) -> None:
+    """Synthesis includes referenced_artifacts and required_closeout_artifacts when decision declares them."""
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_decision_with_closeout_evidence(
+        state_dir,
+        decision_id="decision_report_summary",
+        round_id="round_gate",
+    )
+    _add_referenced_artifacts_to_report(state_dir, _REQUIRED_CLOSEOUT_PATHS)
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    summary = result["synthesized_summary"]
+    assert "required_closeout_artifacts" in summary
+    assert "project_state/artifact_index.json" in summary["required_closeout_artifacts"]
+    assert (
+        "project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json"
+        in summary["required_closeout_artifacts"]
+    )
+    assert "referenced_artifacts" in summary
+    assert "project_state/artifact_index.json" in summary["referenced_artifacts"]
+
+
+def test_decision_lint_cli_passes_valid_decision(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """decision-lint CLI exits 0 for a valid decision."""
+    state_dir = _make_preflight_state(tmp_path)
+
+    exit_code = main(["decision-lint", "--state-dir", str(state_dir), "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert output["ok"] is True
+    assert output["decision_status"] == "APPROVED"
+
+
+def test_decision_lint_cli_fails_invalid_decision(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """decision-lint CLI exits 1 for an invalid decision."""
+    state_dir = _make_preflight_state(tmp_path, status="TEMPLATE_ONLY")
+
+    exit_code = main(["decision-lint", "--state-dir", str(state_dir), "--json"])
+    output = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert output["ok"] is False
+
+
+def test_final_check_validates_required_closeout_artifacts_covered(tmp_path: Path) -> None:
+    """final-check passes when required closeout artifacts are covered by referenced_artifacts."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_closeout_evidence(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+    _add_referenced_artifacts_to_report(state_dir, _REQUIRED_CLOSEOUT_PATHS)
+    # Delete existing archive and re-archive with updated decision/report
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    check = _check(result, "required_closeout_artifacts_covered")
+    assert check["status"] == "PASS"
+
+
+def test_final_check_fails_when_required_closeout_artifacts_uncovered(tmp_path: Path) -> None:
+    """final-check fails when required closeout artifacts are not covered."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_closeout_evidence(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+    # Do NOT add referenced_artifacts to the report
+    # Delete existing archive and re-archive with updated decision
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    check = _check(result, "required_closeout_artifacts_covered")
+    assert check["status"] == "FAIL"
+    assert "project_state/artifact_index.json" in check["uncovered_artifacts"]

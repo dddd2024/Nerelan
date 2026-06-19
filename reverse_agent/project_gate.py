@@ -604,6 +604,27 @@ def _decision_scope_deliverable_paths(decision_text: str) -> set[str]:
     return paths
 
 
+def _decision_required_closeout_artifacts(decision_text: str) -> set[str]:
+    """Return artifact paths listed in the decision's Current Evidence
+    section as required existing state records for closeout traceability.
+
+    These are existing state records that must be referenced (not generated)
+    by the report for closeout completeness.  They appear in the report's
+    ``referenced_artifacts`` field and are validated by final-check via
+    ``required_closeout_artifacts`` coverage.
+    """
+    evidence_text = _markdown_section(decision_text, "Current Evidence")
+    paths: set[str] = set()
+    for raw_line in evidence_text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("-"):
+            continue
+        item = _path_from_markdown_bullet(line)
+        if item and item.lower().startswith("project_state/"):
+            paths.add(_norm_path(item))
+    return paths
+
+
 def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
     section = _markdown_section(decision_text, "Allowed Inherited Dirty Baseline Files")
     return _scope_paths(section)
@@ -957,14 +978,46 @@ def _matched_non_negated_terms(text: str, terms: tuple[str, ...]) -> list[str]:
         "要求",
     )
     matches: set[str] = set()
+    in_fence = False
     for raw_line in text.splitlines():
-        line = raw_line.lower()
+        stripped = raw_line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        line = stripped.lower()
         if any(marker in line for marker in negation_markers):
+            continue
+        # Skip lines that are file paths under project_state/ — these are
+        # state artifacts, not executable code, and should not trigger the
+        # runtime-scope policy for engineering_branch.
+        if _line_is_project_state_path(stripped):
             continue
         for term in terms:
             if term in line:
                 matches.add(term)
     return sorted(matches)
+
+
+def _line_is_project_state_path(line: str) -> bool:
+    """Return True if *line* is a markdown bullet or backtick item that is
+    a file path under ``project_state/``.
+
+    This prevents protected-term false positives when a decision's Goal
+    section lists existing state artifacts (e.g.
+    ``project_state/local_reverse_..._solver_dispatch_plan.json``) for
+    traceability.
+    """
+    text = line.strip().lstrip("-").strip()
+    if text.startswith("`") and text.endswith("`"):
+        text = text[1:-1]
+    if text.startswith("'") and text.endswith("'"):
+        text = text[1:-1]
+    if text.startswith('"') and text.endswith('"'):
+        text = text[1:-1]
+    normalized = text.lower().replace("\\", "/")
+    return normalized.startswith("project_state/")
 
 
 def _scope_path_has_runtime_token(path: str) -> bool:
@@ -3728,6 +3781,18 @@ def build_report_summary_synthesis(
         "files_changed": expected_files_changed,
         "generated_artifacts": expected_generated_artifacts,
     }
+    # Include referenced_artifacts and required_closeout_artifacts when the
+    # decision declares required closeout artifacts.  These are existing
+    # state records referenced for traceability, not current-round generated
+    # artifacts.  The report may list them in referenced_artifacts; final-check
+    # validates that required_closeout_artifacts are covered by referenced
+    # or generated artifacts.
+    decision_required_closeout = _decision_required_closeout_artifacts(decision_text)
+    if decision_required_closeout:
+        synthesized_summary["required_closeout_artifacts"] = sorted(decision_required_closeout)
+        report_referenced = _string_set(report.get("referenced_artifacts"))
+        if report_referenced:
+            synthesized_summary["referenced_artifacts"] = sorted(report_referenced)
     # Only include tests_ran when command_plan is valid; without it
     # the synthesis cannot determine which commands were planned, so
     # comparing against the report's tests_ran would produce false diffs.
@@ -3793,6 +3858,8 @@ def build_report_summary_synthesis(
         "files_changed",
         "tests_ran",
         "generated_artifacts",
+        "referenced_artifacts",
+        "required_closeout_artifacts",
     ):
         if field not in synthesized_summary:
             continue
@@ -4424,6 +4491,34 @@ def final_check(
                 else "generated_artifacts omits round archive files"
             ),
             missing_artifacts=missing_archive_artifacts,
+        )
+    )
+
+    # Required closeout artifacts coverage check: existing state records
+    # declared in the decision's Current Evidence section must be covered by
+    # the report's referenced_artifacts or generated_artifacts.  This prevents
+    # closeout rework caused by forcing referenced records into generated_artifacts.
+    decision_required_closeout = _decision_required_closeout_artifacts(decision_text)
+    report_referenced_artifacts = _string_set(report.get("referenced_artifacts"))
+    coverage_pool = report_referenced_artifacts | generated_artifacts
+    uncovered_closeout = sorted(decision_required_closeout - coverage_pool)
+    if not decision_required_closeout:
+        closeout_coverage_status = "PASS"
+        closeout_coverage_detail = "no required closeout artifacts declared in decision"
+    elif not uncovered_closeout:
+        closeout_coverage_status = "PASS"
+        closeout_coverage_detail = "required closeout artifacts covered by referenced or generated artifacts"
+    else:
+        closeout_coverage_status = "FAIL"
+        closeout_coverage_detail = "required closeout artifacts not covered by referenced or generated artifacts"
+    checks.append(
+        _check(
+            "required_closeout_artifacts_covered",
+            closeout_coverage_status,
+            closeout_coverage_detail,
+            required_closeout_artifacts=sorted(decision_required_closeout) if decision_required_closeout else [],
+            referenced_artifacts=sorted(report_referenced_artifacts) if report_referenced_artifacts else [],
+            uncovered_artifacts=uncovered_closeout,
         )
     )
 
@@ -6633,6 +6728,24 @@ def _print_gate_profile(result: dict[str, Any]) -> None:
     print("\n".join(lines))
 
 
+def _print_decision_lint(result: dict[str, Any]) -> None:
+    ok = result.get("ok")
+    lines = [
+        f"decision-lint: {'OK' if ok else 'FAILED'}",
+        f"decision_id: {result.get('decision_id')}",
+        f"decision_status: {result.get('decision_status')}",
+        f"mainline: {result.get('mainline')}",
+        f"skill_profiles: {result.get('skill_profiles')}",
+        f"based_on_state_build_id: {result.get('based_on_state_build_id')}",
+        f"current_state_build_id: {result.get('current_state_build_id')}",
+    ]
+    for error in result.get("errors", []):
+        lines.append(f"  [ERROR] {error}")
+    for warning in result.get("warnings", []):
+        lines.append(f"  [WARN] {warning}")
+    print("\n".join(lines))
+
+
 def _close_round_output_text(result: dict[str, Any]) -> str:
     lines = [
         f"{result.get('gate_name')}: {result.get('close_status')}",
@@ -6740,6 +6853,9 @@ def main(argv: list[str] | None = None) -> int:
     gate_profile_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     gate_profile_parser.add_argument("--profile", choices=list(_GATE_PROFILE_NAMES), default=None,
                                      help="Explicitly select a profile instead of auto-classification.")
+    decision_lint_parser = subparsers.add_parser("decision-lint", help="Lint a decision before implementation starts.")
+    decision_lint_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    decision_lint_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -6815,6 +6931,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _print_gate_profile(result)
         return 0
+    if args.command == "decision-lint":
+        result = lint_decision(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_decision_lint(result)
+        return 0 if result.get("ok") else 1
     return 1
 
 

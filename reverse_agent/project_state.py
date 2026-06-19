@@ -1082,6 +1082,7 @@ def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
         "tests_ran": meta.get("tests_ran"),
         "generated_artifacts": meta.get("generated_artifacts"),
         "verified_artifacts": meta.get("verified_artifacts"),
+        "referenced_artifacts": meta.get("referenced_artifacts"),
         "next_suggested_task": meta.get("next_suggested_task") or "",
         "parse_error": meta.get("parse_error"),
     }

@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260619_report_generated_artifacts_json_field_fix_v1",
-  "round_id": "round_20260619_report_generated_artifacts_json_field_fix_v1",
-  "head_commit": "bb032f5b71ea",
+  "decision_id": "decision_20260619_report_summary_referenced_artifacts_schema_v1",
+  "round_id": "round_20260619_report_summary_referenced_artifacts_schema_v1",
+  "head_commit": "6643f64f1bb8",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-19T06:52:50.412973Z"
+  "generated_at": "2026-06-19T07:04:41.273317Z"
 }
