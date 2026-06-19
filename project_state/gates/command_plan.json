@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260619_report_closeout_artifact_summary_reconcile_v1",
-  "round_id": "round_20260619_report_closeout_artifact_summary_reconcile_v1",
+  "decision_id": "decision_20260619_report_generated_artifacts_json_field_fix_v1",
+  "round_id": "round_20260619_report_generated_artifacts_json_field_fix_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-19T06:37:29.241139Z",
+  "generated_at": "2026-06-19T06:53:14.739766Z",
   "profile_meta": {
     "profile": "fast",
     "profile_reason": "artifact-only cleanup does not require close-round",
@@ -20,12 +20,7 @@
   },
   "omitted_commands": [
     {
-      "command": "python -m reverse_agent.project_state build",
-      "kind": "status",
-      "reason": "omitted by fast profile: status not in required_command_kinds"
-    },
-    {
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_report_closeout_artifact_summary_reconcile_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_report_generated_artifacts_json_field_fix_v1",
       "kind": "close-round",
       "reason": "omitted by fast profile: close-round not in required_command_kinds"
     }
@@ -33,58 +28,6 @@
   "commands": [
     {
       "index": 1,
-      "command": "Set-Location F:\\reverse-agent",
-      "phase": "status",
-      "kind": "set-location",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "set-location expected to exit 0"
-    },
-    {
-      "index": 2,
-      "command": "Get-Location",
-      "phase": "status",
-      "kind": "pwd",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pwd expected to exit 0"
-    },
-    {
-      "index": 3,
-      "command": "Test-Path F:\\reverse-agent",
-      "phase": "status",
-      "kind": "test-path",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "test-path expected to exit 0"
-    },
-    {
-      "index": 4,
-      "command": "git rev-parse --show-toplevel",
-      "phase": "status",
-      "kind": "git rev-parse",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "git rev-parse expected to exit 0"
-    },
-    {
-      "index": 5,
       "command": "git status --short",
       "phase": "status",
       "kind": "git status",
@@ -97,7 +40,73 @@
       "notes": "git status expected to exit 0"
     },
     {
+      "index": 2,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 3,
+      "command": "Set-Location F:\\reverse-agent",
+      "phase": "status",
+      "kind": "set-location",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "set-location expected to exit 0"
+    },
+    {
+      "index": 4,
+      "command": "Get-Location",
+      "phase": "status",
+      "kind": "pwd",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pwd expected to exit 0"
+    },
+    {
+      "index": 5,
+      "command": "Test-Path F:\\reverse-agent",
+      "phase": "status",
+      "kind": "test-path",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "test-path expected to exit 0"
+    },
+    {
       "index": 6,
+      "command": "git rev-parse --show-toplevel",
+      "phase": "status",
+      "kind": "git rev-parse",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "git rev-parse expected to exit 0"
+    },
+    {
+      "index": 7,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
@@ -110,7 +119,7 @@
       "notes": "preflight expected to exit 0"
     },
     {
-      "index": 7,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
       "phase": "status",
       "kind": "project-cli",
@@ -123,7 +132,7 @@
       "notes": "project-cli expected to exit 0"
     },
     {
-      "index": 8,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "phase": "gate",
       "kind": "command-plan",
@@ -136,7 +145,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 9,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -148,20 +157,6 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
     }
   ],
   "warnings": [],

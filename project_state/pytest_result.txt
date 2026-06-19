@@ -1,10 +1,10 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260619_report_closeout_artifact_summary_reconcile_v1",
-  "round_id": "round_20260619_report_closeout_artifact_summary_reconcile_v1",
-  "generated_at": "2026-06-19T06:42:00Z",
-  "status": "PASSED",
+  "decision_id": "decision_20260619_report_generated_artifacts_json_field_fix_v1",
+  "round_id": "round_20260619_report_generated_artifacts_json_field_fix_v1",
+  "generated_at": "2026-06-19T06:56:00Z",
+  "status": "FAILED",
   "tests_ran": [
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
@@ -12,7 +12,7 @@
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state"
   ],
-  "notes": "preflight PASSED, gate-profile PASSED (fast), command-plan PASSED (10 commands), report-summary PASSED, final-check PASSED with 1 non-blocking WARN (status_policy_valid: historical/backlog artifacts). close-round attempted but blocked by fast profile (closeout_allowed=false); final-check confirms close-round is not required for fast profile. recommended_next_action: no_action_required."
+  "notes": "preflight PASSED, gate-profile PASSED (fast), command-plan PASSED (10 commands), report-summary FAILED (generated_artifacts diff: synthesis does not include 6 core referenced artifacts), final-check FAILED (report_summary_fields_match_synthesis + stale_artifact_ids). Decision success criteria #3 requires 6 core artifacts in generated_artifacts, but synthesis does exact match and doesn't include them. This is a decision-level conflict between success criteria #3 (must include 6 core artifacts) and #5 (final-check must have no FAIL)."
 }
 ```
 
@@ -39,8 +39,8 @@ F:/reverse-agent
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
 preflight: PASSED
-decision_id: decision_20260619_report_closeout_artifact_summary_reconcile_v1
-round_id: round_20260619_report_closeout_artifact_summary_reconcile_v1
+decision_id: decision_20260619_report_generated_artifacts_json_field_fix_v1
+round_id: round_20260619_report_generated_artifacts_json_field_fix_v1
 mainline: engineering_branch
   [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline
   [PASS] decision_meta_parse: decision_meta parsed
@@ -55,13 +55,13 @@ mainline: engineering_branch
   [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence
   [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied
   [PASS] source_test_clean_start: no source/test files are dirty at startup baseline
-recommended_next_action: proceed_to_implementation_scope
+recommended_next_action: proceed_with_decision_scope
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state =====
 gate-profile: PASSED
-decision_id: decision_20260619_report_closeout_artifact_summary_reconcile_v1
-round_id: round_20260619_report_closeout_artifact_summary_reconcile_v1
+decision_id: decision_20260619_report_generated_artifacts_json_field_fix_v1
+round_id: round_20260619_report_generated_artifacts_json_field_fix_v1
 profile: fast
 profile_reason: artifact-only cleanup does not require close-round
 closeout_allowed: false
@@ -69,26 +69,29 @@ closeout_allowed: false
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
-decision_id: decision_20260619_report_closeout_artifact_summary_reconcile_v1
-round_id: round_20260619_report_closeout_artifact_summary_reconcile_v1
+decision_id: decision_20260619_report_generated_artifacts_json_field_fix_v1
+round_id: round_20260619_report_generated_artifacts_json_field_fix_v1
 profile: fast
 commands: 10
 omitted: 2 (status build, close-round)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED
-decision_id: decision_20260619_report_closeout_artifact_summary_reconcile_v1
-report_id: codex_report_20260619_report_closeout_artifact_summary_reconcile_v1
-round_id: round_20260619_report_closeout_artifact_summary_reconcile_v1
+report-summary: FAILED
+decision_id: decision_20260619_report_generated_artifacts_json_field_fix_v1
+report_id: codex_report_20260619_report_generated_artifacts_json_field_fix_v1
+round_id: round_20260619_report_generated_artifacts_json_field_fix_v1
+  [DIFF] files_changed
+  [DIFF] generated_artifacts
+  [INFO] final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet
 artifact: project_state/gates/report_summary_synthesis.json
-===== EXIT: 0 =====
+===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
-decision_id: decision_20260619_report_closeout_artifact_summary_reconcile_v1
-report_id: codex_report_20260619_report_closeout_artifact_summary_reconcile_v1
-round_id: round_20260619_report_closeout_artifact_summary_reconcile_v1
+final-check: FAILED
+decision_id: decision_20260619_report_generated_artifacts_json_field_fix_v1
+report_id: codex_report_20260619_report_generated_artifacts_json_field_fix_v1
+round_id: round_20260619_report_generated_artifacts_json_field_fix_v1
   [PASS] decision_report_match: decision/report ids and round_id match
   [PASS] pytest_result_match: pytest_result matches report
   [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
@@ -120,10 +123,10 @@ round_id: round_20260619_report_closeout_artifact_summary_reconcile_v1
   [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
   [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
   [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
   [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
   [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
-  [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs
+  [FAIL] stale_artifact_ids: gate artifacts reference stale decision/round/report IDs from a different round
   [PASS] report_body_consistency: report body prose is consistent with structured JSON summary
   [PASS] gate_profile_plan_current: gate_profile_plan.json carries current decision/round IDs
   [PASS] gate_profile_plan_command_plan_consistency: gate_profile_plan.json profile matches command_plan.json profile
@@ -133,5 +136,5 @@ round_id: round_20260619_report_closeout_artifact_summary_reconcile_v1
   [PASS] forbidden_paths_absent: no forbidden paths detected
   [WARN] status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking
   [PASS] final_check_stdout_matches_gate_status: archive-pending final-check status is allowed to differ before close-round
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
+recommended_next_action: fix_gate_failures_before_archive_or_handoff
+===== EXIT: 1 =====
