@@ -20,13 +20,13 @@
 
 | Family | Count |
 |--------|-------|
-| input | 0 |
-| compare | 0 |
+| input | 1 |
+| compare | 1 |
 | constants | 0 |
-| transform_hints | 0 |
+| transform_hints | 1 |
 | crypto_signatures | 0 |
 | gui | 0 |
-| anti_debug | 0 |
+| anti_debug | 1 |
 
 ## Solver Dispatch Plan
 

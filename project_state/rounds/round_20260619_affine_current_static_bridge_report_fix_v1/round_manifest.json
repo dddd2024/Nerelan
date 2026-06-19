@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-19T05:47:16Z",
+  "decision_id": "decision_20260619_affine_current_static_bridge_report_fix_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260619_affine_current_static_bridge_report_fix_v1\\codex_execution_report.md",
+      "sha256": "af32a4c9c33e36aff108b2c49d53d542c508f0927e2769e1796ea9ad9efb3980",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260619_affine_current_static_bridge_report_fix_v1\\decision_packet.md",
+      "sha256": "53713ee633c23031242ed67286c915142caac774978abdbeb475241c8164a98b",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260619_affine_current_static_bridge_report_fix_v1\\pytest_result.txt",
+      "sha256": "338cecd411b52ce0b93888a4f77738f694c9aa54ba07cac47a6d7f1f17c6080d",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "tool_integration",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260619_affine_current_static_bridge_report_fix_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260619_affine_current_static_bridge_report_fix_v1",
+  "schema_version": 1,
+  "source_git_commit": "692eaea45972",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

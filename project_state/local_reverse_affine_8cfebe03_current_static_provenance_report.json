@@ -16,13 +16,13 @@
   },
   "ida_evidence_regenerated_this_round": true,
   "evidence_counts": {
-    "input": 0,
-    "compare": 0,
+    "input": 1,
+    "compare": 1,
     "constants": 0,
-    "transform_hints": 0,
+    "transform_hints": 1,
     "crypto_signatures": 0,
     "gui": 0,
-    "anti_debug": 0
+    "anti_debug": 1
   },
   "dispatch_readiness": "needs_current_static_provenance",
   "recommended_solver_profiles": [
