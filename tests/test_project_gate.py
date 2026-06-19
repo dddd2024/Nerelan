@@ -13125,3 +13125,439 @@ def test_report_summary_synthesis_includes_required_closeout_in_generated_artifa
         assert path in summary["generated_artifacts"], (
             f"required_closeout_artifact {path} should be in generated_artifacts"
         )
+
+
+# ---------------------------------------------------------------------------
+# Decision contract hardening tests (Feature A/B/C/D)
+# ---------------------------------------------------------------------------
+
+_DECISION_CONTRACT_ARTIFACTS = [
+    "project_state/state_rebuild_apply_plan.json",
+    "project_state/proposed_state/artifact_index.json",
+]
+
+
+def _write_decision_with_contract(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    contract: dict[str, Any],
+    mainline: str = "engineering_branch",
+) -> None:
+    """Write a decision_packet.md with a decision_contract block."""
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": mainline,
+        "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    }
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+```json decision_contract
+{json.dumps(contract, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Harden closeout contract.
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+""",
+        encoding="utf-8",
+    )
+
+
+def test_decision_contract_absent_backward_compatible(tmp_path: Path) -> None:
+    """Decisions without decision_contract remain backward-compatible."""
+    state_dir = _make_gate_state(tmp_path)
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    # New checks should PASS (not applicable)
+    assert _check(result, "decision_contract_artifact_placement")["status"] == "PASS"
+    assert _check(result, "decision_contract_status_hardening")["status"] == "PASS"
+
+
+def test_decision_contract_invalid_json_fails_decision_lint(tmp_path: Path) -> None:
+    """Invalid decision_contract JSON must fail decision-lint."""
+    from reverse_agent.project_state import lint_decision
+
+    state_dir = _make_preflight_state(tmp_path)
+    # Overwrite decision with invalid contract JSON
+    payload = {
+        "schema_version": 1,
+        "decision_id": "decision_preflight",
+        "round_id": "round_preflight",
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": "engineering_branch",
+        "skill_profiles": ["reverse-agent-iteration@v2"],
+    }
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+```json decision_contract
+{{invalid json here}}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Test invalid contract.
+
+## 6. Implementation Scope
+
+- `reverse_agent/project_gate.py`
+""",
+        encoding="utf-8",
+    )
+    result = lint_decision(state_dir=state_dir)
+    assert not result["ok"]
+    assert any("decision_contract invalid JSON" in e for e in result["errors"])
+
+
+def test_decision_contract_unknown_fields_warn(tmp_path: Path) -> None:
+    """Unknown fields in decision_contract should warn."""
+    from reverse_agent.project_state import lint_decision
+
+    state_dir = _make_preflight_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_preflight",
+        round_id="round_preflight",
+        contract={
+            "required_generated_artifacts": [],
+            "unknown_field": "value",
+        },
+    )
+    result = lint_decision(state_dir=state_dir)
+    assert result["ok"]  # warnings don't fail
+    assert any("unknown fields" in w for w in result["warnings"])
+
+
+def test_decision_contract_required_generated_artifact_missing_fails(tmp_path: Path) -> None:
+    """Required generated artifact missing from generated_artifacts fails."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": _DECISION_CONTRACT_ARTIFACTS,
+            "required_files_changed": [],
+        },
+    )
+    # Do NOT add the required artifacts to generated_artifacts
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "decision_contract_artifact_placement")
+    assert check["status"] == "FAIL"
+    assert "project_state/state_rebuild_apply_plan.json" in check["missing_from_generated_artifacts"]
+
+
+def test_decision_contract_required_files_changed_missing_fails(tmp_path: Path) -> None:
+    """Required changed file missing from files_changed fails."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": [],
+            "required_files_changed": ["reverse_agent/special.py"],
+        },
+    )
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "decision_contract_artifact_placement")
+    assert check["status"] == "FAIL"
+    assert "reverse_agent/special.py" in check["missing_from_files_changed"]
+
+
+def test_decision_contract_artifact_referenced_only_fails(tmp_path: Path) -> None:
+    """Required generated artifact in referenced_artifacts only fails."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": _DECISION_CONTRACT_ARTIFACTS,
+            "required_files_changed": [],
+        },
+    )
+    # Add to referenced_artifacts but NOT generated_artifacts
+    _add_referenced_artifacts_to_report(state_dir, _DECISION_CONTRACT_ARTIFACTS)
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "decision_contract_artifact_placement")
+    assert check["status"] == "FAIL"
+    assert "project_state/state_rebuild_apply_plan.json" in check["referenced_only_artifacts"]
+
+
+def test_decision_contract_required_generated_artifact_present_passes(tmp_path: Path) -> None:
+    """Required generated artifact present in generated_artifacts passes."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": _DECISION_CONTRACT_ARTIFACTS,
+            "required_files_changed": [],
+        },
+    )
+    # Add required artifacts to generated_artifacts
+    from reverse_agent.project_state import extract_markdown_json_block, CODEX_REPORT_SUMMARY_BLOCK_NAME
+
+    report_path = state_dir / "codex_execution_report.md"
+    text = report_path.read_text(encoding="utf-8")
+    meta = extract_markdown_json_block(text, CODEX_REPORT_SUMMARY_BLOCK_NAME)
+    report = {k: v for k, v in meta.items() if k not in ("found", "parse_error")}
+    existing = list(report.get("generated_artifacts") or [])
+    report["generated_artifacts"] = existing + _DECISION_CONTRACT_ARTIFACTS
+    report_path.write_text(
+        f"""```json {CODEX_REPORT_SUMMARY_BLOCK_NAME}
+{json.dumps(report, indent=2)}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "decision_contract_artifact_placement")
+    assert check["status"] == "PASS"
+
+
+def test_decision_contract_status_hardening_success_without_final_check_fails(tmp_path: Path) -> None:
+    """SUCCESS report without matching final gate IDs fails status hardening."""
+    state_dir = _make_command_plan_gate_state(tmp_path, archived=True)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": [],
+            "required_files_changed": [],
+            "accepted_requires_final_check_passed": True,
+        },
+    )
+    # Overwrite final_gate_result with mismatched IDs
+    _write_json(state_dir / "gates" / "final_gate_result.json", {
+        "schema_version": 1,
+        "gate_name": "final-check",
+        "gate_status": "PASSED",
+        "decision_id": "wrong_decision",
+        "round_id": "wrong_round",
+    })
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "decision_contract_status_hardening")
+    assert check["status"] == "FAIL"
+
+
+def test_decision_contract_status_hardening_accepted_without_archive_warns(tmp_path: Path) -> None:
+    """ACCEPTED with close_round_required=true but no archive produces WARN, not FAIL.
+
+    The archive check is handled by the existing round_manifest_present WARN.
+    The decision_contract_status_hardening check should PASS (not FAIL) when
+    the archive is missing, because close-round hasn't been run yet.
+    """
+    state_dir = _make_command_plan_gate_state(tmp_path, archived=True)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": [],
+            "required_files_changed": [],
+            "close_round_required": True,
+        },
+    )
+    # Remove archive so manifest_present is False
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "decision_contract_status_hardening")
+    assert check["status"] == "PASS"
+
+
+def test_decision_contract_status_hardening_pytest_only_fails(tmp_path: Path) -> None:
+    """SUCCESS report missing gate command blocks fails status hardening."""
+    state_dir = _make_command_plan_gate_state(tmp_path, archived=True)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": [],
+            "required_files_changed": [],
+        },
+    )
+    # Rewrite pytest_result.txt with only startup + pytest, no gate commands
+    commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+    ]
+    body = "\n\n".join(_command_block(cmd, "ok") for cmd in commands)
+    _write_pytest(
+        state_dir,
+        decision_id="decision_gate",
+        report_id="codex_report_gate",
+        round_id="round_gate",
+        tests_ran=["python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"],
+        body=body,
+    )
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "decision_contract_status_hardening")
+    assert check["status"] == "FAIL"
+
+
+def test_decision_contract_status_hardening_passes_with_valid_setup(tmp_path: Path) -> None:
+    """Valid SUCCESS/ACCEPTED with matching final gate and archive passes."""
+    state_dir = _make_command_plan_gate_state(tmp_path, archived=True)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": [],
+            "required_files_changed": [],
+            "close_round_required": True,
+            "accepted_requires_final_check_passed": True,
+        },
+    )
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "decision_contract_status_hardening")
+    assert check["status"] == "PASS"
+
+
+def test_report_body_consistency_prose_claims_artifact_in_files_changed_but_omitted(tmp_path: Path) -> None:
+    """Report prose claims artifact in files_changed but JSON omits it fails."""
+    state_dir = _make_gate_state(tmp_path)
+    # Rewrite report with prose claiming a path is in files_changed
+    from reverse_agent.project_state import extract_markdown_json_block, CODEX_REPORT_SUMMARY_BLOCK_NAME
+
+    report_path = state_dir / "codex_execution_report.md"
+    text = report_path.read_text(encoding="utf-8")
+    meta = extract_markdown_json_block(text, CODEX_REPORT_SUMMARY_BLOCK_NAME)
+    report = {k: v for k, v in meta.items() if k not in ("found", "parse_error")}
+    # Remove a path from files_changed that we'll claim in prose
+    fc = list(report.get("files_changed") or [])
+    test_path = "project_state/gates/command_plan.json"
+    if test_path in fc:
+        fc.remove(test_path)
+    report["files_changed"] = fc
+    report_path.write_text(
+        f"""```json {CODEX_REPORT_SUMMARY_BLOCK_NAME}
+{json.dumps(report, indent=2)}
+```
+
+# CODEX_EXECUTION_REPORT
+
+The file `project_state/gates/command_plan.json` is listed in files_changed.
+""",
+        encoding="utf-8",
+    )
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    check = _check(result, "report_body_consistency")
+    assert check["status"] == "FAIL"
+
+
+def test_staged_artifact_regression_fixture(tmp_path: Path) -> None:
+    """Latest observed staged/apply-plan regression is represented as a fixture.
+
+    This test verifies that the decision_contract mechanism catches the
+    original regression: staged/apply-plan artifacts declared as
+    required_generated_artifacts but placed only in referenced_artifacts.
+    """
+    state_dir = _make_gate_state(tmp_path)
+    staged_artifacts = [
+        "project_state/state_rebuild_apply_plan.json",
+        "project_state/proposed_state/artifact_index.json",
+        "project_state/proposed_state/current_state.json",
+        "project_state/proposed_state/negative_results.json",
+        "project_state/proposed_state/model_gate.json",
+        "project_state/proposed_state/task_packet.json",
+    ]
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "required_generated_artifacts": staged_artifacts,
+            "required_files_changed": staged_artifacts,
+        },
+    )
+    # Place artifacts only in referenced_artifacts, not in generated_artifacts or files_changed
+    _add_referenced_artifacts_to_report(state_dir, staged_artifacts)
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+    placement_check = _check(result, "decision_contract_artifact_placement")
+    assert placement_check["status"] == "FAIL"
+    # Should detect both missing from generated_artifacts and referenced_only
+    assert "project_state/state_rebuild_apply_plan.json" in placement_check["missing_from_generated_artifacts"]
+    assert "project_state/state_rebuild_apply_plan.json" in placement_check["missing_from_files_changed"]
+    assert "project_state/state_rebuild_apply_plan.json" in placement_check["referenced_only_artifacts"]

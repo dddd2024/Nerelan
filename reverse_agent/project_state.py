@@ -174,6 +174,7 @@ STATE_DIGEST_EXCLUDED_KEYS = {
 DECISION_META_BLOCK_NAME = "decision_meta"
 CODEX_REPORT_SUMMARY_BLOCK_NAME = "codex_report_summary"
 PYTEST_RESULT_SUMMARY_BLOCK_NAME = "pytest_result_summary"
+DECISION_CONTRACT_BLOCK_NAME = "decision_contract"
 DECISION_STATUSES = {
     "TEMPLATE_ONLY",
     "DRAFT",
@@ -1053,6 +1054,85 @@ def read_decision_meta(state_dir: Path) -> dict[str, Any]:
     }
 
 
+DECISION_CONTRACT_KNOWN_FIELDS = {
+    "required_generated_artifacts",
+    "required_files_changed",
+    "forbidden_mutated_paths",
+    "required_command_fragments",
+    "close_round_required",
+    "accepted_requires_final_check_passed",
+}
+
+
+def read_decision_contract(state_dir: Path) -> dict[str, Any]:
+    """Read the optional ``decision_contract`` block from ``decision_packet.md``.
+
+    Returns a dict with keys:
+    - ``found``: True if the block was present
+    - ``parse_error``: error message if JSON was invalid, else None
+    - ``required_generated_artifacts``: list[str]
+    - ``required_files_changed``: list[str]
+    - ``forbidden_mutated_paths``: list[str]
+    - ``required_command_fragments``: list[str]
+    - ``close_round_required``: bool (default True)
+    - ``accepted_requires_final_check_passed``: bool (default True)
+    - ``unknown_fields``: list[str]
+    """
+    path = state_dir / "decision_packet.md"
+    text = _read_text_or_empty(path)
+    block = extract_markdown_json_block(text, DECISION_CONTRACT_BLOCK_NAME)
+    if not block.get("found"):
+        return {
+            "found": False,
+            "parse_error": None,
+            "required_generated_artifacts": [],
+            "required_files_changed": [],
+            "forbidden_mutated_paths": [],
+            "required_command_fragments": [],
+            "close_round_required": True,
+            "accepted_requires_final_check_passed": True,
+            "unknown_fields": [],
+        }
+    if block.get("parse_error"):
+        return {
+            "found": True,
+            "parse_error": block["parse_error"],
+            "required_generated_artifacts": [],
+            "required_files_changed": [],
+            "forbidden_mutated_paths": [],
+            "required_command_fragments": [],
+            "close_round_required": True,
+            "accepted_requires_final_check_passed": True,
+            "unknown_fields": [],
+        }
+    known = DECISION_CONTRACT_KNOWN_FIELDS
+    unknown = sorted(k for k in block if k not in known and k not in ("found", "parse_error"))
+
+    def _str_list(key: str) -> list[str]:
+        val = block.get(key)
+        if isinstance(val, list) and all(isinstance(item, str) for item in val):
+            return list(val)
+        return []
+
+    def _bool_val(key: str, default: bool) -> bool:
+        val = block.get(key)
+        if isinstance(val, bool):
+            return val
+        return default
+
+    return {
+        "found": True,
+        "parse_error": None,
+        "required_generated_artifacts": _str_list("required_generated_artifacts"),
+        "required_files_changed": _str_list("required_files_changed"),
+        "forbidden_mutated_paths": _str_list("forbidden_mutated_paths"),
+        "required_command_fragments": _str_list("required_command_fragments"),
+        "close_round_required": _bool_val("close_round_required", True),
+        "accepted_requires_final_check_passed": _bool_val("accepted_requires_final_check_passed", True),
+        "unknown_fields": unknown,
+    }
+
+
 def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
     path = state_dir / "codex_execution_report.md"
     text = _read_text_or_empty(path)
@@ -1587,6 +1667,16 @@ def lint_decision(state_dir: Path) -> dict[str, Any]:
             warnings.append(
                 f"task_packet.active_decision_packet is {active_decision_packet}, expected {ACTIVE_DECISION_PACKET}"
             )
+
+    # Validate optional decision_contract block
+    contract = read_decision_contract(state_dir)
+    if contract.get("found"):
+        if contract.get("parse_error"):
+            errors.append(f"decision_contract invalid JSON: {contract['parse_error']}")
+        else:
+            unknown = contract.get("unknown_fields") or []
+            if unknown:
+                warnings.append(f"decision_contract contains unknown fields: {unknown}")
 
     return {
         "ok": not errors,

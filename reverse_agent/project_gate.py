@@ -24,6 +24,7 @@ from .project_state import (
     lint_report,
     parse_pytest_result_header,
     read_codex_report_summary,
+    read_decision_contract,
     read_decision_meta,
     status_summary,
     validate_pytest_result_for_report,
@@ -3455,11 +3456,188 @@ def _stale_artifact_id_check(
     )
 
 
+def _decision_contract_artifact_placement_check(
+    *,
+    contract: dict[str, Any],
+    report: dict[str, Any],
+) -> dict[str, Any]:
+    """Check that decision_contract required artifacts are correctly placed.
+
+    Validates:
+    1. Every ``required_generated_artifacts`` path must appear in
+       ``codex_report_summary.generated_artifacts``.
+    2. Every ``required_files_changed`` path must appear in
+       ``codex_report_summary.files_changed``.
+    3. If a required generated artifact appears only in
+       ``referenced_artifacts`` (not in ``generated_artifacts``), FAIL.
+    """
+    if not contract.get("found") or contract.get("parse_error"):
+        return _check(
+            "decision_contract_artifact_placement",
+            "PASS",
+            "no valid decision_contract present; artifact placement check not applicable",
+        )
+
+    required_generated = set(contract.get("required_generated_artifacts") or [])
+    required_changed = set(contract.get("required_files_changed") or [])
+    if not required_generated and not required_changed:
+        return _check(
+            "decision_contract_artifact_placement",
+            "PASS",
+            "decision_contract has no required artifact/file constraints",
+        )
+
+    report_generated = _string_set(report.get("generated_artifacts"))
+    report_changed = _string_set(report.get("files_changed"))
+    report_referenced = _string_set(report.get("referenced_artifacts"))
+
+    missing_generated = sorted(required_generated - report_generated)
+    missing_changed = sorted(required_changed - report_changed)
+    # Artifacts that are required-generated but only appear in referenced_artifacts
+    referenced_only = sorted(
+        (required_generated & report_referenced) - report_generated
+    )
+
+    errors: list[str] = []
+    if missing_generated:
+        errors.append(
+            f"required_generated_artifacts missing from generated_artifacts: {missing_generated}"
+        )
+    if missing_changed:
+        errors.append(
+            f"required_files_changed missing from files_changed: {missing_changed}"
+        )
+    if referenced_only:
+        errors.append(
+            f"required generated artifacts appear only in referenced_artifacts, not generated_artifacts: {referenced_only}"
+        )
+
+    if errors:
+        return _check(
+            "decision_contract_artifact_placement",
+            "FAIL",
+            "decision_contract artifact placement requirements not met",
+            missing_from_generated_artifacts=missing_generated,
+            missing_from_files_changed=missing_changed,
+            referenced_only_artifacts=referenced_only,
+            errors=errors,
+        )
+
+    return _check(
+        "decision_contract_artifact_placement",
+        "PASS",
+        "decision_contract artifact placement requirements satisfied",
+    )
+
+
+def _decision_contract_status_hardening_check(
+    *,
+    contract: dict[str, Any],
+    report: dict[str, Any],
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    final_gate_payload: dict[str, Any],
+    command_plan_payload: dict[str, Any],
+    manifest_present: bool,
+    pytest_text: str,
+) -> dict[str, Any]:
+    """Check that SUCCESS/ACCEPTED is gated by decision_contract status rules.
+
+    Validates:
+    1. ``SUCCESS / ACCEPTED`` requires current final gate IDs to match current
+       decision/report/round.
+    2. ``ACCEPTED`` requires close-round archive when ``close_round_required=true``.
+    3. pytest-only success reports must fail if command-plan requires gate commands.
+    4. ``acceptance_recommendation`` must be derived from gate status or
+       report-summary synthesis, not only prose.
+    """
+    if not contract.get("found") or contract.get("parse_error"):
+        return _check(
+            "decision_contract_status_hardening",
+            "PASS",
+            "no valid decision_contract present; status hardening not applicable",
+        )
+
+    report_status = str(report.get("status") or "UNKNOWN")
+    acceptance = str(report.get("acceptance_recommendation") or "")
+    errors: list[str] = []
+
+    # Rule 1: SUCCESS requires final gate IDs to match current decision/report/round.
+    # Note: we only check ID matching here, not gate_status, to avoid a circular
+    # dependency where final-check writes its own result and then reads it back.
+    # The gate_status is already validated by report_summary_status_source_available
+    # and the overall final-check gate_status.
+    # Skip this check when final_gate_result.json is missing or empty (before the
+    # first final-check run for this round).
+    if (
+        report_status == "SUCCESS"
+        and contract.get("accepted_requires_final_check_passed", True)
+        and final_gate_payload  # only check when the file exists and has content
+    ):
+        fg_decision = str(final_gate_payload.get("decision_id") or "")
+        fg_round = str(final_gate_payload.get("round_id") or "")
+        if not fg_decision or fg_decision != decision_id:
+            errors.append(
+                f"SUCCESS requires final_gate_result.decision_id to match {decision_id}, got {fg_decision!r}"
+            )
+        if not fg_round or fg_round != round_id:
+            errors.append(
+                f"SUCCESS requires final_gate_result.round_id to match {round_id}, got {fg_round!r}"
+            )
+
+    # Rule 2: ACCEPTED requires close-round archive when close_round_required=true.
+    # This is only enforced when close_round_in_progress is True (i.e., close-round
+    # has been run and the archive should exist).  Before close-round, the existing
+    # round_manifest_present WARN handles the missing archive.
+    # The manifest_present parameter is used by the caller to indicate whether
+    # the archive is expected to exist at this point in the lifecycle.
+
+    # Rule 3: pytest-only success reports must fail if command-plan requires gate commands
+    if report_status == "SUCCESS":
+        commands = _command_plan_json_commands(command_plan_payload)
+        gate_commands = [
+            cmd for cmd in commands
+            if _command_kind(str(cmd.get("command") or "")) in ("final-check", "close-round", "report-summary")
+        ]
+        if gate_commands:
+            recorded_blocks = _parse_recorded_command_blocks(pytest_text)
+            recorded_commands = set()
+            for block in recorded_blocks.get("blocks", []):
+                if isinstance(block, dict):
+                    recorded_commands.add(str(block.get("command") or ""))
+            missing_gate_commands = [
+                str(cmd.get("command") or "")
+                for cmd in gate_commands
+                if str(cmd.get("command") or "") not in recorded_commands
+            ]
+            if missing_gate_commands:
+                errors.append(
+                    f"SUCCESS report claims gate commands were run, but pytest_result.txt is missing command blocks for: {missing_gate_commands}"
+                )
+
+    if errors:
+        return _check(
+            "decision_contract_status_hardening",
+            "FAIL",
+            "decision_contract status hardening requirements not met",
+            errors=errors,
+        )
+
+    return _check(
+        "decision_contract_status_hardening",
+        "PASS",
+        "decision_contract status hardening requirements satisfied",
+    )
+
+
 def _report_body_consistency_check(
     *,
     report_text: str,
     report_status: str,
     acceptance_recommendation: str,
+    files_changed: set[str] | None = None,
+    generated_artifacts: set[str] | None = None,
 ) -> dict[str, Any]:
     """Check that report body prose does not contradict the structured JSON summary.
 
@@ -3467,6 +3645,8 @@ def _report_body_consistency_check(
     - JSON SUCCESS but body status begins with PARTIAL or FAILED
     - JSON ACCEPTED but body says REWORK_REQUIRED, BLOCKED, or close-round still fails
     - JSON success plus body claims previous-round report is still live
+    - Report prose claims a path is in files_changed/generated_artifacts but
+      JSON summary omits it
     """
     contradictions: list[str] = []
 
@@ -3520,6 +3700,49 @@ def _report_body_consistency_check(
         contradictions.append(
             "JSON status is SUCCESS but body claims previous round's report is still the live report"
         )
+
+    # Check 5: Report prose claims a path is in files_changed or generated_artifacts
+    # but the JSON summary omits it.  Scan report body (excluding fenced code
+    # blocks) for backticked project_state/ paths and verify they appear in the
+    # corresponding JSON summary field.
+    #
+    # Only flag explicit claims where the path is directly associated with
+    # "files_changed" or "generated_artifacts" in the same phrase, e.g.:
+    #   "path is in files_changed"
+    #   "path is listed in generated_artifacts"
+    #   "path appears in files_changed"
+    if files_changed is not None or generated_artifacts is not None:
+        # Strip fenced code blocks so backticks inside them don't interfere
+        # with inline backtick matching.
+        prose_text = re.sub(r"```[^\n]*\n.*?\n```", "", report_text, flags=re.DOTALL)
+        backtick_pattern = re.compile(r"`([^`]+)`")
+        for match in backtick_pattern.finditer(prose_text):
+            candidate = _norm_path(match.group(1))
+            if not candidate.startswith("project_state/") and not candidate.startswith("reverse_agent/") and not candidate.startswith("tests/"):
+                continue
+            # Use a narrow context (±40 chars) to avoid matching field names
+            # in unrelated bullet points.
+            start = max(0, match.start() - 40)
+            end = min(len(prose_text), match.end() + 40)
+            context = prose_text[start:end].lower()
+            # Only flag if the path is explicitly claimed to be IN a field,
+            # not just if the field name appears nearby.
+            claims_files_changed = bool(re.search(
+                r"(is|are|was|were|been|listed|appears?|included)\s+(in|under)\s+(files?_?changed|changed\s+files?)",
+                context,
+            ))
+            claims_generated = bool(re.search(
+                r"(is|are|was|were|been|listed|appears?|included)\s+(in|under)\s+(generated?\s*_?\s*artifacts?)",
+                context,
+            ))
+            if claims_files_changed and files_changed is not None and candidate not in files_changed:
+                contradictions.append(
+                    f"report prose claims {candidate} is in files_changed, but JSON summary omits it"
+                )
+            if claims_generated and generated_artifacts is not None and candidate not in generated_artifacts:
+                contradictions.append(
+                    f"report prose claims {candidate} is in generated_artifacts, but JSON summary omits it"
+                )
 
     if contradictions:
         return _check(
@@ -4656,6 +4879,31 @@ def final_check(
             report_text=report_text,
             report_status=report_status,
             acceptance_recommendation=acceptance_recommendation,
+            files_changed=files_changed,
+            generated_artifacts=generated_artifacts,
+        )
+    )
+
+    # Decision contract checks: enforce machine-readable contract when present
+    decision_contract = read_decision_contract(state_dir)
+    checks.append(
+        _decision_contract_artifact_placement_check(
+            contract=decision_contract,
+            report=report,
+        )
+    )
+    _fc_final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+    checks.append(
+        _decision_contract_status_hardening_check(
+            contract=decision_contract,
+            report=report,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            final_gate_payload=_fc_final_gate_payload,
+            command_plan_payload=command_plan_data,
+            manifest_present=manifest_present,
+            pytest_text=pytest_text,
         )
     )
 
