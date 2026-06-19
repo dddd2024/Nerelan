@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260619_affine_current_static_bridge_report_fix_v1",
-  "round_id": "round_20260619_affine_current_static_bridge_report_fix_v1",
+  "gate_status": "BLOCKED",
+  "decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
+  "round_id": "round_20260619_affine_report_generated_artifacts_fix_v1",
   "mainline": "tool_integration",
-  "generated_at": "2026-06-19T05:39:13.149046Z",
+  "generated_at": "2026-06-19T06:08:44.978246Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -53,10 +53,10 @@
     },
     {
       "name": "decision_not_consumed_by_report",
-      "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260619_affine_current_static_bridge_validation_v1"
+      "status": "FAIL",
+      "detail": "decision already appears consumed by report",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260619_affine_report_generated_artifacts_fix_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,13 +71,6 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "anti_debug",
-        "compare",
-        "constants",
-        "crypto_signatures",
-        "gui",
-        "input",
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -87,14 +80,8 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json",
-        "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_current_static_bridge_report_fix_v1/*",
-        "reverse_agent/evidence.py",
-        "reverse_agent/solver_dispatch_plan.py",
-        "reverse_agent/static_evidence_bridge.py",
-        "transform_hints"
+        "project_state/rounds/round_20260619_affine_report_generated_artifacts_fix_v1/*"
       ]
     },
     {
@@ -110,9 +97,7 @@
       "matched_terms": [
         "solver"
       ],
-      "matched_paths": [
-        "reverse_agent/solver_dispatch_plan.py"
-      ]
+      "matched_paths": []
     },
     {
       "name": "artifact_freshness_policy",
@@ -139,18 +124,20 @@
       "baseline_source_test_dirty": []
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "decision_not_consumed_by_report: decision already appears consumed by report"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "do_not_start_consumed_or_stale_decision",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "692eaea45972"
+    "head_commit": "654fc71003fd"
   },
   "status_summary": {
-    "decision_execution_state": "READY_FOR_EXECUTION",
-    "decision_report_id_match": false,
-    "decision_consumed_by_report": false,
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_report_id_match": true,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"
