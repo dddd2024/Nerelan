@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
-  "round_id": "round_20260619_generic_static_evidence_bridge_v1",
+  "decision_id": "decision_20260619_affine_current_static_bridge_validation_v1",
+  "round_id": "round_20260619_affine_current_static_bridge_validation_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,49 +15,61 @@
 
 ## 1. Goal
 
-建立一个通用的 static evidence bridge：把 IDA/Ghidra/strings/objdump/static triage 等工具产物转换为项目现有的 `StructuredEvidence` 和 solver dispatch plan。
+对上一轮已完成的通用 `static artifact -> StructuredEvidence -> solver dispatch plan` 桥接层做一次 current provenance validation。
 
-本轮主线是 `tool_integration`。目标不是专门求解 `affine_8cfebe03`，而是建设可复用的工具产物桥接层。`affine_8cfebe03` 只能作为 fixture / acceptance case，用来验证桥接层能处理 input string + compare context + candidate transform function 这一类证据组合；不得把 sample_id、函数名、字符串、candidate 或 flag 写死进模块逻辑。
+本轮主线是 `tool_integration`。目标是用现有单样本静态提取接口对 `affine_8cfebe03` 重新生成当前轮 static triage artifact，然后把这个 current artifact 送入通用 `StaticEvidenceBridge`，生成当前轮 bridge result / solver dispatch plan / provenance report。
 
-本轮完成后，后续每类题目都应能复用同一条链路：
+`affine_8cfebe03` 仍然只是 acceptance target，不允许把本轮扩展成求解该题。本轮只验证工具链：
 
 ```text
-Tool Artifact -> StructuredEvidence -> solver profile hints -> solver dispatch plan
+existing IDA static triage runner -> current static triage artifact -> StaticEvidenceBridge -> StructuredEvidence + SolverDispatchPlan
 ```
 
-本轮不生成 candidate，不生成 flag，不运行样本，不运行 solver，不运行 runtime validation。若桥接层输出 solve-ready plan，也只能作为下一轮 `reverse_solving` 的输入。
+本轮不生成 candidate，不生成 flag，不运行 solver，不运行 runtime validation，不执行样本二进制。若 IDA 或样本路径不可用，允许产生 blocked current artifact 和 BLOCKED report；不要用历史 artifact 伪装 current evidence。
+
+成功标准：
+
+1. `project_state/artifact_index.json` 登记 `local_reverse_affine_8cfebe03_static_triage`，freshness 为 `current`，source_run 为本轮 round。
+2. bridge 输出使用当前轮 static triage artifact，而不是历史 fixture。
+3. solver dispatch plan 最多进入 `solver_profile_hint_only` 或 `needs_current_static_provenance`，不能声称 solve-ready。
+4. 报告明确下一轮是否可以转 `reverse_solving` 做 bounded constraint recovery / targeted decompilation / candidate validation。
 
 ## 2. Current Evidence
 
-当前 `task_packet.json` 仍是旧 `samplereverse` / `collect_missing_evidence` 建议，且 `execution_scope=decision_packet_controls_current_round`。它不是本轮执行权威，本轮执行以本 `project_state/decision_packet.md` 为准。
+上一轮 `decision_20260619_generic_static_evidence_bridge_v1` 已被审计为 `ACCEPTED_WITH_LIMITATIONS`。它完成了通用 bridge 第一版：扩展 `reverse_agent/evidence.py`，新增 `reverse_agent/static_evidence_bridge.py`、`reverse_agent/solver_dispatch_plan.py` 和对应测试，pytest 记录为 844 passed。限制是 bridge 的示例输出仍是 `needs_current_static_provenance`，不能直接作为 reverse-solving 输入。
 
-当前 `current_state.json` 仍是 `samplereverse` 的 sample-state，`artifact_refs={}`，best candidates 为空，多个 runtime/static artifact 字段为空。它不能作为本轮 tool integration 的 current sample evidence。
+当前 `task_packet.json` 仍是旧 `samplereverse` / `collect_missing_evidence` 建议，且 `execution_scope=decision_packet_controls_current_round`。它不是本轮执行权威。
 
-当前 `artifact_index.json` 对 `samplereverse` 记录大量 `freshness=missing` artifact。这些是历史/backlog 状态。上一轮 claim-aware gate policy 已经确认：非样本主线不能被 unclaimed historical/backlog sample artifacts 错误阻塞，但 reverse_solving 或 claimed evidence 仍必须保持 strict freshness。
+当前 `current_state.json` 仍是旧 `samplereverse` sample-state，`artifact_refs={}`，best candidates 为空，多个 artifact 字段为空。它不能作为本轮 affine/current static evidence。
+
+当前 `artifact_index.json` 仍含大量 `samplereverse` missing artifact。它们是 historical/backlog notices，不能作为本轮 current evidence，也不应阻塞本轮 `tool_integration`，但 reverse-solving 和 claimed evidence 仍必须保持 strict freshness。
 
 `negative_results.json` 继续有效：不要回到旧 `sample_solver` blind search，不要只扩 beam/budget/topN，不要把 `compare_semantics_agree=false` candidates 当 primary frontier，不要提交完整 `solve_reports/`，不要重复 `samplereverse` 已失败的 exact2/H1-H3/transform-trace 方向。
 
-已有相关能力必须复用：
+已有能力必须复用：
 
-- `reverse_agent/evidence.py` 已有 `StructuredEvidence` dataclass 以及 material evidence helpers；不得新建不兼容的第二套 evidence model。
-- `reverse_agent/tool_runners.py`、`reverse_agent/tool_capability_inventory.py`、`reverse_agent/local_reverse_single_sample_static_triage.py`、`reverse_agent/local_reverse_targeted_static_reextract.py` 等工具接口已存在；先检查再复用，不重复实现 IDA/Ghidra/debugger runner。
-- `project_state/local_reverse_solver_tool_capability_map.json`、`project_state/structured_evidence_gap_report.json`、`project_state/local_reverse_cipher_static_evidence_profile.json` 等历史产物可作线索，但不能无 provenance 地当 current evidence。
-- `project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json` 记录历史上 `affine_8cfebe03` 的 IDA output blocker 已修复；它只说明此样本适合作为 acceptance fixture，不授权本轮直接求解。
-- `project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json` 记录历史 IDA static evidence：有 `_strncmp` compare context、input-oriented strings、candidate function hints 和 next action。它可以作为 fixture 输入/格式线索，但不能被标记为 current reverse-solving evidence，除非本轮有界重建并登记 provenance；本轮默认不运行 IDA/Ghidra。
+- `reverse_agent/local_reverse_single_sample_static_triage.py` 已存在，读取 queue/inventory，运行现有 IDA static evidence collection，明确不执行目标二进制、不生成 candidate，并能更新 `artifact_index.json`。
+- 该接口已经把 IDA 输出目录切到系统 temp，以规避旧的 IDA `GetDiskFreeSpaceEx` / NTFS 8.3 路径问题。
+- `reverse_agent/static_evidence_bridge.py` 已存在，纯 Python，将 dict-like static artifacts 转成 `StructuredEvidence` 和 `SolverDispatchPlan`。
+- `reverse_agent/solver_dispatch_plan.py` 已存在，保守输出 readiness/profile/missing evidence/provenance notes。
+- `reverse_agent/evidence.py` 已存在并包含 static evidence kind factory functions。
+- 历史 `project_state/local_reverse_affine_8cfebe03_static_triage.json`、`project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json` 和 `project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json` 只能作为格式参考和 expected signal 线索，不能作为 current evidence。
 
-本轮核心判断：现在真正缺的不是训练队列刷新，而是通用 bridge，让成熟工具输出可以稳定进入 solver dispatcher。
+本轮要把上一轮的 bridge 从 synthetic/historical fixture 验证推进到 current static provenance 验证。
 
 ## 3. Do Not Do
 
 不要运行 reverse-solving。
 
-不要运行任何本地样本可执行文件。
+不要执行任何本地样本二进制。
 
 不要生成 candidate、flag、密码、key 或最终答案。
 
 不要运行 solver、harness、runtime probe、sidecar、emulator、debugger hook、GUI workflow 或 frontend workflow。
 
-不要运行 IDA/Ghidra/OllyDbg/x64dbg。如果发现需要当前 IDA/Ghidra 输出才能完成，本轮停止并报告下一轮 bounded static extraction 需求。
+不要运行 OllyDbg/x64dbg/debugger。只允许通过现有 `local_reverse_single_sample_static_triage.py` 使用 IDA 静态提取；不得新建重复 IDA runner。
+
+不要运行 Ghidra，除非 IDA current static triage 被明确阻塞且报告仅建议下一轮转 Ghidra fallback；本轮不实现 fallback。
 
 不要读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
 
@@ -65,13 +77,13 @@ Tool Artifact -> StructuredEvidence -> solver profile hints -> solver dispatch p
 
 不要修改 `.codex-skills/`。
 
-不要新建重复的 IDA/Ghidra/debugger runner、corpus scanner、solver 或 harness。
+不要修改 solver 搜索逻辑、beam/topN/budget、runtime validation、harness、GUI/frontend。
 
-不要把 `affine_8cfebe03` 写成专用逻辑。禁止出现 `if sample_id == "affine_8cfebe03"` 这类分支，除非只在测试 fixture 名称、artifact 产物说明或 acceptance report 中出现。
+不要把历史 affine artifact 标记为 current。
 
-不要把历史 `affine_8cfebe03` static artifact 标记为 current solving evidence。
+不要把 `affine_8cfebe03` 写入 production bridge 逻辑。它只能出现在命令参数、artifact 名称、报告、测试 fixture 或 current provenance result 中。
 
-不要把本轮扩展成批量训练集刷新或单样本求解。
+不要因为 bridge 输出了 `string_compare` profile 就直接开始 candidate generation。
 
 ## 4. Files To Inspect
 
@@ -86,29 +98,31 @@ Tool Artifact -> StructuredEvidence -> solver profile hints -> solver dispatch p
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-现有证据/工具/调度能力：
+现有工具/桥接能力：
 
-1. `reverse_agent/evidence.py`
-2. `reverse_agent/pipeline.py`
-3. `reverse_agent/tool_runners.py`
-4. `reverse_agent/tool_capability_inventory.py`
-5. `reverse_agent/local_reverse_single_sample_static_triage.py`
-6. `reverse_agent/local_reverse_targeted_static_reextract.py`
-7. `reverse_agent/local_reverse_training_status.py`
-8. `reverse_agent/local_reverse_training_review.py`
-9. `reverse_agent/local_reverse_corpus.py`
-10. `reverse_agent/probes/gui.py`
-11. `reverse_agent/profiles/samplereverse.py`
-12. existing solver/dispatcher modules discovered by search; inspect before modifying
+1. `reverse_agent/local_reverse_single_sample_static_triage.py`
+2. `reverse_agent/static_evidence_bridge.py`
+3. `reverse_agent/solver_dispatch_plan.py`
+4. `reverse_agent/evidence.py`
+5. `reverse_agent/tool_runners.py`
+6. `reverse_agent/tool_capability_inventory.py`
+7. `tests/test_static_evidence_bridge.py`
+8. `tests/test_solver_dispatch_plan.py`
+9. `tests/test_evidence.py`
 
-Fixture / acceptance inputs, read boundedly only:
+训练 metadata / sample lookup：
+
+1. `project_state/local_reverse_inventory.json`
+2. `project_state/local_reverse_evaluation_queue.json`
+3. `training_materials/local_reverse/inventory.json`
+4. `training_materials/local_reverse/queue.json`
+5. `training_materials/local_reverse/cases/affine_8cfebe03.json`
+
+历史 affine artifact，read boundedly only as format/reference:
 
 1. `project_state/local_reverse_affine_8cfebe03_static_triage.json`
 2. `project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json`
 3. `project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json`
-4. `project_state/local_reverse_cipher_static_evidence_profile.json`
-5. `project_state/local_reverse_solver_tool_capability_map.json`
-6. `project_state/structured_evidence_gap_report.json`
 
 Do not read complete heavy-history directories.
 
@@ -122,34 +136,35 @@ Before implementation, audit and record:
 4. `mainline=tool_integration`.
 5. `reverse-agent-iteration@v2` is active in `.codex-skills/registry.json`.
 6. `task_packet.json` is advisory, not execution authority.
-7. Existing tool interfaces for IDA/Ghidra/debugger/static triage are checked before adding code.
-8. Existing `StructuredEvidence` in `reverse_agent/evidence.py` is reused or extended compatibly.
-9. No mature tool capability is reimplemented.
-10. No solver, runtime validation, sample execution, IDA/Ghidra/debugger run, harness, GUI or frontend workflow is invoked.
-11. Historical affine artifacts are classified as fixture/provenance examples, not current solving evidence.
-12. Implementation does not hardcode `affine_8cfebe03` outside tests/reports/fixture paths.
-13. Any produced solver dispatch plan has explicit readiness state such as `not_solve_ready`, `needs_current_static_provenance`, or `solver_profile_hint_only` unless current evidence was built in this round.
+7. `local_reverse_single_sample_static_triage.py` exists and is used instead of creating a new IDA/static runner.
+8. `StaticEvidenceBridge` exists and is used instead of writing sample-specific parsing.
+9. No sample binary execution is performed.
+10. IDA use is bounded to static analysis for `affine_8cfebe03` via the existing runner only.
+11. If IDA is unavailable or returns blocked/no output, produce a blocked artifact and report the blocker; do not fallback to history as current.
+12. Any generated bridge plan includes source artifact path, source_run, and provenance notes.
+13. Any readiness stronger than `needs_current_static_provenance` must be justified by current artifact provenance and still must not claim solve-ready.
 
-Bridge capability audit must answer:
+Must audit result quality:
 
-1. Which tool artifact schemas are currently supported: static triage JSON, static evidence summary JSON, cipher static profile JSON, strings-only artifact, runtime trace artifact, etc.
-2. Which evidence families are normalized: input evidence, compare evidence, constant/array evidence, transform evidence, crypto signature evidence, GUI input evidence, anti-debug evidence.
-3. Which solver profile hints can be emitted: string compare, xor, affine/shift, lookup table, RC4, DES/AES, hash/domain, GUI check, anti-debug precondition.
-4. Which evidence is insufficient for solving and why.
+1. Does current static triage artifact have `tool_status=success` or `blocked`?
+2. Does it have `executed_sample=false`, `static_only=true`, `runtime_validated=false`?
+3. Does artifact_index mark `local_reverse_affine_8cfebe03_static_triage` as `current` with current round id?
+4. Does bridge output contain StaticInputEvidence and/or StaticCompareEvidence?
+5. Does solver dispatch plan recommend profiles such as `string_compare`, `affine_shift`, `xor`, or others based on current artifact content?
+6. What required missing evidence remains before reverse_solving?
+7. Is next mainline `reverse_solving` appropriate, or does the result require another `tool_integration` round?
 
 ## 6. Implementation Scope
 
-Preferred implementation is a small generic bridge module plus tests.
+Preferred path is to run existing code and produce current artifacts. Do not modify source unless the existing bridge lacks a minimal reusable export helper.
 
-Allowed source files:
+Allowed source files only if necessary for a small reusable export/CLI bug fix:
 
-- `reverse_agent/evidence.py`
 - `reverse_agent/static_evidence_bridge.py`
 - `reverse_agent/solver_dispatch_plan.py`
-- `reverse_agent/tool_capability_inventory.py` only if needed to register bridge capability metadata
-- `reverse_agent/pipeline.py` only if needed to expose existing pipeline integration without running tools
+- `reverse_agent/evidence.py`
 
-Allowed tests:
+Allowed tests only if source files are changed:
 
 - `tests/test_static_evidence_bridge.py`
 - `tests/test_solver_dispatch_plan.py`
@@ -159,10 +174,12 @@ Allowed tests:
 
 Allowed generated artifacts:
 
-- `project_state/static_evidence_bridge_report.json`
-- `project_state/static_evidence_bridge_report.md`
-- `project_state/solver_dispatch_plan.json`
-- `project_state/static_evidence_bridge_capability_matrix.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_triage.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json`
+- `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json`
+- `project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md`
+- `project_state/artifact_index.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/preflight_result.json`
@@ -173,28 +190,33 @@ Allowed generated artifacts:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/*`
+- `project_state/rounds/round_20260619_affine_current_static_bridge_validation_v1/*`
 
 Implementation requirements:
 
-1. Build a generic adapter that accepts dict-like static artifacts and returns `list[StructuredEvidence]` plus a solver dispatch plan.
-2. Evidence kinds must be generic, e.g. `StaticInputEvidence`, `StaticCompareEvidence`, `StaticConstantEvidence`, `StaticTransformHintEvidence`, `StaticCryptoSignatureEvidence`, `StaticGuiInputEvidence`, `StaticAntiDebugEvidence`.
-3. Compare detection must be rule-based on artifact content, not sample_id: `strcmp`, `strncmp`, `memcmp`, `CompareStringA`, comparison blocks, compare callsites.
-4. Input detection must be rule-based on input APIs/strings: `scanf`, `gets`, `fgets`, `ReadFile`, `GetDlgItemTextA/W`, `__input`, prompt-like strings.
-5. Transform hints must be conservative: arithmetic/bitwise/loop/table evidence can recommend solver profile but cannot become solve-ready without sufficient constants and provenance.
-6. Crypto signatures must be profile hints only unless enough structured material exists: RC4 KSA/PRGA, DES/AES tables, MD5/SHA constants, Base64 table or material evidence.
-7. The solver dispatch plan must include `readiness`, `recommended_solver_profiles`, `required_missing_evidence`, `source_artifacts`, and `provenance_notes`.
-8. `affine_8cfebe03` may appear only in tests and generated reports as acceptance fixture; production logic must pass the same tests with synthetic generic artifacts.
-9. Preserve backward compatibility with existing `StructuredEvidence` fields: `kind`, `source_tool`, `summary`, `payload`, `confidence`, `derived_candidates`.
-10. Do not generate candidates or final answers.
+1. Run current static triage through the existing interface:
 
-Acceptance cases:
+```powershell
+python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --mainline tool_integration --out project_state/local_reverse_affine_8cfebe03_current_static_triage.json
+```
 
-1. Synthetic static triage artifact with `__input` + `_strncmp` + compare context returns input and compare evidence and recommends `string_compare` profile.
-2. Synthetic artifact with xor/arithmetic loop and constants returns transform hint and recommends `xor` or `affine_shift` profile, but remains not solve-ready if target constants are incomplete.
-3. Synthetic RC4-like artifact returns crypto signature evidence and recommends `rc4` profile only as a hint.
-4. Historical `affine_8cfebe03` fixture can be parsed into evidence and a dispatch plan, but readiness must be no stronger than `needs_current_static_provenance` unless rebuilt in this round.
-5. No test relies on executing a binary or launching IDA/Ghidra/debugger.
+2. Convert the resulting current static triage artifact through `StaticEvidenceBridge` with `has_current_provenance=true`, producing:
+   - `project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json`
+   - `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json`
+
+3. Generate a provenance report that compares only high-level metadata against historical affine artifacts:
+   - current artifact path/hash/source_run/tool_status;
+   - whether IDA evidence was regenerated this round;
+   - evidence counts: input, compare, constants, transform hints, crypto signatures, GUI, anti-debug;
+   - dispatch readiness and recommended profiles;
+   - missing evidence before solving;
+   - next recommended mainline.
+
+4. If the current static triage is blocked, still emit a blocked provenance report and update `codex_execution_report.md` with status `BLOCKED` or `SUCCESS` with `acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS`, depending on gate policy. Do not mark historical evidence as current.
+
+5. Do not produce candidate, flag, or validation result.
+
+6. Do not modify source unless needed to expose bridge export cleanly. If source is modified, add tests.
 
 ## 7. Tests
 
@@ -207,6 +229,7 @@ Test-Path F:\reverse-agent
 git rev-parse --show-toplevel
 git status --short
 
+python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --mainline tool_integration --out project_state/local_reverse_affine_8cfebe03_current_static_triage.json
 python -m pytest tests/test_static_evidence_bridge.py tests/test_solver_dispatch_plan.py tests/test_evidence.py tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_gate preflight --state-dir project_state
@@ -216,12 +239,12 @@ python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-If `tests/test_solver_dispatch_plan.py` or `tests/test_evidence.py` do not exist and no matching code is changed, create only the tests that correspond to changed modules and record the reason in the report.
+If source files are not modified, existing bridge tests above are sufficient. If source files are modified, update or add tests for the changed behavior and run the same pytest command.
 
 If final-check passes and `gate_profile_plan.closeout_allowed=true`, close the round and rerun final-check:
 
 ```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_generic_static_evidence_bridge_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_affine_current_static_bridge_validation_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -235,12 +258,14 @@ Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 2. `decision_meta` is missing or not `APPROVED`.
 3. `mainline` is not `tool_integration`.
 4. `reverse-agent-iteration@v2` is not active.
-5. Required implementation needs running IDA/Ghidra/debugger/runtime probe/sample/solver/harness.
-6. Existing mature tool interface already provides equivalent bridge behavior and only needs documentation; in that case, do not duplicate it, produce a capability audit instead.
-7. Existing evidence model cannot be extended compatibly without a larger schema migration.
-8. Bridge implementation would require reading complete `solve_reports/` or complete `PROJECT_PROGRESS_LOG.txt`.
-9. Code would hardcode `affine_8cfebe03` behavior in production modules.
-10. Tests require executing binaries or launching external reverse tools.
-11. `pytest_result.txt` lacks real command output.
-12. report/decision/pytest_result IDs mismatch.
-13. final-check has any FAIL.
+5. `affine_8cfebe03` is not found in queue/inventory and cannot be located through metadata.
+6. Current static triage requires executing the target binary.
+7. Current static triage requires solver, harness, runtime probe, debugger, emulator, GUI/frontend workflow, or sample execution.
+8. IDA is unavailable or returns no output; in this case emit a blocked artifact/report and stop without fallback to historical artifacts as current evidence.
+9. Bridge conversion requires sample-specific production logic.
+10. The implementation needs modifying solver/harness/runtime/debugger/GUI/front-end code.
+11. Code would hardcode `affine_8cfebe03` behavior outside command args, artifact names, reports, or tests.
+12. `project_state/artifact_index.json` cannot be updated or cannot represent the current static triage artifact with source_run.
+13. `pytest_result.txt` lacks real command output.
+14. report/decision/pytest_result IDs mismatch.
+15. final-check has any FAIL.
