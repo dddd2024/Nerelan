@@ -1,14 +1,14 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
-  "round_id": "round_20260619_affine_report_generated_artifacts_fix_v1",
-  "generated_at": "2026-06-19T06:20:00Z",
-  "status": "BLOCKED",
+  "decision_id": "decision_20260619_consumed_report_handoff_repair_v1",
+  "round_id": "round_20260619_consumed_report_handoff_repair_v1",
+  "generated_at": "2026-06-19T06:25:00Z",
+  "status": "FAILED",
   "tests_ran": [
     "python -m reverse_agent.project_gate preflight --state-dir project_state"
   ],
-  "notes": "preflight BLOCKED: decision_not_consumed_by_report FAIL. Decision already consumed by existing report with status SUCCESS from previous incomplete round. Per protocol rule 3.2, stopped. Per rule 3.3, only updated pytest_result.txt and codex_execution_report.md. Per rule 3.4, did not run gate-profile, command-plan, report-summary, or final-check."
+  "notes": "preflight FAILED: mainline_scope_policy FAIL. The engineering_branch Goal text contains 'solver' (matched from file path local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json). The consumed-by-report catch-22 is resolved (decision_not_consumed_by_report PASS), but mainline_scope_policy blocks entry to Implementation Scope. Per protocol rule 3.2, stopped. Per rule 3.3, only updated pytest_result.txt and codex_execution_report.md. Per rule 3.4, did not run gate-profile, command-plan, report-summary, or final-check."
 }
 ```
 
@@ -30,33 +30,26 @@ F:/reverse-agent
 ===== EXIT: 0 =====
 
 ===== COMMAND: git status --short =====
- M project_state/codex_execution_report.md
- M project_state/gates/command_plan.json
- M project_state/gates/final_gate_result.json
- M project_state/gates/gate_profile_plan.json
- M project_state/gates/preflight_result.json
- M project_state/gates/report_summary_synthesis.json
- M project_state/gates/round_baseline.json
- M project_state/gates/round_delta_summary.json
+(empty - startup_clean=true, baseline_dirty_files=[])
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
-preflight: BLOCKED
-decision_id: decision_20260619_affine_report_generated_artifacts_fix_v1
-round_id: round_20260619_affine_report_generated_artifacts_fix_v1
-mainline: tool_integration
+preflight: FAILED
+decision_id: decision_20260619_consumed_report_handoff_repair_v1
+round_id: round_20260619_consumed_report_handoff_repair_v1
+mainline: engineering_branch
   [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline
   [PASS] decision_meta_parse: decision_meta parsed
   [PASS] decision_approved: decision status is APPROVED
-  [PASS] mainline_valid: mainline is tool_integration
+  [PASS] mainline_valid: mainline is engineering_branch
   [PASS] skill_profiles_active: skill profiles are active
-  [FAIL] decision_not_consumed_by_report: decision already appears consumed by report
+  [PASS] decision_not_consumed_by_report: decision has not been consumed by a report
   [PASS] task_packet_is_non_authoritative: decision_packet remains authoritative over task_packet suggestions
   [PASS] implementation_scope_present: implementation scope is present and parseable
   [PASS] forbidden_paths_not_allowed: allowed scope contains no forbidden paths
-  [PASS] mainline_scope_policy: mainline scope policy is satisfied
+  [FAIL] mainline_scope_policy: engineering_branch decision includes sample-solving/runtime terms
   [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence
   [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied
   [PASS] source_test_clean_start: no source/test files are dirty at startup baseline
-recommended_next_action: do_not_start_consumed_or_stale_decision
+recommended_next_action: fix_preflight_failures_before_starting
 ===== EXIT: 1 =====

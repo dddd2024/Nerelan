@@ -1,15 +1,16 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260619_affine_report_generated_artifacts_fix_v1",
-  "round_id": "round_20260619_affine_report_generated_artifacts_fix_v1",
-  "based_on_decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
+  "report_id": "codex_report_20260619_consumed_report_handoff_repair_v1",
+  "round_id": "round_20260619_consumed_report_handoff_repair_v1",
+  "based_on_decision_id": "decision_20260619_consumed_report_handoff_repair_v1",
   "status": "BLOCKED",
   "acceptance_recommendation": "BLOCKED",
   "files_changed": [
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/gates/preflight_result.json"
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json"
   ],
   "tests_ran": [
     "python -m reverse_agent.project_gate preflight --state-dir project_state"
@@ -17,64 +18,59 @@
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/gates/preflight_result.json"
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json"
   ]
 }
 ```
 
 ## Goal
 
-Fix `codex_report_summary.generated_artifacts` in `project_state/codex_execution_report.md` to include all 6 core current static/bridge/provenance artifacts that were created by the previous validation round but omitted from the report's `generated_artifacts` list.
-
-This round is metadata/report-only. No source files, solver, runtime, or candidate generation.
+Fix the consumed-by-report blocking issue using a new decision_id, then complete the previous round's unfinished `generated_artifacts` fix.
 
 ## Current Evidence
 
-- **Decision:** `decision_20260619_affine_report_generated_artifacts_fix_v1` (mainline: `tool_integration`, status: APPROVED)
-- **Round:** `round_20260619_affine_report_generated_artifacts_fix_v1`
-- **Sample:** `affine_8cfebe03` (PE, 196688 bytes, sha256 `8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659`)
-- **Previous round:** `round_20260619_affine_current_static_bridge_report_fix_v1` fixed `executed_sample` and `evidence_counts`, but `generated_artifacts` still omitted core artifacts.
+- **Decision:** `decision_20260619_consumed_report_handoff_repair_v1` (mainline: `engineering_branch`, status: APPROVED)
+- **Round:** `round_20260619_consumed_report_handoff_repair_v1`
+- **Previous decision:** `decision_20260619_affine_report_generated_artifacts_fix_v1` was BLOCKED because its decision_id was already consumed by the existing report (catch-22).
 
-## Preflight BLOCKED
+## Preflight FAILED
 
-Preflight is BLOCKED because `decision_not_consumed_by_report` FAIL:
+Preflight is FAILED because `mainline_scope_policy` FAIL:
 
 ```
-preflight: BLOCKED
-  [FAIL] decision_not_consumed_by_report: decision already appears consumed by report
+preflight: FAILED
+  [PASS] decision_not_consumed_by_report: decision has not been consumed by a report
+  [FAIL] mainline_scope_policy: engineering_branch decision includes sample-solving/runtime terms
 ```
 
 ### Root Cause
 
-The existing `codex_execution_report.md` already has `based_on_decision_id` matching the current decision and `status: SUCCESS` (set during the previous incomplete round). The preflight `decision_not_consumed_by_report` check detects this as "decision already consumed by report" and blocks re-execution.
+The `mainline_scope_policy` check detects that the `engineering_branch` Goal text contains the term "solver". This term was matched from the file path `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json`, which is listed in the Goal section as a required artifact for `generated_artifacts`.
 
-The `decision_consumed_by_report` flag is True because:
-1. `decision_report_id_match` is True (report's `based_on_decision_id` matches decision's `decision_id`)
-2. `report_status` is `SUCCESS` (in `CONSUMED_REPORT_STATUSES`)
+The check `_matched_non_negated_terms` scans each line of the Goal text for `SAMPLE_SOLVING_TERMS` (which includes "solver"). Lines containing negation markers (like "不", "不得", "do not") are skipped. However, the line listing the file path `project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json` does not contain a negation marker, so "solver" is matched.
 
-Both `decision_consumed_by_report` and `decision_report_id_match` being True causes `not_consumed_ok = False`, which blocks preflight.
+The `engineering_branch` mainline policy forbids sample-solving/runtime terms in the Goal unless the round is a closeout (markers: "close out", "close-out", "reconcil", "repair round") or classification (markers: "classify", "classification", "profile", "tiered", "gate profile") round. The current Goal text does not contain any of these markers.
 
-### Catch-22
+### What Was Resolved
 
-This creates a catch-22:
-- The report already exists with `status: SUCCESS` from the previous incomplete round
-- Preflight blocks because the decision is "consumed" by this report
-- The report cannot be fixed because preflight blocks entry to Implementation Scope
-- All valid report statuses (`SUCCESS`, `PARTIAL`, `FAILED`, `BLOCKED`) are in `CONSUMED_REPORT_STATUSES`, so changing the status alone cannot unblock preflight
+The consumed-by-report catch-22 from the previous round is RESOLVED:
+- `decision_not_consumed_by_report`: PASS
+- `decision_execution_state`: `READY_FOR_EXECUTION`
+- The new decision_id `decision_20260619_consumed_report_handoff_repair_v1` is NOT consumed by any existing report.
+
+### What Was NOT Resolved
+
+- `mainline_scope_policy`: FAIL - the Goal text mentions "solver" (from a file path), which is flagged as a sample-solving term for `engineering_branch` mainline.
+- Could NOT enter Implementation Scope to add the 6 core artifacts to `generated_artifacts`.
+- Could NOT run gate-profile, command-plan, report-summary, or final-check (per protocol rule 3.4).
 
 ### What Was Done
 
 Per protocol rule 3.3 (preflight failure allows updating only `pytest_result.txt` and `codex_execution_report.md`):
-1. Updated `codex_execution_report.md` status to `BLOCKED` and acceptance to `BLOCKED`
-2. Updated `pytest_result.txt` with startup and preflight BLOCKED evidence
-3. Did NOT run gate-profile, command-plan, report-summary, or final-check (per protocol rule 3.4)
-
-### What Was NOT Done
-
-- Could NOT add the 6 core artifacts to `generated_artifacts` (preflight blocked entry to Implementation Scope)
-- Could NOT run report-summary to regenerate synthesis
-- Could NOT run final-check to verify gate pipeline
-- Could NOT fix the 4 FAILs from the previous final-check run (pytest_result_match, command_plan_covers_report_tests, stale_artifact_ids, status_policy_valid)
+1. Updated `codex_execution_report.md` status to `BLOCKED` and acceptance to `BLOCKED`.
+2. Updated `pytest_result.txt` with startup and preflight FAILED evidence.
+3. Did NOT run gate-profile, command-plan, report-summary, or final-check (per protocol rule 3.4).
 
 ## Core Artifacts (referenced, not modified)
 
@@ -99,16 +95,17 @@ The following 6 core artifacts from `round_20260619_affine_current_static_bridge
 
 ## Limitations
 
-- Preflight BLOCKED: decision already consumed by existing report
-- 50 historical sample artifacts missing (non-blocking for tool_integration mainline)
+- Preflight FAILED: `mainline_scope_policy` blocks `engineering_branch` Goal text containing "solver" (from file path)
+- 50 historical sample artifacts missing (non-blocking for engineering_branch mainline)
 - `transform_constant_evidence` still missing for full solver readiness
 - `runtime_validated=false` (static-only analysis)
-- Previous round's 4 final-check FAILs remain unfixed (pytest_result_match, command_plan_covers_report_tests, stale_artifact_ids, status_policy_valid)
+- Could NOT add 6 core artifacts to `generated_artifacts` (preflight blocked Implementation Scope)
 
 ## Next Step
 
-The state needs to be rebuilt to reset the decision execution state:
-```powershell
-python -m reverse_agent.project_state build
-```
-This should regenerate `current_state.json` and clear the consumed-by-report state, allowing preflight to pass on the next attempt.
+The `mainline_scope_policy` check is too aggressive: it matches "solver" in file paths listed as required artifacts, even though those paths are `project_state/` state artifacts (not executable code). Two possible fixes:
+
+1. **Decision-level fix**: Rewrite the Goal text to avoid listing file paths containing "solver" directly, or add a closeout/classification marker to the Goal text.
+2. **Gate-level fix**: Modify `_matched_non_negated_terms` in `reverse_agent/project_gate.py` to skip lines that are inside code blocks or that contain file paths starting with `project_state/`.
+
+The decision's Implementation Scope allows modifying `reverse_agent/project_gate.py` and `tests/test_project_gate.py` if a reproducible gate bug remains after using the new decision id. However, per protocol rule 3.2, preflight FAILED requires stopping immediately without entering Implementation Scope.

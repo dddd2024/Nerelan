@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "BLOCKED",
-  "decision_id": "decision_20260619_affine_report_generated_artifacts_fix_v1",
-  "round_id": "round_20260619_affine_report_generated_artifacts_fix_v1",
-  "mainline": "tool_integration",
-  "generated_at": "2026-06-19T06:08:44.978246Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260619_consumed_report_handoff_repair_v1",
+  "round_id": "round_20260619_consumed_report_handoff_repair_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-19T06:23:17.823677Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is tool_integration",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -53,9 +53,9 @@
     },
     {
       "name": "decision_not_consumed_by_report",
-      "status": "FAIL",
-      "detail": "decision already appears consumed by report",
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "status": "PASS",
+      "detail": "decision has not been consumed by a report",
+      "decision_execution_state": "READY_FOR_EXECUTION",
       "report_id": "codex_report_20260619_affine_report_generated_artifacts_fix_v1"
     },
     {
@@ -71,7 +71,9 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
@@ -81,7 +83,12 @@
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260619_affine_report_generated_artifacts_fix_v1/*"
+        "project_state/rounds/round_20260619_consumed_report_handoff_repair_v1/*",
+        "project_state/task_packet.json",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ]
     },
     {
@@ -92,8 +99,8 @@
     },
     {
       "name": "mainline_scope_policy",
-      "status": "PASS",
-      "detail": "mainline scope policy is satisfied",
+      "status": "FAIL",
+      "detail": "engineering_branch decision includes sample-solving/runtime terms",
       "matched_terms": [
         "solver"
       ],
@@ -113,7 +120,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": true
+      "capability_required": false
     },
     {
       "name": "source_test_clean_start",
@@ -125,19 +132,19 @@
     }
   ],
   "blocking_reasons": [
-    "decision_not_consumed_by_report: decision already appears consumed by report"
+    "mainline_scope_policy: engineering_branch decision includes sample-solving/runtime terms"
   ],
   "warnings": [],
-  "recommended_next_action": "do_not_start_consumed_or_stale_decision",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "654fc71003fd"
+    "head_commit": "4c01044f71a0"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-    "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
+    "decision_execution_state": "READY_FOR_EXECUTION",
+    "decision_report_id_match": false,
+    "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"
