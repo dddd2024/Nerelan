@@ -1,0 +1,110 @@
+{
+  "evidence": [
+    {
+      "kind": "StaticInputEvidence",
+      "source_tool": "IDA",
+      "summary": "input APIs: __input prompts: input.c, please input a string:",
+      "payload": {
+        "input_apis": [
+          "__input"
+        ],
+        "prompt_strings": [
+          "input.c",
+          "please input a string:"
+        ],
+        "input_buffer_address": ""
+      },
+      "confidence": 0.7,
+      "derived_candidates": []
+    },
+    {
+      "kind": "StaticCompareEvidence",
+      "source_tool": "IDA",
+      "summary": "compare APIs: _strncmp, CompareStringA 1 callsite(s)",
+      "payload": {
+        "compare_apis": [
+          "_strncmp",
+          "CompareStringA"
+        ],
+        "compare_callsites": [
+          {
+            "call_ea": "0x40620E",
+            "caller_func": "sub_406150",
+            "callee": "_strncmp",
+            "call_disasm": "call    _strncmp",
+            "nearby": "push    16h; MaxCount || lea     ecx, [ebp+Buffer] || push    ecx; Str2 || push    offset Str1; \"__GLOBAL_HEAP_SELECTED\"",
+            "ref_strings": "__GLOBAL_HEAP_SELECTED"
+          }
+        ],
+        "expected_value_location": ""
+      },
+      "confidence": 0.7,
+      "derived_candidates": []
+    },
+    {
+      "kind": "StaticTransformHintEvidence",
+      "source_tool": "IDA",
+      "summary": "IDA static transform hint",
+      "payload": {
+        "transform_kind": "",
+        "loop_evidence": [
+          "sub_407A90",
+          "__CrtDbgReport",
+          "sub_4073D0",
+          "_CrtMessageWindow"
+        ],
+        "arithmetic_ops": [
+          "add",
+          "sub",
+          "add",
+          "sub",
+          "add",
+          "sub",
+          "add",
+          "sub",
+          "add",
+          "sub",
+          "add",
+          "sub"
+        ],
+        "bitwise_ops": [],
+        "table_lookup": false
+      },
+      "confidence": 0.5,
+      "derived_candidates": []
+    },
+    {
+      "kind": "StaticAntiDebugEvidence",
+      "source_tool": "IDA",
+      "summary": "anti-debug APIs: DebugBreak, OutputDebugStringA",
+      "payload": {
+        "anti_debug_apis": [
+          "DebugBreak",
+          "OutputDebugStringA"
+        ],
+        "anti_debug_strings": [
+          "DebugBreak"
+        ]
+      },
+      "confidence": 0.5,
+      "derived_candidates": []
+    }
+  ],
+  "plan": {
+    "readiness": "needs_current_static_provenance",
+    "recommended_solver_profiles": [
+      "string_compare",
+      "anti_debug_precondition"
+    ],
+    "required_missing_evidence": [
+      "transform_constant_evidence"
+    ],
+    "source_artifacts": [
+      "local_reverse_affine_8cfebe03_current_static_triage"
+    ],
+    "provenance_notes": [
+      "source_artifact: local_reverse_affine_8cfebe03_current_static_triage",
+      "runtime_validated=false; static-only artifact"
+    ]
+  }
+}

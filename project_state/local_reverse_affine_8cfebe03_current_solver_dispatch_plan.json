@@ -1,0 +1,17 @@
+{
+  "readiness": "needs_current_static_provenance",
+  "recommended_solver_profiles": [
+    "string_compare",
+    "anti_debug_precondition"
+  ],
+  "required_missing_evidence": [
+    "transform_constant_evidence"
+  ],
+  "source_artifacts": [
+    "local_reverse_affine_8cfebe03_current_static_triage"
+  ],
+  "provenance_notes": [
+    "source_artifact: local_reverse_affine_8cfebe03_current_static_triage",
+    "runtime_validated=false; static-only artifact"
+  ]
+}

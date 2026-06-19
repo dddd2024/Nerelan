@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-19T05:32:26Z",
+  "decision_id": "decision_20260619_affine_current_static_bridge_validation_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260619_affine_current_static_bridge_validation_v1\\codex_execution_report.md",
+      "sha256": "0081a773ab2ce34781efa5ad53b35d5c797ebdaadd69a1436355d962de746a9b",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260619_affine_current_static_bridge_validation_v1\\decision_packet.md",
+      "sha256": "bd014ed72be6afcf43009b80279d8e52634085c50c4e7fbd1e9e4df2821cd1a4",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260619_affine_current_static_bridge_validation_v1\\pytest_result.txt",
+      "sha256": "91825306329f7369a371ea0ebe0f7d5931ae7e1d7d64e8d87414b2e0768b064e",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "tool_integration",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260619_affine_current_static_bridge_validation_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260619_affine_current_static_bridge_validation_v1",
+  "schema_version": 1,
+  "source_git_commit": "32268f55324b",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

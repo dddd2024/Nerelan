@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
-  "round_id": "round_20260619_generic_static_evidence_bridge_v1",
+  "decision_id": "decision_20260619_affine_current_static_bridge_validation_v1",
+  "round_id": "round_20260619_affine_current_static_bridge_validation_v1",
   "mainline": "tool_integration",
-  "generated_at": "2026-06-19T04:30:57.444365Z",
+  "generated_at": "2026-06-19T05:15:01.276741Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260619_claim_aware_artifact_freshness_policy_v1"
+      "report_id": "codex_report_20260619_generic_static_evidence_bridge_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,6 +71,12 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "current artifact path/hash/source_run/tool_status;",
+        "dispatch readiness and recommended profiles;",
+        "evidence counts: input, compare, constants, transform hints, crypto signatures, GUI, anti-debug;",
+        "missing evidence before solving;",
+        "next recommended mainline.",
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -80,22 +86,22 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json",
+        "project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json",
+        "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json",
+        "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md",
+        "project_state/local_reverse_affine_8cfebe03_current_static_triage.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/*",
-        "project_state/solver_dispatch_plan.json",
-        "project_state/static_evidence_bridge_capability_matrix.json",
-        "project_state/static_evidence_bridge_report.json",
-        "project_state/static_evidence_bridge_report.md",
+        "project_state/rounds/round_20260619_affine_current_static_bridge_validation_v1/*",
         "reverse_agent/evidence.py",
-        "reverse_agent/pipeline.py",
         "reverse_agent/solver_dispatch_plan.py",
         "reverse_agent/static_evidence_bridge.py",
-        "reverse_agent/tool_capability_inventory.py",
         "tests/test_evidence.py",
         "tests/test_project_gate.py",
         "tests/test_project_state.py",
         "tests/test_solver_dispatch_plan.py",
-        "tests/test_static_evidence_bridge.py"
+        "tests/test_static_evidence_bridge.py",
+        "whether IDA evidence was regenerated this round;"
       ]
     },
     {
@@ -113,7 +119,8 @@
       ],
       "matched_paths": [
         "reverse_agent/solver_dispatch_plan.py",
-        "tests/test_solver_dispatch_plan.py"
+        "tests/test_solver_dispatch_plan.py",
+        "whether IDA evidence was regenerated this round;"
       ]
     },
     {
@@ -146,7 +153,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "6ef4ecc6c6af"
+    "head_commit": "32268f55324b"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

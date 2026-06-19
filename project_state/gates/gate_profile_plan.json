@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
-  "round_id": "round_20260619_generic_static_evidence_bridge_v1",
+  "decision_id": "decision_20260619_affine_current_static_bridge_validation_v1",
+  "round_id": "round_20260619_affine_current_static_bridge_validation_v1",
   "mainline": "tool_integration",
-  "generated_at": "2026-06-19T04:31:12.882183Z",
+  "generated_at": "2026-06-19T05:17:14.784015Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [

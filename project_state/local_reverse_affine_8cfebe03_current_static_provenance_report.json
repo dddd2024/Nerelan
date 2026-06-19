@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "round_id": "round_20260619_affine_current_static_bridge_validation_v1",
+  "generated_at": "2026-06-19T05:15:49Z",
+  "current_static_triage": {
+    "artifact_path": "project_state/local_reverse_affine_8cfebe03_current_static_triage.json",
+    "sha256": "1fbecf76c0ceaa1149d6f894d3006b8ee4b5345dc7162a14210854af7f0426c1",
+    "size_bytes": 34645,
+    "source_run": "round_20260619_affine_current_static_bridge_validation_v1",
+    "tool_status": "success",
+    "source_tool": "IDA",
+    "executed_sample": false,
+    "static_only": true,
+    "runtime_validated": false
+  },
+  "ida_evidence_regenerated_this_round": true,
+  "evidence_counts": {
+    "input": 0,
+    "compare": 0,
+    "constants": 0,
+    "transform_hints": 0,
+    "crypto_signatures": 0,
+    "gui": 0,
+    "anti_debug": 0
+  },
+  "dispatch_readiness": "needs_current_static_provenance",
+  "recommended_solver_profiles": [
+    "string_compare",
+    "anti_debug_precondition"
+  ],
+  "required_missing_evidence": [
+    "transform_constant_evidence"
+  ],
+  "provenance_notes": [
+    "source_artifact: local_reverse_affine_8cfebe03_current_static_triage",
+    "runtime_validated=false; static-only artifact"
+  ],
+  "next_recommended_mainline": "tool_integration"
+}

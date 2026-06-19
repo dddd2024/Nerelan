@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
-  "round_id": "round_20260619_generic_static_evidence_bridge_v1",
-  "head_commit": "6ef4ecc6c6af",
+  "decision_id": "decision_20260619_affine_current_static_bridge_validation_v1",
+  "round_id": "round_20260619_affine_current_static_bridge_validation_v1",
+  "head_commit": "32268f55324b",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-19T04:22:41.678715Z"
+  "generated_at": "2026-06-19T05:15:01.275793Z"
 }
