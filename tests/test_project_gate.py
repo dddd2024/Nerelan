@@ -12501,3 +12501,423 @@ def test_final_check_fails_when_required_closeout_artifacts_uncovered(tmp_path: 
     check = _check(result, "required_closeout_artifacts_covered")
     assert check["status"] == "FAIL"
     assert "project_state/artifact_index.json" in check["uncovered_artifacts"]
+
+
+# ---------------------------------------------------------------------------
+# Tests for structured closeout_artifacts_contract block and numbered list
+# extraction (decision_20260619_required_closeout_artifacts_contract_v1)
+# ---------------------------------------------------------------------------
+
+_CLOSEOUT_CONTRACT_PATHS = [
+    "project_state/artifact_index.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_triage.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json",
+    "project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json",
+    "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md",
+]
+
+
+def _write_decision_with_structured_closeout_contract(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    mainline: str = "engineering_branch",
+) -> None:
+    """Decision with a structured closeout_artifacts_contract JSON block."""
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": mainline,
+        "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    }
+    contract = {
+        "required_closeout_artifacts": _CLOSEOUT_CONTRACT_PATHS,
+    }
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Build a read-only project gate.
+
+## 2. Current Evidence
+
+Required existing state records for closeout traceability are declared in the
+structured contract block below.
+
+```json closeout_artifacts_contract
+{json.dumps(contract, indent=2)}
+```
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_decision_with_numbered_closeout_evidence(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    mainline: str = "engineering_branch",
+) -> None:
+    """Decision with numbered list closeout records in Current Evidence."""
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": mainline,
+        "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    }
+    numbered_items = "\n".join(
+        f"{i}. `{path}`" for i, path in enumerate(_CLOSEOUT_CONTRACT_PATHS, 1)
+    )
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Build a read-only project gate.
+
+## 2. Current Evidence
+
+Required existing state records for closeout traceability are listed below as
+the regression case. They are read-only inputs and must not be regenerated or
+modified:
+
+{numbered_items}
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+""",
+        encoding="utf-8",
+    )
+
+
+def test_decision_required_closeout_artifacts_from_structured_block() -> None:
+    """_decision_required_closeout_artifacts extracts from closeout_artifacts_contract block."""
+    from reverse_agent.project_gate import _decision_required_closeout_artifacts
+
+    decision_text = """```json decision_meta
+{"decision_id": "d1", "status": "APPROVED"}
+```
+
+# DECISION_PACKET
+
+## 2. Current Evidence
+
+```json closeout_artifacts_contract
+{
+  "required_closeout_artifacts": [
+    "project_state/artifact_index.json",
+    "project_state/sample.json"
+  ]
+}
+```
+"""
+    result = _decision_required_closeout_artifacts(decision_text)
+    assert "project_state/artifact_index.json" in result
+    assert "project_state/sample.json" in result
+
+
+def test_decision_required_closeout_artifacts_from_numbered_list() -> None:
+    """_decision_required_closeout_artifacts extracts from numbered markdown lists."""
+    from reverse_agent.project_gate import _decision_required_closeout_artifacts
+
+    decision_text = """```json decision_meta
+{"decision_id": "d1", "status": "APPROVED"}
+```
+
+# DECISION_PACKET
+
+## 2. Current Evidence
+
+Required records:
+
+1. `project_state/artifact_index.json`
+2. `project_state/sample.json`
+3. `project_state/other.md`
+"""
+    result = _decision_required_closeout_artifacts(decision_text)
+    assert "project_state/artifact_index.json" in result
+    assert "project_state/sample.json" in result
+    assert "project_state/other.md" in result
+
+
+def test_decision_required_closeout_artifacts_from_bullet_list() -> None:
+    """_decision_required_closeout_artifacts still extracts from bullet lists (backward compat)."""
+    from reverse_agent.project_gate import _decision_required_closeout_artifacts
+
+    decision_text = """```json decision_meta
+{"decision_id": "d1", "status": "APPROVED"}
+```
+
+# DECISION_PACKET
+
+## 2. Current Evidence
+
+Required records:
+
+- `project_state/artifact_index.json`
+- `project_state/sample.json`
+"""
+    result = _decision_required_closeout_artifacts(decision_text)
+    assert "project_state/artifact_index.json" in result
+    assert "project_state/sample.json" in result
+
+
+def test_decision_required_closeout_artifacts_empty_when_no_declaration() -> None:
+    """_decision_required_closeout_artifacts returns empty set when no declaration present."""
+    from reverse_agent.project_gate import _decision_required_closeout_artifacts
+
+    decision_text = """```json decision_meta
+{"decision_id": "d1", "status": "APPROVED"}
+```
+
+# DECISION_PACKET
+
+## 2. Current Evidence
+
+No closeout records needed.
+
+## 6. Implementation Scope
+
+- `reverse_agent/project_gate.py`
+"""
+    result = _decision_required_closeout_artifacts(decision_text)
+    assert result == set()
+
+
+def test_structured_block_takes_precedence_over_markdown() -> None:
+    """Structured closeout_artifacts_contract block takes precedence over markdown lists."""
+    from reverse_agent.project_gate import _decision_required_closeout_artifacts
+
+    decision_text = """```json decision_meta
+{"decision_id": "d1", "status": "APPROVED"}
+```
+
+# DECISION_PACKET
+
+## 2. Current Evidence
+
+```json closeout_artifacts_contract
+{
+  "required_closeout_artifacts": [
+    "project_state/from_contract.json"
+  ]
+}
+```
+
+- `project_state/from_bullet.json`
+"""
+    result = _decision_required_closeout_artifacts(decision_text)
+    assert "project_state/from_contract.json" in result
+    # When structured block is present and non-empty, markdown lists are not used
+    assert "project_state/from_bullet.json" not in result
+
+
+def test_final_check_validates_structured_closeout_contract_covered(tmp_path: Path) -> None:
+    """final-check passes when structured contract records are covered by referenced_artifacts."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_structured_closeout_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+    _add_referenced_artifacts_to_report(state_dir, _CLOSEOUT_CONTRACT_PATHS)
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    check = _check(result, "required_closeout_artifacts_covered")
+    assert check["status"] == "PASS"
+    assert "project_state/artifact_index.json" in check["required_closeout_artifacts"]
+
+
+def test_final_check_validates_numbered_list_closeout_covered(tmp_path: Path) -> None:
+    """final-check passes when numbered list records are covered by referenced_artifacts."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_numbered_closeout_evidence(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+    _add_referenced_artifacts_to_report(state_dir, _CLOSEOUT_CONTRACT_PATHS)
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    check = _check(result, "required_closeout_artifacts_covered")
+    assert check["status"] == "PASS"
+    assert "project_state/artifact_index.json" in check["required_closeout_artifacts"]
+
+
+def test_final_check_fails_structured_contract_uncovered(tmp_path: Path) -> None:
+    """final-check fails when structured contract records are not covered."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_structured_closeout_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+    # Do NOT add referenced_artifacts to the report
+    round_dir = state_dir / "rounds" / "round_gate"
+    if round_dir.exists():
+        shutil.rmtree(round_dir)
+    archive_round(state_dir=state_dir, round_id="round_gate")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    check = _check(result, "required_closeout_artifacts_covered")
+    assert check["status"] == "FAIL"
+    assert "project_state/artifact_index.json" in check["uncovered_artifacts"]
+
+
+def test_report_summary_synthesis_includes_required_closeout_from_structured_block(
+    tmp_path: Path,
+) -> None:
+    """Synthesis includes required_closeout_artifacts from structured contract block."""
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_decision_with_structured_closeout_contract(
+        state_dir,
+        decision_id="decision_report_summary",
+        round_id="round_gate",
+    )
+    _add_referenced_artifacts_to_report(state_dir, _CLOSEOUT_CONTRACT_PATHS)
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    summary = result["synthesized_summary"]
+    assert "required_closeout_artifacts" in summary
+    for path in _CLOSEOUT_CONTRACT_PATHS:
+        assert path in summary["required_closeout_artifacts"]
+
+
+def test_report_summary_synthesis_includes_required_closeout_from_numbered_list(
+    tmp_path: Path,
+) -> None:
+    """Synthesis includes required_closeout_artifacts from numbered list."""
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_decision_with_numbered_closeout_evidence(
+        state_dir,
+        decision_id="decision_report_summary",
+        round_id="round_gate",
+    )
+    _add_referenced_artifacts_to_report(state_dir, _CLOSEOUT_CONTRACT_PATHS)
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    summary = result["synthesized_summary"]
+    assert "required_closeout_artifacts" in summary
+    for path in _CLOSEOUT_CONTRACT_PATHS:
+        assert path in summary["required_closeout_artifacts"]
+
+
+def test_read_codex_report_summary_preserves_required_closeout_artifacts(
+    tmp_path: Path,
+) -> None:
+    """read_codex_report_summary preserves required_closeout_artifacts field."""
+    from reverse_agent.project_state import read_codex_report_summary
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    report_payload = {
+        "schema_version": 1,
+        "report_id": "r1",
+        "round_id": "round_1",
+        "based_on_decision_id": "d1",
+        "status": "SUCCESS",
+        "acceptance_recommendation": "ACCEPTED",
+        "files_changed": [],
+        "tests_ran": [],
+        "generated_artifacts": [],
+        "referenced_artifacts": ["project_state/artifact_index.json"],
+        "required_closeout_artifacts": ["project_state/artifact_index.json"],
+    }
+    (state_dir / "codex_execution_report.md").write_text(
+        f"""```json codex_report_summary
+{json.dumps(report_payload, indent=2)}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+    result = read_codex_report_summary(state_dir)
+    assert result["required_closeout_artifacts"] == ["project_state/artifact_index.json"]
+    assert result["referenced_artifacts"] == ["project_state/artifact_index.json"]
+
+
+def test_read_codex_report_summary_backward_compat_without_closeout_fields(
+    tmp_path: Path,
+) -> None:
+    """read_codex_report_summary returns None for closeout fields when absent (backward compat)."""
+    from reverse_agent.project_state import read_codex_report_summary
+
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    report_payload = {
+        "schema_version": 1,
+        "report_id": "r1",
+        "round_id": "round_1",
+        "based_on_decision_id": "d1",
+        "status": "SUCCESS",
+        "acceptance_recommendation": "ACCEPTED",
+        "files_changed": [],
+        "tests_ran": [],
+        "generated_artifacts": [],
+    }
+    (state_dir / "codex_execution_report.md").write_text(
+        f"""```json codex_report_summary
+{json.dumps(report_payload, indent=2)}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+    result = read_codex_report_summary(state_dir)
+    assert result["required_closeout_artifacts"] is None
+    assert result["referenced_artifacts"] is None
+    assert result["status"] == "SUCCESS"

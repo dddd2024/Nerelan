@@ -18,6 +18,7 @@ from .project_state import (
     archive_round,
     build_round_consistency,
     doctor,
+    extract_markdown_json_block,
     lint_decision,
     lint_report,
     parse_pytest_result_header,
@@ -469,6 +470,30 @@ def _path_from_markdown_bullet(line: str) -> str:
     return item.strip().strip("`").strip()
 
 
+def _path_from_markdown_list_item(line: str) -> str | None:
+    """Extract a path from a markdown bullet (``-``) or numbered (``1.``) list item.
+
+    Returns ``None`` if the line is not a list item.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return None
+    # Bullet list: "- item" or "* item"
+    if stripped.startswith("-") or stripped.startswith("*"):
+        item = stripped[1:].strip()
+    else:
+        # Numbered list: "1. item" or "10. item"
+        m = re.match(r"^(\d+)\.\s+(.*)", stripped)
+        if not m:
+            return None
+        item = m.group(2).strip()
+    # Extract backtick-quoted path if present
+    match = re.search(r"`([^`]+)`", item)
+    if match:
+        return match.group(1).strip()
+    return item.strip().strip("`").strip() or None
+
+
 def _allowed_scope_paths(scope_text: str) -> set[str]:
     paths: set[str] = set()
     in_allowed_block = False
@@ -604,22 +629,45 @@ def _decision_scope_deliverable_paths(decision_text: str) -> set[str]:
     return paths
 
 
+_CLOSEOUT_ARTIFACTS_CONTRACT_BLOCK_NAME = "closeout_artifacts_contract"
+
+
 def _decision_required_closeout_artifacts(decision_text: str) -> set[str]:
-    """Return artifact paths listed in the decision's Current Evidence
-    section as required existing state records for closeout traceability.
+    """Return artifact paths declared as required closeout records in the decision.
+
+    Extraction order (first non-empty result wins):
+
+    1. Structured JSON block named ``closeout_artifacts_contract`` containing a
+       ``required_closeout_artifacts`` list.
+    2. Markdown lists (bullet ``-`` or numbered ``1.``) in the ``Current Evidence``
+       section whose items are paths under ``project_state/``.
 
     These are existing state records that must be referenced (not generated)
     by the report for closeout completeness.  They appear in the report's
     ``referenced_artifacts`` field and are validated by final-check via
     ``required_closeout_artifacts`` coverage.
     """
+    # 1. Structured JSON block extraction
+    contract = extract_markdown_json_block(
+        decision_text, _CLOSEOUT_ARTIFACTS_CONTRACT_BLOCK_NAME
+    )
+    if contract.get("found") and not contract.get("parse_error"):
+        raw_list = contract.get("required_closeout_artifacts")
+        if isinstance(raw_list, list) and all(isinstance(item, str) for item in raw_list):
+            paths: set[str] = set()
+            for item in raw_list:
+                normalized = _norm_path(item)
+                if normalized.startswith("project_state/"):
+                    paths.add(normalized)
+            if paths:
+                return paths
+
+    # 2. Markdown list extraction (bullet and numbered) from Current Evidence
     evidence_text = _markdown_section(decision_text, "Current Evidence")
-    paths: set[str] = set()
+    paths = set()
     for raw_line in evidence_text.splitlines():
         line = raw_line.strip()
-        if not line.startswith("-"):
-            continue
-        item = _path_from_markdown_bullet(line)
+        item = _path_from_markdown_list_item(line)
         if item and item.lower().startswith("project_state/"):
             paths.add(_norm_path(item))
     return paths
