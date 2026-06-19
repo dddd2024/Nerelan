@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260619_training_dataset_queue_refresh_v1",
-  "round_id": "round_20260619_training_dataset_queue_refresh_v1",
+  "decision_id": "decision_20260619_generic_static_evidence_bridge_v1",
+  "round_id": "round_20260619_generic_static_evidence_bridge_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
-  "mainline": "training_dataset",
+  "mainline": "tool_integration",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,41 +15,37 @@
 
 ## 1. Goal
 
-刷新本地逆向训练集的当前状态、类型覆盖和下一步队列，把上一轮已接受的 claim-aware gate policy 落到训练集推进流程里。
+建立一个通用的 static evidence bridge：把 IDA/Ghidra/strings/objdump/static triage 等工具产物转换为项目现有的 `StructuredEvidence` 和 solver dispatch plan。
 
-本轮主线是 `training_dataset`。目标不是解某一个样本，而是建立一个可执行的下一步训练队列：从现有 `training_materials/local_reverse/`、`project_state/local_reverse_*`、`artifact_index.json` 和既有训练状态中，生成当前的 local reverse training status、evaluation queue、type coverage summary 和下一步候选计划。
+本轮主线是 `tool_integration`。目标不是专门求解 `affine_8cfebe03`，而是建设可复用的工具产物桥接层。`affine_8cfebe03` 只能作为 fixture / acceptance case，用来验证桥接层能处理 input string + compare context + candidate transform function 这一类证据组合；不得把 sample_id、函数名、字符串、candidate 或 flag 写死进模块逻辑。
 
-本轮必须保持 metadata-only：不运行本地样本，不运行 solver candidate generation，不运行 runtime probe，不运行 IDA/Ghidra/debugger/emulator，不读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`，不上传样本二进制。
+本轮完成后，后续每类题目都应能复用同一条链路：
 
-预期输出：
+```text
+Tool Artifact -> StructuredEvidence -> solver profile hints -> solver dispatch plan
+```
 
-- 当前训练状态是否可用；
-- 每类题型的 solved / blocked / needs_triage / inventory_only 概览；
-- 下一步优先样本和允许动作；
-- 若下一步指向 `affine_8cfebe03`，必须标注现有 affine static evidence 是历史证据，需要在下一轮 reverse_solving/tool_integration 中做 bounded provenance verification，不能在本轮直接当 current evidence 求解。
+本轮不生成 candidate，不生成 flag，不运行样本，不运行 solver，不运行 runtime validation。若桥接层输出 solve-ready plan，也只能作为下一轮 `reverse_solving` 的输入。
 
 ## 2. Current Evidence
 
-上一轮 `decision_20260619_claim_aware_artifact_freshness_policy_v1` 已被审计接受。该轮属于 `engineering_branch`，修复了 project gate/status policy，使非样本主线不会再被历史 sample missing artifacts 错误阻塞；但这不等于任何 sample artifact 已成为 current evidence。
+当前 `task_packet.json` 仍是旧 `samplereverse` / `collect_missing_evidence` 建议，且 `execution_scope=decision_packet_controls_current_round`。它不是本轮执行权威，本轮执行以本 `project_state/decision_packet.md` 为准。
 
-当前 `task_packet.json` 仍是旧 `samplereverse` / `collect_missing_evidence` 建议。它不是本轮执行权威。本轮执行以本 `project_state/decision_packet.md` 为准。
+当前 `current_state.json` 仍是 `samplereverse` 的 sample-state，`artifact_refs={}`，best candidates 为空，多个 runtime/static artifact 字段为空。它不能作为本轮 tool integration 的 current sample evidence。
 
-当前 `current_state.json` 仍指向 `samplereverse`，best candidates 为空，多个 artifact 字段为空；不能作为 local reverse training 的 current sample evidence。
+当前 `artifact_index.json` 对 `samplereverse` 记录大量 `freshness=missing` artifact。这些是历史/backlog 状态。上一轮 claim-aware gate policy 已经确认：非样本主线不能被 unclaimed historical/backlog sample artifacts 错误阻塞，但 reverse_solving 或 claimed evidence 仍必须保持 strict freshness。
 
-当前 `artifact_index.json` 对 `samplereverse` 记录大量 `freshness=missing` artifact。这些是历史/backlog 状态，不能作为当前 reverse-solving 证据，也不应阻塞本轮 metadata-only training_dataset 刷新。
+`negative_results.json` 继续有效：不要回到旧 `sample_solver` blind search，不要只扩 beam/budget/topN，不要把 `compare_semantics_agree=false` candidates 当 primary frontier，不要提交完整 `solve_reports/`，不要重复 `samplereverse` 已失败的 exact2/H1-H3/transform-trace 方向。
 
-`negative_results.json` 的禁止方向继续有效：不回到旧 `sample_solver` blind search，不只扩 beam/budget/topN，不把 `compare_semantics_agree=false` candidates 当 primary frontier，不提交完整 `solve_reports/`，不重复 samplereverse 已失败的 exact2/H1-H3/transform-trace 方向。
+已有相关能力必须复用：
 
-已有训练集相关能力和产物：
+- `reverse_agent/evidence.py` 已有 `StructuredEvidence` dataclass 以及 material evidence helpers；不得新建不兼容的第二套 evidence model。
+- `reverse_agent/tool_runners.py`、`reverse_agent/tool_capability_inventory.py`、`reverse_agent/local_reverse_single_sample_static_triage.py`、`reverse_agent/local_reverse_targeted_static_reextract.py` 等工具接口已存在；先检查再复用，不重复实现 IDA/Ghidra/debugger runner。
+- `project_state/local_reverse_solver_tool_capability_map.json`、`project_state/structured_evidence_gap_report.json`、`project_state/local_reverse_cipher_static_evidence_profile.json` 等历史产物可作线索，但不能无 provenance 地当 current evidence。
+- `project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json` 记录历史上 `affine_8cfebe03` 的 IDA output blocker 已修复；它只说明此样本适合作为 acceptance fixture，不授权本轮直接求解。
+- `project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json` 记录历史 IDA static evidence：有 `_strncmp` compare context、input-oriented strings、candidate function hints 和 next action。它可以作为 fixture 输入/格式线索，但不能被标记为 current reverse-solving evidence，除非本轮有界重建并登记 provenance；本轮默认不运行 IDA/Ghidra。
 
-- `reverse_agent/local_reverse_training_status.py` 已存在，用于合并 inventory、validated handoff、constraint recovery、solver result 和 artifact_index，生成 training status / evaluation queue / status overlay。优先复用，不要新写第三套 corpus scanner。
-- `reverse_agent/local_reverse_training_review.py`、`reverse_agent/local_reverse_corpus.py`、`reverse_agent/tool_capability_inventory.py` 已存在；先检查再决定是否需要读取或修改。
-- `training_materials/local_reverse/inventory.json`、`training_materials/local_reverse/queue.json`、`training_materials/local_reverse/cases/*.json` 是训练集 metadata 入口。
-- `project_state/local_reverse_training_resume_plan.md` 显示旧快照：solved=1、blocked=2、needs_triage=1、inventory_only=46；高优先级包括 `affine_8cfebe03` 和 `cpp1_2f6fcb63`。
-- `project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json` 记录历史上 `affine_8cfebe03` 的 `STATIC_TOOL_NO_OUTPUT` blocker 已被修复，root cause 是 IDA output dir 路径问题，下一步曾建议 full static triage。
-- `project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json` 记录历史 IDA static evidence：`tool_status=success`，分类仍是 `unknown`，有 `_strncmp` compare context 和 solver hints，下一步是 `constraint_recovery_or_targeted_decompilation`；但它不是本轮 current evidence，必须在后续样本轮重新做 provenance/freshness 判断。
-
-本轮只刷新训练集状态和下一步计划，不把历史 affine evidence 直接升级为 current reverse-solving 依据。
+本轮核心判断：现在真正缺的不是训练队列刷新，而是通用 bridge，让成熟工具输出可以稳定进入 solver dispatcher。
 
 ## 3. Do Not Do
 
@@ -57,25 +53,25 @@
 
 不要运行任何本地样本可执行文件。
 
-不要生成 candidate、flag、密码、key 或 solver 输出。
+不要生成 candidate、flag、密码、key 或最终答案。
 
-不要运行 IDA、Ghidra、OllyDbg、x64dbg、debugger hook、emulator、runtime probe、sidecar、sample runner、solver、harness 或 GUI/frontend workflow。
+不要运行 solver、harness、runtime probe、sidecar、emulator、debugger hook、GUI workflow 或 frontend workflow。
+
+不要运行 IDA/Ghidra/OllyDbg/x64dbg。如果发现需要当前 IDA/Ghidra 输出才能完成，本轮停止并报告下一轮 bounded static extraction 需求。
 
 不要读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
 
-不要上传、复制、提交本地样本二进制。
-
-不要新建重复的 corpus scanner、IDA runner、Ghidra runner、debugger runner、solver 或 harness。
+不要上传、复制或提交本地样本二进制。
 
 不要修改 `.codex-skills/`。
 
-不要修改 `reverse_agent/local_reverse_single_sample_static_triage.py`、IDA/Ghidra/debugger/tool runner/solver/harness，除非本轮仅做 metadata refresh 时发现现有 training status 代码有明确、可测试、范围内的小 bug；若需要工具接入修复，停止并在报告中建议下一轮转 `tool_integration`。
+不要新建重复的 IDA/Ghidra/debugger runner、corpus scanner、solver 或 harness。
 
-不要把 `samplereverse` 的 stale/missing artifact 当作当前训练集证据。
+不要把 `affine_8cfebe03` 写成专用逻辑。禁止出现 `if sample_id == "affine_8cfebe03"` 这类分支，除非只在测试 fixture 名称、artifact 产物说明或 acceptance report 中出现。
 
-不要把 `affine_8cfebe03` 的历史 static evidence 当作 current reverse-solving 证据。
+不要把历史 `affine_8cfebe03` static artifact 标记为 current solving evidence。
 
-不要把本轮扩展成单样本硬编码或批量盲跑。
+不要把本轮扩展成批量训练集刷新或单样本求解。
 
 ## 4. Files To Inspect
 
@@ -90,84 +86,83 @@
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-训练集和现有能力相关文件：
+现有证据/工具/调度能力：
 
-1. `reverse_agent/local_reverse_training_status.py`
-2. `reverse_agent/local_reverse_training_review.py`
-3. `reverse_agent/local_reverse_corpus.py`
+1. `reverse_agent/evidence.py`
+2. `reverse_agent/pipeline.py`
+3. `reverse_agent/tool_runners.py`
 4. `reverse_agent/tool_capability_inventory.py`
-5. `training_materials/local_reverse/inventory.json`
-6. `training_materials/local_reverse/queue.json`
-7. `training_materials/local_reverse/status_overlay.json`
-8. `project_state/local_reverse_training_status.json`
-9. `project_state/local_reverse_evaluation_queue.json`
-10. `project_state/local_reverse_training_resume_plan.md`
-11. `project_state/local_reverse_training_resume_plan.json`
-12. `project_state/local_reverse_training_coverage_matrix.json`
-13. `project_state/local_reverse_type_coverage_matrix.json`
-14. `project_state/local_reverse_training_next_queue.json`
-15. `project_state/local_reverse_training_inventory_refresh.json`
-16. `project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json`
-17. `project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json`
-18. `project_state/local_reverse_affine_8cfebe03_static_triage.json`
+5. `reverse_agent/local_reverse_single_sample_static_triage.py`
+6. `reverse_agent/local_reverse_targeted_static_reextract.py`
+7. `reverse_agent/local_reverse_training_status.py`
+8. `reverse_agent/local_reverse_training_review.py`
+9. `reverse_agent/local_reverse_corpus.py`
+10. `reverse_agent/probes/gui.py`
+11. `reverse_agent/profiles/samplereverse.py`
+12. existing solver/dispatcher modules discovered by search; inspect before modifying
 
-只允许有界读取与训练队列相关的 `project_state/rounds/<round_id>/round_manifest.json` 或最近相关 round 的 report/pytest；不要读取完整 `solve_reports/`。
+Fixture / acceptance inputs, read boundedly only:
+
+1. `project_state/local_reverse_affine_8cfebe03_static_triage.json`
+2. `project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json`
+3. `project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json`
+4. `project_state/local_reverse_cipher_static_evidence_profile.json`
+5. `project_state/local_reverse_solver_tool_capability_map.json`
+6. `project_state/structured_evidence_gap_report.json`
+
+Do not read complete heavy-history directories.
 
 ## 5. Required Audit
 
-执行前必须确认：
+Before implementation, audit and record:
 
-1. 当前工作目录是 `F:\reverse-agent`。
-2. `Test-Path F:\reverse-agent` 为 `True`。
-3. `git rev-parse --show-toplevel` 指向当前仓库。
-4. 启动 `git status --short` 已记录；若已有 dirty files，必须记录 baseline 并排除继承脏改动。
-5. `decision_meta.status=APPROVED`。
-6. `mainline=training_dataset`。
-7. `reverse-agent-iteration@v2` 是 active skill。
-8. `task_packet.json` 不是执行权威。
-9. 本轮是 metadata-only training_dataset refresh，不是 sample solving。
-10. `reverse_agent/local_reverse_training_status.py` 已存在，优先复用，不重复实现 corpus scanner。
-11. 若现有 inventory/status/queue 已足够，优先生成 refresh/plan artifacts，而不是改源码。
-12. 若发现需要修改训练状态生成逻辑，只允许小范围修改 training status/review/corpus 相关代码，并写测试；不得修改 solver、IDA/Ghidra/debugger/tool runner/harness。
-13. 历史 affine static evidence 只能作为下一轮候选线索，不能在本轮作为 current solving evidence。
-14. 本轮不运行 IDA/Ghidra/runtime/solver/harness/sample。
-15. 本轮不读取完整 heavy history。
+1. Worktree is `F:\reverse-agent` and repository root is correct.
+2. Startup `git status --short` is recorded. If dirty files exist, record baseline and do not overwrite unrelated work.
+3. `decision_meta.status=APPROVED`.
+4. `mainline=tool_integration`.
+5. `reverse-agent-iteration@v2` is active in `.codex-skills/registry.json`.
+6. `task_packet.json` is advisory, not execution authority.
+7. Existing tool interfaces for IDA/Ghidra/debugger/static triage are checked before adding code.
+8. Existing `StructuredEvidence` in `reverse_agent/evidence.py` is reused or extended compatibly.
+9. No mature tool capability is reimplemented.
+10. No solver, runtime validation, sample execution, IDA/Ghidra/debugger run, harness, GUI or frontend workflow is invoked.
+11. Historical affine artifacts are classified as fixture/provenance examples, not current solving evidence.
+12. Implementation does not hardcode `affine_8cfebe03` outside tests/reports/fixture paths.
+13. Any produced solver dispatch plan has explicit readiness state such as `not_solve_ready`, `needs_current_static_provenance`, or `solver_profile_hint_only` unless current evidence was built in this round.
 
-必须审计并记录：
+Bridge capability audit must answer:
 
-1. 当前 inventory 中样本数量、分类字段、status overlay 是否一致。
-2. 当前 training status 的 solved / blocked / needs_triage / inventory_only 计数。
-3. 类型覆盖矩阵是否能支持“两周内覆盖每类题型”的路线选择。
-4. 下一步候选是否来自 current metadata/status，而不是来自 stale sample artifact。
-5. `affine_8cfebe03`、`cpp1_2f6fcb63`、`cpp2_4c69f173`、`sha_256_18019fca` 是否仍在队列中，以及它们的优先级和下一动作是否需要更新。
-6. 是否存在 current tool capability evidence；若没有，只记录缺口，不运行工具补证据。
-7. 是否需要下一轮转 `tool_integration` 或 `reverse_solving`。
+1. Which tool artifact schemas are currently supported: static triage JSON, static evidence summary JSON, cipher static profile JSON, strings-only artifact, runtime trace artifact, etc.
+2. Which evidence families are normalized: input evidence, compare evidence, constant/array evidence, transform evidence, crypto signature evidence, GUI input evidence, anti-debug evidence.
+3. Which solver profile hints can be emitted: string compare, xor, affine/shift, lookup table, RC4, DES/AES, hash/domain, GUI check, anti-debug precondition.
+4. Which evidence is insufficient for solving and why.
 
 ## 6. Implementation Scope
 
-Allowed source files only if a small metadata bug is proven:
+Preferred implementation is a small generic bridge module plus tests.
 
-- `reverse_agent/local_reverse_training_status.py`
-- `reverse_agent/local_reverse_training_review.py`
-- `reverse_agent/local_reverse_corpus.py`
+Allowed source files:
 
-Allowed tests only if source files are changed:
+- `reverse_agent/evidence.py`
+- `reverse_agent/static_evidence_bridge.py`
+- `reverse_agent/solver_dispatch_plan.py`
+- `reverse_agent/tool_capability_inventory.py` only if needed to register bridge capability metadata
+- `reverse_agent/pipeline.py` only if needed to expose existing pipeline integration without running tools
 
-- `tests/test_local_reverse_training_status.py`
-- `tests/test_local_reverse_training_review.py`
-- `tests/test_local_reverse_corpus.py`
+Allowed tests:
 
-Preferred generated/project-state outputs:
+- `tests/test_static_evidence_bridge.py`
+- `tests/test_solver_dispatch_plan.py`
+- `tests/test_evidence.py`
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py`
 
-- `project_state/local_reverse_training_status.json`
-- `project_state/local_reverse_evaluation_queue.json`
-- `project_state/local_reverse_training_status_summary_sync.json`
-- `project_state/local_reverse_training_queue_refresh.json`
-- `project_state/local_reverse_type_coverage_matrix.json`
-- `project_state/local_reverse_training_next_queue.json`
-- `project_state/local_reverse_next_step_plan.json`
-- `project_state/local_reverse_next_step_plan.md`
-- `training_materials/local_reverse/status_overlay.json`
+Allowed generated artifacts:
+
+- `project_state/static_evidence_bridge_report.json`
+- `project_state/static_evidence_bridge_report.md`
+- `project_state/solver_dispatch_plan.json`
+- `project_state/static_evidence_bridge_capability_matrix.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/preflight_result.json`
@@ -178,36 +173,32 @@ Preferred generated/project-state outputs:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260619_training_dataset_queue_refresh_v1/*`
+- `project_state/rounds/round_20260619_generic_static_evidence_bridge_v1/*`
 
 Implementation requirements:
 
-1. 先运行现有 metadata-only status path，确认是否能无副作用输出 JSON：
-   - `python -m reverse_agent.local_reverse_training_status --json`
-2. 若 JSON 模式正常，再运行写文件模式刷新 training status / queue / status overlay；不要扫描样本二进制，不要运行工具。
-3. 生成 `project_state/local_reverse_next_step_plan.json`，至少包含：
-   - `schema_version`
-   - `decision_id`
-   - `round_id`
-   - `mainline`
-   - `status_summary`
-   - `type_coverage_summary`
-   - `priority_queue`
-   - `recommended_next_mainline`
-   - `recommended_next_decision_goal`
-   - `evidence_freshness_notes`
-   - `do_not_repeat`
-4. 生成 `project_state/local_reverse_next_step_plan.md`，用人工可读格式说明下一轮建议。
-5. 推荐下一轮时只能给一个主线，不要同时推进工程、工具接入和样本求解。
-6. 如果 current metadata 支持，则优先建议下一轮对 `affine_8cfebe03` 做 bounded targeted decompilation / constraint recovery 的 `reverse_solving` 或 `tool_integration`；如果 provenance 不足，则建议下一轮先做 bounded static artifact provenance verification。
-7. 如果 `cpp1_2f6fcb63` 的 contradiction 仍比 affine 更高优先级，必须说明依据。
-8. 不要把单个样本结果写入 `.codex-skills/`。
-9. 不要生成 candidate 或 flag。
-10. 兼容旧字段，不破坏现有 inventory/status overlay 格式。
+1. Build a generic adapter that accepts dict-like static artifacts and returns `list[StructuredEvidence]` plus a solver dispatch plan.
+2. Evidence kinds must be generic, e.g. `StaticInputEvidence`, `StaticCompareEvidence`, `StaticConstantEvidence`, `StaticTransformHintEvidence`, `StaticCryptoSignatureEvidence`, `StaticGuiInputEvidence`, `StaticAntiDebugEvidence`.
+3. Compare detection must be rule-based on artifact content, not sample_id: `strcmp`, `strncmp`, `memcmp`, `CompareStringA`, comparison blocks, compare callsites.
+4. Input detection must be rule-based on input APIs/strings: `scanf`, `gets`, `fgets`, `ReadFile`, `GetDlgItemTextA/W`, `__input`, prompt-like strings.
+5. Transform hints must be conservative: arithmetic/bitwise/loop/table evidence can recommend solver profile but cannot become solve-ready without sufficient constants and provenance.
+6. Crypto signatures must be profile hints only unless enough structured material exists: RC4 KSA/PRGA, DES/AES tables, MD5/SHA constants, Base64 table or material evidence.
+7. The solver dispatch plan must include `readiness`, `recommended_solver_profiles`, `required_missing_evidence`, `source_artifacts`, and `provenance_notes`.
+8. `affine_8cfebe03` may appear only in tests and generated reports as acceptance fixture; production logic must pass the same tests with synthetic generic artifacts.
+9. Preserve backward compatibility with existing `StructuredEvidence` fields: `kind`, `source_tool`, `summary`, `payload`, `confidence`, `derived_candidates`.
+10. Do not generate candidates or final answers.
+
+Acceptance cases:
+
+1. Synthetic static triage artifact with `__input` + `_strncmp` + compare context returns input and compare evidence and recommends `string_compare` profile.
+2. Synthetic artifact with xor/arithmetic loop and constants returns transform hint and recommends `xor` or `affine_shift` profile, but remains not solve-ready if target constants are incomplete.
+3. Synthetic RC4-like artifact returns crypto signature evidence and recommends `rc4` profile only as a hint.
+4. Historical `affine_8cfebe03` fixture can be parsed into evidence and a dispatch plan, but readiness must be no stronger than `needs_current_static_provenance` unless rebuilt in this round.
+5. No test relies on executing a binary or launching IDA/Ghidra/debugger.
 
 ## 7. Tests
 
-必须运行并写入 `project_state/pytest_result.txt`：
+Must run and write results to `project_state/pytest_result.txt`:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -216,7 +207,7 @@ Test-Path F:\reverse-agent
 git rev-parse --show-toplevel
 git status --short
 
-python -m reverse_agent.local_reverse_training_status --json
+python -m pytest tests/test_static_evidence_bridge.py tests/test_solver_dispatch_plan.py tests/test_evidence.py tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state
@@ -225,45 +216,31 @@ python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-如果修改了 Python 源码，必须追加运行对应 pytest，至少：
+If `tests/test_solver_dispatch_plan.py` or `tests/test_evidence.py` do not exist and no matching code is changed, create only the tests that correspond to changed modules and record the reason in the report.
+
+If final-check passes and `gate_profile_plan.closeout_allowed=true`, close the round and rerun final-check:
 
 ```powershell
-python -m pytest tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q
-```
-
-如果本轮只生成 metadata/project_state artifacts 且未改源码，允许不跑完整 pytest，但报告必须说明没有源码改动，并记录 training status JSON、doctor、preflight、gate-profile、command-plan、report-summary、final-check 的结果。
-
-如果 `gate_profile_plan.closeout_allowed=true` 且 `final-check` 无 FAIL，运行：
-
-```powershell
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_training_dataset_queue_refresh_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260619_generic_static_evidence_bridge_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-报告必须列出：
-
-- 是否修改源码；
-- training status 刷新命令和结果；
-- solved / blocked / needs_triage / inventory_only 计数；
-- 类型覆盖缺口；
-- 下一轮推荐主线和目标；
-- 是否把 historical/stale evidence 降级为线索；
-- 没有运行 sample/IDA/Ghidra/runtime/solver/harness；
-- gate 结果和是否 close-round。
+`project_state/codex_execution_report.md` must include a valid `codex_report_summary` with matching `based_on_decision_id`, `round_id`, `files_changed`, `tests_ran`, and `generated_artifacts`.
 
 ## 8. Stop Conditions
 
-立即停止并报告 `REWORK_REQUIRED` 或 `BLOCKED`，如果：
+Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 
-1. 目录或仓库不正确。
-2. `decision_meta` 缺失或不是 `APPROVED`。
-3. `mainline` 不是 `training_dataset`。
-4. `reverse-agent-iteration@v2` 不是 active。
-5. 需要运行样本、solver、harness、IDA、Ghidra、debugger、emulator、runtime probe、sidecar 或 GUI workflow 才能完成本轮。
-6. 需要读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
-7. 需要修改 solver、IDA/Ghidra/debugger/tool runner/harness 才能完成本轮。
-8. 现有 inventory/status overlay 缺失到无法生成训练状态，且需要重新扫描本地样本目录或上传样本二进制。
-9. 生成的下一步计划只能依赖 stale/missing sample artifact，无法说明 provenance。
-10. pytest_result 没有真实命令记录。
-11. report/decision/pytest_result 的 decision_id 或 round_id 不匹配。
-12. final-check 仍出现 FAIL。
+1. Cannot confirm repository root `F:\reverse-agent`.
+2. `decision_meta` is missing or not `APPROVED`.
+3. `mainline` is not `tool_integration`.
+4. `reverse-agent-iteration@v2` is not active.
+5. Required implementation needs running IDA/Ghidra/debugger/runtime probe/sample/solver/harness.
+6. Existing mature tool interface already provides equivalent bridge behavior and only needs documentation; in that case, do not duplicate it, produce a capability audit instead.
+7. Existing evidence model cannot be extended compatibly without a larger schema migration.
+8. Bridge implementation would require reading complete `solve_reports/` or complete `PROJECT_PROGRESS_LOG.txt`.
+9. Code would hardcode `affine_8cfebe03` behavior in production modules.
+10. Tests require executing binaries or launching external reverse tools.
+11. `pytest_result.txt` lacks real command output.
+12. report/decision/pytest_result IDs mismatch.
+13. final-check has any FAIL.
