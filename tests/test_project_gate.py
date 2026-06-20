@@ -14574,11 +14574,19 @@ def test_required_audit_coverage_check_warns_for_blocked_report_without_section(
 
 
 def test_required_audit_coverage_check_passes_when_all_answered() -> None:
-    """Feature B: report with all answers passes."""
-    from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
+    """Feature B: report with all substantive answers passes."""
+    from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions
 
-    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
-    report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n{ scaffold }\n"
+    questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+    audit_lines = ["## Required Audit", ""]
+    for i, q in enumerate(questions, start=1):
+        audit_lines.append(f"### {i}. {q}")
+        audit_lines.append("")
+        audit_lines.append("- Evidence: test evidence from project_state")
+        audit_lines.append("- Status: ANSWERED")
+        audit_lines.append("- Answer: test answer with substantive content")
+        audit_lines.append("")
+    report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + "\n".join(audit_lines) + "\n"
     result = _required_audit_coverage_check(
         decision_text=_DECISION_WITH_REQUIRED_AUDIT,
         report_text=report_text,
@@ -14586,6 +14594,7 @@ def test_required_audit_coverage_check_passes_when_all_answered() -> None:
     )
     assert result["status"] == "PASS"
     assert result["missing_answers"] == []
+    assert result["placeholder_answers"] == []
 
 
 def test_required_audit_coverage_check_passes_when_no_audit_items() -> None:
@@ -14642,15 +14651,25 @@ def test_final_check_required_audit_coverage_in_gate(tmp_path: Path) -> None:
     assert audit_check["status"] == "FAIL"
 
 
-def test_final_check_required_audit_passes_with_scaffold(tmp_path: Path) -> None:
-    """Feature B+C: final-check passes when report has scaffold covering all items."""
-    from reverse_agent.project_gate import generate_required_audit_scaffold
+def test_final_check_required_audit_passes_with_substantive_answers(tmp_path: Path) -> None:
+    """Feature B+C: final-check passes when report has substantive answers for all items."""
+    from reverse_agent.project_gate import parse_required_audit_questions
 
     state_dir = _make_gate_state(tmp_path)
     # Override decision_packet.md with one that has Required Audit
     (state_dir / "decision_packet.md").write_text(_DECISION_WITH_REQUIRED_AUDIT, encoding="utf-8")
-    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
-    # Write report with the scaffold
+    questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+    # Build a report with substantive (non-placeholder) answers
+    audit_lines = ["## Required Audit", ""]
+    for i, q in enumerate(questions, start=1):
+        audit_lines.append(f"### {i}. {q}")
+        audit_lines.append("")
+        audit_lines.append("- Evidence: gate source code and test fixtures")
+        audit_lines.append("- Status: ANSWERED")
+        audit_lines.append("- Answer: substantive answer covering the question")
+        audit_lines.append("")
+    audit_body = "\n".join(audit_lines)
+    # Write report with substantive answers
     _write_report(
         state_dir,
         decision_id="decision_audit_test",
@@ -14659,10 +14678,10 @@ def test_final_check_required_audit_passes_with_scaffold(tmp_path: Path) -> None
         status="SUCCESS",
         acceptance="ACCEPTED",
     )
-    # Append scaffold to report
+    # Append substantive audit section to report
     report_path = state_dir / "codex_execution_report.md"
     report_path.write_text(
-        report_path.read_text(encoding="utf-8") + "\n" + scaffold + "\n",
+        report_path.read_text(encoding="utf-8") + "\n" + audit_body + "\n",
         encoding="utf-8",
     )
     _write_pytest(state_dir, decision_id="decision_audit_test", report_id="report_audit_test", round_id="round_audit_test")
@@ -14725,4 +14744,179 @@ def test_run_closeout_generates_required_audit_scaffold(tmp_path: Path) -> None:
     questions = parse_required_audit_questions(decision_text)
     for q in questions:
         assert q in report_text
+
+
+def test_required_audit_fails_for_placeholder_answers_on_success() -> None:
+    """Feature D regression: SUCCESS report with all items present but placeholder answers fails."""
+    from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
+
+    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+    report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n{ scaffold }\n"
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text=report_text,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "FAIL"
+    assert len(result["placeholder_answers"]) > 0
+    assert result["missing_answers"] == []
+
+
+def test_required_audit_fails_for_pending_status_on_success() -> None:
+    """Feature D regression: SUCCESS report with Status: PENDING fails."""
+    from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions
+
+    questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+    audit_lines = ["## Required Audit", ""]
+    for i, q in enumerate(questions, start=1):
+        audit_lines.append(f"### {i}. {q}")
+        audit_lines.append("")
+        audit_lines.append("- Evidence: real evidence from code inspection")
+        audit_lines.append("- Status: PENDING")
+        audit_lines.append("- Answer: real answer content")
+        audit_lines.append("")
+    report_text = "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + "\n".join(audit_lines) + "\n"
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text=report_text,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "FAIL"
+    assert len(result["placeholder_answers"]) > 0
+
+
+def test_required_audit_warns_for_placeholder_answers_on_partial() -> None:
+    """Feature D: PARTIAL report with placeholder answers warns, not fails."""
+    from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
+
+    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+    report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nPARTIAL\n\n{ scaffold }\n"
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text=report_text,
+        report_status="PARTIAL",
+    )
+    assert result["status"] == "WARN"
+    assert len(result["placeholder_answers"]) > 0
+
+
+def test_required_audit_warns_for_placeholder_answers_on_blocked() -> None:
+    """Feature D: BLOCKED report with placeholder answers warns, not fails."""
+    from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
+
+    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+    report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nBLOCKED\n\n{ scaffold }\n"
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text=report_text,
+        report_status="BLOCKED",
+    )
+    assert result["status"] == "WARN"
+
+
+def test_required_audit_passes_with_concise_answers() -> None:
+    """Feature D: SUCCESS report with concise non-placeholder answers passes."""
+    from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions
+
+    questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+    audit_lines = ["## Required Audit", ""]
+    for i, q in enumerate(questions, start=1):
+        audit_lines.append(f"### {i}. {q}")
+        audit_lines.append("")
+        audit_lines.append("- Evidence: project_gate.py lines 280-390")
+        audit_lines.append("- Status: ANSWERED")
+        audit_lines.append("- Answer: yes, concise answer")
+        audit_lines.append("")
+    report_text = "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + "\n".join(audit_lines) + "\n"
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text=report_text,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "PASS"
+    assert result["placeholder_answers"] == []
+
+
+def test_required_audit_regression_previous_round_placeholder_shape() -> None:
+    """Feature D regression: previous round report shape with all-placeholder Required Audit fails for SUCCESS."""
+    from reverse_agent.project_gate import _required_audit_coverage_check
+
+    # This replicates the shape of the previous round's report where all 8
+    # Required Audit items had placeholder answers:
+    #   - Evidence: (to be filled)
+    #   - Status: PENDING
+    #   - Answer: (to be filled)
+    report_section = """## Required Audit
+
+### 1. How is the decision's Required Audit section currently parsed, if at all?
+
+- Evidence: (to be filled)
+- Status: PENDING
+- Answer: (to be filled)
+
+### 2. Which Required Audit questions from the decision can be answered mechanically from project_state artifacts?
+
+- Evidence: (to be filled)
+- Status: PENDING
+- Answer: (to be filled)
+
+### 3. Should final-check fail when ## Required Audit is missing for an engineering decision that declares Required Audit items?
+
+- Evidence: (to be filled)
+- Status: PENDING
+- Answer: (to be filled)
+"""
+    report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n{ report_section }\n"
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text=report_text,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "FAIL"
+    assert len(result["placeholder_answers"]) == 3
+
+
+def test_final_check_required_audit_fails_with_placeholder_scaffold(tmp_path: Path) -> None:
+    """Feature B: final-check fails when SUCCESS report has scaffold with placeholder answers."""
+    from reverse_agent.project_gate import generate_required_audit_scaffold
+
+    state_dir = _make_gate_state(tmp_path)
+    (state_dir / "decision_packet.md").write_text(_DECISION_WITH_REQUIRED_AUDIT, encoding="utf-8")
+    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+    _write_report(
+        state_dir,
+        decision_id="decision_audit_test",
+        report_id="report_audit_test",
+        round_id="round_audit_test",
+        status="SUCCESS",
+        acceptance="ACCEPTED",
+    )
+    report_path = state_dir / "codex_execution_report.md"
+    report_path.write_text(
+        report_path.read_text(encoding="utf-8") + "\n" + scaffold + "\n",
+        encoding="utf-8",
+    )
+    _write_pytest(state_dir, decision_id="decision_audit_test", report_id="report_audit_test", round_id="round_audit_test")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    audit_check = _check(result, "required_audit_coverage")
+    assert audit_check is not None
+    assert audit_check["status"] == "FAIL"
+    assert len(audit_check["placeholder_answers"]) > 0
+
+
+def test_is_required_audit_placeholder_detects_known_markers() -> None:
+    """Feature A: placeholder detection covers all required marker patterns."""
+    from reverse_agent.project_gate import _is_required_audit_placeholder
+
+    assert _is_required_audit_placeholder("(to be filled)")
+    assert _is_required_audit_placeholder("TODO")
+    assert _is_required_audit_placeholder("TBD")
+    assert _is_required_audit_placeholder("PENDING")
+    assert _is_required_audit_placeholder("")
+    assert _is_required_audit_placeholder("placeholder text")
+    assert _is_required_audit_placeholder("N/A")
+    assert not _is_required_audit_placeholder("real answer with evidence")
+    assert not _is_required_audit_placeholder("ANSWERED")
+    assert not _is_required_audit_placeholder("the check parses the section and validates answers")
 

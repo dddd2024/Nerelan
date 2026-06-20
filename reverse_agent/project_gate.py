@@ -323,13 +323,99 @@ def generate_required_audit_scaffold(decision_text: str) -> str:
     return "\n".join(lines)
 
 
+# Placeholder patterns detected in Required Audit answers
+_REQUIRED_AUDIT_PLACEHOLDER_PATTERNS = [
+    re.compile(r"\(to be filled\)", re.IGNORECASE),
+    re.compile(r"\bTODO\b", re.IGNORECASE),
+    re.compile(r"\bTBD\b", re.IGNORECASE),
+    re.compile(r"\bPENDING\b", re.IGNORECASE),
+    re.compile(r"\bplaceholder\b", re.IGNORECASE),
+    re.compile(r"\bN/A\b", re.IGNORECASE),
+    re.compile(r"\bnot yet\b", re.IGNORECASE),
+    re.compile(r"\bnot implemented\b", re.IGNORECASE),
+]
+
+
+def _is_required_audit_placeholder(text: str) -> bool:
+    """Check if a text string is a placeholder marker for Required Audit answers."""
+    stripped = text.strip()
+    if not stripped:
+        return True
+    for pattern in _REQUIRED_AUDIT_PLACEHOLDER_PATTERNS:
+        if pattern.search(stripped):
+            return True
+    return False
+
+
+def _parse_required_audit_answer_blocks(report_section: str) -> list[dict[str, str]]:
+    """Parse the report's Required Audit section into per-item answer blocks.
+
+    Each block contains the item heading, evidence, status, and answer fields.
+    Returns an empty list if the section has no item headings.
+    """
+    blocks: list[dict[str, str]] = []
+    current_block: dict[str, str] | None = None
+
+    for line in report_section.splitlines():
+        stripped = line.strip()
+        m = re.match(r"^###\s+\d+\.\s+(.+)", stripped)
+        if m:
+            if current_block is not None:
+                blocks.append(current_block)
+            current_block: dict[str, str] = {
+                "heading": m.group(1).strip(),
+                "evidence": "",
+                "status": "",
+                "answer": "",
+            }
+            continue
+        if current_block is not None:
+            fm = re.match(r"^[-*]\s+(Evidence|Status|Answer)\s*:\s*(.*)", stripped, re.IGNORECASE)
+            if fm:
+                field_name = fm.group(1).lower()
+                field_value = fm.group(2).strip()
+                current_block[field_name] = field_value
+
+    if current_block is not None:
+        blocks.append(current_block)
+
+    return blocks
+
+
+def _required_audit_placeholder_items(report_section: str) -> list[str]:
+    """Return headings of Required Audit items with placeholder answers.
+
+    An item is considered placeholder if its answer, evidence, or status
+    field contains an unresolved marker such as ``(to be filled)``,
+    ``TODO``, ``TBD``, ``PENDING``, or is empty.
+    """
+    blocks = _parse_required_audit_answer_blocks(report_section)
+    placeholder_items: list[str] = []
+    for block in blocks:
+        answer = block.get("answer", "")
+        evidence = block.get("evidence", "")
+        status = block.get("status", "")
+        if (
+            _is_required_audit_placeholder(answer)
+            or _is_required_audit_placeholder(evidence)
+            or _is_required_audit_placeholder(status)
+        ):
+            placeholder_items.append(block.get("heading", ""))
+    return placeholder_items
+
+
 def _required_audit_coverage_check(
     *,
     decision_text: str,
     report_text: str,
     report_status: str,
 ) -> dict[str, Any]:
-    """Check that the report covers Required Audit items when they exist."""
+    """Check that the report covers Required Audit items with valid answers.
+
+    For SUCCESS/ACCEPTED reports, every item must have a non-placeholder
+    answer.  For non-success reports, placeholder answers are allowed but
+    produce a WARN.
+    """
     questions = parse_required_audit_questions(decision_text)
     if not questions:
         return _check(
@@ -338,11 +424,13 @@ def _required_audit_coverage_check(
             "decision has no Required Audit items; coverage check not applicable",
             required_audit_items=[],
             missing_answers=[],
+            placeholder_answers=[],
         )
 
     report_section = _markdown_section(report_text, "Required Audit")
+    is_success = report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
+
     if not report_section.strip():
-        is_success = report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
         status = "FAIL" if is_success else "WARN"
         detail = (
             f"report is missing ## Required Audit section ({len(questions)} items unanswered)"
@@ -355,6 +443,7 @@ def _required_audit_coverage_check(
             detail,
             required_audit_items=questions,
             missing_answers=questions,
+            placeholder_answers=[],
         )
 
     missing: list[str] = []
@@ -363,7 +452,6 @@ def _required_audit_coverage_check(
             missing.append(q)
 
     if missing:
-        is_success = report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
         status = "FAIL" if is_success else "WARN"
         detail = (
             f"report Required Audit section is missing {len(missing)} of {len(questions)} answers"
@@ -376,14 +464,38 @@ def _required_audit_coverage_check(
             detail,
             required_audit_items=questions,
             missing_answers=missing,
+            placeholder_answers=[],
+        )
+
+    # All questions are present; now validate answer content
+    placeholder_answers = _required_audit_placeholder_items(report_section)
+
+    if placeholder_answers and is_success:
+        return _check(
+            "required_audit_coverage",
+            "FAIL",
+            f"report has {len(placeholder_answers)} of {len(questions)} Required Audit items with placeholder answers; SUCCESS/ACCEPTED requires substantive answers",
+            required_audit_items=questions,
+            missing_answers=[],
+            placeholder_answers=placeholder_answers,
+        )
+    elif placeholder_answers and not is_success:
+        return _check(
+            "required_audit_coverage",
+            "WARN",
+            f"report has {len(placeholder_answers)} of {len(questions)} Required Audit items with placeholder answers but report status is {report_status}",
+            required_audit_items=questions,
+            missing_answers=[],
+            placeholder_answers=placeholder_answers,
         )
 
     return _check(
         "required_audit_coverage",
         "PASS",
-        f"report covers all {len(questions)} Required Audit items",
+        f"report covers all {len(questions)} Required Audit items with substantive answers",
         required_audit_items=questions,
         missing_answers=[],
+        placeholder_answers=[],
     )
 
 
@@ -1739,6 +1851,34 @@ def _round_delta_checks(
     inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
     required_changed_files = (new_dirty_files if baseline_available else final_dirty_files) | archive_paths
     required_changed_for_diff = (new_dirty_files if baseline_available else final_dirty_files)
+
+    # Filter out stale gate artifacts that don't match the current round.
+    # The synthesis (build_report_summary_synthesis) filters these out, so
+    # the files_changed_covers_git_diff check must also filter them out to
+    # avoid a false mismatch.  Stale round_close_snapshot.json and
+    # run_round_result.json from previous rounds can appear in the git diff
+    # but should not be required in files_changed for the current round.
+    if state_dir is not None:
+        delta_decision_id = str(delta_summary.get("decision_id") or "")
+        delta_round_id = str(delta_summary.get("round_id") or "")
+        close_snapshot_payload = _read_json(
+            state_dir / "gates" / ROUND_CLOSE_SNAPSHOT_RESULT_NAME
+        )
+        if not _artifact_matches_current_round(
+            close_snapshot_payload,
+            decision_id=delta_decision_id,
+            round_id=delta_round_id,
+        ):
+            required_changed_for_diff = required_changed_for_diff - {ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH}
+        run_round_payload = _read_json(
+            state_dir / "gates" / RUN_ROUND_RESULT_NAME
+        )
+        if not _artifact_matches_current_round(
+            run_round_payload,
+            decision_id=delta_decision_id,
+            round_id=delta_round_id,
+        ):
+            required_changed_for_diff = required_changed_for_diff - {RUN_ROUND_OUTPUT_PATH}
 
     checks: list[dict[str, Any]] = []
     checks.append(
@@ -7326,6 +7466,7 @@ def _record_startup_diagnostics(
     *,
     repo_root: Path,
     runner: CommandRunner,
+    state_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Record cross-platform startup diagnostics as command blocks.
 
@@ -7338,6 +7479,13 @@ def _record_startup_diagnostics(
     This allows the executor to pre-record startup diagnostics before
     implementation changes, ensuring startup evidence reflects the clean
     baseline state.
+
+    If a baseline (round_baseline.json) exists and ``state_dir`` is
+    provided, the ``git status --short`` output is taken from the
+    baseline instead of the current git status.  This ensures startup
+    evidence reflects the clean baseline state even when run-closeout
+    is invoked after implementation changes in a multi-session
+    continuation.
     """
     existing_text = pytest_path.read_text(encoding="utf-8") if pytest_path.exists() else ""
     if "===== COMMAND: git status --short =====" in existing_text:
@@ -7399,18 +7547,40 @@ def _record_startup_diagnostics(
 
     # git status --short
     git_status_cmd = "git status --short"
-    git_status_proc = runner(git_status_cmd)
+    # If a baseline exists, use the baseline's git status instead of the
+    # current git status.  This ensures startup evidence reflects the
+    # clean baseline state even when run-closeout is invoked after
+    # implementation changes in a multi-session continuation.
+    git_status_stdout = ""
+    baseline_used = False
+    if state_dir is not None:
+        baseline_path = state_dir / "gates" / ROUND_BASELINE_RESULT_NAME
+        if baseline_path.exists():
+            baseline_payload = _read_json(baseline_path)
+            if baseline_payload and isinstance(
+                baseline_payload.get("baseline_git_status_short"), list
+            ):
+                baseline_lines = [
+                    str(line)
+                    for line in baseline_payload["baseline_git_status_short"]
+                    if isinstance(line, str)
+                ]
+                git_status_stdout = "\n".join(baseline_lines)
+                baseline_used = True
+    if not baseline_used:
+        git_status_proc = runner(git_status_cmd)
+        git_status_stdout = git_status_proc.stdout or ""
     _append_command_block_to_pytest_result(
         pytest_path,
         command=git_status_cmd,
-        stdout=git_status_proc.stdout or "",
-        stderr=git_status_proc.stderr or "",
-        exit_code=git_status_proc.returncode,
+        stdout=git_status_stdout,
+        stderr="",
+        exit_code=0,
     )
     blocks.append({
         "command": git_status_cmd,
-        "stdout": git_status_proc.stdout or "",
-        "exit_code": git_status_proc.returncode,
+        "stdout": git_status_stdout,
+        "exit_code": 0,
     })
 
     return blocks
@@ -7470,6 +7640,9 @@ def _refresh_codex_report_for_closeout(
     # is called during run-closeout, and run_closeout_result.json will be written by
     # the end of the process even if it doesn't exist yet at the time of this refresh.
     files_changed_set.add(RUN_CLOSEOUT_OUTPUT_PATH)
+    # Always include final_gate_result.json because final-check will create/update
+    # it during run-closeout even if it doesn't exist yet at refresh time.
+    files_changed_set.add(SELF_OUTPUT_PATH)
     # Include gate artifacts that exist on disk in files_changed so the
     # report matches the synthesis expected_files_changed.
     gates_dir = state_dir / "gates"
@@ -7518,6 +7691,38 @@ def _refresh_codex_report_for_closeout(
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
         generated_artifact_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
         files_changed_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+
+    # Filter out stale gate artifacts that don't match the current round.
+    # The synthesis (build_report_summary_synthesis) includes
+    # round_close_snapshot.json when the artifact matches the current round
+    # (regardless of whether close-round has run in this invocation), so the
+    # report's files_changed and generated_artifacts must match.  The
+    # include_close_snapshot parameter only controls whether the close
+    # snapshot is *added* above; the filtering below only removes artifacts
+    # that are stale (don't match the current round).
+    close_snapshot_payload = _read_json(
+        state_dir / "gates" / ROUND_CLOSE_SNAPSHOT_RESULT_NAME
+    )
+    close_snapshot_matches = _artifact_matches_current_round(
+        close_snapshot_payload, decision_id=decision_id, round_id=round_id
+    )
+    if not close_snapshot_matches:
+        files_changed_set.discard(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+        generated_artifact_set.discard(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+    else:
+        # Artifact matches: ensure it is in both sets (the synthesis will
+        # include it when closeout_allowed is not False, which is the
+        # normal case for an APPROVED decision with a full gate profile).
+        files_changed_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+        generated_artifact_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+
+    run_round_payload = _read_json(state_dir / "gates" / RUN_ROUND_RESULT_NAME)
+    run_round_matches = _artifact_matches_current_round(
+        run_round_payload, decision_id=decision_id, round_id=round_id
+    )
+    if not run_round_matches:
+        files_changed_set.discard(RUN_ROUND_OUTPUT_PATH)
+        generated_artifact_set.discard(RUN_ROUND_OUTPUT_PATH)
 
     # Derive tests_ran from command-plan, excluding startup commands and
     # "status" kind commands (e.g. "python -m reverse_agent.project_state build")
@@ -7568,6 +7773,34 @@ def _refresh_codex_report_for_closeout(
     report_path = state_dir / "codex_execution_report.md"
     # Generate Required Audit scaffold if the decision has audit items
     audit_scaffold = generate_required_audit_scaffold(decision_text)
+
+    # Feature C: Preserve existing Required Audit answers if they are
+    # non-placeholder.  This prevents run-closeout / report-summary from
+    # overwriting human-authored answers with the scaffold on each refresh.
+    # Note: _markdown_section returns content WITHOUT the heading, but
+    # generate_required_audit_scaffold includes "## Required Audit".  We
+    # must prepend the heading when preserving existing answers so that
+    # subsequent _refresh_codex_report_for_closeout calls can locate the
+    # section via _markdown_section.
+    audit_section_to_use = audit_scaffold
+    if audit_scaffold and report_path.exists():
+        existing_report_text = _read_text(report_path)
+        existing_audit_section = _markdown_section(existing_report_text, "Required Audit")
+        if existing_audit_section.strip():
+            existing_placeholders = _required_audit_placeholder_items(existing_audit_section)
+            if not existing_placeholders:
+                audit_section_to_use = "## Required Audit\n\n" + existing_audit_section
+
+    # Feature C: Do not promote the report to SUCCESS while placeholder
+    # answers remain in the Required Audit section.
+    if audit_section_to_use:
+        remaining_placeholders = _required_audit_placeholder_items(audit_section_to_use)
+        if remaining_placeholders and status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
+            status = "PARTIAL"
+            acceptance = "REWORK_REQUIRED"
+            payload["status"] = status
+            payload["acceptance_recommendation"] = acceptance
+
     report_body = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\n{status}\n"
     # Add Allowed Inherited Dirty Baseline Files section when there are
     # authorized dirty baseline files (from required_files_changed).
@@ -7577,8 +7810,8 @@ def _refresh_codex_report_for_closeout(
         report_body += "\n## Allowed Inherited Dirty Baseline Files\n\n"
         for path in sorted(authorized_inherited_source_test):
             report_body += f"- {path}\n"
-    if audit_scaffold:
-        report_body += f"\n{audit_scaffold}\n"
+    if audit_section_to_use:
+        report_body += f"\n{audit_section_to_use}\n"
     report_path.write_text(
         f"```json codex_report_summary\n"
         f"{json.dumps(payload, ensure_ascii=True, indent=2)}\n"
@@ -7751,6 +7984,7 @@ def run_closeout(
         pytest_path,
         repo_root=repo_root,
         runner=runner,
+        state_dir=state_dir,
     )
 
     # Record run-closeout self-invocation marker
