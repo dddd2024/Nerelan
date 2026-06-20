@@ -332,6 +332,7 @@ def _write_report(
     tests_ran: list[str] | None = None,
     generated_artifacts: list[str] | None = None,
     referenced_artifacts: list[str] | None = None,
+    extra_body: str = "",
 ) -> None:
     payload = {
         "schema_version": 1,
@@ -347,13 +348,13 @@ def _write_report(
     }
     if referenced_artifacts is not None:
         payload["referenced_artifacts"] = referenced_artifacts
+    body_section = f"\n{extra_body}\n" if extra_body else ""
     (state_dir / "codex_execution_report.md").write_text(
         f"""```json codex_report_summary
 {json.dumps(payload, indent=2)}
 ```
 
-# CODEX_EXECUTION_REPORT
-""",
+# CODEX_EXECUTION_REPORT{body_section}""",
         encoding="utf-8",
     )
 
@@ -15450,4 +15451,507 @@ def test_final_check_passes_when_run_closeout_not_required(tmp_path: Path) -> No
     )
     assert cp_check is not None
     assert cp_check["status"] == "PASS"
+
+
+# ---------------------------------------------------------------------------
+# Regression: command-plan execution authority validation
+# ---------------------------------------------------------------------------
+
+
+def _make_execution_authority_state(
+    tmp_path: Path,
+    *,
+    profile: str = "fast",
+    closeout_allowed: bool = False,
+    required_command_kinds: list[str] | None = None,
+    omitted_commands: list[dict[str, Any]] | None = None,
+    plan_commands: list[dict[str, Any]] | None = None,
+    pytest_commands: list[tuple[str, str, int]] | None = None,
+    report_status: str = "SUCCESS",
+    report_acceptance: str = "ACCEPTED",
+    report_text_extra: str = "",
+) -> Path:
+    """Create a minimal state for command-plan execution authority tests.
+
+    Each entry in ``pytest_commands`` is a ``(command, stdout, exit_code)``
+    tuple that will be recorded as a command block in pytest_result.txt.
+    """
+    if required_command_kinds is None:
+        if profile == "fast":
+            required_command_kinds = ["startup", "preflight", "command-plan", "report-summary", "final-check"]
+        elif profile == "standard":
+            required_command_kinds = ["startup", "preflight", "command-plan", "pytest", "report-summary", "final-check"]
+        else:
+            required_command_kinds = [
+                "startup", "preflight", "command-plan", "run-round", "pytest",
+                "doctor", "lint-report", "report-summary", "final-check", "close-round",
+            ]
+
+    if omitted_commands is None:
+        if profile == "fast":
+            omitted_commands = [
+                {"command": "python -m pytest tests/test_project_gate.py -q", "kind": "pytest",
+                 "reason": "omitted by fast profile: pytest not in required_command_kinds"},
+                {"command": None, "kind": "close-round",
+                 "reason": "omitted by fast profile: closeout not allowed"},
+            ]
+        else:
+            omitted_commands = []
+
+    if plan_commands is None:
+        plan_commands = [
+            {"index": 1, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+             "phase": "preflight", "kind": "preflight", "required": True, "expected_exit_codes": [0]},
+            {"index": 2, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+             "phase": "gate", "kind": "command-plan", "required": True, "expected_exit_codes": [0]},
+            {"index": 3, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+             "phase": "gate", "kind": "report-summary", "required": True, "expected_exit_codes": [0, 1]},
+            {"index": 4, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+             "phase": "gate", "kind": "final-check", "required": True, "expected_exit_codes": [0, 1]},
+        ]
+
+    if pytest_commands is None:
+        pytest_commands = [
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", 0),
+        ]
+
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+
+    decision_id = "decision_exec_auth"
+    report_id = "codex_report_exec_auth"
+    round_id = "round_exec_auth"
+
+    _write_json(state_dir / "current_state.json", {
+        "round_id": round_id,
+        "state_build_id": "state_test",
+        "state_digest": "digest_test",
+        "state_scope": "sample_state",
+        "source_harness_run": "run_test",
+    })
+    _write_json(state_dir / "task_packet.json", {
+        "state_scope": "sample_state",
+        "task_source": "derived_from_sample_artifacts",
+        "execution_scope": "decision_packet_controls_current_round",
+        "active_decision_packet": "project_state/decision_packet.md",
+    })
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+
+    _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
+    _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(exist_ok=True)
+
+    # Write gate_profile_plan.json
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "profile": profile,
+        "profile_reason": "test fixture",
+        "closeout_allowed": closeout_allowed,
+        "required_command_kinds": required_command_kinds,
+    })
+
+    # Write command_plan.json
+    _write_json(gates_dir / "command_plan.json", {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "generated_at": "2026-06-21T00:00:00Z",
+        "profile_meta": {
+            "profile": profile,
+            "profile_reason": "test fixture",
+            "closeout_allowed": closeout_allowed,
+            "required_command_kinds": required_command_kinds,
+        },
+        "omitted_commands": omitted_commands,
+        "commands": plan_commands,
+        "warnings": [],
+        "blocking_reasons": [],
+        "recommended_next_action": "record_and_follow_command_plan_manually",
+    })
+
+    # Write round_delta_summary.json
+    _write_json(gates_dir / "round_delta_summary.json", {
+        "schema_version": 1,
+        "artifact_name": "round_delta_summary.json",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "baseline_available": True,
+        "new_dirty_files_since_baseline": [],
+        "inherited_dirty_files": [],
+        "final_dirty_files": [],
+    })
+    _write_json(gates_dir / "report_summary_synthesis.json", {
+        "schema_version": 1,
+        "artifact_name": "report_summary_synthesis.json",
+        "decision_id": decision_id,
+        "round_id": round_id,
+    })
+    _write_json(gates_dir / "final_gate_result.json", {
+        "schema_version": 1,
+        "artifact_name": "final_gate_result.json",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "gate_status": "PASSED",
+    })
+
+    # Build pytest_result.txt
+    tests_ran = [cmd for cmd, _, _ in pytest_commands if not _is_startup_command_str(cmd)]
+    body_parts = [_command_block(cmd, stdout, exit_code=ec) for cmd, stdout, ec in pytest_commands]
+    _write_pytest(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        tests_ran=tests_ran,
+        body="\n\n".join(body_parts),
+    )
+
+    # Write report
+    report_body = report_text_extra if report_text_extra else "# CODEX_EXECUTION_REPORT"
+    _write_report(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        status=report_status,
+        acceptance=report_acceptance,
+        files_changed=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+        tests_ran=tests_ran,
+        generated_artifacts=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/command_plan.json",
+        ],
+        extra_body=report_body,
+    )
+
+    return state_dir
+
+
+def _is_startup_command_str(command: str) -> bool:
+    """Check if a command is a startup command (for tests)."""
+    patterns = ("Set-Location", "Get-Location", "Test-Path", "git rev-parse", "git status")
+    return any(p in command for p in patterns)
+
+
+def test_execution_authority_fast_profile_passes_when_no_unauthorized_commands(
+    tmp_path: Path,
+) -> None:
+    """Fast profile with only authorized commands passes execution authority check."""
+    state_dir = _make_execution_authority_state(tmp_path, profile="fast")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "PASS"
+
+
+def test_execution_authority_fast_profile_fails_when_pytest_recorded(
+    tmp_path: Path,
+) -> None:
+    """Fast profile fails execution authority check when pytest is recorded as executed."""
+    pytest_cmd = "python -m pytest tests/test_project_gate.py -q"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="fast",
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            (pytest_cmd, "938 passed", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", 0),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "FAIL"
+    unauthorized = auth_check.get("unauthorized_commands") or []
+    assert any(u["kind"] == "pytest" for u in unauthorized)
+
+
+def test_execution_authority_fast_profile_fails_when_close_round_recorded(
+    tmp_path: Path,
+) -> None:
+    """Fast profile fails execution authority check when close-round is recorded as executed."""
+    close_cmd = "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_exec_auth"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="fast",
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            (close_cmd, "close-round: CLOSED", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", 0),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "FAIL"
+    unauthorized = auth_check.get("unauthorized_commands") or []
+    assert any(u["kind"] == "close-round" for u in unauthorized)
+
+
+def test_execution_authority_standard_profile_accepts_pytest(
+    tmp_path: Path,
+) -> None:
+    """Standard profile accepts pytest when it's in required_command_kinds."""
+    pytest_cmd = "python -m pytest tests/test_project_gate.py -q"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="standard",
+        closeout_allowed=True,
+        required_command_kinds=["startup", "preflight", "command-plan", "pytest", "report-summary", "final-check"],
+        omitted_commands=[],
+        plan_commands=[
+            {"index": 1, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+             "phase": "preflight", "kind": "preflight", "required": True, "expected_exit_codes": [0]},
+            {"index": 2, "command": pytest_cmd,
+             "phase": "test", "kind": "pytest", "required": True, "expected_exit_codes": [0]},
+            {"index": 3, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+             "phase": "gate", "kind": "command-plan", "required": True, "expected_exit_codes": [0]},
+            {"index": 4, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+             "phase": "gate", "kind": "report-summary", "required": True, "expected_exit_codes": [0, 1]},
+            {"index": 5, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+             "phase": "gate", "kind": "final-check", "required": True, "expected_exit_codes": [0, 1]},
+        ],
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            (pytest_cmd, "938 passed", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", 0),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "PASS"
+
+
+def test_execution_authority_full_profile_accepts_all_commands(
+    tmp_path: Path,
+) -> None:
+    """Full profile accepts pytest, doctor, lint-report, and close-round when planned."""
+    pytest_cmd = "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+    close_cmd = "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_exec_auth"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="full",
+        closeout_allowed=True,
+        required_command_kinds=[
+            "startup", "preflight", "command-plan", "run-round", "pytest",
+            "doctor", "lint-report", "report-summary", "final-check", "close-round",
+        ],
+        omitted_commands=[],
+        plan_commands=[
+            {"index": 1, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+             "phase": "preflight", "kind": "preflight", "required": True, "expected_exit_codes": [0]},
+            {"index": 2, "command": pytest_cmd,
+             "phase": "test", "kind": "pytest", "required": True, "expected_exit_codes": [0]},
+            {"index": 3, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+             "phase": "gate", "kind": "command-plan", "required": True, "expected_exit_codes": [0]},
+            {"index": 4, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+             "phase": "gate", "kind": "report-summary", "required": True, "expected_exit_codes": [0, 1]},
+            {"index": 5, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+             "phase": "gate", "kind": "final-check", "required": True, "expected_exit_codes": [0, 1]},
+            {"index": 6, "command": close_cmd,
+             "phase": "gate", "kind": "close-round", "required": True, "expected_exit_codes": [0]},
+        ],
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            (pytest_cmd, "938 passed", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", 0),
+            (close_cmd, "close-round: CLOSED", 0),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "PASS"
+
+
+def test_execution_authority_stale_command_plan_delegates_to_ids_check(
+    tmp_path: Path,
+) -> None:
+    """Stale command-plan IDs cause execution authority check to delegate to command_plan_ids_match."""
+    pytest_cmd = "python -m pytest tests/test_project_gate.py -q"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="fast",
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            (pytest_cmd, "938 passed", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", 0),
+        ],
+    )
+    # Overwrite command_plan.json with stale IDs
+    gates_dir = state_dir / "gates"
+    cp = json.loads((gates_dir / "command_plan.json").read_text(encoding="utf-8"))
+    cp["decision_id"] = "stale_decision"
+    cp["round_id"] = "stale_round"
+    _write_json(gates_dir / "command_plan.json", cp)
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "PASS"
+    assert auth_check.get("skipped_reason") == "stale_command_plan_ids"
+
+
+def test_execution_authority_failed_report_warns_when_acknowledged(
+    tmp_path: Path,
+) -> None:
+    """FAILED report with unauthorized commands gets WARN when report acknowledges them."""
+    pytest_cmd = "python -m pytest tests/test_project_gate.py -q"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="fast",
+        report_status="FAILED",
+        report_acceptance="REWORK_REQUIRED",
+        report_text_extra=(
+            "# CODEX_EXECUTION_REPORT\n\n"
+            "Execution stopped because of unauthorized command detected.\n"
+            "The pytest command was not authorized by command-plan.\n"
+        ),
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            (pytest_cmd, "938 passed", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: FAILED", 1),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "WARN"
+
+
+def test_execution_authority_failed_report_fails_when_not_acknowledged(
+    tmp_path: Path,
+) -> None:
+    """FAILED report with unauthorized commands gets FAIL when report doesn't acknowledge them."""
+    pytest_cmd = "python -m pytest tests/test_project_gate.py -q"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="fast",
+        report_status="FAILED",
+        report_acceptance="REWORK_REQUIRED",
+        report_text_extra="# CODEX_EXECUTION_REPORT\n\nSome unrelated failure reason.\n",
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            (pytest_cmd, "938 passed", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: FAILED", 1),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "FAIL"
 

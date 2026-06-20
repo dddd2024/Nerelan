@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260620_training_capability_gap_matrix_v1",
-  "round_id": "round_20260620_training_capability_gap_matrix_v1",
-  "head_commit": "e98ec6532b34",
+  "decision_id": "decision_20260621_command_plan_execution_authority_v1",
+  "round_id": "round_20260621_command_plan_execution_authority_v1",
+  "head_commit": "e5d8c44ada13",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -20,10 +20,8 @@
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
     " M project_state/pytest_result.txt",
-    "?? project_state/local_reverse_next_static_triage_plan.json",
-    "?? project_state/local_reverse_next_static_triage_plan_report.md",
-    "?? project_state/local_reverse_training_capability_gap_matrix.json",
-    "?? project_state/local_reverse_training_capability_gap_matrix_report.md"
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -34,7 +32,9 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "final_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -45,11 +45,9 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/local_reverse_next_static_triage_plan.json",
-    "project_state/local_reverse_next_static_triage_plan_report.md",
-    "project_state/local_reverse_training_capability_gap_matrix.json",
-    "project_state/local_reverse_training_capability_gap_matrix_report.md",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -60,13 +58,11 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/local_reverse_next_static_triage_plan.json",
-    "project_state/local_reverse_next_static_triage_plan_report.md",
-    "project_state/local_reverse_training_capability_gap_matrix.json",
-    "project_state/local_reverse_training_capability_gap_matrix_report.md",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-20T15:29:24.219718Z"
+  "generated_at": "2026-06-20T17:08:18.282683Z"
 }

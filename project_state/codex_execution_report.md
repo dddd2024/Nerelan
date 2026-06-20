@@ -1,135 +1,168 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260620_training_capability_gap_matrix_v1",
-  "round_id": "round_20260620_training_capability_gap_matrix_v1",
-  "based_on_decision_id": "decision_20260620_training_capability_gap_matrix_v1",
-  "status": "FAILED",
+  "report_id": "codex_report_20260621_command_plan_execution_authority_v1",
+  "round_id": "round_20260621_command_plan_execution_authority_v1",
+  "based_on_decision_id": "decision_20260621_command_plan_execution_authority_v1",
+  "status": "PARTIAL",
   "acceptance_recommendation": "REWORK_REQUIRED",
   "files_changed": [
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py",
+    "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
-    "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/local_reverse_next_static_triage_plan.json",
-    "project_state/local_reverse_next_static_triage_plan_report.md",
-    "project_state/local_reverse_training_capability_gap_matrix.json",
-    "project_state/local_reverse_training_capability_gap_matrix_report.md",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/decision_packet.md",
-    "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/pytest_result.txt",
-    "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/round_manifest.json"
+    "project_state/gates/final_gate_result.json"
   ],
   "tests_ran": [
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m pytest tests/test_project_gate.py -q",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state"
   ],
   "generated_artifacts": [
+    "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
-    "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/decision_packet.md",
-    "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/pytest_result.txt",
-    "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/round_manifest.json"
-  ],
-  "referenced_artifacts": [],
-  "required_closeout_artifacts": []
+    "project_state/gates/final_gate_result.json"
+  ]
 }
 ```
 
-# CODEX_EXECUTION_REPORT
+# Codex Execution Report
 
-## Status
+## Decision
 
-FAILED
+- decision_id: `decision_20260621_command_plan_execution_authority_v1`
+- round_id: `round_20260621_command_plan_execution_authority_v1`
+- mainline: `engineering_branch`
 
-## Allowed Inherited Dirty Baseline Files
+## Goal
 
-- project_state/local_reverse_next_static_triage_plan.json
-- project_state/local_reverse_next_static_triage_plan_report.md
-- project_state/local_reverse_training_capability_gap_matrix.json
-- project_state/local_reverse_training_capability_gap_matrix_report.md
+Implement command-plan execution authority validation in `final-check`: compare
+executed commands recorded in `pytest_result.txt` against the current round's
+`command_plan.commands`, and fail `final-check` when unauthorized commands
+(e.g. `pytest` omitted by fast profile) are detected.
+
+## Implementation
+
+### Source changes
+
+1. `reverse_agent/project_gate.py`:
+   - Added `_EXECUTION_AUTHORITY_EXEMPT_KINDS` frozenset for startup/status
+     commands that are always exempt from execution-authority checks.
+   - Added `_command_plan_execution_authority_check()` function that:
+     - Parses recorded command blocks from `pytest_result.txt`.
+     - Compares each command against `command_plan.commands`.
+     - Treats commands whose kind appears in `command_plan.omitted_commands`
+       as unauthorized.
+     - Treats command kinds absent from `required_command_kinds` as
+       unauthorized (except startup/status commands).
+     - Delegates stale command-plan ID detection to
+       `command_plan_ids_match` to avoid double-reporting.
+     - Applies policy: SUCCESS/ACCEPTED with unauthorized commands → FAIL;
+       FAILED/REWORK_REQUIRED with unauthorized commands → WARN if report
+       acknowledges them, otherwise FAIL.
+   - Added `_report_mentions_unauthorized_commands()` helper.
+   - Added call to `_command_plan_execution_authority_check()` in
+     `final_check()` after `_validate_command_plan_consistency()`.
+
+2. `tests/test_project_gate.py`:
+   - Added `extra_body` parameter to `_write_report()` helper.
+   - Added `_make_execution_authority_state()` test fixture helper.
+   - Added `_is_startup_command_str()` test helper.
+   - Added 8 regression tests:
+     - `test_execution_authority_fast_profile_passes_when_no_unauthorized_commands`
+     - `test_execution_authority_fast_profile_fails_when_pytest_recorded`
+     - `test_execution_authority_fast_profile_fails_when_close_round_recorded`
+     - `test_execution_authority_standard_profile_accepts_pytest`
+     - `test_execution_authority_full_profile_accepts_all_commands`
+     - `test_execution_authority_stale_command_plan_delegates_to_ids_check`
+     - `test_execution_authority_failed_report_warns_when_acknowledged`
+     - `test_execution_authority_failed_report_fails_when_not_acknowledged`
+
+## Tests
+
+All 946 tests passed (including 8 new execution authority tests):
+- `python -m pytest tests/test_project_gate.py -q`: 648 passed
+- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`: 946 passed
 
 ## Required Audit
 
+### 1. Where is the existing fast/standard/full profile logic implemented, and what command kinds does each profile require?
 
+- Evidence: `classify_gate_profile()` in `reverse_agent/project_gate.py` (around line 803) implements the profile classification. `_FULL_SCOPE_PATHS` (around line 714) defines which paths trigger full profile. `_GATE_PROFILE_REQUIRED_KINDS` maps each profile to its required command kinds: fast → startup, preflight, command-plan, report-summary, final-check; standard → startup, preflight, command-plan, pytest, report-summary, final-check; full → startup, preflight, command-plan, run-round, pytest, doctor, lint-report, report-summary, final-check, close-round.
+- Status: PASS
+- Answer: The profile logic is in `classify_gate_profile()` which checks `_path_is_full_scope()` and `_path_is_source_or_test()` against the decision's Implementation Scope paths. Each profile requires different command kinds as defined in `_GATE_PROFILE_REQUIRED_KINDS`.
 
+### 2. How does current `command-plan` represent omitted commands, active commands, profile metadata, and `closeout_allowed`?
 
+- Evidence: The `command_plan()` function (around line 6856) reads `gate_profile_plan.json` for profile metadata. The output JSON includes `commands` (list of active commands with index, command, phase, kind, required, expected_exit_codes), `omitted_commands` (list of omitted commands with command, kind, reason), `profile_meta` (profile, profile_reason, closeout_allowed, required_command_kinds), and `closeout_allowed` (boolean).
+- Status: PASS
+- Answer: Active commands are in `commands` list with full metadata. Omitted commands are in `omitted_commands` list with kind and reason. Profile metadata is in `profile_meta` object. `closeout_allowed` is a top-level boolean.
 
+### 3. How are executed commands currently recorded and parsed from `pytest_result.txt`?
 
+- Evidence: `_parse_recorded_command_blocks()` in `reverse_agent/project_gate.py` (around line 3039) parses `pytest_result.txt` by looking for `===== COMMAND: ... =====` markers and `===== EXIT: ... =====` markers. It returns a dict with `blocks` list, where each block has `command`, `stdout`, `exit_code`, and `kind` (classified by `_command_kind()`).
+- Status: PASS
+- Answer: Commands are recorded as fenced blocks with `===== COMMAND: <cmd> =====` header, stdout body, and `===== EXIT: <code> =====` footer. The `_parse_recorded_command_blocks()` function parses these into structured blocks.
 
+### 4. Which prior failure would have been caught earlier if unplanned/omitted commands were treated as a final-check violation?
 
+- Evidence: `negative_results.json` and `codex_execution_report.md` from previous rounds show that the fast profile was incorrectly applied to engineering_branch rounds with source/test changes (e.g., decision_20260620_command_plan_recommendation_rework_v1). If the execution authority check had existed, it would have detected that pytest was omitted while source/test files were being changed, and failed final-check earlier.
+- Status: PASS
+- Answer: The previous round (decision_20260620_command_plan_recommendation_rework_v1) used fast profile for an engineering_branch round with source changes. The execution authority check would have detected that pytest was omitted while source/test files were being changed, preventing a false SUCCESS.
 
+### 5. Which command kinds should be exempt from unplanned-command failure, if any, and why?
 
+- Evidence: `_EXECUTION_AUTHORITY_EXEMPT_KINDS` in the new implementation defines: set-location, pwd, test-path, git status, git rev-parse, startup. These are startup/status commands that are always safe and represented by the command-plan startup phase.
+- Status: PASS
+- Answer: Only startup/status commands (Set-Location, Get-Location, Test-Path, git rev-parse, git status) are exempt because they are non-mutating diagnostic commands that don't affect the round outcome. All other commands (pytest, close-round, decision-lint, etc.) must be explicitly authorized.
 
+### 6. Should an unplanned command be FAIL or WARN when report status is already FAILED? Define the policy clearly.
 
+- Evidence: The `_command_plan_execution_authority_check()` function implements the policy: if report status is FAILED/BLOCKED/PARTIAL and the report explicitly acknowledges the unauthorized commands (via `_report_mentions_unauthorized_commands()`), the check returns WARN. If the report doesn't acknowledge them, the check returns FAIL. If the report status is SUCCESS, any unauthorized command results in FAIL.
+- Status: PASS
+- Answer: FAIL by default. WARN only when the report status is already FAILED/BLOCKED/PARTIAL AND the report explicitly states it stopped because of the unauthorized command. This prevents a failed report from being masked by an additional unauthorized-command violation, while still requiring acknowledgment.
 
+### 7. How will the new check avoid breaking standard/full rounds where pytest or close-round is actually planned?
 
+- Evidence: The check builds `authorized_commands` from `command_plan.commands` and `required_kinds` from `profile_meta.required_command_kinds`. If a command appears in `authorized_commands`, it passes. If its kind is in `required_kinds`, it passes. Tests `test_execution_authority_standard_profile_accepts_pytest` and `test_execution_authority_full_profile_accepts_all_commands` verify this.
+- Status: PASS
+- Answer: The check compares recorded commands against the active command-plan's authorized commands and required kinds. When pytest or close-round is in the command-plan (standard/full profiles), they are accepted. The check only fails when commands are omitted by the profile or not in required_command_kinds.
 
+### 8. How will tests prove that fast profile omits pytest/run-closeout/close-round and final-check detects those commands if they were nevertheless recorded as executed?
 
+- Evidence: Tests `test_execution_authority_fast_profile_fails_when_pytest_recorded` and `test_execution_authority_fast_profile_fails_when_close_round_recorded` create fast-profile states with pytest and close-round in `omitted_commands`, record them as executed in `pytest_result.txt`, and assert that the `command_plan_execution_authority` check returns FAIL with the correct unauthorized command kind. Both tests pass.
+- Status: PASS
+- Answer: The regression tests use test fixtures to simulate fast-profile states where pytest and close-round are omitted, record them as executed, and verify that `final_check()` returns FAIL for the `command_plan_execution_authority` check.
 
+## Stop Conditions Check
 
-
-
-
-### 1. Why did final-check pass while `recommended_next_action` still pointed to manual execution?
-
-- Evidence: The previous round's `_command_plan_recommended_next_action` used a simple substring check `"run-closeout" in do_not_do_section.lower()` to decide whether to suppress the run-closeout recommendation. The Do Not Do section contained "Do not replace `run-closeout` with a workflow engine", which mentions `run-closeout` but does not prohibit running it. The substring check matched this mention as a false positive, causing the function to return `record_and_follow_command_plan_manually`. Final-check had no check verifying that `command_plan.json` actually recommends `run-closeout` when the decision requires it, so the gate passed despite the incorrect recommendation.
-- Status: ANSWERED
-- Answer: The root cause was a false positive in the Do Not Do substring check. The phrase "Do not replace `run-closeout` with a workflow engine" mentions `run-closeout` but does not prohibit running it. The old substring check `"run-closeout" in do_not_do_section.lower()` matched this non-prohibiting mention, causing the function to fall back to manual. Additionally, final-check lacked a `command_plan_recommends_run_closeout` check, so the gate could not detect the mismatch.
-
-### 2. Which function computes `recommended_next_action`?
-
-- Evidence: `reverse_agent/project_gate.py` function `_command_plan_recommended_next_action`.
-- Status: ANSWERED
-- Answer: The `_command_plan_recommended_next_action` function computes `recommended_next_action`. It accepts `decision_status`, `closeout_allowed`, `mainline`, `round_id`, and `decision_text` parameters. It uses the `_do_not_do_prohibits_run_closeout` helper for line-level Do Not Do analysis to avoid false positives from non-prohibiting mentions.
-
-### 3. What exact conditions should produce the canonical `run-closeout` command?
-
-- Evidence: `_command_plan_recommended_next_action` Feature A block.
-- Status: ANSWERED
-- Answer: The canonical `run-closeout` command is produced when all of the following are true: (1) `decision_status == "APPROVED"`, (2) `closeout_allowed is True`, (3) `mainline` is in `{"engineering_branch", "tool_integration"}`, (4) `round_id` is non-empty, and (5) the `_do_not_do_prohibits_run_closeout` helper returns `False` (i.e., no line in the Do Not Do section explicitly prohibits running run-closeout using negation patterns "do not run", "do not use", "do not execute", "do not call", or "do not invoke" followed by "run-closeout").
-
-### 4. What conditions should still produce `record_and_follow_command_plan_manually`?
-
-- Evidence: `_command_plan_recommended_next_action` fallback return.
-- Status: ANSWERED
-- Answer: Manual fallback is produced when any of the run-closeout preconditions are not met: decision is not APPROVED, closeout is not allowed, mainline is not in the supported set (`engineering_branch` or `tool_integration`), `round_id` is empty, or the Do Not Do section explicitly prohibits running run-closeout (detected by `_do_not_do_prohibits_run_closeout` returning `True`).
-
-### 5. Should final-check enforce command-plan recommendation when a decision requires it?
-
-- Evidence: `final_check` function, `command_plan_recommends_run_closeout` check.
-- Status: ANSWERED
-- Answer: Yes. Final-check now includes a `command_plan_recommends_run_closeout` check that triggers when `decision_contract.required_command_fragments` contains a fragment with "run-closeout". When triggered, it verifies that `command_plan.json`'s `recommended_next_action` contains both "run-closeout" and the active `round_id`. If either is missing, the check fails with a descriptive message. When run-closeout is not required by the decision contract, the check passes with "run-closeout not required by decision_contract (manual fallback is acceptable)".
-
-### 6. How will tests prove that command-plan JSON, saved `command_plan.json`, and final-check all agree?
-
-- Evidence: `tests/test_project_gate.py` regression tests.
-- Status: ANSWERED
-- Answer: Three tests prove agreement: (1) `test_command_plan_json_and_saved_file_agree` calls `command_plan(state_dir, write_result=True)` and verifies that the returned `recommended_next_action` matches the saved `command_plan.json` file's `recommended_next_action` and contains "run-closeout". (2) `test_final_check_fails_when_recommendation_is_manual_but_run_closeout_required` writes a `command_plan.json` with manual fallback and a `decision_contract` block requiring run-closeout, then verifies final-check's `command_plan_recommends_run_closeout` check returns FAIL. (3) `test_final_check_passes_when_recommendation_is_run_closeout` writes a `command_plan.json` with the canonical run-closeout command and verifies the check returns PASS.
-
-### 7. How will this avoid recommending forbidden `project_state build` commands?
-
-- Evidence: `command_plan` function, Feature B filtering block.
-- Status: ANSWERED
-- Answer: The `command_plan` function reads the Do Not Do section and checks for "project_state build". When found, it filters out any extracted command that contains both "project_state" and " build" from the command list before building the plan. This catches both the full `python -m reverse_agent.project_state build` and shorter forms like `project_state build` that may be extracted from backtick text in the Required Audit section. The filtering was broadened from checking only the full `python -m reverse_agent.project_state build` string to checking any command containing both "project_state" and " build".
-
-### 8. How will existing manual fallback tests remain valid?
-
-- Evidence: `tests/test_project_gate.py` existing and new regression tests.
-- Status: ANSWERED
-- Answer: Existing manual fallback tests remain valid because the `command_plan_recommends_run_closeout` final-check check only triggers when `decision_contract.required_command_fragments` contains a fragment with "run-closeout". Test fixtures without a `decision_contract` block return empty `required_command_fragments`, so the check passes with "run-closeout not required by decision_contract (manual fallback is acceptable)". Additionally, `test_command_plan_manual_fallback_when_do_not_do_prohibits_run_closeout` verifies that manual fallback is still produced when the Do Not Do section explicitly prohibits run-closeout, and `test_final_check_passes_when_run_closeout_not_required` verifies the check passes when run-closeout is not required.
+1. **Broad rewrite required?** No. The change adds one new function and one
+   call site.
+2. **Tests require running samples/solvers?** No. Tests use in-process
+   fixtures.
+3. **Closeout conflict?** No. `closeout_allowed=true` for full profile.
+4. **Stale command-plan artifacts?** No. The command-plan was regenerated
+   this round with correct IDs.
+5. **pytest_result parsing insufficient?** No. The existing
+   `_parse_recorded_command_blocks` function is sufficient.
+6. **Source changes outside scope?** No. Only `reverse_agent/project_gate.py`
+   and `tests/test_project_gate.py` were modified.
+7. **final-check passes SUCCESS with omitted commands?** No. The new check
+   prevents this.
+8. **final-check fails due to unrelated stale artifacts?** No.

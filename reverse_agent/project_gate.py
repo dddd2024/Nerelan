@@ -3429,6 +3429,203 @@ def _validate_command_plan_consistency(
     return checks
 
 
+# Kinds that are always exempt from execution-authority checks because they
+# represent the startup/status phase already implied by the command-plan.
+_EXECUTION_AUTHORITY_EXEMPT_KINDS: frozenset[str] = frozenset({
+    "set-location",
+    "pwd",
+    "test-path",
+    "git status",
+    "git rev-parse",
+    "startup",
+})
+
+
+def _command_plan_execution_authority_check(
+    *,
+    state_dir: Path,
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    pytest_text: str,
+    command_plan_payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Check that executed commands recorded in ``pytest_result.txt`` are
+    authorized by the current round's ``command_plan``.
+
+    A recorded command is *unauthorized* when:
+
+    1. Its kind appears in ``command_plan.omitted_commands`` (explicitly
+       omitted by the active profile), **or**
+    2. Its kind is absent from the active command-plan's
+       ``required_command_kinds`` and it is not a startup/status command
+       represented by the startup phase.
+
+    Policy:
+
+    - A ``SUCCESS``/``ACCEPTED`` report with unauthorized commands → ``FAIL``.
+    - A ``FAILED``/``REWORK_REQUIRED`` report with unauthorized commands →
+      ``WARN`` only if the report explicitly states it stopped because of
+      the unauthorized command; otherwise ``FAIL``.
+    - Stale command-plan artifacts (mismatched decision_id/round_id) cannot
+      authorize current-round commands; the check delegates to
+      ``command_plan_ids_match`` for that and returns ``PASS`` here to avoid
+      double-reporting.
+    """
+    check_name = "command_plan_execution_authority"
+
+    if not command_plan_payload:
+        return _check(
+            check_name,
+            "PASS",
+            "command_plan.json not present; execution authority check not applicable",
+            required=False,
+        )
+
+    # Delegate stale-ID detection to command_plan_ids_match to avoid
+    # double-reporting the same failure.
+    cp_decision_id = str(command_plan_payload.get("decision_id") or "")
+    cp_round_id = str(command_plan_payload.get("round_id") or "")
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    if cp_decision_id != decision_id or cp_round_id != round_id:
+        return _check(
+            check_name,
+            "PASS",
+            "command_plan.json has stale IDs; delegated to command_plan_ids_match",
+            required=False,
+            skipped_reason="stale_command_plan_ids",
+        )
+
+    # Parse recorded command blocks
+    recorded = _parse_recorded_command_blocks(pytest_text)
+    blocks = [b for b in (recorded.get("blocks") or []) if isinstance(b, dict)]
+
+    # Build authorized command string set from command_plan.commands
+    authorized_commands: set[str] = set()
+    for item in (command_plan_payload.get("commands") or []):
+        if isinstance(item, dict):
+            cmd = str(item.get("command") or "")
+            if cmd:
+                authorized_commands.add(cmd)
+
+    # Build omitted kinds set from command_plan.omitted_commands
+    omitted_kinds: set[str] = set()
+    for item in (command_plan_payload.get("omitted_commands") or []):
+        if isinstance(item, dict):
+            kind = str(item.get("kind") or "")
+            if kind:
+                omitted_kinds.add(kind)
+
+    # Build required kinds set from profile_meta
+    profile_meta = command_plan_payload.get("profile_meta") or {}
+    required_kinds: set[str] = set()
+    for kind in (profile_meta.get("required_command_kinds") or []):
+        required_kinds.add(str(kind))
+
+    # Classify each recorded command
+    unauthorized: list[dict[str, Any]] = []
+    for block in blocks:
+        command = str(block.get("command") or "")
+        if not command:
+            continue
+        kind = _command_kind(command)
+
+        # Startup commands are always exempt
+        if _is_startup_command(command):
+            continue
+        if kind in _EXECUTION_AUTHORITY_EXEMPT_KINDS:
+            continue
+
+        # If the exact command string is in authorized_commands, it's OK
+        if command in authorized_commands:
+            continue
+
+        # If the kind is in omitted_commands, it's unauthorized
+        if kind in omitted_kinds:
+            unauthorized.append({
+                "command": command,
+                "kind": kind,
+                "reason": f"kind '{kind}' is in omitted_commands",
+            })
+            continue
+
+        # If the kind is not in required_command_kinds, it's unauthorized
+        # (unless it's a diagnostic that the command-plan itself doesn't track)
+        if required_kinds and kind not in required_kinds:
+            # Allow kinds that are not tracked by the command-plan at all
+            # (e.g., "unknown", "python-inline") only when the report status
+            # is not SUCCESS.  For SUCCESS reports, any non-required kind is
+            # unauthorized.
+            report_status = str(report.get("status") or "")
+            if report_status == "SUCCESS" or kind not in ("unknown", "python-inline", "powershell"):
+                unauthorized.append({
+                    "command": command,
+                    "kind": kind,
+                    "reason": f"kind '{kind}' not in required_command_kinds",
+                })
+
+    if not unauthorized:
+        return _check(
+            check_name,
+            "PASS",
+            "all recorded commands are authorized by command_plan",
+        )
+
+    # Determine status based on report status
+    report_status = str(report.get("status") or "")
+    report_text = _read_text(state_dir / "codex_execution_report.md")
+
+    # Check if the report explicitly states it stopped because of
+    # unauthorized commands
+    report_mentions_unauthorized = _report_mentions_unauthorized_commands(report_text)
+
+    if report_status in ("FAILED", "BLOCKED", "PARTIAL"):
+        if report_mentions_unauthorized:
+            status = "WARN"
+            detail = (
+                "unauthorized commands detected in pytest_result; report "
+                "acknowledges stopping due to unauthorized commands"
+            )
+        else:
+            status = "FAIL"
+            detail = (
+                "unauthorized commands detected in pytest_result; report "
+                "does not acknowledge the unauthorized commands"
+            )
+    else:
+        # SUCCESS or unknown status with unauthorized commands is always FAIL
+        status = "FAIL"
+        detail = (
+            "unauthorized commands detected in pytest_result for a "
+            f"{report_status or 'UNKNOWN'} report"
+        )
+
+    return _check(
+        check_name,
+        status,
+        detail,
+        unauthorized_commands=unauthorized,
+        report_status=report_status,
+        report_acknowledges_unauthorized=report_mentions_unauthorized,
+    )
+
+
+def _report_mentions_unauthorized_commands(report_text: str) -> bool:
+    """Return True if the report text explicitly mentions that execution
+    stopped due to unauthorized or unplanned commands."""
+    lowered = report_text.lower()
+    markers = (
+        "unauthorized command",
+        "unplanned command",
+        "command not authorized",
+        "command-plan execution authority",
+        "stopped because of",
+        "omitted by",
+        "not in required_command_kinds",
+    )
+    return any(marker in lowered for marker in markers)
+
+
 def _expected_report_id(round_id: str) -> str:
     if round_id.startswith("round_"):
         return f"codex_report_{round_id[len('round_'):]}"
@@ -5156,6 +5353,20 @@ def final_check(
             report=report,
             pytest_text=pytest_text,
             close_round_in_progress=close_round_in_progress,
+        )
+    )
+
+    # Command-plan execution authority check: verify that executed commands
+    # recorded in pytest_result.txt are authorized by the current round's
+    # command_plan.  This detects when Codex executed commands that were
+    # omitted by the fast profile or not in the required_command_kinds.
+    checks.append(
+        _command_plan_execution_authority_check(
+            state_dir=state_dir,
+            decision=decision,
+            report=report,
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_data,
         )
     )
 

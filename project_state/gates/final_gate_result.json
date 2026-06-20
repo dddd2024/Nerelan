@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260620_training_capability_gap_matrix_v1",
-  "report_id": "codex_report_20260620_training_capability_gap_matrix_v1",
-  "round_id": "round_20260620_training_capability_gap_matrix_v1",
-  "generated_at": "2026-06-20T15:29:23.660849Z",
+  "decision_id": "decision_20260621_command_plan_execution_authority_v1",
+  "report_id": "codex_report_20260621_command_plan_execution_authority_v1",
+  "round_id": "round_20260621_command_plan_execution_authority_v1",
+  "generated_at": "2026-06-20T17:08:18.349488Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -14,11 +14,9 @@
     },
     {
       "name": "pytest_result_match",
-      "status": "FAIL",
-      "detail": "pytest_result does not match report",
-      "errors": [
-        "pytest_result decision_id does not match codex_report_summary.based_on_decision_id"
-      ]
+      "status": "PASS",
+      "detail": "pytest_result matches report",
+      "errors": []
     },
     {
       "name": "pytest_result_covers_report_tests",
@@ -30,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "WARN",
       "detail": "round manifest is missing",
-      "round_manifest_path": "project_state\\rounds\\round_20260620_training_capability_gap_matrix_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260621_command_plan_execution_authority_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -60,11 +58,9 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_next_static_triage_plan.json",
-        "project_state/local_reverse_next_static_triage_plan_report.md",
-        "project_state/local_reverse_training_capability_gap_matrix.json",
-        "project_state/local_reverse_training_capability_gap_matrix_report.md",
-        "project_state/pytest_result.txt"
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -75,11 +71,9 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_next_static_triage_plan.json",
-        "project_state/local_reverse_next_static_triage_plan_report.md",
-        "project_state/local_reverse_training_capability_gap_matrix.json",
-        "project_state/local_reverse_training_capability_gap_matrix_report.md",
-        "project_state/pytest_result.txt"
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
@@ -102,11 +96,9 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_next_static_triage_plan.json",
-        "project_state/local_reverse_next_static_triage_plan_report.md",
-        "project_state/local_reverse_training_capability_gap_matrix.json",
-        "project_state/local_reverse_training_capability_gap_matrix_report.md",
-        "project_state/pytest_result.txt"
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -117,11 +109,10 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_next_static_triage_plan.json",
-        "project_state/local_reverse_next_static_triage_plan_report.md",
-        "project_state/local_reverse_training_capability_gap_matrix.json",
-        "project_state/local_reverse_training_capability_gap_matrix_report.md",
-        "project_state/pytest_result.txt"
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260621_command_plan_execution_authority_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "inherited_dirty_files": []
     },
@@ -130,10 +121,13 @@
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
-        "project_state/local_reverse_next_static_triage_plan.json",
-        "project_state/local_reverse_training_capability_gap_matrix.json"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
-      "claimed_source_test_paths": []
+      "claimed_source_test_paths": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ]
     },
     {
       "name": "generated_artifacts_cover_round_delta",
@@ -152,10 +146,10 @@
       "detail": "baseline source/test dirty files are absent or explicitly allowed",
       "source_test_baseline_dirty": [],
       "allowed_inherited_dirty_files": [
-        "project_state/local_reverse_next_static_triage_plan.json",
-        "project_state/local_reverse_next_static_triage_plan_report.md",
-        "project_state/local_reverse_training_capability_gap_matrix.json",
-        "project_state/local_reverse_training_capability_gap_matrix_report.md"
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "generated_or_archive_baseline_dirty_files": []
     },
@@ -165,10 +159,10 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
-        "project_state/local_reverse_next_static_triage_plan.json",
-        "project_state/local_reverse_next_static_triage_plan_report.md",
-        "project_state/local_reverse_training_capability_gap_matrix.json",
-        "project_state/local_reverse_training_capability_gap_matrix_report.md"
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
@@ -179,8 +173,11 @@
     {
       "name": "report_prose_claims_covered_by_files_changed",
       "status": "PASS",
-      "detail": "report prose does not claim source/test changes beyond files_changed",
-      "claimed_source_test_paths": []
+      "detail": "report prose source/test claims are covered by files_changed",
+      "claimed_source_test_paths": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ]
     },
     {
       "name": "tmp_paths_absent_from_dirty_state",
@@ -246,23 +243,19 @@
     },
     {
       "name": "generated_artifacts_cover_round_archive",
-      "status": "PASS",
-      "detail": "generated_artifacts covers round archive files",
-      "missing_artifacts": []
+      "status": "WARN",
+      "detail": "generated_artifacts omits round archive files",
+      "missing_artifacts": [
+        "project_state/rounds/round_20260621_command_plan_execution_authority_v1/round_manifest.json"
+      ]
     },
     {
       "name": "required_closeout_artifacts_covered",
-      "status": "FAIL",
-      "detail": "required closeout artifacts not covered by referenced or generated artifacts",
-      "required_closeout_artifacts": [
-        "project_state/local_reverse_first_static_triage_queue.json",
-        "project_state/local_reverse_first_static_triage_queue_report.md"
-      ],
+      "status": "PASS",
+      "detail": "no required closeout artifacts declared in decision",
+      "required_closeout_artifacts": [],
       "referenced_artifacts": [],
-      "uncovered_artifacts": [
-        "project_state/local_reverse_first_static_triage_queue.json",
-        "project_state/local_reverse_first_static_triage_queue_report.md"
-      ]
+      "uncovered_artifacts": []
     },
     {
       "name": "command_plan_present",
@@ -276,8 +269,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260620_training_capability_gap_matrix_v1",
-      "command_plan_round_id": "round_20260620_training_capability_gap_matrix_v1"
+      "command_plan_decision_id": "decision_20260621_command_plan_execution_authority_v1",
+      "command_plan_round_id": "round_20260621_command_plan_execution_authority_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -311,6 +304,11 @@
       "errors": []
     },
     {
+      "name": "command_plan_execution_authority",
+      "status": "PASS",
+      "detail": "all recorded commands are authorized by command_plan"
+    },
+    {
       "name": "report_summary_synthesis_required",
       "status": "PASS",
       "detail": "report-summary synthesis is required for this report",
@@ -334,11 +332,13 @@
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
-            "project_state/local_reverse_next_static_triage_plan.json",
-            "project_state/local_reverse_next_static_triage_plan_report.md",
-            "project_state/local_reverse_training_capability_gap_matrix.json",
-            "project_state/local_reverse_training_capability_gap_matrix_report.md",
-            "project_state/pytest_result.txt"
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/decision_packet.md",
+            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/pytest_result.txt",
+            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/round_manifest.json",
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py"
           ],
           "actual": [
             "project_state/codex_execution_report.md",
@@ -349,15 +349,9 @@
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
-            "project_state/local_reverse_next_static_triage_plan.json",
-            "project_state/local_reverse_next_static_triage_plan_report.md",
-            "project_state/local_reverse_training_capability_gap_matrix.json",
-            "project_state/local_reverse_training_capability_gap_matrix_report.md",
             "project_state/pytest_result.txt",
-            "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/codex_execution_report.md",
-            "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/decision_packet.md",
-            "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/pytest_result.txt",
-            "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/round_manifest.json"
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py"
           ]
         },
         {
@@ -371,7 +365,11 @@
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
-            "project_state/pytest_result.txt"
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/decision_packet.md",
+            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/pytest_result.txt",
+            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/round_manifest.json"
           ],
           "actual": [
             "project_state/codex_execution_report.md",
@@ -382,20 +380,8 @@
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
-            "project_state/pytest_result.txt",
-            "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/codex_execution_report.md",
-            "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/decision_packet.md",
-            "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/pytest_result.txt",
-            "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/round_manifest.json"
+            "project_state/pytest_result.txt"
           ]
-        },
-        {
-          "field": "required_closeout_artifacts",
-          "expected": [
-            "project_state/local_reverse_first_static_triage_queue.json",
-            "project_state/local_reverse_first_static_triage_queue_report.md"
-          ],
-          "actual": []
         }
       ]
     },
@@ -404,10 +390,10 @@
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
       "warnings": [
-        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
       ],
       "non_blocking_warnings": [
-        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
       ]
     },
     {
@@ -418,28 +404,8 @@
     },
     {
       "name": "stale_artifact_ids",
-      "status": "FAIL",
-      "detail": "gate artifacts reference stale decision/round/report IDs from a different round",
-      "stale_artifacts": [
-        {
-          "artifact": "final_gate_result.json",
-          "field": "decision_id",
-          "expected": "decision_20260620_training_capability_gap_matrix_v1",
-          "actual": "decision_20260620_command_plan_recommendation_rework_v1"
-        },
-        {
-          "artifact": "final_gate_result.json",
-          "field": "round_id",
-          "expected": "round_20260620_training_capability_gap_matrix_v1",
-          "actual": "round_20260620_command_plan_recommendation_rework_v1"
-        },
-        {
-          "artifact": "final_gate_result.json",
-          "field": "report_id",
-          "expected": "codex_report_20260620_training_capability_gap_matrix_v1",
-          "actual": "codex_report_20260620_command_plan_recommendation_rework_v1"
-        }
-      ]
+      "status": "PASS",
+      "detail": "gate artifacts carry current decision/round/report IDs"
     },
     {
       "name": "report_body_consistency",
@@ -448,19 +414,8 @@
     },
     {
       "name": "decision_contract_artifact_placement",
-      "status": "FAIL",
-      "detail": "decision_contract artifact placement requirements not met",
-      "missing_from_generated_artifacts": [
-        "project_state/local_reverse_next_static_triage_plan.json",
-        "project_state/local_reverse_next_static_triage_plan_report.md",
-        "project_state/local_reverse_training_capability_gap_matrix.json",
-        "project_state/local_reverse_training_capability_gap_matrix_report.md"
-      ],
-      "missing_from_files_changed": [],
-      "referenced_only_artifacts": [],
-      "errors": [
-        "required_generated_artifacts missing from generated_artifacts: ['project_state/local_reverse_next_static_triage_plan.json', 'project_state/local_reverse_next_static_triage_plan_report.md', 'project_state/local_reverse_training_capability_gap_matrix.json', 'project_state/local_reverse_training_capability_gap_matrix_report.md']"
-      ]
+      "status": "PASS",
+      "detail": "decision_contract artifact placement requirements satisfied"
     },
     {
       "name": "decision_contract_status_hardening",
@@ -471,36 +426,30 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260620_training_capability_gap_matrix_v1",
-      "gate_profile_round_id": "round_20260620_training_capability_gap_matrix_v1"
+      "gate_profile_decision_id": "decision_20260621_command_plan_execution_authority_v1",
+      "gate_profile_round_id": "round_20260621_command_plan_execution_authority_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
       "status": "PASS",
       "detail": "gate_profile_plan.json profile matches command_plan.json profile",
-      "gate_profile_plan_profile": "fast",
-      "command_plan_profile": "fast"
+      "gate_profile_plan_profile": "full",
+      "command_plan_profile": "full"
     },
     {
       "name": "fast_profile_scope_valid",
       "status": "PASS",
-      "detail": "fast profile used for artifact/report-only scope",
-      "source_test_files_in_delta": [],
-      "gate_scope_files_in_delta": []
+      "detail": "profile is not fast; scope validation not applicable"
     },
     {
       "name": "fast_profile_pytest_not_omitted_with_source_changes",
       "status": "PASS",
-      "detail": "fast profile pytest omission is consistent with scope"
+      "detail": "profile is not fast; pytest omission check not applicable"
     },
     {
       "name": "fast_profile_closeout_consistency",
-      "status": "FAIL",
-      "detail": "fast profile claims archived closeout while close-round was omitted and closeout not allowed",
-      "close_round_omitted": true,
-      "close_round_in_commands": false,
-      "closeout_allowed": false,
-      "archive_artifact_claims": true
+      "status": "PASS",
+      "detail": "profile is not fast; closeout consistency check not applicable"
     },
     {
       "name": "forbidden_paths_absent",
@@ -510,54 +459,39 @@
     },
     {
       "name": "required_audit_coverage",
-      "status": "WARN",
-      "detail": "report Required Audit section is missing 8 of 8 answers but report status is PARTIAL",
+      "status": "PASS",
+      "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "Which previous engineering closeout artifacts prove that the gate/closeout hardening line is complete enough to leave it?",
-        "Which training-dataset artifacts are current inputs for this round, and which are only historical or advisory?",
-        "Which local reverse categories already have queue representatives, and which are blocked because no current sample exists?",
-        "Which queued items are metadata-only and must not be promoted without static evidence?",
-        "Which existing tool or solver interfaces are already present and must be reused rather than recreated?",
-        "What criteria will the capability gap matrix use to label a type as `ready_for_static_triage`, `blocked_missing_sample`, `blocked_missing_evidence_fields`, `blocked_bounded_domain`, or `metadata_only`?",
-        "How will the next static-triage plan stay bounded and avoid batch-blind execution?",
-        "How will this round prove it did not run samples, tools, debuggers, dynamic validation, or solvers?"
+        "Where is the existing fast/standard/full profile logic implemented, and what command kinds does each profile require?",
+        "How does current `command-plan` represent omitted commands, active commands, profile metadata, and `closeout_allowed`?",
+        "How are executed commands currently recorded and parsed from `pytest_result.txt`?",
+        "Which prior failure would have been caught earlier if unplanned/omitted commands were treated as a final-check violation?",
+        "Which command kinds should be exempt from unplanned-command failure, if any, and why?",
+        "Should an unplanned command be FAIL or WARN when report status is already FAILED? Define the policy clearly.",
+        "How will the new check avoid breaking standard/full rounds where pytest or close-round is actually planned?",
+        "How will tests prove that fast profile omits pytest/run-closeout/close-round and final-check detects those commands if they were nevertheless recorded as executed?"
       ],
-      "missing_answers": [
-        "Which previous engineering closeout artifacts prove that the gate/closeout hardening line is complete enough to leave it?",
-        "Which training-dataset artifacts are current inputs for this round, and which are only historical or advisory?",
-        "Which local reverse categories already have queue representatives, and which are blocked because no current sample exists?",
-        "Which queued items are metadata-only and must not be promoted without static evidence?",
-        "Which existing tool or solver interfaces are already present and must be reused rather than recreated?",
-        "What criteria will the capability gap matrix use to label a type as `ready_for_static_triage`, `blocked_missing_sample`, `blocked_missing_evidence_fields`, `blocked_bounded_domain`, or `metadata_only`?",
-        "How will the next static-triage plan stay bounded and avoid batch-blind execution?",
-        "How will this round prove it did not run samples, tools, debuggers, dynamic validation, or solvers?"
-      ],
+      "missing_answers": [],
       "placeholder_answers": []
     },
     {
       "name": "command_plan_recommends_run_closeout",
-      "status": "FAIL",
-      "detail": "command_plan.json recommended_next_action is 'record_and_follow_command_plan_manually' but should contain 'run-closeout' and round_id 'round_20260620_training_capability_gap_matrix_v1'"
+      "status": "PASS",
+      "detail": "run-closeout not required by decision_contract (manual fallback is acceptable)"
     },
     {
       "name": "status_policy_valid",
-      "status": "FAIL",
-      "detail": "status policy found blocking issues",
-      "lint_errors": [
-        "pytest_result decision_id does not match codex_report_summary.based_on_decision_id",
-        "doctor status is FAIL"
-      ],
+      "status": "WARN",
+      "detail": "current-round artifacts complete; historical/backlog artifacts non-blocking",
+      "lint_errors": [],
       "warnings": [
-        "pytest_result report_id does not match codex_report_summary.report_id",
-        "pytest_result round_id does not match codex_report_summary.round_id",
         "report_status is PARTIAL",
-        "report round not archived yet"
+        "report round not archived yet",
+        "doctor status is WARN (historical/backlog artifacts non-blocking)"
       ],
-      "doctor_status": "FAIL",
+      "doctor_status": "WARN",
       "report_status": "PARTIAL",
-      "limitations": [
-        "50 missing historical sample artifacts"
-      ],
+      "limitations": null,
       "artifact_freshness_policy": "claim_aware",
       "required_current_artifacts": [],
       "claimed_evidence_artifacts": [],
@@ -566,6 +500,9 @@
       ],
       "historical_backlog": [
         "50 missing, 0 stale historical sample artifacts (non-blocking)"
+      ],
+      "external_state_notices": [
+        "50 missing historical sample artifacts"
       ]
     },
     {
@@ -577,20 +514,14 @@
     }
   ],
   "blocking_reasons": [
-    "pytest_result_match: pytest_result does not match report",
-    "required_closeout_artifacts_covered: required closeout artifacts not covered by referenced or generated artifacts",
-    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary",
-    "stale_artifact_ids: gate artifacts reference stale decision/round/report IDs from a different round",
-    "decision_contract_artifact_placement: decision_contract artifact placement requirements not met",
-    "fast_profile_closeout_consistency: fast profile claims archived closeout while close-round was omitted and closeout not allowed",
-    "command_plan_recommends_run_closeout: command_plan.json recommended_next_action is 'record_and_follow_command_plan_manually' but should contain 'run-closeout' and round_id 'round_20260620_training_capability_gap_matrix_v1'",
-    "status_policy_valid: status policy found blocking issues"
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
   ],
   "warnings": [
     "round_manifest_present: round manifest is missing",
     "archived_report_matches_live_report: archived report differs from live report",
     "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
-    "required_audit_coverage: report Required Audit section is missing 8 of 8 answers but report status is PARTIAL"
+    "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
+    "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
   ],
   "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
