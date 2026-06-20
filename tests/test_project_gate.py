@@ -14071,3 +14071,306 @@ def test_run_closeout_recommended_next_action():
     assert _run_closeout_recommended_next_action("WARN") == "review_run_closeout_warnings"
     assert _run_closeout_recommended_next_action("FAILED") == "fix_run_closeout_failures_before_retry"
 
+
+def test_run_closeout_records_command_plan_json_block(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: run-closeout must record command-plan --json as a separate command block."""
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    # Must contain command-plan --json command block
+    assert "command-plan --state-dir" in pytest_text
+    assert "--json" in pytest_text
+    # The --json block must have JSON stdout (contains plan_status)
+    json_block_found = False
+    lines = pytest_text.splitlines()
+    for i, line in enumerate(lines):
+        if "===== COMMAND:" in line and "--json" in line:
+            # Check that subsequent lines contain JSON output
+            block_content = "\n".join(lines[i:i+20])
+            if "plan_status" in block_content:
+                json_block_found = True
+                break
+    assert json_block_found, "command-plan --json command block must contain JSON stdout with plan_status"
+
+
+def test_run_closeout_records_all_nested_command_blocks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: run-closeout must record all nested command blocks in pytest_result.txt."""
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    # All expected command blocks must be present
+    expected_commands = [
+        "Set-Location",
+        "Get-Location",
+        "Test-Path",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "decision-lint",
+        "preflight",
+        "pytest",
+        "gate-profile",
+        "command-plan",
+        "report-summary",
+        "final-check",
+        "close-round",
+    ]
+    for cmd_fragment in expected_commands:
+        assert cmd_fragment in pytest_text, f"Expected command block '{cmd_fragment}' not found in pytest_result.txt"
+
+
+def test_run_closeout_refreshes_report_with_correct_ids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: run-closeout must refresh codex_execution_report.md with current round IDs."""
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    # Stale report with wrong IDs
+    _write_report(
+        state_dir,
+        decision_id="old_decision",
+        report_id="codex_report_old",
+        round_id="old_round",
+        status="PARTIAL",
+        acceptance="REWORK_REQUIRED",
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # After run-closeout, the report must have correct IDs
+    report = read_codex_report_summary(state_dir)
+    assert report["based_on_decision_id"] == "decision_closeout"
+    assert report["round_id"] == "round_closeout"
+    assert report["report_id"] == "codex_report_closeout"
+
+
+def test_run_closeout_generated_artifacts_includes_archive_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: generated_artifacts must include round archive files after close-round."""
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_closeout/codex_execution_report.md",
+            "project_state/rounds/round_closeout/decision_packet.md",
+            "project_state/rounds/round_closeout/pytest_result.txt",
+            "project_state/rounds/round_closeout/round_manifest.json",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # After run-closeout, the report must include archive paths
+    report = read_codex_report_summary(state_dir)
+    generated = set(report.get("generated_artifacts") or [])
+    archive_path = f"project_state/rounds/round_closeout/round_manifest.json"
+    assert archive_path in generated, f"generated_artifacts must include {archive_path}"
+
+
+def test_run_closeout_decision_contract_artifact_placement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: decision_contract required artifacts must be placed correctly."""
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # The run_closeout_result.json artifact must exist
+    artifact_path = state_dir / "gates" / "run_closeout_result.json"
+    assert artifact_path.exists()
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    # Must have required fields
+    assert artifact["schema_version"] == 1
+    assert artifact["gate_name"] == RUN_CLOSEOUT_NAME
+    assert artifact["decision_id"] == "decision_closeout"
+    assert artifact["round_id"] == "round_closeout"
+    assert "executed_steps" in artifact
+    assert "blocking_reasons" in artifact
+    assert "recommended_next_action" in artifact
+
+
+def test_run_closeout_success_path_with_monkeypatched_close_round(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: successful run-closeout close-round path with monkeypatched execution."""
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_closeout/codex_execution_report.md",
+            "project_state/rounds/round_closeout/decision_packet.md",
+            "project_state/rounds/round_closeout/pytest_result.txt",
+            "project_state/rounds/round_closeout/round_manifest.json",
+        ],
+    )
+    # Monkeypatch close_round to return CLOSED status
+    def fake_close_round(*, state_dir, round_id, repo_root=None):
+        return {
+            "schema_version": 1,
+            "gate_name": "close-round",
+            "close_status": "CLOSED",
+            "decision_id": "decision_closeout",
+            "report_id": "codex_report_closeout",
+            "round_id": round_id,
+            "generated_at": "2026-06-20T00:00:00Z",
+            "checks": [],
+            "actions": [{"name": "archive_round", "status": "created"}],
+            "archive": {"status": "created"},
+            "blocking_reasons": [],
+            "warnings": [],
+            "recommended_next_action": "no_action_required",
+            "status_summary": {},
+        }
+    monkeypatch.setattr("reverse_agent.project_gate.close_round", fake_close_round)
+    # Monkeypatch _write_round_close_snapshot to avoid file system issues
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._write_round_close_snapshot",
+        lambda **kw: {"schema_version": 1, "round_closed": True, "decision_id": "decision_closeout", "round_id": "round_closeout"},
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # close-round step must be executed
+    step_names = [s["name"] for s in result["executed_steps"]]
+    assert "close-round" in step_names
+    # The close-round step should have PASSED
+    close_round_step = next(s for s in result["executed_steps"] if s["name"] == "close-round")
+    assert close_round_step["status"] == "PASSED"
+    assert close_round_step["exit_code"] == 0
+
+
+def test_run_closeout_missing_command_plan_json_stdout_detected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: missing command-plan --json stdout is detectable.
+
+    When command-plan --json is not recorded, the pytest_result.txt must
+    be missing the --json command block.  This test verifies that a
+    properly executed run-closeout DOES include it, so that removing the
+    --json step would cause this test to fail.
+    """
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # Verify command-plan-json step was executed
+    step_names = [s["name"] for s in result["executed_steps"]]
+    assert "command-plan-json" in step_names
+    # Verify the command block is in pytest_result.txt
+    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    assert "--json" in pytest_text
+
+
+def test_run_closeout_stale_report_id_replaced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: stale report ID in report-summary synthesis is replaced by run-closeout."""
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    # Write a stale report with wrong report_id (has round_ prefix)
+    _write_report(
+        state_dir,
+        decision_id="decision_closeout",
+        report_id="codex_report_round_closeout",
+        round_id="round_closeout",
+        status="SUCCESS",
+        acceptance="ACCEPTED",
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # After run-closeout, the report must NOT have the round_ prefix
+    report = read_codex_report_summary(state_dir)
+    assert report["report_id"] == "codex_report_closeout"
+    assert "round_" not in report["report_id"]
+

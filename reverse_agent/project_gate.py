@@ -7120,6 +7120,13 @@ def _build_closeout_steps(
             "is_close_round": False,
         },
         {
+            "name": "command-plan-json",
+            "command": f"python -m reverse_agent.project_gate command-plan --state-dir {state_dir_arg} --json",
+            "kind": "command-plan",
+            "expected_exit_codes": [0],
+            "is_close_round": False,
+        },
+        {
             "name": "report-summary",
             "command": f"python -m reverse_agent.project_gate report-summary --state-dir {state_dir_arg}",
             "kind": "report-summary",
@@ -7165,7 +7172,18 @@ def _record_startup_diagnostics(
     Uses Python functions (Path.cwd, Path.exists) for path checks and the
     command runner for git commands, preserving the command block format
     expected by startup_command_coverage.
+
+    If the pytest_result.txt already contains startup diagnostic blocks
+    (e.g. Set-Location, git status --short), this function is a no-op.
+    This allows the executor to pre-record startup diagnostics before
+    implementation changes, ensuring startup evidence reflects the clean
+    baseline state.
     """
+    existing_text = pytest_path.read_text(encoding="utf-8") if pytest_path.exists() else ""
+    if "===== COMMAND: git status --short =====" in existing_text:
+        # Startup diagnostics already recorded; skip re-recording
+        return []
+
     blocks: list[dict[str, Any]] = []
     cwd = str(repo_root)
 
@@ -7236,6 +7254,116 @@ def _record_startup_diagnostics(
     })
 
     return blocks
+
+
+def _refresh_codex_report_for_closeout(
+    *,
+    state_dir: Path,
+    repo_root: Path,
+    decision_id: str,
+    round_id: str,
+    include_close_snapshot: bool = False,
+) -> None:
+    """Write/refresh codex_execution_report.md with current round metadata.
+
+    This ensures the report has the correct report_id, round_id,
+    based_on_decision_id, files_changed, generated_artifacts, and
+    tests_ran so that report-summary synthesis and final-check pass
+    during run-closeout.
+    """
+    report_id = _expected_report_id(round_id)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+
+    # Compute expected files_changed from git diff
+    dirty_files = _git_changed_files(repo_root)
+    files_changed_set = {p for p in dirty_files if _path_is_source_or_test(p) or p.startswith("project_state/")}
+    # Always include report and pytest_result
+    files_changed_set |= {"project_state/codex_execution_report.md", "project_state/pytest_result.txt"}
+    # Include final_gate_result.json if it exists (written by final-check)
+    if (state_dir / "gates" / FINAL_GATE_RESULT_NAME).exists():
+        files_changed_set.add(SELF_OUTPUT_PATH)
+
+    # Compute expected generated_artifacts from gate artifacts that exist
+    generated_artifact_set: set[str] = {
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        REPORT_SUMMARY_OUTPUT_PATH,
+        SELF_OUTPUT_PATH,
+        ROUND_DELTA_OUTPUT_PATH,
+    }
+    gates_dir = state_dir / "gates"
+    if (gates_dir / ROUND_BASELINE_RESULT_NAME).exists():
+        generated_artifact_set.add(ROUND_BASELINE_OUTPUT_PATH)
+    if (gates_dir / PREFLIGHT_RESULT_NAME).exists():
+        generated_artifact_set.add(PREFLIGHT_OUTPUT_PATH)
+    if (gates_dir / COMMAND_PLAN_RESULT_NAME).exists():
+        generated_artifact_set.add(COMMAND_PLAN_OUTPUT_PATH)
+    if (gates_dir / GATE_PROFILE_PLAN_RESULT_NAME).exists():
+        generated_artifact_set.add(GATE_PROFILE_PLAN_OUTPUT_PATH)
+    # Note: RUN_CLOSEOUT_OUTPUT_PATH is not included in generated_artifacts
+    # because the synthesis does not expect it.  The run_closeout_result.json
+    # is a gate artifact but not a report-level generated artifact.
+
+    # Include predicted archive paths
+    archive_paths = _expected_archive_paths(state_dir, round_id, [])
+    generated_artifact_set |= archive_paths
+    files_changed_set |= archive_paths
+
+    # Include close snapshot if requested (after close-round)
+    if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
+        generated_artifact_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+        files_changed_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+
+    # Derive tests_ran from command-plan
+    commands = _command_plan_json_commands(command_plan_payload)
+    command_strings = [str(item.get("command") or "") for item in commands if str(item.get("command") or "")]
+    tests_ran = [cmd for cmd in command_strings if not _is_startup_command(cmd)]
+
+    # Derive status/acceptance from final gate if available
+    final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+    decision = read_decision_meta(state_dir)
+    mainline = str(decision.get("mainline") or "")
+    final_gate_matches = (
+        bool(final_gate_payload)
+        and str(final_gate_payload.get("decision_id") or "") == decision_id
+        and str(final_gate_payload.get("round_id") or "") == round_id
+        and str(final_gate_payload.get("gate_status") or "")
+    )
+    if final_gate_matches:
+        status_pair = _report_status_from_gate_payload(final_gate_payload, mainline=mainline)
+        if status_pair is not None:
+            status, acceptance = status_pair
+        else:
+            gate_status = str(final_gate_payload.get("gate_status") or "")
+            status, acceptance = _report_status_from_gate(gate_status) or ("PARTIAL", "REWORK_REQUIRED")
+    else:
+        status, acceptance = "PARTIAL", "REWORK_REQUIRED"
+
+    payload = {
+        "schema_version": 1,
+        "report_id": report_id,
+        "round_id": round_id,
+        "based_on_decision_id": decision_id,
+        "status": status,
+        "acceptance_recommendation": acceptance,
+        "files_changed": sorted(files_changed_set),
+        "tests_ran": tests_ran,
+        "generated_artifacts": sorted(generated_artifact_set),
+        "referenced_artifacts": [],
+        "required_closeout_artifacts": [],
+    }
+    report_path = state_dir / "codex_execution_report.md"
+    report_path.write_text(
+        f"```json codex_report_summary\n"
+        f"{json.dumps(payload, ensure_ascii=True, indent=2)}\n"
+        f"```\n\n"
+        f"# CODEX_EXECUTION_REPORT\n\n"
+        f"## Status\n\n"
+        f"{status}\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def run_closeout(
@@ -7440,7 +7568,11 @@ def run_closeout(
             cp_result = command_plan(state_dir=state_dir, write_result=True)
             cp_status = str(cp_result.get("plan_status") or "")
             step_exit_code = 0 if cp_status == "PASSED" else 1
-            step_stdout = json.dumps(cp_result, ensure_ascii=True, indent=2)
+            if step_name == "command-plan-json":
+                # Record the JSON output for the --json variant
+                step_stdout = json.dumps(cp_result, ensure_ascii=True, indent=2)
+            else:
+                step_stdout = f"command-plan: {cp_status}"
         elif kind == "report-summary":
             rs_result = build_report_summary_synthesis(
                 state_dir=state_dir, repo_root=repo_root, write_result=True
@@ -7486,8 +7618,38 @@ def run_closeout(
             )
             break
 
+        # Refresh codex_execution_report.md after command-plan-json so
+        # report-summary synthesis and final-check see current round IDs.
+        if step_name == "command-plan-json":
+            _refresh_codex_report_for_closeout(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                decision_id=decision_id,
+                round_id=requested_round_id,
+            )
+        # Refresh codex_execution_report.md after final-check so
+        # status/acceptance are derived from the final gate result
+        # before close-round runs.
+        if step_name == "final-check":
+            _refresh_codex_report_for_closeout(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                decision_id=decision_id,
+                round_id=requested_round_id,
+            )
+
     # 7. Run after-close final-check only if close-round succeeded
     if close_round_executed and not blocking_reasons:
+        # Refresh report to include round_close_snapshot.json in
+        # generated_artifacts and files_changed after close-round
+        # creates the close snapshot.
+        _refresh_codex_report_for_closeout(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            decision_id=decision_id,
+            round_id=requested_round_id,
+            include_close_snapshot=True,
+        )
         after_close_step = next(
             (s for s in steps if s["name"] == "final-check-after-close"),
             None,
