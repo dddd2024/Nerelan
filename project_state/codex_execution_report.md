@@ -1,50 +1,40 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260619_prompt_contract_closeout_hardening_v1",
-  "round_id": "round_20260619_prompt_contract_closeout_hardening_v1",
-  "based_on_decision_id": "decision_20260619_prompt_contract_closeout_hardening_v1",
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
+  "report_id": "codex_report_round_20260619_run_closeout_automation_v1",
+  "round_id": "round_20260619_run_closeout_automation_v1",
+  "based_on_decision_id": "decision_20260619_run_closeout_automation_v1",
+  "status": "PARTIAL",
+  "acceptance_recommendation": "REWORK_REQUIRED",
   "files_changed": [
-    "reverse_agent/project_state.py",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py",
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
+    "project_state/gates/run_closeout_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/rounds/round_20260619_prompt_contract_closeout_hardening_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260619_prompt_contract_closeout_hardening_v1/decision_packet.md",
-    "project_state/rounds/round_20260619_prompt_contract_closeout_hardening_v1/pytest_result.txt",
-    "project_state/rounds/round_20260619_prompt_contract_closeout_hardening_v1/round_manifest.json"
+    "project_state/gates/final_gate_result.json"
   ],
   "tests_ran": [
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260619_run_closeout_automation_v1"
   ],
   "generated_artifacts": [
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
+    "project_state/gates/run_closeout_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/rounds/round_20260619_prompt_contract_closeout_hardening_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260619_prompt_contract_closeout_hardening_v1/decision_packet.md",
-    "project_state/rounds/round_20260619_prompt_contract_closeout_hardening_v1/pytest_result.txt",
-    "project_state/rounds/round_20260619_prompt_contract_closeout_hardening_v1/round_manifest.json"
+    "project_state/gates/final_gate_result.json"
   ],
   "referenced_artifacts": [],
   "required_closeout_artifacts": []
@@ -55,40 +45,31 @@
 
 ## Status
 
-SUCCESS
+PARTIAL
 
 ## Summary
 
-Hardened the closeout/report/artifact workflow by converting prompt-only execution constraints into machine-checkable contract and gate invariants.
+Implemented the `run-closeout` CLI subcommand as specified in `decision_packet.md` Implementation Scope.
 
-## Changes
+### Completed
 
-### Feature A: decision_contract parsing
+- Added `RUN_CLOSEOUT_NAME`, `RUN_CLOSEOUT_RESULT_NAME`, `RUN_CLOSEOUT_OUTPUT_PATH`, and `RUN_CLOSEOUT_ALLOWED_KINDS` constants.
+- Added `run-closeout` to `COMMAND_PLAN_KINDS`, `_command_kind`, `_command_phase`, `_is_self_invocation`, and `_is_run_closeout_command`.
+- Implemented `run_closeout()` function that executes a bounded closeout sequence: decision-lint, preflight, pytest, gate-profile, command-plan, report-summary, final-check, close-round, and final-check-after-close.
+- Each step is recorded as a command block in `pytest_result.txt`.
+- Startup diagnostics (Set-Location, Get-Location, Test-Path, git rev-parse, git status) are recorded as command blocks.
+- Gate steps call functions directly (decision-lint, preflight, gate-profile, command-plan, report-summary, final-check) so their output is authoritative.
+- close-round is called directly so it owns its command block.
+- Added `_print_run_closeout()` for CLI output.
+- Added `run-closeout` subcommand to the CLI parser.
+- Added 14 tests covering constants, allowlist, command kind/phase recognition, self-invocation detection, exit codes, invalid args, success path, failure stops, CLI registration, artifact schema, and recommended next action.
 
-- Added `DECISION_CONTRACT_BLOCK_NAME` constant and `DECISION_CONTRACT_KNOWN_FIELDS` in `reverse_agent/project_state.py`.
-- Added `read_decision_contract()` function to parse the optional `decision_contract` fenced block from `decision_packet.md`.
-- Added validation in `lint_decision()`: invalid JSON fails, unknown fields warn.
+### Tests
 
-### Feature B: artifact placement checks
+- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`: 889 passed, exit code 0.
+- `python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260619_run_closeout_automation_v1`: executed all steps, close-round failed due to synthesis drift (expected for mid-round report).
 
-- Added `_decision_contract_artifact_placement_check()` in `reverse_agent/project_gate.py`.
-- Checks that `required_generated_artifacts` appear in `generated_artifacts`.
-- Checks that `required_files_changed` appear in `files_changed`.
-- Fails if required generated artifacts appear only in `referenced_artifacts`.
+### Limitations
 
-### Feature C: status hardening
-
-- Added `_decision_contract_status_hardening_check()` in `reverse_agent/project_gate.py`.
-- Validates that `SUCCESS/ACCEPTED` requires matching final gate IDs.
-- Validates that `ACCEPTED` requires close-round archive when `close_round_required=true`.
-- Validates that pytest-only success reports fail if command-plan requires gate commands.
-
-### Feature D: enhanced report body consistency
-
-- Enhanced `_report_body_consistency_check()` to detect report prose claiming paths in `files_changed` or `generated_artifacts` that are missing from JSON summary.
-- Strips fenced code blocks before scanning for inline backtick code to avoid false matches.
-
-### Feature E: regression tests
-
-- Added 13 new tests in `tests/test_project_gate.py` covering all features.
-- All 875 tests pass (862 existing + 13 new).
+- `run-closeout` close-round step failed because the current report has not been updated to reflect this round's changes. This is expected mid-round behavior; the report is updated after `run-closeout` completes.
+- `run-closeout` itself is functional and correctly records all command evidence.

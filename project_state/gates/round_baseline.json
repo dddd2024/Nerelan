@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260619_prompt_contract_closeout_hardening_v1",
-  "round_id": "round_20260619_prompt_contract_closeout_hardening_v1",
-  "head_commit": "024c84484ba4",
+  "decision_id": "decision_20260619_run_closeout_automation_v1",
+  "round_id": "round_20260619_run_closeout_automation_v1",
+  "head_commit": "2ad2b2a876d2",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-19T15:34:11.324345Z"
+  "generated_at": "2026-06-19T16:53:31.787183Z"
 }

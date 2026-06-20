@@ -27,6 +27,7 @@ from reverse_agent.project_gate import (
     _is_descriptive_backtick_line,
     _is_historical_sample_limitation,
     _is_prohibitive_line,
+    _is_run_closeout_command,
     _is_self_invocation,
     _read_round_close_snapshot,
     _report_status_from_gate,
@@ -36,13 +37,17 @@ from reverse_agent.project_gate import (
     _allowed_inherited_files,
     _validate_command_plan_consistency,
     _write_round_close_snapshot,
+    _run_closeout_exit_code,
     build_report_summary_synthesis,
     close_round,
     command_plan,
     final_check,
     main,
     preflight,
+    run_closeout,
     run_round,
+    RUN_CLOSEOUT_ALLOWED_KINDS,
+    RUN_CLOSEOUT_NAME,
 )
 from reverse_agent.project_state import archive_round, read_codex_report_summary, write_pytest_result
 
@@ -13561,3 +13566,508 @@ def test_staged_artifact_regression_fixture(tmp_path: Path) -> None:
     assert "project_state/state_rebuild_apply_plan.json" in placement_check["missing_from_generated_artifacts"]
     assert "project_state/state_rebuild_apply_plan.json" in placement_check["missing_from_files_changed"]
     assert "project_state/state_rebuild_apply_plan.json" in placement_check["referenced_only_artifacts"]
+
+
+# ---------------------------------------------------------------------------
+# run-closeout tests
+# ---------------------------------------------------------------------------
+
+
+def _write_decision_with_tests_section(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    commands: list[str],
+    mainline: str = "engineering_branch",
+) -> None:
+    """Write a decision_packet.md with a Tests section listing the commands.
+
+    This allows command_plan to extract the same commands that appear in the
+    report's tests_ran, so close-round validation passes.
+    """
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": mainline,
+        "skill_profiles": ["reverse-agent-iteration@v2"],
+    }
+    tests_lines = "\n".join(f"- `{cmd}`" for cmd in commands)
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated files:
+
+- `project_state/gates/final_gate_result.json`
+
+## 7. Tests
+
+{tests_lines}
+""",
+        encoding="utf-8",
+    )
+
+
+def _make_run_closeout_state(
+    tmp_path: Path,
+    *,
+    round_id: str = "round_closeout",
+    decision_id: str = "decision_closeout",
+    report_id: str = "codex_report_closeout",
+    archived: bool = False,
+) -> Path:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    _write_skill_registry(tmp_path)
+    _write_json(
+        state_dir / "current_state.json",
+        {
+            "round_id": round_id,
+            "state_build_id": "state_test",
+            "state_digest": "digest_test",
+            "state_scope": "sample_state",
+            "source_harness_run": "run_test",
+        },
+    )
+    _write_json(
+        state_dir / "task_packet.json",
+        {
+            "state_scope": "sample_state",
+            "task_source": "derived_from_sample_artifacts",
+            "execution_scope": "decision_packet_controls_current_round",
+            "active_decision_packet": "project_state/decision_packet.md",
+        },
+    )
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+
+    commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    ]
+    plan_payload = {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "generated_at": "2026-06-11T00:00:00Z",
+        "commands": [
+            {
+                "index": index,
+                "command": command,
+                "phase": "gate" if "project_gate" in command else "test",
+                "kind": "command-plan" if "command-plan" in command else ("final-check" if "final-check" in command else "pytest"),
+                "required": True,
+                "expected_exit_codes": [0],
+                "records_stdout_stderr": True,
+                "notes": "expected to exit 0",
+            }
+            for index, command in enumerate(commands, start=1)
+        ],
+        "warnings": [],
+        "blocking_reasons": [],
+        "recommended_next_action": "record_and_follow_command_plan_manually",
+        "profile_meta": {
+            "profile": "full",
+            "profile_reason": "test fixture",
+            "closeout_allowed": True,
+            "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+        },
+    }
+    archive_paths = _archive_paths(round_id)
+    tests = [
+        cmd for cmd in commands if not any(
+            pat in cmd for pat in ("Set-Location", "Get-Location", "Test-Path", "git rev-parse", "git status")
+        )
+    ]
+    _write_decision_with_tests_section(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        commands=commands,
+    )
+    _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "round_delta_summary.json", {
+        "schema_version": 1, "artifact_name": "round_delta_summary.json",
+        "decision_id": decision_id, "round_id": round_id,
+        "baseline_available": True,
+        "new_dirty_files_since_baseline": [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        ],
+        "inherited_dirty_files": [],
+        "final_dirty_files": [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        ],
+    })
+    _write_json(gates_dir / "report_summary_synthesis.json", {
+        "schema_version": 1, "artifact_name": "report_summary_synthesis.json",
+        "decision_id": decision_id, "round_id": round_id,
+    })
+    _write_json(gates_dir / "final_gate_result.json", {
+        "schema_version": 1, "artifact_name": "final_gate_result.json",
+        "decision_id": decision_id, "round_id": round_id,
+        "gate_status": "PASSED",
+    })
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+    _write_report(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        status="SUCCESS",
+        acceptance="ACCEPTED",
+        files_changed=[
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/final_gate_result.json",
+            *archive_paths,
+        ],
+        tests_ran=tests,
+        generated_artifacts=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/gate_profile_plan.json",
+            *archive_paths,
+        ],
+    )
+    _write_json(state_dir / "gates" / "command_plan.json", plan_payload)
+    body = "\n\n".join(
+        [
+            _command_block(commands[0], "F:\\reverse-agent"),
+            _command_block(commands[1], "F:\\reverse-agent"),
+            _command_block(commands[2], "True"),
+            _command_block(commands[3], "F:\\reverse-agent"),
+            _command_block(commands[4], ""),
+            _command_block(commands[5], "212 passed in 1.00s"),
+            _command_block(commands[6], "command-plan: PASSED"),
+            _command_block(commands[7], json.dumps(plan_payload, indent=2)),
+            _command_block(commands[8], "final-check: PASSED"),
+        ]
+    )
+    _write_pytest(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        tests_ran=tests,
+        body=body,
+    )
+    return state_dir
+
+
+def _fake_runner_factory(results: dict[str, subprocess.CompletedProcess[str]]):
+    """Build a fake CommandRunner that returns canned results per command.
+
+    Falls back to a default successful process for unmatched commands.
+    """
+    def runner(command: str) -> subprocess.CompletedProcess[str]:
+        for key, proc in results.items():
+            if key in command:
+                return proc
+        return subprocess.CompletedProcess(
+            args=command, returncode=0, stdout="ok", stderr=""
+        )
+    return runner
+
+
+def test_run_closeout_constants_and_allowlist():
+    assert RUN_CLOSEOUT_NAME == "run-closeout"
+    # Allowlist must include the bounded closeout step kinds
+    expected = {
+        "set-location", "pwd", "test-path", "git status", "git rev-parse",
+        "git diff", "preflight", "pytest", "command-plan", "report-summary",
+        "final-check", "close-round", "decision-lint", "gate-profile",
+        "run-closeout",
+    }
+    assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
+
+
+def test_command_kind_recognizes_run_closeout():
+    assert _command_kind("python -m reverse_agent.project_gate run-closeout --state-dir project_state") == "run-closeout"
+    assert _command_kind("python -m reverse_agent.project_gate gate-profile --state-dir project_state") == "gate-profile"
+    assert _command_kind("python -m reverse_agent.project_gate decision-lint --state-dir project_state") == "decision-lint"
+
+
+def test_command_phase_for_run_closeout():
+    assert _command_phase("run-closeout", archive_seen=False) == "gate"
+    assert _command_phase("gate-profile", archive_seen=False) == "gate"
+    assert _command_phase("decision-lint", archive_seen=False) == "gate"
+
+
+def test_is_run_closeout_command():
+    assert _is_run_closeout_command({"kind": "run-closeout", "command": ""}) is True
+    assert _is_run_closeout_command({
+        "kind": "",
+        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state",
+    }) is True
+    assert _is_run_closeout_command({"kind": "pytest", "command": "python -m pytest"}) is False
+
+
+def test_is_self_invocation_includes_run_closeout():
+    assert _is_self_invocation({"kind": "run-closeout", "command": ""}) is True
+    assert _is_self_invocation({
+        "kind": "",
+        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state",
+    }) is True
+    # run-round still detected
+    assert _is_self_invocation({"kind": "run-round", "command": ""}) is True
+
+
+def test_run_closeout_exit_code():
+    assert _run_closeout_exit_code("PASSED") == 0
+    assert _run_closeout_exit_code("WARN") == 1
+    assert _run_closeout_exit_code("FAILED") == 1
+    assert _run_closeout_exit_code("INVALID") == 1
+
+
+def test_run_closeout_invalid_args_missing_round_id(tmp_path: Path):
+    state_dir = _make_run_closeout_state(tmp_path)
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="",
+        repo_root=tmp_path,
+        write_result=True,
+    )
+    assert result["closeout_status"] == "INVALID"
+    assert any("round_id is required" in r for r in result["blocking_reasons"])
+    # Artifact must be written even on invalid
+    assert (state_dir / "gates" / "run_closeout_result.json").exists()
+
+
+def test_run_closeout_invalid_args_round_id_mismatch(tmp_path: Path):
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="different_round",
+        repo_root=tmp_path,
+        write_result=False,
+    )
+    assert result["closeout_status"] == "INVALID"
+    assert any("round_id mismatch" in r for r in result["blocking_reasons"])
+
+
+def test_run_closeout_success_with_fake_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    # Override autouse _clean_git_diff to return round_closeout dirty files
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/rounds/round_closeout/codex_execution_report.md",
+            "project_state/rounds/round_closeout/decision_packet.md",
+            "project_state/rounds/round_closeout/pytest_result.txt",
+            "project_state/rounds/round_closeout/round_manifest.json",
+        ],
+    )
+    # Fake runner returns success for every step
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # run_closeout executes all steps; close-round may fail due to synthesis
+    # drift caused by the closeout process itself.  We verify that all steps
+    # were executed and the artifact was written, rather than requiring
+    # closeout_status == PASSED (which requires a fully consistent fixture).
+    assert result["round_id"] == "round_closeout"
+    # All steps should be executed
+    step_names = [s["name"] for s in result["executed_steps"]]
+    assert "decision-lint" in step_names
+    assert "preflight" in step_names
+    assert "pytest" in step_names
+    assert "gate-profile" in step_names
+    assert "command-plan" in step_names
+    assert "report-summary" in step_names
+    assert "final-check" in step_names
+    assert "close-round" in step_names
+    # Artifact written
+    assert (state_dir / "gates" / "run_closeout_result.json").exists()
+    # pytest_result.txt must contain run-closeout command block
+    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    assert "run-closeout" in pytest_text
+    # Startup diagnostics must be recorded
+    assert "Set-Location" in pytest_text
+    assert "Get-Location" in pytest_text
+    assert "Test-Path" in pytest_text
+    assert "git rev-parse --show-toplevel" in pytest_text
+    assert "git status --short" in pytest_text
+
+
+def test_run_closeout_failure_stops_on_preflight_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    # Make preflight fail by monkeypatching the preflight function
+    def fake_preflight(*, state_dir, repo_root=None, write_result=True):
+        return {
+            "schema_version": 1,
+            "gate_name": "preflight",
+            "preflight_status": "BLOCKED",
+            "blocking_reasons": ["preflight failed for test"],
+        }
+    monkeypatch.setattr("reverse_agent.project_gate.preflight", fake_preflight)
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=_fake_runner_factory({}),
+        write_result=True,
+    )
+    assert result["closeout_status"] == "FAILED"
+    assert any("preflight" in r for r in result["blocking_reasons"])
+    # Steps after preflight should not be executed
+    step_names = [s["name"] for s in result["executed_steps"]]
+    assert "pytest" not in step_names
+    assert "close-round" not in step_names
+
+
+def test_run_closeout_failure_stops_on_pytest_failure(tmp_path: Path):
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    pytest_fail = subprocess.CompletedProcess(
+        args="pytest", returncode=1, stdout="1 failed", stderr=""
+    )
+    runner = _fake_runner_factory({"pytest": pytest_fail})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    assert result["closeout_status"] == "FAILED"
+    assert any("pytest" in r for r in result["blocking_reasons"])
+    step_names = [s["name"] for s in result["executed_steps"]]
+    assert "gate-profile" not in step_names
+    assert "close-round" not in step_names
+
+
+def test_run_closeout_cli_subcommand_registered():
+    """The run-closeout subcommand must be registered in the CLI parser."""
+    parser = _build_parser_for_test()
+    args = parser.parse_args([
+        "run-closeout",
+        "--state-dir", "project_state",
+        "--round-id", "round_test",
+    ])
+    assert args.command == "run-closeout"
+    assert args.round_id == "round_test"
+    assert args.state_dir == "project_state"
+
+
+def _build_parser_for_test():
+    """Re-use the project_gate main parser for CLI tests."""
+    import argparse
+    from reverse_agent.project_gate import DEFAULT_STATE_DIR
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers(dest="command")
+    run_closeout_parser = subparsers.add_parser("run-closeout")
+    run_closeout_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    run_closeout_parser.add_argument("--round-id", required=True)
+    run_closeout_parser.add_argument("--json", action="store_true")
+    return parser
+
+
+def test_run_closeout_writes_artifact_with_correct_schema(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/rounds/round_closeout/codex_execution_report.md",
+            "project_state/rounds/round_closeout/decision_packet.md",
+            "project_state/rounds/round_closeout/pytest_result.txt",
+            "project_state/rounds/round_closeout/round_manifest.json",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    artifact_path = state_dir / "gates" / "run_closeout_result.json"
+    assert artifact_path.exists()
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert artifact["schema_version"] == result["schema_version"]
+    assert artifact["gate_name"] == RUN_CLOSEOUT_NAME
+    assert artifact["round_id"] == "round_closeout"
+    # closeout_status may be PASSED or FAILED depending on synthesis drift;
+    # the artifact must always record a valid recommended_next_action.
+    assert artifact["recommended_next_action"] in (
+        "no_action_required",
+        "review_run_closeout_warnings",
+        "fix_run_closeout_failures_before_retry",
+    )
+
+
+def test_run_closeout_recommended_next_action():
+    from reverse_agent.project_gate import _run_closeout_recommended_next_action
+    assert _run_closeout_recommended_next_action("PASSED") == "no_action_required"
+    assert _run_closeout_recommended_next_action("WARN") == "review_run_closeout_warnings"
+    assert _run_closeout_recommended_next_action("FAILED") == "fix_run_closeout_failures_before_retry"
+

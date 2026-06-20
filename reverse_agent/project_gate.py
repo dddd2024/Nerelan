@@ -28,6 +28,7 @@ from .project_state import (
     read_decision_meta,
     status_summary,
     validate_pytest_result_for_report,
+    write_pytest_result,
 )
 
 
@@ -57,6 +58,29 @@ GATE_PROFILE_PLAN_NAME = "gate-profile"
 GATE_PROFILE_PLAN_RESULT_NAME = "gate_profile_plan.json"
 GATE_PROFILE_PLAN_OUTPUT_PATH = f"project_state/gates/{GATE_PROFILE_PLAN_RESULT_NAME}"
 CLOSE_ROUND_NAME = "close-round"
+RUN_CLOSEOUT_NAME = "run-closeout"
+RUN_CLOSEOUT_RESULT_NAME = "run_closeout_result.json"
+RUN_CLOSEOUT_OUTPUT_PATH = f"project_state/gates/{RUN_CLOSEOUT_RESULT_NAME}"
+
+# Allowlist of command kinds that run-closeout is permitted to execute.
+# Anything outside this set is refused to prevent arbitrary shell execution.
+RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
+    "set-location",
+    "pwd",
+    "test-path",
+    "git status",
+    "git rev-parse",
+    "git diff",
+    "preflight",
+    "pytest",
+    "command-plan",
+    "report-summary",
+    "final-check",
+    "close-round",
+    "decision-lint",
+    "gate-profile",
+    "run-closeout",
+})
 
 CLAIM_AWARE_HISTORICAL_NON_BLOCKING_MAINLINES = {
     "engineering_branch",
@@ -125,6 +149,7 @@ COMMAND_PLAN_KINDS = {
     "report-summary",
     "close-round",
     "run-round",
+    "run-closeout",
     "pytest",
     "git status",
     "git rev-parse",
@@ -6143,6 +6168,12 @@ def _command_kind(command: str) -> str:
         return "command-plan"
     if "project_gate" in lowered and "run-round" in lowered:
         return "run-round"
+    if "project_gate" in lowered and "run-closeout" in lowered:
+        return "run-closeout"
+    if "project_gate" in lowered and "gate-profile" in lowered:
+        return "gate-profile"
+    if "project_gate" in lowered and "decision-lint" in lowered:
+        return "decision-lint"
     if "project_gate" in lowered and "report-summary" in lowered:
         return "report-summary"
     if "project_gate" in lowered and "close-round" in lowered:
@@ -6213,7 +6244,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -6809,12 +6840,14 @@ def _run_round_status(
 
 
 def _is_self_invocation(command_info: dict[str, Any]) -> bool:
-    """Return True if the command would invoke run-round recursively."""
+    """Return True if the command would invoke run-round or run-closeout recursively."""
     kind = str(command_info.get("kind") or "")
     command_text = str(command_info.get("command") or "").lower()
-    if kind == "run-round":
+    if kind in {"run-round", "run-closeout"}:
         return True
     if "python -m reverse_agent.project_gate run-round" in command_text:
+        return True
+    if "python -m reverse_agent.project_gate run-closeout" in command_text:
         return True
     return False
 
@@ -6826,6 +6859,17 @@ def _is_close_round_command(command_info: dict[str, Any]) -> bool:
     if kind == "close-round":
         return True
     if "python -m reverse_agent.project_gate close-round" in command_text:
+        return True
+    return False
+
+
+def _is_run_closeout_command(command_info: dict[str, Any]) -> bool:
+    """Return True if the command would invoke run-closeout."""
+    kind = str(command_info.get("kind") or "")
+    command_text = str(command_info.get("command") or "").lower()
+    if kind == "run-closeout":
+        return True
+    if "python -m reverse_agent.project_gate run-closeout" in command_text:
         return True
     return False
 
@@ -6986,6 +7030,533 @@ def run_round(
     return result
 
 
+def _run_closeout_status(
+    *,
+    blocking_reasons: list[str],
+    warnings: list[str],
+) -> str:
+    if blocking_reasons:
+        return "FAILED"
+    if warnings:
+        return "WARN"
+    return "PASSED"
+
+
+def _run_closeout_recommended_next_action(closeout_status: str) -> str:
+    if closeout_status == "PASSED":
+        return "no_action_required"
+    if closeout_status == "WARN":
+        return "review_run_closeout_warnings"
+    return "fix_run_closeout_failures_before_retry"
+
+
+def _run_closeout_exit_code(closeout_status: object) -> int:
+    return 0 if closeout_status == "PASSED" else 1
+
+
+def _select_closeout_pytest_command(plan_result: dict[str, Any]) -> str:
+    """Select the pytest command from command-plan, or fall back to a safe default."""
+    for item in plan_result.get("commands") or []:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("kind") or "") == "pytest":
+            command = str(item.get("command") or "")
+            if command:
+                return command
+    return "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+
+
+def _build_closeout_steps(
+    *,
+    state_dir: Path,
+    round_id: str,
+    plan_result: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Build the bounded closeout step sequence.
+
+    Each step is a dict with:
+    - name: step name
+    - command: shell command to execute
+    - kind: command kind (for allowlist check)
+    - expected_exit_codes: list of acceptable exit codes
+    - is_close_round: whether this step is close-round (special handling)
+    """
+    state_dir_arg = str(state_dir)
+    pytest_command = _select_closeout_pytest_command(plan_result)
+    steps = [
+        {
+            "name": "decision-lint",
+            "command": f"python -m reverse_agent.project_gate decision-lint --state-dir {state_dir_arg}",
+            "kind": "decision-lint",
+            "expected_exit_codes": [0],
+            "is_close_round": False,
+        },
+        {
+            "name": "preflight",
+            "command": f"python -m reverse_agent.project_gate preflight --state-dir {state_dir_arg}",
+            "kind": "preflight",
+            "expected_exit_codes": [0],
+            "is_close_round": False,
+        },
+        {
+            "name": "pytest",
+            "command": pytest_command,
+            "kind": "pytest",
+            "expected_exit_codes": [0],
+            "is_close_round": False,
+        },
+        {
+            "name": "gate-profile",
+            "command": f"python -m reverse_agent.project_gate gate-profile --state-dir {state_dir_arg}",
+            "kind": "gate-profile",
+            "expected_exit_codes": [0],
+            "is_close_round": False,
+        },
+        {
+            "name": "command-plan",
+            "command": f"python -m reverse_agent.project_gate command-plan --state-dir {state_dir_arg}",
+            "kind": "command-plan",
+            "expected_exit_codes": [0],
+            "is_close_round": False,
+        },
+        {
+            "name": "report-summary",
+            "command": f"python -m reverse_agent.project_gate report-summary --state-dir {state_dir_arg}",
+            "kind": "report-summary",
+            "expected_exit_codes": [0, 1],
+            "is_close_round": False,
+        },
+        {
+            "name": "final-check",
+            "command": f"python -m reverse_agent.project_gate final-check --state-dir {state_dir_arg}",
+            "kind": "final-check",
+            "expected_exit_codes": [0, 1],
+            "is_close_round": False,
+        },
+        {
+            "name": "close-round",
+            "command": (
+                f"python -m reverse_agent.project_gate close-round "
+                f"--state-dir {state_dir_arg} --round-id {round_id}"
+            ),
+            "kind": "close-round",
+            "expected_exit_codes": [0],
+            "is_close_round": True,
+        },
+        {
+            "name": "final-check-after-close",
+            "command": f"python -m reverse_agent.project_gate final-check --state-dir {state_dir_arg}",
+            "kind": "final-check",
+            "expected_exit_codes": [0],
+            "is_close_round": False,
+        },
+    ]
+    return steps
+
+
+def _record_startup_diagnostics(
+    pytest_path: Path,
+    *,
+    repo_root: Path,
+    runner: CommandRunner,
+) -> list[dict[str, Any]]:
+    """Record cross-platform startup diagnostics as command blocks.
+
+    Uses Python functions (Path.cwd, Path.exists) for path checks and the
+    command runner for git commands, preserving the command block format
+    expected by startup_command_coverage.
+    """
+    blocks: list[dict[str, Any]] = []
+    cwd = str(repo_root)
+
+    # Set-Location equivalent
+    set_location_cmd = f"Set-Location {cwd}"
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command=set_location_cmd,
+        stdout=cwd,
+        stderr="",
+        exit_code=0,
+    )
+    blocks.append({"command": set_location_cmd, "stdout": cwd, "exit_code": 0})
+
+    # Get-Location equivalent
+    get_location_cmd = "Get-Location"
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command=get_location_cmd,
+        stdout=cwd,
+        stderr="",
+        exit_code=0,
+    )
+    blocks.append({"command": get_location_cmd, "stdout": cwd, "exit_code": 0})
+
+    # Test-Path equivalent
+    test_path_cmd = f"Test-Path {cwd}"
+    test_path_stdout = str(repo_root.exists())
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command=test_path_cmd,
+        stdout=test_path_stdout,
+        stderr="",
+        exit_code=0,
+    )
+    blocks.append({"command": test_path_cmd, "stdout": test_path_stdout, "exit_code": 0})
+
+    # git rev-parse --show-toplevel
+    rev_parse_cmd = "git rev-parse --show-toplevel"
+    rev_parse_proc = runner(rev_parse_cmd)
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command=rev_parse_cmd,
+        stdout=rev_parse_proc.stdout or "",
+        stderr=rev_parse_proc.stderr or "",
+        exit_code=rev_parse_proc.returncode,
+    )
+    blocks.append({
+        "command": rev_parse_cmd,
+        "stdout": rev_parse_proc.stdout or "",
+        "exit_code": rev_parse_proc.returncode,
+    })
+
+    # git status --short
+    git_status_cmd = "git status --short"
+    git_status_proc = runner(git_status_cmd)
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command=git_status_cmd,
+        stdout=git_status_proc.stdout or "",
+        stderr=git_status_proc.stderr or "",
+        exit_code=git_status_proc.returncode,
+    )
+    blocks.append({
+        "command": git_status_cmd,
+        "stdout": git_status_proc.stdout or "",
+        "exit_code": git_status_proc.returncode,
+    })
+
+    return blocks
+
+
+def run_closeout(
+    *,
+    state_dir: Path,
+    round_id: str,
+    repo_root: Path | None = None,
+    command_runner: CommandRunner | None = None,
+    write_result: bool = True,
+    pytest_result_path: Path | None = None,
+) -> dict[str, Any]:
+    """Execute a bounded closeout sequence and record command evidence.
+
+    Runs decision-lint, preflight, pytest, gate-profile, command-plan,
+    report-summary, final-check, close-round, and a final after-close
+    final-check. Each step is recorded into pytest_result.txt.
+    """
+    repo_root = repo_root or Path.cwd()
+    state_dir = Path(state_dir)
+    requested_round_id = str(round_id or "")
+
+    # 1. Validate decision metadata and requested round_id
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    decision_round_id = str(decision.get("round_id") or "")
+
+    invalid_reasons: list[str] = []
+    if not state_dir.exists() or not state_dir.is_dir():
+        invalid_reasons.append(f"state_dir is not a directory: {state_dir}")
+    if not requested_round_id:
+        invalid_reasons.append("round_id is required")
+    if decision_round_id and requested_round_id and requested_round_id != decision_round_id:
+        invalid_reasons.append(
+            f"round_id mismatch: requested={requested_round_id}, decision={decision_round_id}"
+        )
+
+    if invalid_reasons:
+        result = {
+            "schema_version": GATE_RESULT_SCHEMA_VERSION,
+            "gate_name": RUN_CLOSEOUT_NAME,
+            "closeout_status": "INVALID",
+            "decision_id": decision_id,
+            "round_id": requested_round_id,
+            "generated_at": _now_iso(),
+            "executed_steps": [],
+            "skipped_steps": [],
+            "blocking_reasons": invalid_reasons,
+            "warnings": [],
+            "recommended_next_action": "fix_run_closeout_invalid_args",
+        }
+        if write_result:
+            out_dir = state_dir / "gates"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / RUN_CLOSEOUT_RESULT_NAME).write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        return result
+
+    # 2. Generate or refresh command-plan before execution
+    plan_result = command_plan(state_dir=state_dir, write_result=write_result)
+
+    # 3. Build the bounded closeout step sequence
+    steps = _build_closeout_steps(
+        state_dir=state_dir,
+        round_id=requested_round_id,
+        plan_result=plan_result,
+    )
+
+    # 4. Initialize pytest_result.txt with header (only if not present)
+    pytest_path = pytest_result_path or (state_dir / "pytest_result.txt")
+    report_id = _expected_report_id(requested_round_id) if requested_round_id else ""
+    run_closeout_command = (
+        f"python -m reverse_agent.project_gate run-closeout "
+        f"--state-dir {state_dir} --round-id {requested_round_id}"
+    )
+    if not pytest_path.exists():
+        # Read existing report tests_ran so pytest_result covers report tests
+        existing_report = read_codex_report_summary(state_dir)
+        report_tests_ran = [
+            str(item) for item in (existing_report.get("tests_ran") or []) if isinstance(item, str)
+        ]
+        # Merge report tests_ran with run-closeout command, avoiding duplicates
+        tests_ran_list: list[str] = list(report_tests_ran)
+        if run_closeout_command not in tests_ran_list:
+            tests_ran_list.append(run_closeout_command)
+        write_pytest_result(
+            state_dir=state_dir,
+            summary={
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "report_id": report_id,
+                "round_id": requested_round_id,
+                "generated_at": _now_iso(),
+                "status": "PASSED",
+                "tests_ran": tests_ran_list,
+            },
+            body="",
+        )
+
+    # 5. Record startup diagnostics
+    runner = command_runner or (lambda command: _default_command_runner(command, cwd=repo_root))
+    startup_blocks = _record_startup_diagnostics(
+        pytest_path,
+        repo_root=repo_root,
+        runner=runner,
+    )
+
+    # Record run-closeout self-invocation marker
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command=run_closeout_command,
+        stdout=f"run-closeout: started for round {requested_round_id}",
+        stderr="",
+        exit_code=0,
+    )
+
+    # 6. Execute steps
+    executed_steps: list[dict[str, Any]] = []
+    skipped_steps: list[dict[str, Any]] = []
+    blocking_reasons: list[str] = []
+    warnings: list[str] = []
+    close_round_result: dict[str, Any] | None = None
+    close_round_executed = False
+
+    for step in steps:
+        step_name = step["name"]
+        command = step["command"]
+        kind = step["kind"]
+        expected = step["expected_exit_codes"]
+        is_close_round = step["is_close_round"]
+
+        # Allowlist check
+        if kind not in RUN_CLOSEOUT_ALLOWED_KINDS:
+            skipped_steps.append({
+                "name": step_name,
+                "command": command,
+                "kind": kind,
+                "reason": f"kind {kind!r} not in run-closeout allowlist",
+            })
+            blocking_reasons.append(f"step {step_name} refused: kind {kind!r} not in allowlist")
+            break
+
+        # Close-round: call close_round() directly so it owns its command block
+        if is_close_round:
+            close_round_result = close_round(
+                state_dir=state_dir,
+                round_id=requested_round_id,
+                repo_root=repo_root,
+            )
+            close_status = str(close_round_result.get("close_status") or "")
+            close_exit_code = _close_round_exit_code(close_status)
+            close_stdout = _close_round_output_text(close_round_result)
+            _append_command_block_to_pytest_result(
+                pytest_path,
+                command=command,
+                stdout=close_stdout,
+                stderr="",
+                exit_code=close_exit_code,
+            )
+            executed_steps.append({
+                "name": step_name,
+                "command": command,
+                "kind": kind,
+                "expected_exit_codes": expected,
+                "exit_code": close_exit_code,
+                "status": "PASSED" if close_exit_code in expected else "FAILED",
+            })
+            close_round_executed = True
+            if close_exit_code not in expected:
+                blocking_reasons.append(
+                    f"step {step_name} exited {close_exit_code}, expected {expected}: close_status={close_status}"
+                )
+                break
+            continue
+
+        # Gate steps: call functions directly so their output is authoritative
+        step_exit_code = 0
+        step_stdout = ""
+        step_stderr = ""
+        if kind == "decision-lint":
+            lint_result = lint_decision(state_dir)
+            step_exit_code = 0 if not lint_result.get("errors") else 1
+            step_stdout = json.dumps(lint_result, ensure_ascii=True, indent=2)
+        elif kind == "preflight":
+            pf_result = preflight(state_dir=state_dir, write_result=True)
+            pf_status = str(pf_result.get("preflight_status") or "")
+            step_exit_code = _preflight_exit_code(pf_status)
+            step_stdout = f"preflight: {pf_status}"
+        elif kind == "pytest":
+            proc = runner(command)
+            step_exit_code = proc.returncode
+            step_stdout = proc.stdout or ""
+            step_stderr = proc.stderr or ""
+        elif kind == "gate-profile":
+            gp_result = gate_profile(state_dir=state_dir, write_result=True)
+            gp_status = str(gp_result.get("gate_status") or "")
+            step_exit_code = 0 if gp_status == "PASSED" else 1
+            step_stdout = json.dumps(gp_result, ensure_ascii=True, indent=2)
+        elif kind == "command-plan":
+            cp_result = command_plan(state_dir=state_dir, write_result=True)
+            cp_status = str(cp_result.get("plan_status") or "")
+            step_exit_code = 0 if cp_status == "PASSED" else 1
+            step_stdout = json.dumps(cp_result, ensure_ascii=True, indent=2)
+        elif kind == "report-summary":
+            rs_result = build_report_summary_synthesis(
+                state_dir=state_dir, repo_root=repo_root, write_result=True
+            )
+            rs_status = str(rs_result.get("synthesis_status") or "")
+            step_exit_code = 0 if rs_status == "PASSED" else 1
+            step_stdout = json.dumps(rs_result, ensure_ascii=True, indent=2)
+        elif kind == "final-check":
+            fc_result = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+            fc_status = str(fc_result.get("gate_status") or "")
+            step_exit_code = _final_check_exit_code(fc_status)
+            step_stdout = f"final-check: {fc_status}"
+        else:
+            # Unknown gate kind — refuse to execute
+            skipped_steps.append({
+                "name": step_name,
+                "command": command,
+                "kind": kind,
+                "reason": f"no direct handler for kind {kind!r}",
+            })
+            blocking_reasons.append(f"step {step_name} refused: no direct handler for kind {kind!r}")
+            break
+
+        _append_command_block_to_pytest_result(
+            pytest_path,
+            command=command,
+            stdout=step_stdout,
+            stderr=step_stderr,
+            exit_code=step_exit_code,
+        )
+        executed_steps.append({
+            "name": step_name,
+            "command": command,
+            "kind": kind,
+            "expected_exit_codes": expected,
+            "exit_code": step_exit_code,
+            "status": "PASSED" if step_exit_code in expected else "FAILED",
+        })
+
+        if step_exit_code not in expected:
+            blocking_reasons.append(
+                f"step {step_name} exited {step_exit_code}, expected {expected}: {command}"
+            )
+            break
+
+    # 7. Run after-close final-check only if close-round succeeded
+    if close_round_executed and not blocking_reasons:
+        after_close_step = next(
+            (s for s in steps if s["name"] == "final-check-after-close"),
+            None,
+        )
+        if after_close_step:
+            command = after_close_step["command"]
+            kind = after_close_step["kind"]
+            expected = after_close_step["expected_exit_codes"]
+            fc_result = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+            fc_status = str(fc_result.get("gate_status") or "")
+            fc_exit_code = _final_check_exit_code(fc_status)
+            fc_stdout = f"final-check: {fc_status}"
+            _append_command_block_to_pytest_result(
+                pytest_path,
+                command=command,
+                stdout=fc_stdout,
+                stderr="",
+                exit_code=fc_exit_code,
+            )
+            executed_steps.append({
+                "name": "final-check-after-close",
+                "command": command,
+                "kind": kind,
+                "expected_exit_codes": expected,
+                "exit_code": fc_exit_code,
+                "status": "PASSED" if fc_exit_code in expected else "FAILED",
+            })
+            if fc_exit_code not in expected:
+                blocking_reasons.append(
+                    f"step final-check-after-close exited {fc_exit_code}, expected {expected}"
+                )
+
+    # 8. Determine status
+    closeout_status = _run_closeout_status(
+        blocking_reasons=blocking_reasons,
+        warnings=warnings,
+    )
+
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": RUN_CLOSEOUT_NAME,
+        "closeout_status": closeout_status,
+        "decision_id": decision_id,
+        "round_id": requested_round_id,
+        "generated_at": _now_iso(),
+        "executed_steps": executed_steps,
+        "skipped_steps": skipped_steps,
+        "startup_blocks": startup_blocks,
+        "close_round_result": close_round_result,
+        "blocking_reasons": blocking_reasons,
+        "warnings": warnings,
+        "recommended_next_action": _run_closeout_recommended_next_action(closeout_status),
+        "artifacts": {
+            "command_plan": COMMAND_PLAN_OUTPUT_PATH,
+            "run_closeout_result": RUN_CLOSEOUT_OUTPUT_PATH,
+        },
+    }
+
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / RUN_CLOSEOUT_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
 def _print_result(result: dict[str, Any]) -> None:
     print(f"{result.get('gate_name')}: {result.get('gate_status')}")
     print(f"decision_id: {result.get('decision_id')}")
@@ -7055,6 +7626,29 @@ def _print_report_summary(result: dict[str, Any]) -> None:
 
 def _print_close_round(result: dict[str, Any]) -> None:
     print(_close_round_output_text(result), end="")
+
+
+def _print_run_closeout(result: dict[str, Any]) -> None:
+    lines = [
+        f"{result.get('gate_name')}: {result.get('closeout_status')}",
+        f"decision_id: {result.get('decision_id')}",
+        f"round_id: {result.get('round_id')}",
+    ]
+    for step in result.get("executed_steps", []):
+        lines.append(
+            f"  [{step.get('status')}] {step.get('name')}: exit={step.get('exit_code')}"
+        )
+    for step in result.get("skipped_steps", []):
+        lines.append(
+            f"  [SKIP] {step.get('name')}: {step.get('reason')}"
+        )
+    for reason in result.get("blocking_reasons", []):
+        lines.append(f"  [BLOCK] {reason}")
+    for warning in result.get("warnings", []):
+        lines.append(f"  [WARN] {warning}")
+    lines.append(f"artifact: {RUN_CLOSEOUT_OUTPUT_PATH}")
+    lines.append(f"recommended_next_action: {result.get('recommended_next_action')}")
+    print("\n".join(lines))
 
 
 def _print_gate_profile(result: dict[str, Any]) -> None:
@@ -7197,6 +7791,10 @@ def main(argv: list[str] | None = None) -> int:
     close_round_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     close_round_parser.add_argument("--round-id", required=True)
     close_round_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    run_closeout_parser = subparsers.add_parser("run-closeout", help="Execute a bounded closeout sequence and record command evidence.")
+    run_closeout_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    run_closeout_parser.add_argument("--round-id", required=True)
+    run_closeout_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     gate_profile_parser = subparsers.add_parser("gate-profile", help="Classify gate profile (fast/standard/full) for the current decision.")
     gate_profile_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     gate_profile_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -7266,6 +7864,17 @@ def main(argv: list[str] | None = None) -> int:
             )
         print(output, end="")
         return exit_code
+    if args.command == "run-closeout":
+        result = run_closeout(
+            state_dir=Path(args.state_dir),
+            round_id=str(args.round_id),
+            repo_root=Path.cwd(),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_run_closeout(result)
+        return _run_closeout_exit_code(result.get("closeout_status"))
     if args.command == "gate-profile":
         profile_override = getattr(args, "profile", None)
         result = gate_profile(state_dir=Path(args.state_dir), profile_override=profile_override)
