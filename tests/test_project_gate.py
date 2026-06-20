@@ -14405,3 +14405,324 @@ def test_run_closeout_stale_report_id_replaced(tmp_path: Path, monkeypatch: pyte
     assert report["report_id"] == "codex_report_closeout"
     assert "round_" not in report["report_id"]
 
+
+# ---------------------------------------------------------------------------
+# Required Audit coverage tests
+# ---------------------------------------------------------------------------
+
+
+_DECISION_WITH_REQUIRED_AUDIT = """```json decision_meta
+{
+  "schema_version": 1,
+  "decision_id": "decision_audit_test",
+  "round_id": "round_audit_test",
+  "based_on_state_build_id": "state_test",
+  "based_on_state_digest": "digest_test",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Test goal.
+
+## 2. Current Evidence
+
+Evidence.
+
+## 3. Do Not Do
+
+Nothing.
+
+## 4. Files To Inspect
+
+None.
+
+## 5. Required Audit
+
+1. How is the decision's Required Audit section currently parsed, if at all?
+2. Which Required Audit questions from the decision can be answered mechanically from project_state artifacts?
+3. Should final-check fail when ## Required Audit is missing for an engineering decision that declares Required Audit items?
+
+## 6. Implementation Scope
+
+- `reverse_agent/project_gate.py`
+
+## 7. Tests
+
+Run pytest.
+
+## 8. Stop Conditions
+
+Stop if tests fail.
+"""
+
+
+_DECISION_WITHOUT_REQUIRED_AUDIT = """```json decision_meta
+{
+  "schema_version": 1,
+  "decision_id": "decision_no_audit_test",
+  "round_id": "round_no_audit_test",
+  "based_on_state_build_id": "state_test",
+  "based_on_state_digest": "digest_test",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Test goal.
+
+## 2. Current Evidence
+
+Evidence.
+
+## 3. Do Not Do
+
+Nothing.
+
+## 4. Files To Inspect
+
+None.
+
+## 5. Implementation Scope
+
+- `reverse_agent/project_gate.py`
+
+## 6. Tests
+
+Run pytest.
+
+## 7. Stop Conditions
+
+Stop if tests fail.
+"""
+
+
+def test_parse_required_audit_questions_extracts_numbered_questions() -> None:
+    """Feature A: parse numbered questions from Required Audit section."""
+    from reverse_agent.project_gate import parse_required_audit_questions
+
+    questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+    assert len(questions) == 3
+    assert "How is the decision's Required Audit section currently parsed, if at all?" in questions
+    assert "Which Required Audit questions from the decision can be answered mechanically from project_state artifacts?" in questions
+    assert "Should final-check fail when ## Required Audit is missing for an engineering decision that declares Required Audit items?" in questions
+
+
+def test_parse_required_audit_questions_returns_empty_when_no_section() -> None:
+    """Feature A: old decisions without Required Audit return empty list."""
+    from reverse_agent.project_gate import parse_required_audit_questions
+
+    questions = parse_required_audit_questions(_DECISION_WITHOUT_REQUIRED_AUDIT)
+    assert questions == []
+
+
+def test_generate_required_audit_scaffold_includes_all_items() -> None:
+    """Feature C: generated scaffold includes every Required Audit item."""
+    from reverse_agent.project_gate import generate_required_audit_scaffold, parse_required_audit_questions
+
+    questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+    assert "## Required Audit" in scaffold
+    for q in questions:
+        assert q in scaffold
+    assert "Evidence: (to be filled)" in scaffold
+    assert "Status: PENDING" in scaffold
+    assert "Answer: (to be filled)" in scaffold
+
+
+def test_generate_required_audit_scaffold_empty_when_no_items() -> None:
+    """Feature C: scaffold is empty when decision has no Required Audit items."""
+    from reverse_agent.project_gate import generate_required_audit_scaffold
+
+    scaffold = generate_required_audit_scaffold(_DECISION_WITHOUT_REQUIRED_AUDIT)
+    assert scaffold == ""
+
+
+def test_required_audit_coverage_check_fails_for_success_report_without_section() -> None:
+    """Feature B: SUCCESS report without ## Required Audit fails when decision has items."""
+    from reverse_agent.project_gate import _required_audit_coverage_check
+
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n",
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "FAIL"
+    assert len(result["missing_answers"]) == 3
+
+
+def test_required_audit_coverage_check_warns_for_blocked_report_without_section() -> None:
+    """Feature B: BLOCKED report without ## Required Audit warns, not fails."""
+    from reverse_agent.project_gate import _required_audit_coverage_check
+
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nBLOCKED\n",
+        report_status="BLOCKED",
+    )
+    assert result["status"] == "WARN"
+
+
+def test_required_audit_coverage_check_passes_when_all_answered() -> None:
+    """Feature B: report with all answers passes."""
+    from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
+
+    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+    report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n{ scaffold }\n"
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text=report_text,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "PASS"
+    assert result["missing_answers"] == []
+
+
+def test_required_audit_coverage_check_passes_when_no_audit_items() -> None:
+    """Feature D: old decisions without Required Audit remain backward-compatible."""
+    from reverse_agent.project_gate import _required_audit_coverage_check
+
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITHOUT_REQUIRED_AUDIT,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n",
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "PASS"
+    assert result["required_audit_items"] == []
+
+
+def test_required_audit_coverage_check_fails_for_partial_coverage_on_success() -> None:
+    """Feature B: SUCCESS report with partial answers fails for missing items."""
+    from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions
+
+    questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+    # Include only the first question in the report
+    partial_report = (
+        "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n"
+        f"## Required Audit\n\n### 1. {questions[0]}\n\n- Answer: yes\n"
+    )
+    result = _required_audit_coverage_check(
+        decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+        report_text=partial_report,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "FAIL"
+    assert len(result["missing_answers"]) == 2
+
+
+def test_final_check_required_audit_coverage_in_gate(tmp_path: Path) -> None:
+    """Feature B: final-check includes required_audit_coverage check."""
+    state_dir = _make_gate_state(tmp_path)
+    # Override decision_packet.md with one that has Required Audit
+    (state_dir / "decision_packet.md").write_text(_DECISION_WITH_REQUIRED_AUDIT, encoding="utf-8")
+    # Write a report without Required Audit section
+    _write_report(
+        state_dir,
+        decision_id="decision_audit_test",
+        report_id="report_audit_test",
+        round_id="round_audit_test",
+        status="SUCCESS",
+        acceptance="ACCEPTED",
+    )
+    _write_pytest(state_dir, decision_id="decision_audit_test", report_id="report_audit_test", round_id="round_audit_test")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    audit_check = _check(result, "required_audit_coverage")
+    assert audit_check is not None
+    assert audit_check["status"] == "FAIL"
+
+
+def test_final_check_required_audit_passes_with_scaffold(tmp_path: Path) -> None:
+    """Feature B+C: final-check passes when report has scaffold covering all items."""
+    from reverse_agent.project_gate import generate_required_audit_scaffold
+
+    state_dir = _make_gate_state(tmp_path)
+    # Override decision_packet.md with one that has Required Audit
+    (state_dir / "decision_packet.md").write_text(_DECISION_WITH_REQUIRED_AUDIT, encoding="utf-8")
+    scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+    # Write report with the scaffold
+    _write_report(
+        state_dir,
+        decision_id="decision_audit_test",
+        report_id="report_audit_test",
+        round_id="round_audit_test",
+        status="SUCCESS",
+        acceptance="ACCEPTED",
+    )
+    # Append scaffold to report
+    report_path = state_dir / "codex_execution_report.md"
+    report_path.write_text(
+        report_path.read_text(encoding="utf-8") + "\n" + scaffold + "\n",
+        encoding="utf-8",
+    )
+    _write_pytest(state_dir, decision_id="decision_audit_test", report_id="report_audit_test", round_id="round_audit_test")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    audit_check = _check(result, "required_audit_coverage")
+    assert audit_check is not None
+    assert audit_check["status"] == "PASS"
+
+
+def test_final_check_backward_compatible_without_required_audit(tmp_path: Path) -> None:
+    """Feature D: old decisions without Required Audit don't break final-check."""
+    state_dir = _make_gate_state(tmp_path)
+    # Override decision_packet.md with one that has NO Required Audit
+    (state_dir / "decision_packet.md").write_text(_DECISION_WITHOUT_REQUIRED_AUDIT, encoding="utf-8")
+    _write_report(
+        state_dir,
+        decision_id="decision_no_audit_test",
+        report_id="report_no_audit_test",
+        round_id="round_no_audit_test",
+        status="SUCCESS",
+        acceptance="ACCEPTED",
+    )
+    _write_pytest(state_dir, decision_id="decision_no_audit_test", report_id="report_no_audit_test", round_id="round_no_audit_test")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    audit_check = _check(result, "required_audit_coverage")
+    assert audit_check is not None
+    assert audit_check["status"] == "PASS"
+    assert audit_check["required_audit_items"] == []
+
+
+def test_run_closeout_generates_required_audit_scaffold(tmp_path: Path) -> None:
+    """Feature C: run-closeout generates Required Audit scaffold in report."""
+    from reverse_agent.project_gate import parse_required_audit_questions
+
+    state_dir = _make_run_closeout_state(
+        tmp_path,
+        round_id="round_audit_closeout",
+        decision_id="decision_audit_closeout",
+        report_id="codex_report_audit_closeout",
+    )
+    # Override decision_packet.md with one that has Required Audit
+    decision_path = state_dir / "decision_packet.md"
+    decision_text = _DECISION_WITH_REQUIRED_AUDIT.replace("decision_audit_test", "decision_audit_closeout").replace("round_audit_test", "round_audit_closeout")
+    decision_path.write_text(decision_text, encoding="utf-8")
+
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_audit_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # Check that the report has a ## Required Audit section
+    report_text = (state_dir / "codex_execution_report.md").read_text(encoding="utf-8")
+    assert "## Required Audit" in report_text
+    # Check that each question appears in the report
+    questions = parse_required_audit_questions(decision_text)
+    for q in questions:
+        assert q in report_text
+

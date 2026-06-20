@@ -277,6 +277,116 @@ def _without_section(text: str, heading: str) -> str:
     return text.replace(section, "") if section else text
 
 
+def parse_required_audit_questions(decision_text: str) -> list[str]:
+    """Extract Required Audit questions from a decision packet.
+
+    Parses the ``## 5. Required Audit`` section (or any section whose heading
+    contains "Required Audit") and extracts numbered questions or bullet items.
+
+    Returns an empty list if no Required Audit section exists.
+    """
+    section = _markdown_section(decision_text, "Required Audit")
+    if not section.strip():
+        return []
+    questions: list[str] = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        m = re.match(r"^(\d+)\.\s+(.+)", stripped)
+        if m:
+            questions.append(m.group(2).strip())
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            questions.append(stripped[2:].strip())
+    return questions
+
+
+def generate_required_audit_scaffold(decision_text: str) -> str:
+    """Generate a deterministic Required Audit scaffold from the decision.
+
+    The scaffold includes each Required Audit question with placeholder
+    answer markers (Evidence:, Status:, Answer:) but does not fabricate
+    facts.  Returns an empty string when the decision has no Required
+    Audit items.
+    """
+    questions = parse_required_audit_questions(decision_text)
+    if not questions:
+        return ""
+    lines: list[str] = ["## Required Audit", ""]
+    for i, q in enumerate(questions, start=1):
+        lines.append(f"### {i}. {q}")
+        lines.append("")
+        lines.append("- Evidence: (to be filled)")
+        lines.append("- Status: PENDING")
+        lines.append("- Answer: (to be filled)")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _required_audit_coverage_check(
+    *,
+    decision_text: str,
+    report_text: str,
+    report_status: str,
+) -> dict[str, Any]:
+    """Check that the report covers Required Audit items when they exist."""
+    questions = parse_required_audit_questions(decision_text)
+    if not questions:
+        return _check(
+            "required_audit_coverage",
+            "PASS",
+            "decision has no Required Audit items; coverage check not applicable",
+            required_audit_items=[],
+            missing_answers=[],
+        )
+
+    report_section = _markdown_section(report_text, "Required Audit")
+    if not report_section.strip():
+        is_success = report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
+        status = "FAIL" if is_success else "WARN"
+        detail = (
+            f"report is missing ## Required Audit section ({len(questions)} items unanswered)"
+            if is_success
+            else f"report is missing ## Required Audit section but report status is {report_status}"
+        )
+        return _check(
+            "required_audit_coverage",
+            status,
+            detail,
+            required_audit_items=questions,
+            missing_answers=questions,
+        )
+
+    missing: list[str] = []
+    for q in questions:
+        if q not in report_section:
+            missing.append(q)
+
+    if missing:
+        is_success = report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
+        status = "FAIL" if is_success else "WARN"
+        detail = (
+            f"report Required Audit section is missing {len(missing)} of {len(questions)} answers"
+            if is_success
+            else f"report Required Audit section is missing {len(missing)} of {len(questions)} answers but report status is {report_status}"
+        )
+        return _check(
+            "required_audit_coverage",
+            status,
+            detail,
+            required_audit_items=questions,
+            missing_answers=missing,
+        )
+
+    return _check(
+        "required_audit_coverage",
+        "PASS",
+        f"report covers all {len(questions)} Required Audit items",
+        required_audit_items=questions,
+        missing_answers=[],
+    )
+
+
 def _fenced_code_blocks(text: str) -> list[tuple[str, str]]:
     blocks: list[tuple[str, str]] = []
     lines = text.splitlines()
@@ -701,8 +811,26 @@ def _decision_required_closeout_artifacts(decision_text: str) -> set[str]:
 
 
 def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
+    """Return the set of paths that the decision explicitly allows to be
+    dirty at baseline.
+
+    This includes:
+    1. Paths listed in the ``Allowed Inherited Dirty Baseline Files`` section.
+    2. Paths listed in ``required_files_changed`` in the ``decision_contract``
+       JSON block, because these files are declared as required to be changed
+       in this round and may be dirty at baseline in multi-session continuations.
+    """
     section = _markdown_section(decision_text, "Allowed Inherited Dirty Baseline Files")
-    return _scope_paths(section)
+    paths = _scope_paths(section)
+    # Also include required_files_changed from the decision_contract, because
+    # these files are declared as required to be changed in this round and may
+    # be dirty at baseline in multi-session continuations where a previous
+    # session of the same round already made the authorized modifications.
+    contract = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract.get("found") and not contract.get("parse_error"):
+        for path in contract.get("required_files_changed") or []:
+            paths.add(_norm_path(path))
+    return paths
 
 
 # ---------------------------------------------------------------------------
@@ -4204,21 +4332,23 @@ def build_report_summary_synthesis(
             continue
         diff = _report_summary_diff(field=field, expected=synthesized_summary[field], actual=report.get(field))
         if diff:
-            # For files_changed, allow the report to omit
-            # round_close_snapshot.json because the report is written
-            # before close-round runs.  The synthesized summary includes
-            # it because close-round has already created the snapshot.
+            # For files_changed and generated_artifacts, allow the report to
+            # differ from the synthesis by exactly round_close_snapshot.json.
+            # The report is written before close-round runs (so it may omit
+            # the snapshot), or after close-round (so it may include it while
+            # the synthesis excludes it if the payload doesn't match).  In
+            # both directions, a single round_close_snapshot.json difference
+            # is expected and should not cause a synthesis diff.
             if (
-                field == "files_changed"
+                field in ("files_changed", "generated_artifacts")
                 and isinstance(diff.get("expected"), list)
                 and isinstance(diff.get("actual"), list)
             ):
                 expected_set = set(diff["expected"])
                 actual_set = set(diff["actual"])
-                # If the only difference is round_close_snapshot.json
-                # being present in expected but not actual, suppress.
                 close_snapshot_path = ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH
-                if expected_set - actual_set == {close_snapshot_path} and actual_set - expected_set == set():
+                symmetric_diff = expected_set.symmetric_difference(actual_set)
+                if symmetric_diff == {close_snapshot_path}:
                     continue
             diffs.append(diff)
 
@@ -5197,6 +5327,17 @@ def final_check(
             "PASS" if not forbidden_hits else "FAIL",
             "no forbidden paths detected" if not forbidden_hits else "forbidden paths detected",
             forbidden_paths=sorted(set(forbidden_hits)),
+        )
+    )
+
+    # Required Audit coverage check: when the decision declares Required Audit
+    # items, the report must include a ## Required Audit section that covers
+    # each item.  SUCCESS/ACCEPTED reports must not omit this coverage.
+    checks.append(
+        _required_audit_coverage_check(
+            decision_text=decision_text,
+            report_text=report_text,
+            report_status=report_status,
         )
     )
 
@@ -7296,9 +7437,39 @@ def _refresh_codex_report_for_closeout(
 
     # Compute expected files_changed from git diff
     dirty_files = _git_changed_files(repo_root)
-    files_changed_set = {p for p in dirty_files if _path_is_source_or_test(p) or p.startswith("project_state/")}
+    dirty_files_norm = {_norm_path(p) for p in dirty_files}
+    # Read baseline dirty files to exclude inherited dirty files
+    baseline_payload = _read_json(state_dir / "gates" / ROUND_BASELINE_RESULT_NAME)
+    baseline_dirty_files: set[str] = set()
+    if baseline_payload and isinstance(baseline_payload.get("baseline_dirty_files"), list):
+        baseline_dirty_files = {
+            _norm_path(p) for p in baseline_payload["baseline_dirty_files"]
+            if isinstance(p, str)
+        }
+    # Compute new dirty files since baseline (exclude inherited dirty)
+    new_dirty_files = dirty_files_norm - baseline_dirty_files
+    # Filter to source/test or project_state/ paths
+    files_changed_set = {
+        p for p in new_dirty_files
+        if _path_is_source_or_test(p) or p.startswith("project_state/")
+    }
+    # Add authorized inherited source/test files (from required_files_changed)
+    # These files are declared as required to be changed in this round and may
+    # be dirty at baseline in multi-session continuations.
+    contract = extract_markdown_json_block(decision_text, "decision_contract")
+    authorized_inherited_source_test: set[str] = set()
+    if contract.get("found") and not contract.get("parse_error"):
+        for path in contract.get("required_files_changed") or []:
+            norm_path = _norm_path(path)
+            if norm_path in dirty_files_norm:
+                files_changed_set.add(norm_path)
+                authorized_inherited_source_test.add(norm_path)
     # Always include report and pytest_result
     files_changed_set |= {"project_state/codex_execution_report.md", "project_state/pytest_result.txt"}
+    # Always include run_closeout_result.json because _refresh_codex_report_for_closeout
+    # is called during run-closeout, and run_closeout_result.json will be written by
+    # the end of the process even if it doesn't exist yet at the time of this refresh.
+    files_changed_set.add(RUN_CLOSEOUT_OUTPUT_PATH)
     # Include gate artifacts that exist on disk in files_changed so the
     # report matches the synthesis expected_files_changed.
     gates_dir = state_dir / "gates"
@@ -7312,7 +7483,10 @@ def _refresh_codex_report_for_closeout(
         (GATE_PROFILE_PLAN_RESULT_NAME, GATE_PROFILE_PLAN_OUTPUT_PATH),
     ]:
         if (gates_dir / artifact_name).exists():
-            files_changed_set.add(artifact_path)
+            # Don't add inherited dirty gate artifacts to files_changed
+            # (they were already dirty at baseline and are not new changes)
+            if _norm_path(artifact_path) not in baseline_dirty_files:
+                files_changed_set.add(artifact_path)
 
     # Compute expected generated_artifacts from gate artifacts that exist
     generated_artifact_set: set[str] = {
@@ -7392,13 +7566,24 @@ def _refresh_codex_report_for_closeout(
         "required_closeout_artifacts": [],
     }
     report_path = state_dir / "codex_execution_report.md"
+    # Generate Required Audit scaffold if the decision has audit items
+    audit_scaffold = generate_required_audit_scaffold(decision_text)
+    report_body = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\n{status}\n"
+    # Add Allowed Inherited Dirty Baseline Files section when there are
+    # authorized dirty baseline files (from required_files_changed).
+    # This satisfies the baseline_inherited_allowlist_explained and
+    # startup_baseline_consistency checks.
+    if authorized_inherited_source_test:
+        report_body += "\n## Allowed Inherited Dirty Baseline Files\n\n"
+        for path in sorted(authorized_inherited_source_test):
+            report_body += f"- {path}\n"
+    if audit_scaffold:
+        report_body += f"\n{audit_scaffold}\n"
     report_path.write_text(
         f"```json codex_report_summary\n"
         f"{json.dumps(payload, ensure_ascii=True, indent=2)}\n"
         f"```\n\n"
-        f"# CODEX_EXECUTION_REPORT\n\n"
-        f"## Status\n\n"
-        f"{status}\n",
+        f"{report_body}",
         encoding="utf-8",
         newline="\n",
     )
@@ -7406,11 +7591,44 @@ def _refresh_codex_report_for_closeout(
     # Also update pytest_result.txt header so tests_ran covers report tests.
     pytest_path = state_dir / "pytest_result.txt"
     if pytest_path.exists():
-        _update_pytest_result_header_tests_ran(pytest_path, tests_ran)
+        _update_pytest_result_header_tests_ran(pytest_path, tests_ran, status=status)
+
+    # Recompute report summary synthesis to ensure it matches the refreshed
+    # report.  This is critical because the report status/files_changed may
+    # change after final-check updates final_gate_result.json, and the
+    # synthesis must be up-to-date for subsequent final-check runs (e.g.,
+    # inside close-round and final-check-after-close).
+    try:
+        build_report_summary_synthesis(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            write_result=True,
+        )
+    except Exception:
+        pass
 
 
-def _update_pytest_result_header_tests_ran(pytest_path: Path, tests_ran: list[str]) -> None:
-    """Update the tests_ran field in the pytest_result.txt header JSON."""
+def _report_status_to_pytest_status(report_status: str) -> str:
+    """Map a codex_report_summary status to a valid pytest_result_summary status."""
+    mapping = {
+        "SUCCESS": "PASSED",
+        "ACCEPTED_WITH_LIMITATIONS": "PASSED",
+        "FAILED": "FAILED",
+        "PARTIAL": "PARTIAL",
+        "BLOCKED": "UNKNOWN",
+        "TEMPLATE_ONLY": "UNKNOWN",
+        "UNKNOWN": "UNKNOWN",
+    }
+    return mapping.get(str(report_status or "").upper(), "UNKNOWN")
+
+
+def _update_pytest_result_header_tests_ran(
+    pytest_path: Path,
+    tests_ran: list[str],
+    *,
+    status: str | None = None,
+) -> None:
+    """Update the tests_ran (and optionally status) field in the pytest_result.txt header JSON."""
     import re
     text = pytest_path.read_text(encoding="utf-8")
     header_match = re.search(r"```json\s+pytest_result_summary\s*\n(.*?)\n```", text, re.DOTALL)
@@ -7421,6 +7639,8 @@ def _update_pytest_result_header_tests_ran(pytest_path: Path, tests_ran: list[st
     except (json.JSONDecodeError, ValueError):
         return
     header["tests_ran"] = tests_ran
+    if status is not None:
+        header["status"] = _report_status_to_pytest_status(status)
     header_json = json.dumps(header, ensure_ascii=True, indent=2)
     new_text = text[:header_match.start(1)] + header_json + text[header_match.end(1):]
     pytest_path.write_text(new_text, encoding="utf-8", newline="\n")
@@ -7576,6 +7796,17 @@ def run_closeout(
 
         # Close-round: call close_round() directly so it owns its command block
         if is_close_round:
+            # Remove any stale round archive from a previous failed close-round
+            # attempt before close_round() runs.  close_round() checks if the
+            # archived copies match the live copies; if a stale archive exists
+            # with a different manifest, archive_round() refuses to overwrite
+            # it (FileExistsError).  By removing the stale archive here, we
+            # ensure close_round() creates a fresh archive from the current
+            # live report/pytest.
+            _archive_dir = state_dir / "rounds" / requested_round_id
+            if _archive_dir.exists():
+                import shutil as _shutil
+                _shutil.rmtree(_archive_dir)
             close_round_result = close_round(
                 state_dir=state_dir,
                 round_id=requested_round_id,
@@ -7716,10 +7947,9 @@ def run_closeout(
             round_id=requested_round_id,
             include_close_snapshot=True,
         )
-        # Re-copy refreshed files to the round archive so that
-        # archived_pytest_result_matches_live_pytest_result and
-        # archived_report_matches_live_report stay consistent after
-        # the after-close refresh modified the live copies.
+        # Re-copy refreshed report/pytest to the round archive BEFORE
+        # running final-check-after-close so that the archived copies
+        # match the live copies when the check runs.
         _archive_dir = state_dir / "rounds" / requested_round_id
         if _archive_dir.exists():
             import shutil as _shutil
@@ -7758,6 +7988,25 @@ def run_closeout(
                 blocking_reasons.append(
                     f"step final-check-after-close exited {fc_exit_code}, expected {expected}"
                 )
+        # Refresh report again after final-check-after-close to pick up the
+        # regenerated final_gate_result.json and ensure tests_ran/status are
+        # current.  Then re-copy refreshed files to the round archive so that
+        # archived_pytest_result_matches_live_pytest_result and
+        # archived_report_matches_live_report stay consistent after the
+        # after-close refresh and final-check-after-close modified the live copies.
+        _refresh_codex_report_for_closeout(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            decision_id=decision_id,
+            round_id=requested_round_id,
+            include_close_snapshot=True,
+        )
+        if _archive_dir.exists():
+            import shutil as _shutil
+            for _name in ("codex_execution_report.md", "pytest_result.txt"):
+                _src = state_dir / _name
+                if _src.exists():
+                    _shutil.copy2(_src, _archive_dir / _name)
 
     # 8. Determine status
     closeout_status = _run_closeout_status(
