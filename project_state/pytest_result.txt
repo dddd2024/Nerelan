@@ -5,16 +5,12 @@
   "report_id": "codex_report_20260620_command_plan_recommendation_rework_v1",
   "round_id": "round_20260620_command_plan_recommendation_rework_v1",
   "generated_at": "2026-06-20T14:56:30.816560Z",
-  "status": "PASSED",
+  "status": "FAILED",
   "tests_ran": [
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260620_command_plan_recommendation_rework_v1"
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state"
   ]
 }
 ```
@@ -548,4 +544,493 @@ recommended_next_action: no_action_required
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 final-check: PASSED
 ===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260620_training_capability_gap_matrix_v1 =====
+run-closeout: started for round round_20260620_training_capability_gap_matrix_v1
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate decision-lint --state-dir project_state =====
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "decision_id": "decision_20260620_training_capability_gap_matrix_v1",
+  "decision_status": "APPROVED",
+  "decision_parse_error": null,
+  "mainline": "training_dataset",
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ],
+  "parsed_skill_profiles": [
+    {
+      "profile": "reverse-agent-iteration@v2",
+      "skill_name": "reverse-agent-iteration",
+      "version": 2,
+      "draft": false,
+      "registry_status": "active",
+      "registry_scope": "generic_workflow",
+      "registry_version": 2
+    }
+  ],
+  "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
+  "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "current_state_build_id": "state_20260618_134029_d6bd033d2532",
+  "current_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "execution_scope": "decision_packet_controls_current_round",
+  "active_decision_packet": "project_state/decision_packet.md"
+}
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
+preflight: PASSED
+===== EXIT: 0 =====
+
+===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 30%]
+........................................................................ [ 38%]
+........................................................................ [ 46%]
+........................................................................ [ 53%]
+........................................................................ [ 61%]
+........................................................................ [ 69%]
+........................................................................ [ 76%]
+........................................................................ [ 84%]
+........................................................................ [ 92%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+938 passed in 106.15s (0:01:46)
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state =====
+{
+  "schema_version": 1,
+  "gate_name": "gate-profile",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260620_training_capability_gap_matrix_v1",
+  "round_id": "round_20260620_training_capability_gap_matrix_v1",
+  "mainline": "training_dataset",
+  "generated_at": "2026-06-20T15:29:22.493818Z",
+  "profile": "fast",
+  "profile_reason": "artifact-only cleanup does not require close-round",
+  "risk_reasons": [],
+  "closeout_allowed": false,
+  "required_command_kinds": [
+    "startup",
+    "preflight",
+    "command-plan",
+    "report-summary",
+    "final-check"
+  ],
+  "reasons": [
+    "decision scope has no source/test or gate/project_state changes"
+  ],
+  "suggested_commands": [
+    {
+      "index": 1,
+      "command": "startup path checks",
+      "phase": "status",
+      "kind": "startup"
+    },
+    {
+      "index": 2,
+      "command": "preflight",
+      "phase": "preflight",
+      "kind": "preflight"
+    },
+    {
+      "index": 3,
+      "command": "command-plan",
+      "phase": "gate",
+      "kind": "command-plan"
+    },
+    {
+      "index": 4,
+      "command": "report-summary",
+      "phase": "gate",
+      "kind": "report-summary"
+    },
+    {
+      "index": 5,
+      "command": "final-check",
+      "phase": "gate",
+      "kind": "final-check"
+    }
+  ],
+  "future_phases": []
+}
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
+command-plan: PASSED
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
+{
+  "schema_version": 1,
+  "plan_name": "command-plan",
+  "plan_status": "PASSED",
+  "decision_id": "decision_20260620_training_capability_gap_matrix_v1",
+  "round_id": "round_20260620_training_capability_gap_matrix_v1",
+  "mainline": "training_dataset",
+  "generated_at": "2026-06-20T15:29:22.502303Z",
+  "profile_meta": {
+    "profile": "fast",
+    "profile_reason": "artifact-only cleanup does not require close-round",
+    "closeout_allowed": false,
+    "required_command_kinds": [
+      "startup",
+      "preflight",
+      "command-plan",
+      "report-summary",
+      "final-check"
+    ]
+  },
+  "omitted_commands": [
+    {
+      "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
+      "kind": "decision-lint",
+      "reason": "omitted by fast profile: decision-lint not in required_command_kinds"
+    },
+    {
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "reason": "omitted by fast profile: pytest not in required_command_kinds"
+    },
+    {
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260620_training_capability_gap_matrix_v1",
+      "kind": "run-closeout",
+      "reason": "omitted by fast profile: run-closeout not in required_command_kinds"
+    },
+    {
+      "command": null,
+      "kind": "close-round",
+      "reason": "omitted by fast profile: closeout not allowed"
+    }
+  ],
+  "commands": [
+    {
+      "index": 1,
+      "command": "Set-Location F:\\reverse-agent",
+      "phase": "status",
+      "kind": "set-location",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "set-location expected to exit 0"
+    },
+    {
+      "index": 2,
+      "command": "Get-Location",
+      "phase": "status",
+      "kind": "pwd",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pwd expected to exit 0"
+    },
+    {
+      "index": 3,
+      "command": "Test-Path F:\\reverse-agent",
+      "phase": "status",
+      "kind": "test-path",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "test-path expected to exit 0"
+    },
+    {
+      "index": 4,
+      "command": "git rev-parse --show-toplevel",
+      "phase": "status",
+      "kind": "git rev-parse",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "git rev-parse expected to exit 0"
+    },
+    {
+      "index": 5,
+      "command": "git status --short",
+      "phase": "status",
+      "kind": "git status",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "git status expected to exit 0"
+    },
+    {
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "phase": "preflight",
+      "kind": "preflight",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "preflight expected to exit 0"
+    },
+    {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "phase": "gate",
+      "kind": "report-summary",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    }
+  ],
+  "warnings": [],
+  "blocking_reasons": [],
+  "recommended_next_action": "record_and_follow_command_plan_manually"
+}
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
+{
+  "schema_version": 1,
+  "artifact_name": "report_summary_synthesis.json",
+  "gate_name": "report-summary",
+  "synthesis_status": "FAILED",
+  "decision_id": "decision_20260620_training_capability_gap_matrix_v1",
+  "round_id": "round_20260620_training_capability_gap_matrix_v1",
+  "report_id": "codex_report_20260620_training_capability_gap_matrix_v1",
+  "generated_at": "2026-06-20T15:29:22.974114Z",
+  "synthesized_summary": {
+    "report_id": "codex_report_20260620_training_capability_gap_matrix_v1",
+    "round_id": "round_20260620_training_capability_gap_matrix_v1",
+    "based_on_decision_id": "decision_20260620_training_capability_gap_matrix_v1",
+    "files_changed": [
+      "project_state/codex_execution_report.md",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
+      "project_state/gates/preflight_result.json",
+      "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_baseline.json",
+      "project_state/gates/round_delta_summary.json",
+      "project_state/local_reverse_next_static_triage_plan.json",
+      "project_state/local_reverse_next_static_triage_plan_report.md",
+      "project_state/local_reverse_training_capability_gap_matrix.json",
+      "project_state/local_reverse_training_capability_gap_matrix_report.md",
+      "project_state/pytest_result.txt"
+    ],
+    "generated_artifacts": [
+      "project_state/codex_execution_report.md",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
+      "project_state/gates/preflight_result.json",
+      "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_baseline.json",
+      "project_state/gates/round_delta_summary.json",
+      "project_state/pytest_result.txt"
+    ],
+    "required_closeout_artifacts": [
+      "project_state/local_reverse_first_static_triage_queue.json",
+      "project_state/local_reverse_first_static_triage_queue_report.md"
+    ],
+    "tests_ran": [
+      "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate final-check --state-dir project_state"
+    ]
+  },
+  "diffs": [
+    {
+      "field": "files_changed",
+      "expected": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_next_static_triage_plan.json",
+        "project_state/local_reverse_next_static_triage_plan_report.md",
+        "project_state/local_reverse_training_capability_gap_matrix.json",
+        "project_state/local_reverse_training_capability_gap_matrix_report.md",
+        "project_state/pytest_result.txt"
+      ],
+      "actual": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_next_static_triage_plan.json",
+        "project_state/local_reverse_next_static_triage_plan_report.md",
+        "project_state/local_reverse_training_capability_gap_matrix.json",
+        "project_state/local_reverse_training_capability_gap_matrix_report.md",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/decision_packet.md",
+        "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/pytest_result.txt",
+        "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/round_manifest.json"
+      ]
+    },
+    {
+      "field": "generated_artifacts",
+      "expected": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt"
+      ],
+      "actual": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/decision_packet.md",
+        "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/pytest_result.txt",
+        "project_state/rounds/round_20260620_training_capability_gap_matrix_v1/round_manifest.json"
+      ]
+    },
+    {
+      "field": "required_closeout_artifacts",
+      "expected": [
+        "project_state/local_reverse_first_static_triage_queue.json",
+        "project_state/local_reverse_first_static_triage_queue_report.md"
+      ],
+      "actual": []
+    }
+  ],
+  "errors": [],
+  "warnings": [
+    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+  ],
+  "non_blocking_warnings": [
+    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+  ],
+  "sources": {
+    "decision_meta": "project_state/decision_packet.md",
+    "command_plan": "project_state/gates/command_plan.json",
+    "round_delta_summary": "project_state/gates/round_delta_summary.json",
+    "final_gate_result": "project_state/gates/final_gate_result.json",
+    "pytest_result": "project_state/pytest_result.txt"
+  }
+}
+===== EXIT: 1 =====
+
+===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
+final-check: FAILED
+===== EXIT: 1 =====
+
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260620_training_capability_gap_matrix_v1 =====
+close-round: FAILED
+decision_id: decision_20260620_training_capability_gap_matrix_v1
+report_id: codex_report_20260620_training_capability_gap_matrix_v1
+round_id: round_20260620_training_capability_gap_matrix_v1
+  [PASS] decision_meta_parse: decision_meta parsed
+  [PASS] decision_approved: decision status is APPROVED
+  [PASS] report_present: codex report summary parsed
+  [PASS] requested_round_id_match: requested round_id matches current decision
+  [PASS] report_decision_match: report is based on current decision
+  [FAIL] pytest_result_match: pytest_result does not match report
+  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
+  [PASS] command_plan_present: command_plan.json is present
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [PASS] startup_command_coverage: pytest_result command blocks cover required startup commands
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
+  [PASS] round_delta_summary_present: round delta summary is baseline-aware
+  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
+  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
+  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
+  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
+  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
+  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
+  [PASS] report_prose_claims_covered_by_files_changed: report prose does not claim source/test changes beyond files_changed
+  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
+  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
+  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
+  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
+  [PASS] build_output_scope: no build-generated state files in round delta
+  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
+  [PASS] forbidden_paths_absent: no forbidden paths detected
+  [PASS] state_package_compact: state package classification is compact or non-blocking
+  [FAIL] gate_profile_closeout_safety: profile fast does not permit close-round (closeout_allowed=false)
+archive_status: not_attempted
+  [BLOCK] pytest_result_match: pytest_result does not match report
+  [BLOCK] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
+  [BLOCK] gate_profile_closeout_safety: profile fast does not permit close-round (closeout_allowed=false)
+recommended_next_action: fix_close_round_failures_before_retry
+===== EXIT: 1 =====
 

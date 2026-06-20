@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "artifact_name": "local_reverse_next_static_triage_plan",
+  "decision_id": "decision_20260620_training_capability_gap_matrix_v1",
+  "round_id": "round_20260620_training_capability_gap_matrix_v1",
+  "generated_at": "2026-06-20T15:35:00Z",
+  "mainline": "training_dataset",
+  "based_on_artifacts": [
+    "project_state/local_reverse_training_capability_gap_matrix.json",
+    "project_state/local_reverse_training_capability_gap_matrix_report.md",
+    "project_state/local_reverse_first_static_triage_queue.json",
+    "project_state/local_reverse_first_static_triage_queue_report.md",
+    "project_state/local_reverse_training_coverage_matrix.json",
+    "project_state/local_reverse_training_status.json",
+    "project_state/local_reverse_inventory.json",
+    "project_state/local_reverse_static_type_tag_contract.json",
+    "project_state/local_reverse_solver_tool_capability_map.json"
+  ],
+  "plan_policy": {
+    "name": "next_static_triage_plan",
+    "max_items": 3,
+    "selection_criteria": "Select at most three queue items justified by current metadata. Do not include blocked-no-sample categories. Selection must be justified by current metadata and must not include blocked-no-sample categories.",
+    "priority_order": [
+      "one string comparison or shift/affine sample to validate the simple static-triage path",
+      "one cipher sample such as RC4 or DES to exercise cipher evidence fields",
+      "one blocked/special case such as hash bounded-domain or lookup-table field support as a planning row only, not solver work"
+    ],
+    "no_runtime_or_tool_execution_this_round": true,
+    "no_solver_work_this_round": true,
+    "forbidden_claims": [
+      "solved",
+      "static_verified",
+      "runtime_validated",
+      "ida_executed",
+      "ghidra_executed",
+      "sample_executed"
+    ]
+  },
+  "non_promotion_safeguard": {
+    "no_samples_executed": true,
+    "no_solvers_executed": true,
+    "no_ida_executed": true,
+    "no_ghidra_executed": true,
+    "no_debugger_executed": true,
+    "no_runtime_probes_executed": true,
+    "no_harness_executed": true,
+    "no_gui_workflows_executed": true,
+    "no_solve_reports_scan": true,
+    "no_sample_marked_solved": true,
+    "no_sample_marked_static_verified": true,
+    "no_sample_marked_runtime_validated": true,
+    "statement": "This plan is a metadata-only planning artifact. It did not execute samples, solvers, IDA, Ghidra, debuggers, emulators, runtime probes, harnesses, or GUI workflows. No sample is marked as solved, static_verified, or runtime_validated. The plan selects items for a later explicitly authorized round."
+  },
+  "selected_items": [
+    {
+      "queue_id": "next_static_triage_string_comparison_001",
+      "type_id": "string_comparison",
+      "sample_id": "cpp2_fc735338",
+      "why_selected": "First inventory_only cpp representative in the current string_comparison coverage row. string_comparison has 35 samples, 1 solved (cpp1_bcbd9979), and 1 needs_triage (cpp1_2f6fcb63) with static_triage_completed evidence. This sample can validate the simple static-triage path for string comparison. Selection is a queue seed only, not evidence that this sample is a verified string compare target.",
+      "required_static_evidence": [
+        "Identify compare function or inline compare that gates success/failure branch.",
+        "Record compare callsite address and operand source from static analysis.",
+        "Identify compared value or producer function from static decompilation or string extraction."
+      ],
+      "existing_route_to_attempt_first": "reverse_agent.local_reverse_single_sample_static_triage with IDA collect_evidence, then reverse_agent.local_reverse_string_solver or reverse_agent.local_reverse_direct_strcmp_handoff after compare callsite is identified.",
+      "expected_output_artifacts": [
+        "project_state/local_reverse_cpp2_fc735338_static_triage.json",
+        "project_state/local_reverse_cpp2_fc735338_static_triage_report.md"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_bruteforce",
+        "claim_static_verified_from_cpp_filename_or_category"
+      ],
+      "stop_condition": "Keep metadata_only if static triage does not identify a concrete compare gate. Do not promote from filename, category, or solver module name alone."
+    },
+    {
+      "queue_id": "next_static_triage_rc4_001",
+      "type_id": "rc4",
+      "sample_id": "rc4enc_a1897c10",
+      "why_selected": "First PE rc4enc target after solver-support scripts in the current RC4 coverage row. RC4 has 8 samples, 0 solved. RC4MaterialEvidence module exists. This sample exercises cipher evidence fields (KSA/PRGA loop, S-box, key material). No static triage has been run on RC4 targets yet. Selection is for a later static cipher profile pass only.",
+      "required_static_evidence": [
+        "Identify RC4 KSA (key scheduling) or PRGA (pseudo-random generation) loop structure.",
+        "Identify RC4 S-box (256-byte state array) initialization from static analysis.",
+        "Identify RC4 key material or key derivation from static decompilation or string extraction."
+      ],
+      "existing_route_to_attempt_first": "reverse_agent.local_reverse_single_sample_static_triage with IDA collect_evidence, then reverse_agent.evidence.RC4MaterialEvidence and reverse_agent.local_reverse_solver_profiles with RC4 profile after KSA/PRGA and key material are identified.",
+      "expected_output_artifacts": [
+        "project_state/local_reverse_rc4enc_a1897c10_static_cipher_profile.json",
+        "project_state/local_reverse_rc4enc_a1897c10_static_cipher_profile_report.md"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_key_search",
+        "claim_static_verified_from_rc4_filename"
+      ],
+      "stop_condition": "Keep metadata_level_unverified if RC4 structure or key source is not statically identified. Do not promote from filename containing 'rc4' alone."
+    },
+    {
+      "queue_id": "next_static_triage_lookup_table_planning_001",
+      "type_id": "lookup_table",
+      "sample_id": "ascii_table_chinese_46efc7ea",
+      "why_selected": "Planning row only, not solver work. lookup_table has tool_evidence_available=false per coverage matrix. Static triage output lacks lookup-table extraction fields. This item records the field-support gap and must not be promoted without adding table detection fields to static triage output first. ascii_table_chinese_46efc7ea is a PDF, not a PE target; a concrete PE target with table access must be identified in a later round.",
+      "required_static_evidence": [
+        "Add lookup-table detection fields to static triage output (tool_integration round required first).",
+        "Identify a concrete PE target sample with table access or array indexing operation.",
+        "Identify table base address and size from static analysis.",
+        "Extract or verify table contents from static analysis."
+      ],
+      "existing_route_to_attempt_first": "No existing route is ready until lookup-table detection fields are added to static triage output. reverse_agent.local_reverse_single_sample_static_triage and reverse_agent.tool_runners (IDA collect_evidence) exist but lack table extraction fields.",
+      "expected_output_artifacts": [
+        "project_state/local_reverse_lookup_table_field_support_plan.json",
+        "project_state/local_reverse_lookup_table_field_support_plan_report.md"
+      ],
+      "forbidden_actions": [
+        "runtime_probe",
+        "sample_runner",
+        "debugger",
+        "harness",
+        "blind_bruteforce",
+        "claim_static_verified_from_table_or_array_filename",
+        "claim_tool_ready_when_tool_evidence_available_is_false",
+        "solver_work_before_field_support_is_added"
+      ],
+      "stop_condition": "Remain blocked_missing_evidence_fields until lookup-table detection fields are added to static triage output and a concrete PE target with table access is identified. This is a planning row only, not solver work."
+    }
+  ],
+  "not_selected_items": [
+    {
+      "type_id": "shift_affine",
+      "reason": "affine_8cfebe03 already has current static triage evidence per artifact_index.json. A later round can select affineenc_333f8ca9 for additional affine/shift static triage if needed, but the simple static-triage path can be validated with string_comparison first."
+    },
+    {
+      "type_id": "des",
+      "reason": "DES is a valid cipher candidate but RC4 was selected to exercise cipher evidence fields first. DES can be selected in a subsequent round."
+    },
+    {
+      "type_id": "hash_md5_sha",
+      "reason": "Blocked by NO_BOUNDED_HASH_PREIMAGE_DOMAIN. Cannot be selected for static triage until bounded input domain evidence is recovered."
+    },
+    {
+      "type_id": "simple_antidebug",
+      "reason": "Valid candidate but lower priority than string comparison and cipher types for the next round. Can be selected in a subsequent round."
+    },
+    {
+      "type_id": "mixed_unknown",
+      "reason": "Valid candidate but requires static triage first to identify the actual transform type. Lower priority than types with known transform categories."
+    },
+    {
+      "type_id": "xor",
+      "reason": "metadata_only: No concrete PE target sample with XOR transform evidence exists. Current sample ids are solver/support Python scripts only."
+    },
+    {
+      "type_id": "tea_xtea",
+      "reason": "blocked_missing_sample: No current sample exists."
+    },
+    {
+      "type_id": "base64",
+      "reason": "blocked_missing_sample: No current sample exists."
+    },
+    {
+      "type_id": "gui_validation",
+      "reason": "blocked_missing_sample: No current sample exists."
+    }
+  ],
+  "limitations": [
+    "This plan is a planning artifact, not a solver result or static triage evidence.",
+    "All selected items remain metadata_only until a later explicitly authorized round produces static triage evidence.",
+    "No sample, solver, harness, IDA, Ghidra, debugger, emulator, runtime probe, sidecar, GUI workflow, or full solve_reports scan was run in this round.",
+    "The lookup_table item is a planning row only; field support must be added before any static triage or solver work.",
+    "Selection is justified by current metadata only; it does not prove that selected samples are verified targets of their type."
+  ]
+}
