@@ -1423,7 +1423,8 @@ def write_pytest_result(
     return path
 
 
-CONSUMED_REPORT_STATUSES = {"SUCCESS", "PARTIAL", "FAILED", "BLOCKED"}
+CONSUMED_REPORT_STATUSES = {"SUCCESS", "ACCEPTED_WITH_LIMITATIONS"}
+CONSUMED_ACCEPTANCE_RECOMMENDATIONS = {"ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
 
 
 def _build_handoff_consistency(
@@ -1449,7 +1450,11 @@ def _build_handoff_consistency(
         and decision_status not in {"TEMPLATE_ONLY", "UNKNOWN"}
         and report_status not in {"TEMPLATE_ONLY", "UNKNOWN"}
     )
-    decision_consumed_by_report = decision_report_id_match and report_status in CONSUMED_REPORT_STATUSES
+    report_acceptance = str(codex_report.get("acceptance_recommendation") or "")
+    decision_consumed_by_report = decision_report_id_match and (
+        report_status in CONSUMED_REPORT_STATUSES
+        or report_acceptance in CONSUMED_ACCEPTANCE_RECOMMENDATIONS
+    )
     if decision_status in {"TEMPLATE_ONLY", "UNKNOWN"} or not decision_id:
         decision_execution_state = "TEMPLATE_OR_UNKNOWN"
     elif decision_status == "APPROVED" and decision_report_id_match and report_status == "SUCCESS":

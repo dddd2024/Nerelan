@@ -2838,6 +2838,37 @@ def test_preflight_blocks_consumed_decision(tmp_path: Path) -> None:
     assert _check(result, "decision_not_consumed_by_report")["status"] == "FAIL"
 
 
+@pytest.mark.parametrize(
+    "report_status,acceptance",
+    [
+        ("BLOCKED", "BLOCKED"),
+        ("PARTIAL", "REWORK_REQUIRED"),
+        ("FAILED", "REWORK_REQUIRED"),
+        ("BLOCKED", "REWORK_REQUIRED"),
+    ],
+)
+def test_preflight_allows_reentry_for_incomplete_report(
+    tmp_path: Path,
+    report_status: str,
+    acceptance: str,
+) -> None:
+    state_dir = _make_preflight_state(tmp_path)
+    _write_report(
+        state_dir,
+        decision_id="decision_preflight",
+        report_id="report_preflight",
+        round_id="round_preflight",
+        status=report_status,
+        acceptance=acceptance,
+        generated_artifacts=["project_state/gates/preflight_result.json"],
+    )
+    _write_pytest(state_dir, decision_id="decision_preflight", report_id="report_preflight", round_id="round_preflight")
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert _check(result, "decision_not_consumed_by_report")["status"] == "PASS"
+
+
 def test_preflight_fails_when_allowed_scope_includes_forbidden_path(tmp_path: Path) -> None:
     scope = """Allowed source files:
 
@@ -13756,8 +13787,8 @@ def _make_run_closeout_state(
         decision_id=decision_id,
         report_id=report_id,
         round_id=round_id,
-        status="SUCCESS",
-        acceptance="ACCEPTED",
+        status="BLOCKED",
+        acceptance="REWORK_REQUIRED",
         files_changed=[
             "reverse_agent/project_gate.py",
             "tests/test_project_gate.py",
@@ -13960,7 +13991,7 @@ def test_run_closeout_failure_stops_on_preflight_failure(tmp_path: Path, monkeyp
         return {
             "schema_version": 1,
             "gate_name": "preflight",
-            "preflight_status": "BLOCKED",
+            "gate_status": "BLOCKED",
             "blocking_reasons": ["preflight failed for test"],
         }
     monkeypatch.setattr("reverse_agent.project_gate.preflight", fake_preflight)
@@ -14349,8 +14380,8 @@ def test_run_closeout_stale_report_id_replaced(tmp_path: Path, monkeypatch: pyte
         decision_id="decision_closeout",
         report_id="codex_report_round_closeout",
         round_id="round_closeout",
-        status="SUCCESS",
-        acceptance="ACCEPTED",
+        status="BLOCKED",
+        acceptance="REWORK_REQUIRED",
     )
     monkeypatch.setattr(
         "reverse_agent.project_gate._git_changed_files",

@@ -5592,7 +5592,7 @@ def test_status_summary_decision_consumed_by_success_report_when_digest_stale_bu
 
 
 @pytest.mark.parametrize("report_status", ["PARTIAL", "FAILED", "BLOCKED"])
-def test_status_summary_decision_consumed_by_non_success_report_when_digest_stale_but_report_matches(
+def test_status_summary_decision_not_consumed_by_non_success_report_when_digest_stale_but_report_matches(
     tmp_path: Path,
     report_status: str,
 ) -> None:
@@ -5616,7 +5616,7 @@ def test_status_summary_decision_consumed_by_non_success_report_when_digest_stal
     summary = status_summary(state_dir=state_dir)
 
     assert summary["decision_state_digest_match"] is False
-    assert summary["decision_consumed_by_report"] is True
+    assert summary["decision_consumed_by_report"] is False
     assert summary["decision_execution_state"] == "CONSUMED_BY_NON_SUCCESS_REPORT"
     assert summary["decision_ready_for_execution"] is False
 

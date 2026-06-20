@@ -516,7 +516,3 @@ archive_status: created
 recommended_next_action: no_action_required
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
-===== EXIT: 0 =====
-

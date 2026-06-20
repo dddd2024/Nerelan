@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "artifact_name": "report_summary_synthesis.json",
+  "gate_name": "report-summary",
+  "synthesis_status": "PASSED",
+  "decision_id": "decision_20260620_run_closeout_reentry_unblock_v1",
+  "round_id": "round_20260620_run_closeout_reentry_unblock_v1",
+  "report_id": "codex_report_20260620_run_closeout_reentry_unblock_v1",
+  "generated_at": "2026-06-20T07:50:16.289067Z",
+  "synthesized_summary": {
+    "report_id": "codex_report_20260620_run_closeout_reentry_unblock_v1",
+    "round_id": "round_20260620_run_closeout_reentry_unblock_v1",
+    "based_on_decision_id": "decision_20260620_run_closeout_reentry_unblock_v1",
+    "files_changed": [
+      "project_state/codex_execution_report.md",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
+      "project_state/gates/preflight_result.json",
+      "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_baseline.json",
+      "project_state/gates/round_close_snapshot.json",
+      "project_state/gates/round_delta_summary.json",
+      "project_state/gates/run_closeout_result.json",
+      "project_state/pytest_result.txt",
+      "project_state/rounds/round_20260620_run_closeout_reentry_unblock_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260620_run_closeout_reentry_unblock_v1/decision_packet.md",
+      "project_state/rounds/round_20260620_run_closeout_reentry_unblock_v1/pytest_result.txt",
+      "project_state/rounds/round_20260620_run_closeout_reentry_unblock_v1/round_manifest.json",
+      "reverse_agent/project_gate.py",
+      "reverse_agent/project_state.py",
+      "tests/test_project_gate.py",
+      "tests/test_project_state.py"
+    ],
+    "generated_artifacts": [
+      "project_state/codex_execution_report.md",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
+      "project_state/gates/preflight_result.json",
+      "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_baseline.json",
+      "project_state/gates/round_close_snapshot.json",
+      "project_state/gates/round_delta_summary.json",
+      "project_state/pytest_result.txt",
+      "project_state/rounds/round_20260620_run_closeout_reentry_unblock_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260620_run_closeout_reentry_unblock_v1/decision_packet.md",
+      "project_state/rounds/round_20260620_run_closeout_reentry_unblock_v1/pytest_result.txt",
+      "project_state/rounds/round_20260620_run_closeout_reentry_unblock_v1/round_manifest.json"
+    ],
+    "tests_ran": [
+      "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260620_run_closeout_reentry_unblock_v1",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate final-check --state-dir project_state"
+    ],
+    "status": "SUCCESS",
+    "acceptance_recommendation": "ACCEPTED",
+    "external_state_notices": [
+      "50 missing historical sample artifacts"
+    ]
+  },
+  "diffs": [],
+  "errors": [],
+  "warnings": [],
+  "non_blocking_warnings": [],
+  "sources": {
+    "decision_meta": "project_state/decision_packet.md",
+    "command_plan": "project_state/gates/command_plan.json",
+    "round_delta_summary": "project_state/gates/round_delta_summary.json",
+    "final_gate_result": "project_state/gates/final_gate_result.json",
+    "pytest_result": "project_state/pytest_result.txt"
+  }
+}
