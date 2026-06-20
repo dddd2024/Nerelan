@@ -26,7 +26,7 @@ python -m reverse_agent.project_gate run-closeout --state-dir project_state --ro
 9. `close-round`
 10. `final-check` (after close)
 
-When the active decision is APPROVED, closeout is allowed by the gate profile, and the mainline supports `run-closeout`, `command-plan` recommends the `run-closeout` command as the preferred next action.
+When the active decision is APPROVED, closeout is allowed by the gate profile, and the mainline supports `run-closeout`, `command-plan` recommends the `run-closeout` command as the preferred next action. The Do Not Do section is analyzed at line level: only lines that explicitly prohibit running `run-closeout` (e.g. "Do not run run-closeout") suppress the recommendation. Mentions of `run-closeout` in other contexts (e.g. "Do not replace run-closeout with a workflow engine") do not suppress it.
 
 ## Manual Fallback
 
@@ -35,9 +35,13 @@ Manual command-plan execution remains as a fallback when:
 - `run-closeout` is not supported for the mainline.
 - Closeout is not allowed by the gate profile.
 - Decision metadata is invalid or missing.
-- The decision explicitly prohibits `run-closeout`.
+- The decision explicitly prohibits running `run-closeout` (line-level negation patterns: "do not run", "do not use", "do not execute", "do not call", "do not invoke" followed by `run-closeout`).
 
 In these cases, `command-plan` recommends `record_and_follow_command_plan_manually`.
+
+## Final-Check Enforcement
+
+When a decision requires `run-closeout` recommendation (approved engineering round with closeout allowed), `final-check` verifies that `command_plan.json` contains `run-closeout` and the active `round_id` in `recommended_next_action`. If the recommendation is still `record_and_follow_command_plan_manually` or omits the round id, `final-check` fails with check `command_plan_recommends_run_closeout`.
 
 ## Evidence Artifacts
 

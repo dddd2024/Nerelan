@@ -819,6 +819,7 @@ def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
             or lowered.startswith("禁止")
             or lowered.startswith("do not modify")
             or lowered.startswith("do not change")
+            or lowered.startswith("required")
         ):
             active = False
             continue
@@ -5481,6 +5482,46 @@ def final_check(
         )
     )
 
+    # Command-plan recommendation check: when the decision_contract
+    # explicitly requires run-closeout (via required_command_fragments),
+    # the saved command_plan.json must recommend the canonical run-closeout
+    # command, not manual fallback.
+    _cp_payload = _read_json(state_dir / "gates" / "command_plan.json")
+    _cp_recommended = str(_cp_payload.get("recommended_next_action") or "") if _cp_payload else ""
+    _decision_contract_fc = read_decision_contract(state_dir)
+    _required_fragments_fc = (
+        list(_decision_contract_fc.get("required_command_fragments") or [])
+        if _decision_contract_fc
+        else []
+    )
+    _run_closeout_required = any(
+        "run-closeout" in str(frag).lower()
+        for frag in _required_fragments_fc
+    )
+    if _run_closeout_required:
+        _cp_has_run_closeout = "run-closeout" in _cp_recommended
+        _cp_has_round_id = decision_round_id in _cp_recommended
+        _cp_ok = _cp_has_run_closeout and _cp_has_round_id
+        checks.append(
+            _check(
+                "command_plan_recommends_run_closeout",
+                "PASS" if _cp_ok else "FAIL",
+                (
+                    "command_plan.json recommends run-closeout for this round"
+                    if _cp_ok
+                    else f"command_plan.json recommended_next_action is '{_cp_recommended}' but should contain 'run-closeout' and round_id '{decision_round_id}'"
+                ),
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "command_plan_recommends_run_closeout",
+                "PASS",
+                "run-closeout not required by decision_contract (manual fallback is acceptable)",
+            )
+        )
+
     status_errors: list[str] = []
     status_warnings: list[str] = []
     if not lint_result.get("ok"):
@@ -6629,6 +6670,37 @@ def _command_expected_exit_codes(
     return [0], f"{kind} expected to exit 0", None
 
 
+def _do_not_do_prohibits_run_closeout(do_not_do_section: str) -> bool:
+    """Check if the Do Not Do section explicitly prohibits running run-closeout.
+
+    This uses line-level analysis to avoid false positives from phrases like
+    "do not replace run-closeout with a workflow engine" which mention
+    run-closeout but do not prohibit running it.  A line prohibits running
+    run-closeout when it starts with a negation pattern (``do not run``,
+    ``do not use``, ``do not execute``, ``do not call``) followed by
+    ``run-closeout``.
+    """
+    lowered = do_not_do_section.lower()
+    for line in lowered.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Match lines that explicitly prohibit running run-closeout.
+        # Patterns: "do not run run-closeout", "do not use run-closeout",
+        # "do not execute run-closeout", "do not call run-closeout".
+        _NEGATION_PREFIXES = (
+            "do not run ",
+            "do not use ",
+            "do not execute ",
+            "do not call ",
+            "do not invoke ",
+        )
+        for prefix in _NEGATION_PREFIXES:
+            if stripped.startswith(prefix) and "run-closeout" in stripped:
+                return True
+    return False
+
+
 def _command_plan_recommended_next_action(
     plan_status: str,
     *,
@@ -6658,9 +6730,12 @@ def _command_plan_recommended_next_action(
         and mainline in _SUPPORTED_MAINLINES
         and round_id
     ):
-        # Check if the decision explicitly prohibits run-closeout.
+        # Check if the decision explicitly prohibits running run-closeout.
+        # Use line-level analysis to avoid false positives from phrases like
+        # "do not replace run-closeout with a workflow engine" which mention
+        # run-closeout but do not prohibit running it.
         do_not_do_section = _markdown_section(decision_text, "Do Not Do")
-        if do_not_do_section and "run-closeout" in do_not_do_section.lower():
+        if do_not_do_section and _do_not_do_prohibits_run_closeout(do_not_do_section):
             return "record_and_follow_command_plan_manually"
         return (
             f"python -m reverse_agent.project_gate run-closeout "
@@ -6734,7 +6809,6 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
                     if (
                         "project_state" in cmd_lower
                         and " build" in cmd_lower
-                        and "python -m reverse_agent.project_state build" in cmd_lower
                     ):
                         continue
                     filtered.append(cmd)
@@ -7696,20 +7770,20 @@ def _refresh_codex_report_for_closeout(
                 authorized_inherited_source_test.add(norm_path)
     # Always include report and pytest_result
     files_changed_set |= {"project_state/codex_execution_report.md", "project_state/pytest_result.txt"}
-    # Always include run_closeout_result.json because _refresh_codex_report_for_closeout
-    # is called during run-closeout, and run_closeout_result.json will be written by
-    # the end of the process even if it doesn't exist yet at the time of this refresh.
-    files_changed_set.add(RUN_CLOSEOUT_OUTPUT_PATH)
-    # Note: SELF_OUTPUT_PATH (final_gate_result.json) is NOT added to
-    # files_changed here because the synthesis (build_report_summary_synthesis)
-    # only includes it in expected_files_changed when it appears in the git
-    # diff.  Adding it unconditionally would cause a report/synthesis mismatch.
-    # It IS included in generated_artifacts below.
+    # Note: RUN_CLOSEOUT_OUTPUT_PATH is NOT added to files_changed because
+    # the synthesis (build_report_summary_synthesis) does not include it in
+    # expected_files_changed.  It is a gate artifact but not a report-level
+    # changed file.
+    # SELF_OUTPUT_PATH (final_gate_result.json) MUST be added to files_changed
+    # because _build_round_delta_summary adds it to final_dirty_files (and thus
+    # new_dirty_files_since_baseline) when write_result=True.  The synthesis
+    # therefore includes it in expected_files_changed.  _git_changed_files
+    # excludes it from the raw git diff, so it must be added explicitly here.
+    files_changed_set.add(SELF_OUTPUT_PATH)
     # Include gate artifacts that exist on disk in files_changed so the
     # report matches the synthesis expected_files_changed.
     gates_dir = state_dir / "gates"
     for artifact_name, artifact_path in [
-        (FINAL_GATE_RESULT_NAME, SELF_OUTPUT_PATH),
         (REPORT_SUMMARY_RESULT_NAME, REPORT_SUMMARY_OUTPUT_PATH),
         (ROUND_DELTA_SUMMARY_NAME, ROUND_DELTA_OUTPUT_PATH),
         (ROUND_BASELINE_RESULT_NAME, ROUND_BASELINE_OUTPUT_PATH),
@@ -7718,9 +7792,13 @@ def _refresh_codex_report_for_closeout(
         (GATE_PROFILE_PLAN_RESULT_NAME, GATE_PROFILE_PLAN_OUTPUT_PATH),
     ]:
         if (gates_dir / artifact_name).exists():
-            # Don't add inherited dirty gate artifacts to files_changed
-            # (they were already dirty at baseline and are not new changes)
-            if _norm_path(artifact_path) not in baseline_dirty_files:
+            # REPORT_SUMMARY_OUTPUT_PATH is always included in files_changed
+            # because the synthesis always adds it via {REPORT_SUMMARY_OUTPUT_PATH}.
+            # Other gate artifacts are only included if not inherited dirty.
+            if (
+                artifact_path == REPORT_SUMMARY_OUTPUT_PATH
+                or _norm_path(artifact_path) not in baseline_dirty_files
+            ):
                 files_changed_set.add(artifact_path)
 
     # Compute expected generated_artifacts from gate artifacts that exist

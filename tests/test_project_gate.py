@@ -15156,3 +15156,298 @@ def test_required_audit_validation_remains_active_for_success(tmp_path: Path) ->
     placeholders = _required_audit_placeholder_items(substantive)
     assert len(placeholders) == 0
 
+
+# ---------------------------------------------------------------------------
+# Regression: _do_not_do_prohibits_run_closeout line-level analysis
+# ---------------------------------------------------------------------------
+
+
+def test_do_not_do_prohibits_run_closeout_explicit_prohibition() -> None:
+    """Lines that explicitly prohibit running run-closeout are detected."""
+    from reverse_agent.project_gate import _do_not_do_prohibits_run_closeout
+
+    assert _do_not_do_prohibits_run_closeout("Do not run run-closeout for this round.")
+    assert _do_not_do_prohibits_run_closeout("Do not use run-closeout.")
+    assert _do_not_do_prohibits_run_closeout("Do not execute run-closeout.")
+    assert _do_not_do_prohibits_run_closeout("Do not call run-closeout.")
+    assert _do_not_do_prohibits_run_closeout("Do not invoke run-closeout.")
+
+
+def test_do_not_do_prohibits_run_closeout_false_positive_avoided() -> None:
+    """Lines that mention run-closeout but don't prohibit running it are not detected."""
+    from reverse_agent.project_gate import _do_not_do_prohibits_run_closeout
+
+    assert not _do_not_do_prohibits_run_closeout(
+        "Do not replace run-closeout with a workflow engine."
+    )
+    assert not _do_not_do_prohibits_run_closeout(
+        "run-closeout is the default closeout command."
+    )
+    assert not _do_not_do_prohibits_run_closeout("")
+
+
+def test_command_plan_recommends_run_closeout_with_do_not_do_mention(
+    tmp_path: Path,
+) -> None:
+    """Feature A: command-plan recommends run-closeout even when Do Not Do
+    section mentions run-closeout in a non-prohibiting context."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py -q
+""",
+        extra_text="""
+## 3. Do Not Do
+
+Do not replace run-closeout with a workflow engine.
+Do not add a daemon or scheduler.
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    action = result["recommended_next_action"]
+    assert "run-closeout" in action
+    assert "round_command_plan" in action
+
+
+def test_command_plan_manual_fallback_when_do_not_do_prohibits_run_closeout(
+    tmp_path: Path,
+) -> None:
+    """Feature A: command-plan keeps manual fallback when Do Not Do section
+    explicitly prohibits running run-closeout."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py -q
+""",
+        extra_text="""
+## 3. Do Not Do
+
+Do not run run-closeout for this round.
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert result["recommended_next_action"] == "record_and_follow_command_plan_manually"
+
+
+def test_command_plan_json_and_saved_file_agree(tmp_path: Path) -> None:
+    """Feature: command-plan --json stdout and saved command_plan.json agree
+    on recommended_next_action."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py -q
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+
+    result = command_plan(state_dir=state_dir, write_result=True)
+
+    saved = json.loads((gates_dir / "command_plan.json").read_text())
+    assert saved["recommended_next_action"] == result["recommended_next_action"]
+    assert "run-closeout" in saved["recommended_next_action"]
+
+
+def test_final_check_fails_when_recommendation_is_manual_but_run_closeout_required(
+    tmp_path: Path,
+) -> None:
+    """Feature: final-check fails when command_plan.json recommends manual
+    fallback but the decision requires run-closeout."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+        extra_text="""
+```json decision_contract
+{
+  "required_command_fragments": [
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_command_plan"
+  ]
+}
+```
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+    # Write a command_plan.json with manual fallback (simulating the bug)
+    _write_json(gates_dir / "command_plan.json", {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "recommended_next_action": "record_and_follow_command_plan_manually",
+        "commands": [],
+        "warnings": [],
+        "blocking_reasons": [],
+    })
+
+    result = final_check(state_dir=state_dir, write_result=False)
+
+    checks = result.get("checks", [])
+    cp_check = next(
+        (c for c in checks if c.get("name") == "command_plan_recommends_run_closeout"),
+        None,
+    )
+    assert cp_check is not None
+    assert cp_check["status"] == "FAIL"
+
+
+def test_final_check_passes_when_recommendation_is_run_closeout(
+    tmp_path: Path,
+) -> None:
+    """Feature: final-check passes when command_plan.json recommends
+    run-closeout for a round that requires it."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+        extra_text="""
+```json decision_contract
+{
+  "required_command_fragments": [
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_command_plan"
+  ]
+}
+```
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+    _write_json(gates_dir / "command_plan.json", {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "recommended_next_action": (
+            "python -m reverse_agent.project_gate run-closeout "
+            "--state-dir project_state --round-id round_command_plan"
+        ),
+        "commands": [],
+        "warnings": [],
+        "blocking_reasons": [],
+    })
+
+    result = final_check(state_dir=state_dir, write_result=False)
+
+    checks = result.get("checks", [])
+    cp_check = next(
+        (c for c in checks if c.get("name") == "command_plan_recommends_run_closeout"),
+        None,
+    )
+    assert cp_check is not None
+    assert cp_check["status"] == "PASS"
+
+
+def test_final_check_passes_when_run_closeout_not_required(tmp_path: Path) -> None:
+    """Feature: final-check passes command_plan_recommends_run_closeout when
+    run-closeout is not required (e.g. closeout not allowed)."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "fast",
+        "profile_reason": "test fixture",
+        "closeout_allowed": False,
+        "required_command_kinds": ["startup", "preflight"],
+    })
+    _write_json(gates_dir / "command_plan.json", {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "recommended_next_action": "record_and_follow_command_plan_manually",
+        "commands": [],
+        "warnings": [],
+        "blocking_reasons": [],
+    })
+
+    result = final_check(state_dir=state_dir, write_result=False)
+
+    checks = result.get("checks", [])
+    cp_check = next(
+        (c for c in checks if c.get("name") == "command_plan_recommends_run_closeout"),
+        None,
+    )
+    assert cp_check is not None
+    assert cp_check["status"] == "PASS"
+
