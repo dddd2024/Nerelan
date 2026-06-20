@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260620_required_audit_answer_validation_v1",
-  "round_id": "round_20260620_required_audit_answer_validation_v1",
+  "decision_id": "decision_20260620_run_closeout_usage_solidification_v1",
+  "round_id": "round_20260620_run_closeout_usage_solidification_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-20T12:05:11.948333Z",
+  "generated_at": "2026-06-20T12:38:37.366830Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260620_required_audit_answer_validation_v1"
+      "report_id": "codex_report_20260620_run_closeout_usage_solidification_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,10 +71,12 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "README.md",
+        "docs/run_closeout.md",
         "project_state/codex_execution_report.md",
         "project_state/gates/*.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/*",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/*",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_gate.py",
@@ -116,6 +118,8 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
+        "README.md",
+        "docs/run_closeout.md",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -128,7 +132,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "28b7057c8f09"
+    "head_commit": "26805533fe21"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

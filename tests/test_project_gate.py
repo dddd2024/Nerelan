@@ -14920,3 +14920,239 @@ def test_is_required_audit_placeholder_detects_known_markers() -> None:
     assert not _is_required_audit_placeholder("ANSWERED")
     assert not _is_required_audit_placeholder("the check parses the section and validates answers")
 
+
+# ---------------------------------------------------------------------------
+# Feature A: command-plan recommends run-closeout for approved engineering
+# decisions with closeout allowed.
+# ---------------------------------------------------------------------------
+
+
+def test_command_plan_recommends_run_closeout_for_approved_engineering_decision(
+    tmp_path: Path,
+) -> None:
+    """Feature A: command-plan recommends run-closeout when decision is APPROVED
+    and closeout is allowed."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    action = result["recommended_next_action"]
+    assert "run-closeout" in action
+    assert "round_command_plan" in action
+
+
+def test_command_plan_keeps_manual_fallback_when_closeout_not_allowed(
+    tmp_path: Path,
+) -> None:
+    """Feature A: command-plan keeps manual fallback when closeout is not allowed."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py -q
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "fast",
+        "profile_reason": "test fixture",
+        "closeout_allowed": False,
+        "required_command_kinds": ["startup", "preflight"],
+    })
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert result["recommended_next_action"] == "record_and_follow_command_plan_manually"
+
+
+def test_command_plan_keeps_manual_fallback_when_decision_not_approved(
+    tmp_path: Path,
+) -> None:
+    """Feature A: command-plan keeps manual fallback when decision is not APPROVED."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+    )
+    # Override decision status to DRAFT
+    decision_text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    decision_text = decision_text.replace('"status": "APPROVED"', '"status": "DRAFT"')
+    (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["recommended_next_action"] == "record_and_follow_command_plan_manually"
+
+
+# ---------------------------------------------------------------------------
+# Feature B: forbidden live build recommendation guard.
+# ---------------------------------------------------------------------------
+
+
+def test_command_plan_filters_forbidden_live_build_command(tmp_path: Path) -> None:
+    """Feature B: command-plan does not include live project_state build when
+    the decision's Do Not Do section forbids it."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_state build --reports-dir solve_reports
+python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py -q
+""",
+        extra_text="""
+## 3. Do Not Do
+
+Do not run live `python -m reverse_agent.project_state build`.
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+
+    result = command_plan(state_dir=state_dir)
+
+    commands = [cmd["command"] for cmd in result["commands"]]
+    # The live build command must not appear
+    assert not any(
+        "project_state build" in c for c in commands
+    ), f"forbidden live build command found in plan: {commands}"
+    # Other commands should still be present
+    assert any("preflight" in c for c in commands)
+
+
+def test_command_plan_keeps_build_when_not_forbidden(tmp_path: Path) -> None:
+    """Feature B: command-plan keeps project_state build when the decision
+    does not forbid it."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_state build --reports-dir solve_reports
+python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "mainline": "engineering_branch",
+        "profile": "full",
+        "profile_reason": "test fixture",
+        "closeout_allowed": True,
+        "required_command_kinds": ["startup", "preflight", "pytest", "close-round"],
+    })
+
+    result = command_plan(state_dir=state_dir)
+
+    commands = [cmd["command"] for cmd in result["commands"]]
+    assert any("project_state build" in c for c in commands)
+
+
+# ---------------------------------------------------------------------------
+# Feature C: documentation file contains canonical run-closeout command.
+# ---------------------------------------------------------------------------
+
+
+def test_docs_run_closeout_contains_canonical_command() -> None:
+    """Feature C: docs/run_closeout.md contains the canonical run-closeout
+    command and Required Audit warning."""
+    docs_path = Path(__file__).resolve().parent.parent / "docs" / "run_closeout.md"
+    assert docs_path.exists(), f"Documentation file not found: {docs_path}"
+    content = docs_path.read_text(encoding="utf-8")
+    assert "run-closeout" in content
+    assert "decision_packet.md" in content
+    assert "task_packet.json" in content
+    assert "Required Audit" in content
+    assert "project_state build" in content
+
+
+def test_readme_md_points_to_docs() -> None:
+    """Feature C: README.md contains a pointer to docs/run_closeout.md."""
+    readme_path = Path(__file__).resolve().parent.parent / "README.md"
+    assert readme_path.exists(), f"README.md not found: {readme_path}"
+    content = readme_path.read_text(encoding="utf-8")
+    assert "docs/run_closeout.md" in content
+    assert "run-closeout" in content
+
+
+# ---------------------------------------------------------------------------
+# Feature D: previous Required Audit answer validation remains active.
+# ---------------------------------------------------------------------------
+
+
+def test_required_audit_validation_remains_active_for_success(tmp_path: Path) -> None:
+    """Feature D: Required Audit answer validation from the previous round
+    remains active for SUCCESS reports."""
+    from reverse_agent.project_gate import _required_audit_placeholder_items
+
+    scaffold = """## Required Audit
+
+### 1. Test question?
+
+- Evidence: (to be filled)
+- Status: PENDING
+- Answer: (to be filled)
+"""
+    placeholders = _required_audit_placeholder_items(scaffold)
+    assert len(placeholders) > 0
+
+    substantive = """## Required Audit
+
+### 1. Test question?
+
+- Evidence: real evidence from source code
+- Status: ANSWERED
+- Answer: the check validates field-level content
+"""
+    placeholders = _required_audit_placeholder_items(substantive)
+    assert len(placeholders) == 0
+

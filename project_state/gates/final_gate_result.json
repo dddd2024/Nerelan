@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260620_required_audit_answer_validation_v1",
-  "report_id": "codex_report_20260620_required_audit_answer_validation_v1",
-  "round_id": "round_20260620_required_audit_answer_validation_v1",
-  "generated_at": "2026-06-20T12:07:13.274001Z",
+  "decision_id": "decision_20260620_run_closeout_usage_solidification_v1",
+  "report_id": "codex_report_20260620_run_closeout_usage_solidification_v1",
+  "round_id": "round_20260620_run_closeout_usage_solidification_v1",
+  "generated_at": "2026-06-20T12:40:24.043833Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260620_required_audit_answer_validation_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260620_run_closeout_usage_solidification_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -50,6 +50,8 @@
       "baseline_available": true,
       "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
+        "README.md",
+        "docs/run_closeout.md",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -60,16 +62,17 @@
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/decision_packet.md",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/round_manifest.json",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/decision_packet.md",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/pytest_result.txt",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "final_dirty_files": [
+        "README.md",
+        "docs/run_closeout.md",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -80,12 +83,11 @@
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/decision_packet.md",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/round_manifest.json",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/decision_packet.md",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/pytest_result.txt",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -102,6 +104,8 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
+        "README.md",
+        "docs/run_closeout.md",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -112,16 +116,17 @@
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/decision_packet.md",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/round_manifest.json",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/decision_packet.md",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/pytest_result.txt",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
+        "README.md",
+        "docs/run_closeout.md",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -132,12 +137,11 @@
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/decision_packet.md",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260620_required_audit_answer_validation_v1/round_manifest.json",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/decision_packet.md",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/pytest_result.txt",
+        "project_state/rounds/round_20260620_run_closeout_usage_solidification_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -170,10 +174,14 @@
       "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
+        "README.md",
+        "docs/run_closeout.md",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "allowed_inherited_dirty_files": [
+        "README.md",
+        "docs/run_closeout.md",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -187,6 +195,8 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
+        "README.md",
+        "docs/run_closeout.md",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -291,8 +301,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260620_required_audit_answer_validation_v1",
-      "command_plan_round_id": "round_20260620_required_audit_answer_validation_v1"
+      "command_plan_decision_id": "decision_20260620_run_closeout_usage_solidification_v1",
+      "command_plan_round_id": "round_20260620_run_closeout_usage_solidification_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -376,8 +386,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260620_required_audit_answer_validation_v1",
-      "gate_profile_round_id": "round_20260620_required_audit_answer_validation_v1"
+      "gate_profile_decision_id": "decision_20260620_run_closeout_usage_solidification_v1",
+      "gate_profile_round_id": "round_20260620_run_closeout_usage_solidification_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -412,14 +422,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "Why did `required_audit_coverage` pass when all answers were placeholders?",
-        "Which placeholder patterns should be invalid for `SUCCESS / ACCEPTED` reports?",
-        "Should `PENDING` be allowed only for `BLOCKED`, `PARTIAL`, or `REWORK_REQUIRED` reports?",
-        "What counts as a substantive Required Audit answer?",
-        "How can the check avoid requiring long prose while still rejecting scaffolds?",
-        "Should the generated scaffold default to `PENDING` and force Codex or report-summary to fill evidence before success?",
-        "Which regression test should encode the previous all-placeholder Required Audit report?",
-        "How will backward compatibility be preserved for decisions without Required Audit items?"
+        "Where does `command-plan` currently decide `recommended_next_action`?",
+        "Under what conditions should `run-closeout` be the recommended next action?",
+        "Under what conditions should manual command-plan execution remain the recommended fallback?",
+        "Does command-plan currently include `python -m reverse_agent.project_state build` when the active decision forbids live build?",
+        "How will the implementation avoid executing or recommending forbidden live build commands?",
+        "Which documentation location is best for user-facing closeout workflow instructions: README, docs page, or both?",
+        "How will tests prove that `run-closeout` is now the preferred default without breaking manual fallback?",
+        "How will the report prove that Required Audit answer validation from the previous round remains active?"
       ],
       "missing_answers": [],
       "placeholder_answers": []
@@ -449,10 +459,8 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "recorded final-check stdout matches gate_status",
-      "expected_gate_status": "PASSED",
-      "recorded_stdout_status": "PASSED",
-      "conservative_warn_accepted": false
+      "detail": "no recorded final-check stdout status to compare",
+      "required": false
     }
   ],
   "blocking_reasons": [],

@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260620_required_audit_answer_validation_v1",
-  "round_id": "round_20260620_required_audit_answer_validation_v1",
-  "head_commit": "28b7057c8f09",
+  "decision_id": "decision_20260620_run_closeout_usage_solidification_v1",
+  "round_id": "round_20260620_run_closeout_usage_solidification_v1",
+  "head_commit": "26805533fe21",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-20T10:33:03.177018Z"
+  "generated_at": "2026-06-20T12:17:35.439804Z"
 }

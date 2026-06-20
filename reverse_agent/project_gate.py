@@ -6629,12 +6629,44 @@ def _command_expected_exit_codes(
     return [0], f"{kind} expected to exit 0", None
 
 
-def _command_plan_recommended_next_action(plan_status: str) -> str:
-    if plan_status == "PASSED":
-        return "record_and_follow_command_plan_manually"
-    if plan_status == "WARN":
-        return "review_command_plan_warnings_before_execution"
-    return "fix_decision_tests_block_before_execution"
+def _command_plan_recommended_next_action(
+    plan_status: str,
+    *,
+    decision_status: str = "",
+    closeout_allowed: bool | None = None,
+    mainline: str = "",
+    round_id: str = "",
+    decision_text: str = "",
+) -> str:
+    """Decide the recommended next action after command-plan.
+
+    When the plan passed, the decision is APPROVED, closeout is allowed,
+    and the mainline supports run-closeout, prefer the exact run-closeout
+    command over manual command-plan execution.  Manual fallback remains
+    for unsupported cases.
+    """
+    if plan_status != "PASSED":
+        if plan_status == "WARN":
+            return "review_command_plan_warnings_before_execution"
+        return "fix_decision_tests_block_before_execution"
+
+    # Feature A: Prefer run-closeout for supported engineering rounds.
+    _SUPPORTED_MAINLINES = {"engineering_branch", "tool_integration"}
+    if (
+        decision_status == "APPROVED"
+        and closeout_allowed is True
+        and mainline in _SUPPORTED_MAINLINES
+        and round_id
+    ):
+        # Check if the decision explicitly prohibits run-closeout.
+        do_not_do_section = _markdown_section(decision_text, "Do Not Do")
+        if do_not_do_section and "run-closeout" in do_not_do_section.lower():
+            return "record_and_follow_command_plan_manually"
+        return (
+            f"python -m reverse_agent.project_gate run-closeout "
+            f"--state-dir project_state --round-id {round_id}"
+        )
+    return "record_and_follow_command_plan_manually"
 
 
 def _decision_requests_report_summary(decision_text: str) -> bool:
@@ -6686,6 +6718,27 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
         if extract_error:
             blocking_reasons.append(extract_error)
         extracted_commands = _inject_report_summary_command(extracted_commands, decision_text)
+        # Feature B: Filter out forbidden live build commands when the
+        # decision's Do Not Do section forbids live project_state build.
+        do_not_do_section = _markdown_section(decision_text, "Do Not Do")
+        if do_not_do_section:
+            do_not_do_lower = do_not_do_section.lower()
+            _forbids_live_build = (
+                "project_state build" in do_not_do_lower
+                or "project_state  build" in do_not_do_lower
+            )
+            if _forbids_live_build:
+                filtered: list[str] = []
+                for cmd in extracted_commands:
+                    cmd_lower = cmd.lower()
+                    if (
+                        "project_state" in cmd_lower
+                        and " build" in cmd_lower
+                        and "python -m reverse_agent.project_state build" in cmd_lower
+                    ):
+                        continue
+                    filtered.append(cmd)
+                extracted_commands = filtered
         # Determine final-check status for conditional close-round semantics
         final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
         final_check_passed: bool | None = None
@@ -6796,7 +6849,14 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
         "commands": commands,
         "warnings": warnings,
         "blocking_reasons": blocking_reasons,
-        "recommended_next_action": _command_plan_recommended_next_action(plan_status),
+        "recommended_next_action": _command_plan_recommended_next_action(
+            plan_status,
+            decision_status=str(decision.get("status") or ""),
+            closeout_allowed=closeout_allowed,
+            mainline=mainline,
+            round_id=round_id,
+            decision_text=decision_text,
+        ),
     }
 
     if write_result:
@@ -7640,9 +7700,11 @@ def _refresh_codex_report_for_closeout(
     # is called during run-closeout, and run_closeout_result.json will be written by
     # the end of the process even if it doesn't exist yet at the time of this refresh.
     files_changed_set.add(RUN_CLOSEOUT_OUTPUT_PATH)
-    # Always include final_gate_result.json because final-check will create/update
-    # it during run-closeout even if it doesn't exist yet at refresh time.
-    files_changed_set.add(SELF_OUTPUT_PATH)
+    # Note: SELF_OUTPUT_PATH (final_gate_result.json) is NOT added to
+    # files_changed here because the synthesis (build_report_summary_synthesis)
+    # only includes it in expected_files_changed when it appears in the git
+    # diff.  Adding it unconditionally would cause a report/synthesis mismatch.
+    # It IS included in generated_artifacts below.
     # Include gate artifacts that exist on disk in files_changed so the
     # report matches the synthesis expected_files_changed.
     gates_dir = state_dir / "gates"
