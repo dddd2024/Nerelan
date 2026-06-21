@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
-  "round_id": "round_20260621_policy_lint_prompt_consistency_v1",
-  "generated_at": "2026-06-21T09:55:01.485065Z",
+  "decision_id": "decision_20260621_prompt_docs_policy_integration_v1",
+  "round_id": "round_20260621_prompt_docs_policy_integration_v1",
+  "generated_at": "2026-06-21T10:40:45.067715Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -90,7 +90,7 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260621_policy_lint_prompt_consistency_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260621_prompt_docs_policy_integration_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
@@ -115,13 +115,13 @@
     "schema_version": 1,
     "gate_name": "close-round",
     "close_status": "CLOSED",
-    "decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
-    "report_id": "codex_report_20260621_policy_lint_prompt_consistency_v1",
-    "round_id": "round_20260621_policy_lint_prompt_consistency_v1",
-    "decision_round_id": "round_20260621_policy_lint_prompt_consistency_v1",
-    "report_round_id": "round_20260621_policy_lint_prompt_consistency_v1",
+    "decision_id": "decision_20260621_prompt_docs_policy_integration_v1",
+    "report_id": "codex_report_20260621_prompt_docs_policy_integration_v1",
+    "round_id": "round_20260621_prompt_docs_policy_integration_v1",
+    "decision_round_id": "round_20260621_prompt_docs_policy_integration_v1",
+    "report_round_id": "round_20260621_prompt_docs_policy_integration_v1",
     "report_status": "PARTIAL",
-    "generated_at": "2026-06-21T09:55:00.698555Z",
+    "generated_at": "2026-06-21T10:40:43.929836Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -144,15 +144,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260621_policy_lint_prompt_consistency_v1",
-        "decision_round_id": "round_20260621_policy_lint_prompt_consistency_v1",
-        "report_round_id": "round_20260621_policy_lint_prompt_consistency_v1"
+        "requested_round_id": "round_20260621_prompt_docs_policy_integration_v1",
+        "decision_round_id": "round_20260621_prompt_docs_policy_integration_v1",
+        "report_round_id": "round_20260621_prompt_docs_policy_integration_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260621_policy_lint_prompt_consistency_v1"
+        "report_based_on_decision_id": "decision_20260621_prompt_docs_policy_integration_v1"
       },
       {
         "name": "pytest_result_match",
@@ -178,8 +178,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
-        "command_plan_round_id": "round_20260621_policy_lint_prompt_consistency_v1"
+        "command_plan_decision_id": "decision_20260621_prompt_docs_policy_integration_v1",
+        "command_plan_round_id": "round_20260621_prompt_docs_policy_integration_v1"
       },
       {
         "name": "command_plan_covers_report_tests",
@@ -220,6 +220,9 @@
         "baseline_available": true,
         "inherited_dirty_files": [],
         "new_dirty_files_since_baseline": [
+          "docs/prompts/README.md",
+          "docs/prompts/codex_execution_prompt.md",
+          "docs/prompts/project_workspace_prompt.md",
           "project_state/codex_execution_report.md",
           "project_state/gates/command_plan.json",
           "project_state/gates/final_gate_result.json",
@@ -235,6 +238,9 @@
           "tests/test_project_gate.py"
         ],
         "final_dirty_files": [
+          "docs/prompts/README.md",
+          "docs/prompts/codex_execution_prompt.md",
+          "docs/prompts/project_workspace_prompt.md",
           "project_state/codex_execution_report.md",
           "project_state/gates/command_plan.json",
           "project_state/gates/final_gate_result.json",
@@ -262,6 +268,9 @@
         "detail": "files_changed covers round delta files",
         "missing_files": [],
         "git_changed_files": [
+          "docs/prompts/README.md",
+          "docs/prompts/codex_execution_prompt.md",
+          "docs/prompts/project_workspace_prompt.md",
           "project_state/codex_execution_report.md",
           "project_state/gates/command_plan.json",
           "project_state/gates/final_gate_result.json",
@@ -277,6 +286,9 @@
           "tests/test_project_gate.py"
         ],
         "required_round_delta_files": [
+          "docs/prompts/README.md",
+          "docs/prompts/codex_execution_prompt.md",
+          "docs/prompts/project_workspace_prompt.md",
           "project_state/codex_execution_report.md",
           "project_state/gates/command_plan.json",
           "project_state/gates/final_gate_result.json",
@@ -288,7 +300,7 @@
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/round_manifest.json",
+          "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/round_manifest.json",
           "reverse_agent/project_gate.py",
           "tests/test_project_gate.py"
         ],
@@ -355,6 +367,7 @@
           "project_state/codex_execution_report.md",
           "project_state/gates/command_plan.json",
           "project_state/gates/gate_profile_plan.json",
+          "project_state/gates/policy_lint_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -367,12 +380,12 @@
         "status": "PASS",
         "detail": "startup git status --short appears after path confirmation commands",
         "valid": true,
-        "startup_status_block_index": 12,
+        "startup_status_block_index": 4,
         "path_confirmation_block_indexes": {
-          "Set-Location": 8,
-          "Get-Location": 9,
-          "Test-Path": 10,
-          "git rev-parse": 11
+          "Set-Location": 0,
+          "Get-Location": 1,
+          "Test-Path": 2,
+          "git rev-parse": 3
         },
         "startup_status_evidence_trusted": true
       },
@@ -419,6 +432,9 @@
           {
             "field": "files_changed",
             "expected": [
+              "docs/prompts/README.md",
+              "docs/prompts/codex_execution_prompt.md",
+              "docs/prompts/project_workspace_prompt.md",
               "project_state/codex_execution_report.md",
               "project_state/gates/command_plan.json",
               "project_state/gates/final_gate_result.json",
@@ -434,6 +450,9 @@
               "tests/test_project_gate.py"
             ],
             "actual": [
+              "docs/prompts/README.md",
+              "docs/prompts/codex_execution_prompt.md",
+              "docs/prompts/project_workspace_prompt.md",
               "project_state/codex_execution_report.md",
               "project_state/gates/command_plan.json",
               "project_state/gates/final_gate_result.json",
@@ -445,10 +464,10 @@
               "project_state/gates/round_delta_summary.json",
               "project_state/gates/run_closeout_result.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/decision_packet.md",
-              "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/pytest_result.txt",
-              "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/round_manifest.json",
+              "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/decision_packet.md",
+              "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/pytest_result.txt",
+              "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/round_manifest.json",
               "reverse_agent/project_gate.py",
               "tests/test_project_gate.py"
             ]
@@ -460,6 +479,7 @@
               "project_state/gates/command_plan.json",
               "project_state/gates/final_gate_result.json",
               "project_state/gates/gate_profile_plan.json",
+              "project_state/gates/policy_lint_result.json",
               "project_state/gates/preflight_result.json",
               "project_state/gates/report_summary_synthesis.json",
               "project_state/gates/round_baseline.json",
@@ -471,15 +491,16 @@
               "project_state/gates/command_plan.json",
               "project_state/gates/final_gate_result.json",
               "project_state/gates/gate_profile_plan.json",
+              "project_state/gates/policy_lint_result.json",
               "project_state/gates/preflight_result.json",
               "project_state/gates/report_summary_synthesis.json",
               "project_state/gates/round_baseline.json",
               "project_state/gates/round_delta_summary.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/decision_packet.md",
-              "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/pytest_result.txt",
-              "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/round_manifest.json"
+              "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/decision_packet.md",
+              "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/pytest_result.txt",
+              "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/round_manifest.json"
             ]
           }
         ]
@@ -542,8 +563,8 @@
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260621_policy_lint_prompt_consistency_v1",
-        "manifest": "project_state\\rounds\\round_20260621_policy_lint_prompt_consistency_v1\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260621_prompt_docs_policy_integration_v1",
+        "manifest": "project_state\\rounds\\round_20260621_prompt_docs_policy_integration_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
@@ -553,14 +574,14 @@
       {
         "name": "final_check_after_archive",
         "status": "PASSED",
-        "gate_status": "PASSED",
+        "gate_status": "WARN",
         "unexpected_failures": [],
         "artifact": "project_state/gates/final_gate_result.json"
       }
     ],
     "archive": {
       "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/round_manifest.json",
+      "round_manifest_path": "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",

@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
-  "round_id": "round_20260621_policy_lint_prompt_consistency_v1",
-  "head_commit": "5bf2f923af82",
+  "decision_id": "decision_20260621_prompt_docs_policy_integration_v1",
+  "round_id": "round_20260621_prompt_docs_policy_integration_v1",
+  "head_commit": "18c9b0080bed",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-21T09:38:41.388644Z"
+  "generated_at": "2026-06-21T10:02:46.933067Z"
 }

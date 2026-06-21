@@ -7628,6 +7628,7 @@ _POLICY_LINT_SCAN_GLOBS: tuple[str, ...] = (
     ".codex-skills/*/SKILL.md",
     "README.md",
     "project_state/decision_packet.md",
+    "docs/prompts/*.md",
 )
 
 # Patterns that indicate dynamic one-run facts in .codex-skills/ text.
@@ -7637,7 +7638,7 @@ _POLICY_LINT_DYNAMIC_FACT_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"\b[0-9a-fA-F]{16,}\b", "candidate hex string"),
     # Run names like samplereverse_..._20260512_rerun6
     (r"\b\w+_runtime_\w+_\d{8}_\w+\b", "run name"),
-    # Windows local paths
+    # Windows local paths (exempt the stable repo path F:\reverse-agent)
     (r"[A-Za-z]:\\[^\s\"']+", "local machine path"),
     # Artifact paths with round IDs
     (r"project_state/rounds/round_\d{8}_\w+", "artifact path with round ID"),
@@ -7646,7 +7647,7 @@ _POLICY_LINT_DYNAMIC_FACT_PATTERNS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _policy_lint_scan_file(path: Path, *, is_skill: bool) -> list[dict[str, Any]]:
+def _policy_lint_scan_file(path: Path, *, is_long_lived_text: bool) -> list[dict[str, Any]]:
     """Scan a single text file for policy drift patterns.
 
     Returns a list of finding dicts with keys:
@@ -7735,7 +7736,8 @@ def _policy_lint_scan_file(path: Path, *, is_skill: bool) -> list[dict[str, Any]
         # 5. Unsupported codex_report_summary.status values
         if re.search(r"COMPLETED_WITH_LIMITATIONS", line):
             # Check if it's used as a status value (not in a "do not use" context)
-            if not re.search(r"do not use|not.*valid|forbidden|unsupported", lowered):
+            # and not listed as a valid conclusion value
+            if not re.search(r"do not use|not.*valid|forbidden|unsupported|conclusion", lowered):
                 findings.append({
                     "kind": "unsupported_report_status",
                     "severity": "FAIL",
@@ -7745,18 +7747,21 @@ def _policy_lint_scan_file(path: Path, *, is_skill: bool) -> list[dict[str, Any]
                     "evidence": line.strip(),
                 })
 
-        # 6. Dynamic one-run facts in .codex-skills/ text
-        if is_skill:
+        # 6. Dynamic one-run facts in long-lived text (skills, prompt docs)
+        if is_long_lived_text:
             for pattern, description in _POLICY_LINT_DYNAMIC_FACT_PATTERNS:
                 if re.search(pattern, line):
                     # Skip lines that explicitly say "do not" store these
                     if not re.search(r"do not|must not|should not|forbidden", lowered):
+                        # Exempt the stable repo path F:\reverse-agent
+                        if description == "local machine path" and re.search(r"F:\\reverse-agent", line):
+                            continue
                         findings.append({
                             "kind": "dynamic_fact_in_skill",
                             "severity": "WARN",
                             "file": rel_path,
                             "line": line_no,
-                            "detail": f"skill file contains {description}; dynamic facts belong in project_state",
+                            "detail": f"long-lived text contains {description}; dynamic facts belong in project_state",
                             "evidence": line.strip(),
                         })
                         break  # one finding per line is enough
@@ -7799,8 +7804,8 @@ def policy_lint(
                 continue
             rel = str(path.relative_to(repo_root)).replace("\\", "/")
             scanned_files.append(rel)
-            is_skill = rel.startswith(".codex-skills/")
-            file_findings = _policy_lint_scan_file(path, is_skill=is_skill)
+            is_long_lived_text = rel.startswith(".codex-skills/") or rel.startswith("docs/prompts/")
+            file_findings = _policy_lint_scan_file(path, is_long_lived_text=is_long_lived_text)
             all_findings.extend(file_findings)
 
     # Classify gate status
@@ -8705,10 +8710,13 @@ def _refresh_codex_report_for_closeout(
         }
     # Compute new dirty files since baseline (exclude inherited dirty)
     new_dirty_files = dirty_files_norm - baseline_dirty_files
-    # Filter to source/test or project_state/ paths
+    # Filter to source/test, project_state/, or docs/prompts/ paths
+    # (docs/prompts/ contains canonical prompt documents tracked by policy-lint)
     files_changed_set = {
         p for p in new_dirty_files
-        if _path_is_source_or_test(p) or p.startswith("project_state/")
+        if _path_is_source_or_test(p)
+        or p.startswith("project_state/")
+        or p.startswith("docs/prompts/")
     }
     # Add authorized inherited source/test files (from required_files_changed)
     # These files are declared as required to be changed in this round and may
@@ -8864,6 +8872,9 @@ def _refresh_codex_report_for_closeout(
     # non-archive-only diff in report_summary_fields_match_synthesis and
     # blocks close-round.
     decision_required_closeout = _decision_required_closeout_artifacts(decision_text)
+    # Add required closeout artifacts to generated_artifacts so the report
+    # matches the synthesis (which includes them via required_closeout_artifacts).
+    generated_artifact_set |= decision_required_closeout
 
     payload = {
         "schema_version": 1,

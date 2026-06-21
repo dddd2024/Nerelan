@@ -17112,8 +17112,9 @@ def _make_policy_lint_state(
     skill_text: str = "",
     readme_text: str = "",
     decision_text: str = "",
+    prompt_docs: dict[str, str] | None = None,
 ) -> Path:
-    """Create a minimal state for policy-lint tests with optional skill/readme text."""
+    """Create a minimal state for policy-lint tests with optional skill/readme/prompt text."""
     state_dir = tmp_path / "project_state"
     state_dir.mkdir()
     _write_skill_registry(tmp_path)
@@ -17166,6 +17167,13 @@ def _make_policy_lint_state(
     # Write README if text provided
     if readme_text:
         (tmp_path / "README.md").write_text(readme_text, encoding="utf-8")
+
+    # Write prompt docs if provided
+    if prompt_docs:
+        prompts_dir = tmp_path / "docs" / "prompts"
+        prompts_dir.mkdir(parents=True, exist_ok=True)
+        for name, text in prompt_docs.items():
+            (prompts_dir / name).write_text(text, encoding="utf-8")
 
     return state_dir
 
@@ -17348,5 +17356,134 @@ Do not read full solve_reports by default.
     # Valid wording should not produce findings
     fail_findings = [f for f in result["findings"] if f["severity"] == "FAIL"]
     assert fail_findings == []
+
+
+# ---------------------------------------------------------------------------
+# policy-lint prompt docs scanning tests
+# ---------------------------------------------------------------------------
+
+def test_policy_lint_scans_prompt_docs(tmp_path: Path) -> None:
+    """policy-lint scans docs/prompts/*.md files by default."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        prompt_docs={
+            "project_workspace_prompt.md": "# Workspace Prompt\n\nClean content.\n",
+            "codex_execution_prompt.md": "# Codex Prompt\n\nClean content.\n",
+            "README.md": "# Prompts README\n\nClean content.\n",
+        },
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    scanned = result.get("scanned_files", [])
+    assert "docs/prompts/project_workspace_prompt.md" in scanned
+    assert "docs/prompts/codex_execution_prompt.md" in scanned
+    assert "docs/prompts/README.md" in scanned
+
+
+def test_policy_lint_detects_drift_in_prompt_docs(tmp_path: Path) -> None:
+    """policy-lint detects drift patterns inside prompt docs."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        prompt_docs={
+            "bad_prompt.md": "# Bad Prompt\n\nTests are authoritative over command-plan.\nUse the medium profile.\n",
+        },
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "FAILED"
+    prompt_findings = [f for f in result["findings"] if "docs/prompts/" in f.get("file", "")]
+    assert len(prompt_findings) >= 1
+    authority_findings = [f for f in prompt_findings if f["kind"] == "tests_authoritative_over_command_plan"]
+    assert len(authority_findings) >= 1
+
+
+def test_policy_lint_detects_dynamic_facts_in_prompt_docs(tmp_path: Path) -> None:
+    """policy-lint detects dynamic facts in prompt docs."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        prompt_docs={
+            "bad_prompt.md": "# Bad Prompt\n\nBest candidate: 78d540b49c59077041414141414141\n",
+        },
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    prompt_findings = [f for f in result["findings"] if "docs/prompts/" in f.get("file", "")]
+    dynamic_findings = [f for f in prompt_findings if f["kind"] == "dynamic_fact_in_skill"]
+    assert len(dynamic_findings) >= 1
+
+
+def test_policy_lint_clean_prompt_docs_pass(tmp_path: Path) -> None:
+    """policy-lint does not produce FAIL findings for valid prompt docs."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        prompt_docs={
+            "project_workspace_prompt.md": (
+                "# Project Workspace Prompt\n\n"
+                "Use fast, standard, or full profiles.\n"
+                "Do not use medium as a profile name.\n"
+                "command-plan is the command execution authority.\n"
+                "decision_packet is the sole execution authority.\n"
+                "Do not read full solve_reports by default.\n"
+            ),
+            "codex_execution_prompt.md": (
+                "# Codex Execution Prompt\n\n"
+                "Use standard or full profiles.\n"
+                "Do not use COMPLETED_WITH_LIMITATIONS as codex_report_summary.status.\n"
+                "Do not read full PROJECT_PROGRESS_LOG.txt by default.\n"
+            ),
+        },
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    prompt_fail_findings = [
+        f for f in result["findings"]
+        if f["severity"] == "FAIL" and "docs/prompts/" in f.get("file", "")
+    ]
+    assert prompt_fail_findings == []
+
+
+def test_policy_lint_prompt_docs_do_not_scan_arbitrary_docs(tmp_path: Path) -> None:
+    """policy-lint does not scan arbitrary docs/ files outside docs/prompts/."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(tmp_path)
+    # Create a file in docs/ but not in docs/prompts/
+    other_docs = tmp_path / "docs" / "other.md"
+    other_docs.parent.mkdir(parents=True, exist_ok=True)
+    other_docs.write_text("Use the medium profile for this.\n", encoding="utf-8")
+
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    # No findings from docs/other.md
+    assert all("docs/other.md" not in f.get("file", "") for f in result["findings"])
+
+
+def test_policy_lint_exempts_stable_repo_path_in_prompt_docs(tmp_path: Path) -> None:
+    """policy-lint exempts the stable repo path F:\\reverse-agent in prompt docs."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        prompt_docs={
+            "codex_execution_prompt.md": (
+                "# Codex Execution Prompt\n\n"
+                "The working directory must be `F:\\reverse-agent`.\n"
+                "1. `Set-Location F:\\reverse-agent`\n"
+                "2. `Get-Location` -- must show `F:\\reverse-agent`\n"
+                "3. `Test-Path F:\\reverse-agent` -- must be `True`\n"
+            ),
+        },
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    path_findings = [
+        f for f in result["findings"]
+        if "docs/prompts/" in f.get("file", "")
+        and f["kind"] == "dynamic_fact_in_skill"
+        and "local machine path" in f.get("detail", "")
+    ]
+    assert path_findings == [], f"Expected no findings for stable repo path, got: {path_findings}"
 
 
