@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "WARN",
-  "decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
-  "report_id": "codex_report_20260621_closeout_authorization_report_summary_rework_v1",
-  "round_id": "round_20260621_closeout_authorization_report_summary_rework_v1",
-  "generated_at": "2026-06-21T05:49:43.959494Z",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260621_gate_profile_authority_cleanup_v1",
+  "report_id": "codex_report_20260621_gate_profile_authority_cleanup_v1",
+  "round_id": "round_20260621_gate_profile_authority_cleanup_v1",
+  "generated_at": "2026-06-21T07:33:30.942184Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260621_closeout_authorization_report_summary_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260621_gate_profile_authority_cleanup_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -61,10 +61,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -80,10 +80,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -111,10 +111,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -130,10 +130,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -264,8 +264,10 @@
     {
       "name": "required_closeout_artifacts_covered",
       "status": "PASS",
-      "detail": "no required closeout artifacts declared in decision",
-      "required_closeout_artifacts": [],
+      "detail": "required closeout artifacts covered by referenced or generated artifacts",
+      "required_closeout_artifacts": [
+        "project_state/gates/final_gate_result.json"
+      ],
       "referenced_artifacts": [],
       "uncovered_artifacts": []
     },
@@ -281,8 +283,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
-      "command_plan_round_id": "round_20260621_closeout_authorization_report_summary_rework_v1"
+      "command_plan_decision_id": "decision_20260621_gate_profile_authority_cleanup_v1",
+      "command_plan_round_id": "round_20260621_gate_profile_authority_cleanup_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -317,42 +319,8 @@
     },
     {
       "name": "command_plan_execution_authority",
-      "status": "WARN",
-      "detail": "unauthorized commands detected in pytest_result; report acknowledges stopping due to unauthorized commands",
-      "unauthorized_commands": [
-        {
-          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
-          "kind": "gate-profile",
-          "reason": "kind 'gate-profile' not in required_command_kinds"
-        },
-        {
-          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
-          "kind": "gate-profile",
-          "reason": "kind 'gate-profile' not in required_command_kinds"
-        },
-        {
-          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
-          "kind": "gate-profile",
-          "reason": "kind 'gate-profile' not in required_command_kinds"
-        },
-        {
-          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
-          "kind": "gate-profile",
-          "reason": "kind 'gate-profile' not in required_command_kinds"
-        },
-        {
-          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
-          "kind": "gate-profile",
-          "reason": "kind 'gate-profile' not in required_command_kinds"
-        },
-        {
-          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
-          "kind": "gate-profile",
-          "reason": "kind 'gate-profile' not in required_command_kinds"
-        }
-      ],
-      "report_status": "PARTIAL",
-      "report_acknowledges_unauthorized": true
+      "status": "PASS",
+      "detail": "all recorded commands are authorized by command_plan"
     },
     {
       "name": "report_summary_synthesis_required",
@@ -405,8 +373,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
-      "gate_profile_round_id": "round_20260621_closeout_authorization_report_summary_rework_v1"
+      "gate_profile_decision_id": "decision_20260621_gate_profile_authority_cleanup_v1",
+      "gate_profile_round_id": "round_20260621_gate_profile_authority_cleanup_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -441,14 +409,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "Why did `report_summary_fields_match_synthesis` fail in the previous round? Cite the expected archive files and the actual missing summary fields.",
-        "Why did command-plan say `full` and `closeout_allowed=true` while not listing `run-closeout` or `close-round` in `commands`?",
-        "Should archive-producing closeout be represented as a command-plan command, a recommended fallback action, or a post-final-check manual action? Define the policy.",
-        "Which component must change: `command_plan`, `report_summary`, `final_check`, `run_closeout`, or report generation? Explain why.",
-        "How does the fix preserve command-plan execution authority and avoid authorizing omitted/unplanned commands?",
-        "How does the fix avoid breaking fast profile rounds where closeout is intentionally forbidden?",
-        "How does the fix avoid breaking full profile rounds where closeout is required or allowed?",
-        "What tests prove that report-summary and final-check no longer disagree about round archive files?"
+        "Why was `gate-profile` executed even though it was not in `command_plan.commands`?",
+        "Should `gate-profile` be a planned command, an exempt diagnostic command, or forbidden unless explicitly authorized? State the policy.",
+        "Does `codex_report_summary.tests_ran` exactly match all non-exempt command blocks in `pytest_result.txt`?",
+        "Does `command_plan_execution_authority` return PASS after the fix? If not, why is the remaining WARN acceptable or not acceptable?",
+        "Does final-check have no blocking failures?",
+        "Is report status consistent with final gate status and project schema?",
+        "How does the fix avoid hiding unauthorized commands by merely deleting evidence?",
+        "What regression tests prevent this drift from recurring?"
       ],
       "missing_answers": [],
       "placeholder_answers": []
@@ -460,15 +428,12 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "WARN",
-      "detail": "current-round artifacts complete; historical/backlog artifacts non-blocking",
+      "status": "PASS",
+      "detail": "SUCCESS report passes lint and doctor",
       "lint_errors": [],
-      "warnings": [
-        "report_status is PARTIAL",
-        "doctor status is WARN (historical/backlog artifacts non-blocking)"
-      ],
-      "doctor_status": "WARN",
-      "report_status": "PARTIAL",
+      "warnings": [],
+      "doctor_status": "PASS",
+      "report_status": "SUCCESS",
       "limitations": null,
       "artifact_freshness_policy": "claim_aware",
       "required_current_artifacts": [],
@@ -486,22 +451,21 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "no recorded final-check stdout status to compare",
-      "required": false
+      "detail": "recorded final-check stdout matches gate_status",
+      "expected_gate_status": "PASSED",
+      "recorded_stdout_status": "PASSED",
+      "conservative_warn_accepted": false
     }
   ],
   "blocking_reasons": [],
-  "warnings": [
-    "command_plan_execution_authority: unauthorized commands detected in pytest_result; report acknowledges stopping due to unauthorized commands",
-    "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
-  ],
-  "recommended_next_action": "review_warnings_before_closeout",
+  "warnings": [],
+  "recommended_next_action": "no_action_required",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "archive_status": "archived",
-    "report_status": "PARTIAL",
-    "report_acceptance_recommendation": "NEEDS_REVIEW"
+    "report_status": "SUCCESS",
+    "report_acceptance_recommendation": "ACCEPTED"
   }
 }

@@ -979,25 +979,27 @@ _FAST_SUGGESTED_COMMANDS: list[dict[str, Any]] = [
 _STANDARD_SUGGESTED_COMMANDS: list[dict[str, Any]] = [
     {"index": 1, "command": "startup path checks", "phase": "status", "kind": "startup"},
     {"index": 2, "command": "preflight", "phase": "preflight", "kind": "preflight"},
-    {"index": 3, "command": "command-plan", "phase": "gate", "kind": "command-plan"},
-    {"index": 4, "command": "focused pytest for touched modules", "phase": "test", "kind": "pytest"},
-    {"index": 5, "command": "doctor", "phase": "status", "kind": "doctor"},
-    {"index": 6, "command": "lint-report", "phase": "status", "kind": "lint-report"},
-    {"index": 7, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
-    {"index": 8, "command": "final-check", "phase": "gate", "kind": "final-check"},
+    {"index": 3, "command": "gate-profile", "phase": "gate", "kind": "gate-profile"},
+    {"index": 4, "command": "command-plan", "phase": "gate", "kind": "command-plan"},
+    {"index": 5, "command": "focused pytest for touched modules", "phase": "test", "kind": "pytest"},
+    {"index": 6, "command": "doctor", "phase": "status", "kind": "doctor"},
+    {"index": 7, "command": "lint-report", "phase": "status", "kind": "lint-report"},
+    {"index": 8, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
+    {"index": 9, "command": "final-check", "phase": "gate", "kind": "final-check"},
 ]
 
 _FULL_SUGGESTED_COMMANDS: list[dict[str, Any]] = [
     {"index": 1, "command": "startup path checks", "phase": "status", "kind": "startup"},
     {"index": 2, "command": "preflight", "phase": "preflight", "kind": "preflight"},
-    {"index": 3, "command": "command-plan", "phase": "gate", "kind": "command-plan"},
-    {"index": 4, "command": "run-round", "phase": "gate", "kind": "run-round"},
-    {"index": 5, "command": "full pytest for gate/project_state modules", "phase": "test", "kind": "pytest"},
-    {"index": 6, "command": "doctor", "phase": "status", "kind": "doctor"},
-    {"index": 7, "command": "lint-report", "phase": "status", "kind": "lint-report"},
-    {"index": 8, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
-    {"index": 9, "command": "final-check", "phase": "gate", "kind": "final-check"},
-    {"index": 10, "command": "close-round", "phase": "gate", "kind": "close-round"},
+    {"index": 3, "command": "gate-profile", "phase": "gate", "kind": "gate-profile"},
+    {"index": 4, "command": "command-plan", "phase": "gate", "kind": "command-plan"},
+    {"index": 5, "command": "run-round", "phase": "gate", "kind": "run-round"},
+    {"index": 6, "command": "full pytest for gate/project_state modules", "phase": "test", "kind": "pytest"},
+    {"index": 7, "command": "doctor", "phase": "status", "kind": "doctor"},
+    {"index": 8, "command": "lint-report", "phase": "status", "kind": "lint-report"},
+    {"index": 9, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
+    {"index": 10, "command": "final-check", "phase": "gate", "kind": "final-check"},
+    {"index": 11, "command": "close-round", "phase": "gate", "kind": "close-round"},
 ]
 
 
@@ -1096,14 +1098,14 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
     if profile == "full":
         closeout_allowed = True
         required_command_kinds = [
-            "startup", "preflight", "command-plan", "run-round", "pytest",
+            "startup", "preflight", "gate-profile", "command-plan", "run-round", "pytest",
             "doctor", "lint-report", "report-summary", "final-check", "close-round",
         ]
         profile_reason = "gate/project_state/harness/solver/tool-runner changes require full validation pipeline"
     elif profile == "standard":
         closeout_allowed = True
         required_command_kinds = [
-            "startup", "preflight", "command-plan", "pytest",
+            "startup", "preflight", "gate-profile", "command-plan", "pytest",
             "doctor", "lint-report", "report-summary", "final-check",
         ]
         profile_reason = "source/test changes require targeted pytest and gate validation"
@@ -1180,14 +1182,14 @@ def gate_profile(*, state_dir: Path, write_result: bool = True, profile_override
             if override_profile == "full":
                 classification["closeout_allowed"] = True
                 classification["required_command_kinds"] = [
-                    "startup", "preflight", "command-plan", "run-round", "pytest",
+                    "startup", "preflight", "gate-profile", "command-plan", "run-round", "pytest",
                     "doctor", "lint-report", "report-summary", "final-check", "close-round",
                 ]
                 classification["profile_reason"] = "full profile explicitly selected"
             elif override_profile == "standard":
                 classification["closeout_allowed"] = True
                 classification["required_command_kinds"] = [
-                    "startup", "preflight", "command-plan", "pytest",
+                    "startup", "preflight", "gate-profile", "command-plan", "pytest",
                     "doctor", "lint-report", "report-summary", "final-check",
                 ]
                 classification["profile_reason"] = "standard profile explicitly selected"
@@ -4437,6 +4439,22 @@ def _update_report_archive_paths(*, state_dir: Path, round_id: str) -> None:
         _shutil.copy2(report_path, _archive_dir / "codex_execution_report.md")
 
 
+def _recopy_report_to_archive(*, state_dir: Path, round_id: str) -> None:
+    """Re-copy the refreshed codex_execution_report.md and pytest_result.txt to
+    the round archive so archived_report_matches_live_report and
+    archived_pytest_result_matches_live_pytest_result stay consistent after
+    a post-archive report refresh.
+    """
+    _archive_dir = state_dir / "rounds" / round_id
+    if not _archive_dir.exists():
+        return
+    import shutil as _shutil
+    for _name in ("codex_execution_report.md", "pytest_result.txt"):
+        _src = state_dir / _name
+        if _src.exists():
+            _shutil.copy2(_src, _archive_dir / _name)
+
+
 def build_report_summary_synthesis(
     *,
     state_dir: Path,
@@ -6720,6 +6738,21 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         repo_root=repo_root,
                         write_result=True,
                     )
+                    # Refresh the report's status/acceptance to match the
+                    # post-archive gate result.  After archiving, the gate
+                    # may PASS (archive paths exist), but the report still
+                    # has the pre-archive status (PARTIAL/NEEDS_REVIEW).
+                    # Without this refresh, report_summary_fields_match_synthesis
+                    # fails because the synthesis expects SUCCESS/ACCEPTED
+                    # (from the PASSED gate) but the report has PARTIAL/NEEDS_REVIEW.
+                    _refresh_codex_report_for_closeout(
+                        state_dir=state_dir,
+                        repo_root=repo_root,
+                        decision_id=decision_id,
+                        round_id=requested_round_id,
+                        include_close_snapshot=True,
+                    )
+                    _recopy_report_to_archive(state_dir=state_dir, round_id=requested_round_id)
                     after = final_check(
                         state_dir=state_dir,
                         repo_root=repo_root,
@@ -6733,6 +6766,16 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         repo_root=repo_root,
                         write_result=True,
                     )
+                    # Refresh the report's status/acceptance to match the
+                    # post-archive gate result.  See comment above.
+                    _refresh_codex_report_for_closeout(
+                        state_dir=state_dir,
+                        repo_root=repo_root,
+                        decision_id=decision_id,
+                        round_id=requested_round_id,
+                        include_close_snapshot=True,
+                    )
+                    _recopy_report_to_archive(state_dir=state_dir, round_id=requested_round_id)
                     after = final_check(
                         state_dir=state_dir,
                         repo_root=repo_root,
@@ -8255,6 +8298,14 @@ def _refresh_codex_report_for_closeout(
     else:
         status, acceptance = "PARTIAL", "NEEDS_REVIEW"
 
+    # Derive required_closeout_artifacts from the decision contract so the
+    # report matches the synthesis (build_report_summary_synthesis extracts
+    # the same field via _decision_required_closeout_artifacts).  Without this,
+    # the report always has required_closeout_artifacts=[] which creates a
+    # non-archive-only diff in report_summary_fields_match_synthesis and
+    # blocks close-round.
+    decision_required_closeout = _decision_required_closeout_artifacts(decision_text)
+
     payload = {
         "schema_version": 1,
         "report_id": report_id,
@@ -8266,7 +8317,7 @@ def _refresh_codex_report_for_closeout(
         "tests_ran": tests_ran,
         "generated_artifacts": sorted(generated_artifact_set),
         "referenced_artifacts": [],
-        "required_closeout_artifacts": [],
+        "required_closeout_artifacts": sorted(decision_required_closeout) if decision_required_closeout else [],
     }
     report_path = state_dir / "codex_execution_report.md"
     # Generate Required Audit scaffold if the decision has audit items
@@ -8320,9 +8371,16 @@ def _refresh_codex_report_for_closeout(
     )
 
     # Also update pytest_result.txt header so tests_ran covers report tests.
+    # Note: we intentionally do NOT pass `status` here.  The pytest_result.txt
+    # header status should reflect the actual test execution outcome (set by
+    # the pytest step), not the report status.  Overwriting it with "PASSED"
+    # (derived from report status SUCCESS) creates a contradiction when
+    # command blocks from run-closeout steps (report-summary, final-check,
+    # close-round) have non-zero exit codes, causing pytest_result_match to
+    # fail inside close_round's final_check_after_archive.
     pytest_path = state_dir / "pytest_result.txt"
     if pytest_path.exists():
-        _update_pytest_result_header_tests_ran(pytest_path, tests_ran, status=status)
+        _update_pytest_result_header_tests_ran(pytest_path, tests_ran)
 
     # Recompute report summary synthesis to ensure it matches the refreshed
     # report.  This is critical because the report status/files_changed may

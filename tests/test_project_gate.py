@@ -14287,6 +14287,90 @@ def test_run_closeout_decision_contract_artifact_placement(tmp_path: Path, monke
     assert "recommended_next_action" in artifact
 
 
+def test_run_closeout_refresh_includes_required_closeout_artifacts_from_decision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: _refresh_codex_report_for_closeout must set required_closeout_artifacts
+    from the decision contract so report-summary synthesis matches.
+
+    Without this fix, the report always has required_closeout_artifacts=[] which
+    creates a non-archive-only diff in report_summary_fields_match_synthesis and
+    blocks close-round when the decision declares required closeout artifacts.
+    """
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    # Overwrite decision_packet.md to include a Current Evidence section with
+    # a project_state/ path that _decision_required_closeout_artifacts extracts.
+    decision_meta = {
+        "schema_version": 1,
+        "decision_id": "decision_closeout",
+        "round_id": "round_closeout",
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": "engineering_branch",
+        "skill_profiles": ["reverse-agent-iteration@v2"],
+    }
+    commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    ]
+    tests_lines = "\n".join(f"- `{cmd}`" for cmd in commands)
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(decision_meta, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 2. Current Evidence
+
+- `project_state/gates/final_gate_result.json` has gate_status=PASSED.
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+## 7. Tests
+
+{tests_lines}
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # After run-closeout, the report must include required_closeout_artifacts
+    # from the decision's Current Evidence section.
+    report = read_codex_report_summary(state_dir)
+    required = report.get("required_closeout_artifacts") or []
+    assert "project_state/gates/final_gate_result.json" in required, (
+        f"required_closeout_artifacts must include final_gate_result.json, got: {required}"
+    )
+
+
 def test_run_closeout_success_path_with_monkeypatched_close_round(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Regression: successful run-closeout close-round path with monkeypatched execution."""
     state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
@@ -15484,10 +15568,10 @@ def _make_execution_authority_state(
         if profile == "fast":
             required_command_kinds = ["startup", "preflight", "command-plan", "report-summary", "final-check"]
         elif profile == "standard":
-            required_command_kinds = ["startup", "preflight", "command-plan", "pytest", "report-summary", "final-check"]
+            required_command_kinds = ["startup", "preflight", "gate-profile", "command-plan", "pytest", "report-summary", "final-check"]
         else:
             required_command_kinds = [
-                "startup", "preflight", "command-plan", "run-round", "pytest",
+                "startup", "preflight", "gate-profile", "command-plan", "run-round", "pytest",
                 "doctor", "lint-report", "report-summary", "final-check", "close-round",
             ]
 
@@ -15755,7 +15839,7 @@ def test_execution_authority_standard_profile_accepts_pytest(
         tmp_path,
         profile="standard",
         closeout_allowed=True,
-        required_command_kinds=["startup", "preflight", "command-plan", "pytest", "report-summary", "final-check"],
+        required_command_kinds=["startup", "preflight", "gate-profile", "command-plan", "pytest", "report-summary", "final-check"],
         omitted_commands=[],
         plan_commands=[
             {"index": 1, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
@@ -15804,7 +15888,7 @@ def test_execution_authority_full_profile_accepts_all_commands(
         profile="full",
         closeout_allowed=True,
         required_command_kinds=[
-            "startup", "preflight", "command-plan", "run-round", "pytest",
+            "startup", "preflight", "gate-profile", "command-plan", "run-round", "pytest",
             "doctor", "lint-report", "report-summary", "final-check", "close-round",
         ],
         omitted_commands=[],
@@ -15961,6 +16045,144 @@ def test_execution_authority_failed_report_fails_when_not_acknowledged(
 
 
 # ---------------------------------------------------------------------------
+# Regression: gate-profile command authorization policy
+# ---------------------------------------------------------------------------
+
+
+def test_gate_profile_in_required_command_kinds_for_full_profile(tmp_path: Path) -> None:
+    """gate-profile is in required_command_kinds for the full profile."""
+    from reverse_agent.project_gate import classify_gate_profile
+
+    decision_text = (
+        "## 6. Implementation Scope\n\n"
+        "Allowed paths:\n\n"
+        "- `reverse_agent/project_gate.py`\n"
+        "- `tests/test_project_gate.py`\n\n"
+        "Allowed project_state artifact paths:\n\n"
+        "- `project_state/codex_execution_report.md`\n"
+    )
+    result = classify_gate_profile(decision_text)
+    assert result["profile"] == "full"
+    assert "gate-profile" in result["required_command_kinds"]
+
+
+def test_gate_profile_in_required_command_kinds_for_standard_profile(tmp_path: Path) -> None:
+    """gate-profile is in required_command_kinds for the standard profile."""
+    from reverse_agent.project_gate import classify_gate_profile
+
+    decision_text = (
+        "## 6. Implementation Scope\n\n"
+        "Allowed paths:\n\n"
+        "- `reverse_agent/some_module.py`\n"
+        "- `tests/test_some_module.py`\n\n"
+        "Allowed project_state artifact paths:\n\n"
+        "- `project_state/codex_execution_report.md`\n"
+    )
+    result = classify_gate_profile(decision_text)
+    assert result["profile"] == "standard"
+    assert "gate-profile" in result["required_command_kinds"]
+
+
+def test_gate_profile_not_in_required_command_kinds_for_fast_profile(tmp_path: Path) -> None:
+    """gate-profile is NOT in required_command_kinds for the fast profile."""
+    from reverse_agent.project_gate import classify_gate_profile
+
+    decision_text = (
+        "## 6. Implementation Scope\n\n"
+        "Allowed project_state artifact paths:\n\n"
+        "- `project_state/codex_execution_report.md`\n"
+    )
+    result = classify_gate_profile(decision_text)
+    assert result["profile"] == "fast"
+    assert "gate-profile" not in result["required_command_kinds"]
+
+
+def test_gate_profile_in_full_suggested_commands() -> None:
+    """gate-profile appears in _FULL_SUGGESTED_COMMANDS as a diagnostic command."""
+    from reverse_agent.project_gate import _FULL_SUGGESTED_COMMANDS
+
+    kinds = [c["kind"] for c in _FULL_SUGGESTED_COMMANDS]
+    assert "gate-profile" in kinds
+
+
+def test_gate_profile_in_standard_suggested_commands() -> None:
+    """gate-profile appears in _STANDARD_SUGGESTED_COMMANDS as a diagnostic command."""
+    from reverse_agent.project_gate import _STANDARD_SUGGESTED_COMMANDS
+
+    kinds = [c["kind"] for c in _STANDARD_SUGGESTED_COMMANDS]
+    assert "gate-profile" in kinds
+
+
+def test_execution_authority_full_profile_passes_when_gate_profile_recorded(
+    tmp_path: Path,
+) -> None:
+    """Full profile does not flag gate-profile as unauthorized when recorded in pytest_result."""
+    gate_profile_cmd = "python -m reverse_agent.project_gate gate-profile --state-dir project_state"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="full",
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            (gate_profile_cmd, "gate-profile: PASSED", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            ("python -m pytest tests/test_project_gate.py -q", "653 passed", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", 0),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "PASS"
+    unauthorized = auth_check.get("unauthorized_commands") or []
+    assert not any(u["kind"] == "gate-profile" for u in unauthorized)
+
+
+def test_execution_authority_fast_profile_fails_when_gate_profile_recorded(
+    tmp_path: Path,
+) -> None:
+    """Fast profile flags gate-profile as unauthorized when recorded in pytest_result."""
+    gate_profile_cmd = "python -m reverse_agent.project_gate gate-profile --state-dir project_state"
+    state_dir = _make_execution_authority_state(
+        tmp_path,
+        profile="fast",
+        pytest_commands=[
+            ("Set-Location F:\\reverse-agent", "F:\\reverse-agent", 0),
+            ("Get-Location", "F:\\reverse-agent", 0),
+            ("Test-Path F:\\reverse-agent", "True", 0),
+            ("git rev-parse --show-toplevel", "F:\\reverse-agent", 0),
+            ("git status --short", "", 0),
+            ("python -m reverse_agent.project_gate preflight --state-dir project_state", "preflight: PASSED", 0),
+            ("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "{}", 0),
+            (gate_profile_cmd, "gate-profile: PASSED", 0),
+            ("python -m reverse_agent.project_gate report-summary --state-dir project_state", "{}", 0),
+            ("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", 0),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    auth_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "command_plan_execution_authority"),
+        None,
+    )
+    assert auth_check is not None
+    assert auth_check["status"] == "FAIL"
+    unauthorized = auth_check.get("unauthorized_commands") or []
+    assert any(u["kind"] == "gate-profile" for u in unauthorized)
+
+
+# ---------------------------------------------------------------------------
 # Regression: closeout/report-summary archive policy
 # ---------------------------------------------------------------------------
 
@@ -15986,10 +16208,10 @@ def _make_closeout_policy_state(
     if profile == "fast":
         required_command_kinds = ["startup", "preflight", "command-plan", "report-summary", "final-check"]
     elif profile == "standard":
-        required_command_kinds = ["startup", "preflight", "command-plan", "pytest", "report-summary", "final-check"]
+        required_command_kinds = ["startup", "preflight", "gate-profile", "command-plan", "pytest", "report-summary", "final-check"]
     else:
         required_command_kinds = [
-            "startup", "preflight", "command-plan", "run-round", "pytest",
+            "startup", "preflight", "gate-profile", "command-plan", "run-round", "pytest",
             "doctor", "lint-report", "report-summary", "final-check", "close-round",
         ]
 

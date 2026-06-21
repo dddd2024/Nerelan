@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_close_snapshot.json",
-  "decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
-  "round_id": "round_20260621_closeout_authorization_report_summary_rework_v1",
-  "closed_at": "2026-06-21T05:49:43.014151Z",
+  "decision_id": "decision_20260621_gate_profile_authority_cleanup_v1",
+  "round_id": "round_20260621_gate_profile_authority_cleanup_v1",
+  "closed_at": "2026-06-21T07:31:43.890945Z",
   "round_closed": true,
   "baseline_active": false,
   "close_git_status_short": [
@@ -19,10 +19,10 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/round_manifest.json"
   ],
   "close_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -48,10 +48,10 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/decision_packet.md",
+    "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/pytest_result.txt",
+    "project_state/rounds/round_20260621_gate_profile_authority_cleanup_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
