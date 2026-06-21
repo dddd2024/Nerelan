@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260621_policy_impact_audit_v1",
-  "round_id": "round_20260621_policy_impact_audit_v1",
+  "decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,22 +13,17 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260621_prompt_docs_policy_integration_v1",
-  "previous_round_id": "round_20260621_prompt_docs_policy_integration_v1",
-  "previous_acceptance": "ACCEPTED",
-  "primary_goal": "Add Policy Impact Audit v1 for policy-sensitive engineering changes.",
+  "previous_decision_id": "decision_20260621_policy_impact_audit_v1",
+  "previous_round_id": "round_20260621_policy_impact_audit_v1",
+  "previous_acceptance": "ACCEPTED_WITH_LIMITATIONS",
+  "primary_goal": "Fix generated_artifacts coverage for policy_impact_audit.json and related gate artifacts.",
   "command_plan_authority_required": true,
-  "accepted_requires_policy_impact_audit_artifact": true,
-  "accepted_requires_policy_impact_required_audit_coverage": true,
+  "accepted_requires_policy_impact_artifact_in_generated_artifacts": true,
+  "accepted_requires_report_summary_detection_for_missing_policy_impact_artifact": true,
   "accepted_requires_final_check_passed": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
-  ],
-  "allowed_prompt_files": [
-    "docs/prompts/project_workspace_prompt.md",
-    "docs/prompts/codex_execution_prompt.md",
-    "docs/prompts/README.md"
   ],
   "allowed_state_artifacts": [
     "project_state/codex_execution_report.md",
@@ -44,14 +39,17 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/run_closeout_result.json",
-    "project_state/rounds/round_20260621_policy_impact_audit_v1/*"
+    "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
     "project_state/task_packet.json",
     "project_state/artifact_index.json",
     "project_state/negative_results.json",
-    ".codex-skills/registry.json"
+    ".codex-skills/registry.json",
+    "docs/prompts/project_workspace_prompt.md",
+    "docs/prompts/codex_execution_prompt.md",
+    "docs/prompts/README.md"
   ]
 }
 ```
@@ -60,11 +58,11 @@
 
 ## 1. Goal
 
-Implement Policy Impact Audit v1 for policy-sensitive engineering changes.
+Fix generated artifact coverage for `project_state/gates/policy_impact_audit.json` and related gate artifacts.
 
-The previous accepted round moved long-lived prompts into `docs/prompts/` and made policy-lint scan them. The next gap is impact accounting: when a round changes policy-sensitive code or text, the report should explicitly state whether prompts, skills, command-plan, final-check, policy-lint, tests, and report status semantics are affected. This prevents silent drift where engineering rules change but the stable prompt docs, tests, and audit criteria are not reviewed.
+The previous round `decision_20260621_policy_impact_audit_v1` was accepted with limitations because `policy_impact_audit.json` was generated and passed, but `codex_report_summary.generated_artifacts` did not list it. This round must close that reporting gap so future `SUCCESS` / `ACCEPTED` reports cannot omit a generated policy-impact artifact while still passing report-summary or final-check.
 
-This round must add a bounded, testable policy-impact audit capability. It should produce a structured artifact and make final acceptance depend on substantive impact analysis when the round changes policy-sensitive files.
+This is a small engineering cleanup. Do not expand into a new policy system.
 
 ## 2. Current Evidence
 
@@ -72,41 +70,50 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` is background only. It still describes stale `samplereverse` work and must not control this round.
 
-The previous round `decision_20260621_prompt_docs_policy_integration_v1` is accepted. Its evidence showed:
+Previous round status: `decision_20260621_policy_impact_audit_v1` was `ACCEPTED_WITH_LIMITATIONS`.
 
-- `codex_execution_report.md` had `status=SUCCESS` and `acceptance_recommendation=ACCEPTED`.
-- `docs/prompts/project_workspace_prompt.md`, `docs/prompts/codex_execution_prompt.md`, and `docs/prompts/README.md` were created.
-- `policy_lint_result.json` had `gate_status=PASSED`, scanned the prompt docs, and had no findings.
-- `final_gate_result.json` had `gate_status=PASSED`, no blocking reasons, and `recommended_next_action=no_action_required`.
-- command-plan authority, report-summary synthesis, status policy, and required audit coverage all passed.
+Accepted evidence from the previous round:
+
+- `policy_impact_audit.json` existed and had `gate_status=PASSED`.
+- It identified policy-sensitive files: `reverse_agent/project_gate.py` and `tests/test_project_gate.py`.
+- It identified impacted domains: `command_plan`, `final_check`, `policy_lint`, `report_status_schema`, `report_summary`, and `tests`.
+- `missing_report_topics=[]` and `blocking_reasons=[]`.
+- final-check ultimately passed.
+
+Limitation to fix:
+
+- `codex_report_summary.files_changed` included `project_state/gates/policy_impact_audit.json`.
+- `codex_report_summary.generated_artifacts` omitted `project_state/gates/policy_impact_audit.json`.
+- The project rule is that generated or updated gate artifacts must be listed in `generated_artifacts`, especially when the decision contract explicitly requires that artifact.
 
 Existing relevant capabilities to reuse:
 
-- `reverse_agent.project_gate` CLI structure and artifact-writing conventions
-- `round_delta_summary.json` for changed-file detection
-- `policy-lint` and `policy_lint_result.json`
-- `decision-lint`, `preflight`, `command-plan`, `report-summary`, `final-check`, and `run-closeout`
-- required audit coverage checks in final-check
-- bounded prompt docs under `docs/prompts/*.md`
+- `report-summary` synthesis and diff checks
+- final-check `generated_artifacts_cover_round_delta`, `generated_artifacts_cover_round_archive`, `required_closeout_artifacts_covered`, and related report/round checks
+- round delta evidence from `project_state/gates/round_delta_summary.json`
+- policy-impact artifact at `project_state/gates/policy_impact_audit.json`
+- command-plan execution authority and report-summary/final-check status checks
 - tests in `tests/test_project_gate.py`
 
 This is not a reverse-solving round. Do not inspect or run sample binaries. Do not use IDA, Ghidra, debuggers, emulators, runtime probes, harnesses, or full `solve_reports/`.
 
 ## 3. Do Not Do
 
-Do not redesign the whole policy system or introduce a full policy manifest.
+Do not redesign Policy Impact Audit.
 
-Do not add a database, message queue, workflow engine, or `execution_log.json`.
+Do not change the policy-sensitive domain mapping unless it is strictly necessary to test artifact coverage.
 
-Do not generate prompts from code. Prompt docs may be updated only to mention stable Policy Impact Audit rules if needed.
+Do not create a policy manifest, prompt generator, database, workflow engine, or `execution_log.json`.
 
-Do not weaken policy-lint, decision-command-plan conflict detection, command-plan authority, report-summary synthesis, final-check, or closeout.
+Do not modify prompt docs in this round. The limitation is in artifact reporting, not prompt wording.
 
-Do not make Policy Impact Audit a substitute for actual tests. It is an audit layer over policy-sensitive changes, not a replacement for pytest or gates.
+Do not weaken final-check to accept missing generated artifacts.
+
+Do not remove `policy_impact_audit.json` from `files_changed` to hide the problem. The fix must add or require it in `generated_artifacts`.
 
 Do not change profile names. The current profile names are `fast`, `standard`, and `full`; do not introduce `medium` as a profile.
 
-Do not mutate `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, or `.codex-skills/registry.json`.
+Do not mutate `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, `.codex-skills/registry.json`, or `docs/prompts/*`.
 
 Do not continue `samplereverse` solving. Do not run samples, solvers, harnesses, runtime probes, IDA/Ghidra, debuggers, emulators, GUI workflows, or full `solve_reports/` scans.
 
@@ -125,48 +132,41 @@ Read default state files first:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Then inspect only files relevant to this engineering check:
+Then inspect only files relevant to this artifact coverage cleanup:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `docs/prompts/README.md`
-4. `docs/prompts/project_workspace_prompt.md`
-5. `docs/prompts/codex_execution_prompt.md`
+3. `project_state/gates/policy_impact_audit.json`
+4. `project_state/gates/report_summary_synthesis.json`
+5. `project_state/gates/final_gate_result.json`
 6. `project_state/gates/round_delta_summary.json`
-7. `project_state/gates/policy_lint_result.json`
-8. `project_state/gates/command_plan.json`
-9. `project_state/gates/final_gate_result.json`
-10. `project_state/gates/report_summary_synthesis.json`
+7. `project_state/gates/round_close_snapshot.json`
+8. `project_state/gates/run_closeout_result.json`
+9. `project_state/rounds/round_20260621_policy_impact_audit_v1/round_manifest.json` only if needed to understand the prior limitation
 
-Historical files may be read only by exact path when needed for a focused regression fixture. Do not scan entire `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
+Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
 Answer all items in `project_state/codex_execution_report.md` before claiming success:
 
-1. What file patterns are considered policy-sensitive by Policy Impact Audit v1, and why?
-2. How does the audit determine that prompt docs, skills, command-plan, final-check, report-summary, policy-lint, or report status semantics may be affected?
-3. What structured artifact is written, and what fields does it contain?
-4. When does Policy Impact Audit produce FAIL, WARN, or PASS?
-5. How does final-check consume or verify the Policy Impact Audit result?
-6. How does the audit avoid requiring heavy scans of `solve_reports/`, full `project_state/rounds/`, or full `PROJECT_PROGRESS_LOG.txt`?
-7. What tests prove policy-sensitive source changes require a substantive policy impact answer, while ordinary non-policy changes do not create false failures?
-8. How does this round preserve existing prompt docs, policy-lint, decision-command-plan conflict detection, command-plan authority, report-summary, final-check, and closeout behavior?
+1. What exact generated_artifacts omission from the previous round is being fixed?
+2. Which code path now ensures `project_state/gates/policy_impact_audit.json` appears in `codex_report_summary.generated_artifacts` when it is generated or updated?
+3. How does report-summary detect a missing `policy_impact_audit.json` generated_artifacts entry?
+4. How does final-check detect or block the same omission for a `SUCCESS` / `ACCEPTED` report?
+5. Does the fix generalize to other generated gate artifacts under `project_state/gates/*.json`, or is it intentionally limited to policy-impact? Explain the boundary.
+6. How does the fix avoid false failures for rounds where policy-impact was not run and no `policy_impact_audit.json` was generated?
+7. What regression tests prove the previous omission now fails and the corrected report now passes?
+8. How does this round preserve Policy Impact Audit v1, policy-lint, command-plan authority, report-summary, final-check, and closeout behavior?
 
 ## 6. Implementation Scope
 
-Implement one bounded feature: Policy Impact Audit v1 for policy-sensitive changes.
+Implement one bounded cleanup: generated_artifacts coverage for `policy_impact_audit.json` and any directly related gate artifact accounting.
 
 Allowed source changes:
 
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
-
-Allowed prompt/document changes, only if needed to document the new stable audit rule:
-
-- `docs/prompts/project_workspace_prompt.md`
-- `docs/prompts/codex_execution_prompt.md`
-- `docs/prompts/README.md`
 
 Allowed state/artifact updates:
 
@@ -183,27 +183,22 @@ Allowed state/artifact updates:
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/run_closeout_result.json`
-- `project_state/rounds/round_20260621_policy_impact_audit_v1/*` only if command-plan authorizes closeout
+- `project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/*` only if command-plan authorizes closeout
 
 Required implementation behavior:
 
-1. Add a CLI entrypoint such as `python -m reverse_agent.project_gate policy-impact --state-dir project_state` or integrate an equivalent policy-impact check into an existing gate, while still writing `project_state/gates/policy_impact_audit.json`.
-2. Detect policy-sensitive changed files from `round_delta_summary.json` or equivalent current delta evidence. At minimum, treat these as policy-sensitive:
-   - `reverse_agent/project_gate.py`
-   - `tests/test_project_gate.py` when testing gate/policy behavior
-   - `docs/prompts/*.md`
-   - `.codex-skills/**`
-   - `.codex-skills/registry.json`
-   - `project_state/decision_packet.md` when live decision changes during execution
-   - gate/report schema or status-policy related code paths in `project_gate.py`
-3. Write `project_state/gates/policy_impact_audit.json` with schema_version, gate_name, gate_status, decision_id, round_id, policy_sensitive_files, impacted_domains, required_report_topics, missing_report_topics, warnings, blocking_reasons, and recommended_next_action.
-4. Require substantive report coverage for impacted domains when policy-sensitive files changed. At minimum, domains should include prompt_docs, skills, command_plan, final_check, report_summary, policy_lint, report_status_schema, and tests.
-5. Classify as FAIL when policy-sensitive changes are present but the report omits required impact coverage; WARN when impact is plausible but no hard evidence requires a block; PASS when coverage is present or no policy-sensitive files changed.
-6. Integrate the check into final-check or report-summary so a `SUCCESS/ACCEPTED` report cannot silently skip policy impact analysis for policy-sensitive changes.
-7. Add focused regression tests for policy-sensitive source changes, prompt-doc changes, no-impact ordinary changes, missing report coverage, and successful report coverage.
-8. Preserve existing policy-lint, prompt docs, command-plan authority, report-summary, final-check, closeout, and decision-command-plan conflict behavior.
-
-Do not add a full policy manifest, prompt generation, or execution-log storage in this round.
+1. Ensure `policy_impact_audit.json` is included in the synthesized `generated_artifacts` list when it is generated or appears in the current round delta as a gate artifact.
+2. Ensure final-check treats a missing generated_artifacts entry for `project_state/gates/policy_impact_audit.json` as a failure for `SUCCESS` / `ACCEPTED` reports when the file exists and belongs to the current round.
+3. Prefer a general gate-artifact coverage rule for generated `project_state/gates/*.json` artifacts, but keep the change bounded. Do not introduce broad historical scanning.
+4. Preserve the distinction between `files_changed` and `generated_artifacts`: source/test files belong in `files_changed`; generated project_state/gates artifacts belong in both `files_changed` when changed and `generated_artifacts` when generated or updated.
+5. Ensure report-summary synthesis and final-check agree on the expected `generated_artifacts` set.
+6. Ensure closeout refresh preserves the corrected `generated_artifacts` list.
+7. Add regression tests for:
+   - report summary/final-check failing when `policy_impact_audit.json` is omitted from `generated_artifacts`;
+   - passing when it is included;
+   - no false failure when policy-impact was not run and the artifact is absent for the current round;
+   - existing policy-impact, policy-lint, command-plan, final-check, report-summary, and closeout tests still passing.
+8. Do not modify prompt docs or `.codex-skills/` in this round.
 
 ## 7. Tests
 
@@ -254,7 +249,7 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 Run closeout only if command-plan explicitly includes or authorizes the closeout command for this round:
 
 ```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_policy_impact_audit_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_policy_impact_generated_artifacts_coverage_fix_v1
 ```
 
 If closeout runs, rerun report-summary and final-check afterward.
@@ -266,12 +261,12 @@ Record all executed commands, stdout/stderr, exit codes, and final conclusion in
 Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 
 1. preflight fails before implementation for unrelated reasons;
-2. this requires a full policy manifest, prompt generation, database, workflow engine, or execution-log migration;
+2. this requires redesigning report-summary, final-check, closeout, or Policy Impact Audit beyond artifact coverage accounting;
 3. source changes outside `reverse_agent/project_gate.py` and `tests/test_project_gate.py` are needed;
-4. prompt/document changes outside `docs/prompts/project_workspace_prompt.md`, `docs/prompts/codex_execution_prompt.md`, and `docs/prompts/README.md` are needed;
-5. Policy Impact Audit requires heavy runtime output scans, full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt` by default;
-6. Policy Impact Audit blocks ordinary non-policy changes without a clear policy-sensitive file reason;
-7. command-plan authority, policy-lint, decision-command-plan conflict detection, report-summary, final-check, or closeout regresses;
+4. prompt docs, `.codex-skills/`, or forbidden project_state source files need changes;
+5. the fix requires scanning full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`;
+6. the fix hides the artifact by removing it from `files_changed` instead of adding it to `generated_artifacts`;
+7. command-plan authority, policy-impact, policy-lint, decision-command-plan conflict detection, report-summary, final-check, or closeout regresses;
 8. `codex_execution_report.md`, `pytest_result.txt`, or gate artifacts use stale decision_id/round_id;
 9. tests fail or any required command exit code is nonzero;
 10. closeout archive files are created but not listed in `files_changed` and `generated_artifacts`.
