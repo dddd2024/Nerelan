@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
-  "round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "decision_id": "decision_20260621_structured_execution_log_v1",
+  "round_id": "round_20260621_structured_execution_log_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,13 +13,14 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260621_policy_impact_audit_v1",
-  "previous_round_id": "round_20260621_policy_impact_audit_v1",
-  "previous_acceptance": "ACCEPTED_WITH_LIMITATIONS",
-  "primary_goal": "Fix generated_artifacts coverage for policy_impact_audit.json and related gate artifacts.",
+  "previous_decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "previous_round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "previous_acceptance": "ACCEPTED",
+  "primary_goal": "Add structured execution log v1 while keeping pytest_result.txt as the human-readable execution record.",
   "command_plan_authority_required": true,
-  "accepted_requires_policy_impact_artifact_in_generated_artifacts": true,
-  "accepted_requires_report_summary_detection_for_missing_policy_impact_artifact": true,
+  "accepted_requires_execution_log_artifact": true,
+  "accepted_requires_command_plan_authority_reads_execution_log_when_available": true,
+  "accepted_requires_pytest_result_backward_compatibility": true,
   "accepted_requires_final_check_passed": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
@@ -29,6 +30,7 @@
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/command_plan.json",
+    "project_state/gates/execution_log.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/policy_lint_result.json",
@@ -39,7 +41,7 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/run_closeout_result.json",
-    "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/*"
+    "project_state/rounds/round_20260621_structured_execution_log_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -58,11 +60,11 @@
 
 ## 1. Goal
 
-Fix generated artifact coverage for `project_state/gates/policy_impact_audit.json` and related gate artifacts.
+Add Structured Execution Log v1 while preserving `project_state/pytest_result.txt` as the human-readable execution record.
 
-The previous round `decision_20260621_policy_impact_audit_v1` was accepted with limitations because `policy_impact_audit.json` was generated and passed, but `codex_report_summary.generated_artifacts` did not list it. This round must close that reporting gap so future `SUCCESS` / `ACCEPTED` reports cannot omit a generated policy-impact artifact while still passing report-summary or final-check.
+The current gate pipeline verifies executed commands by parsing command blocks from `pytest_result.txt`. That works, but it is brittle: command-plan authority, report-summary, final-check, closeout, and future report automation all need a structured command ledger instead of relying only on text parsing. This round must add a bounded structured execution log artifact that records command executions in machine-readable JSON and lets gates use it when available.
 
-This is a small engineering cleanup. Do not expand into a new policy system.
+This is an engineering infrastructure round. The goal is not to build full automation or a new runner yet. The goal is to add the structured log format, artifact accounting, validation checks, and compatibility behavior needed for the later `run-round` / `execute-decision` and auto-report-summary work.
 
 ## 2. Current Evidence
 
@@ -70,48 +72,51 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` is background only. It still describes stale `samplereverse` work and must not control this round.
 
-Previous round status: `decision_20260621_policy_impact_audit_v1` was `ACCEPTED_WITH_LIMITATIONS`.
+Previous round status: `decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1` was accepted. Its evidence showed:
 
-Accepted evidence from the previous round:
+- `codex_report_summary.generated_artifacts` now includes `project_state/gates/policy_impact_audit.json` and other reportable gate artifacts.
+- report-summary/final-check now detect missing generated gate artifacts.
+- `pytest_result_summary.status` was `PASSED`.
+- `tests/test_project_gate.py -q` passed with 712 tests.
+- `tests/test_project_gate.py tests/test_project_state.py -q` passed with 1010 tests.
+- `policy-lint`, `policy-impact`, `decision-lint`, `report-summary`, `final-check`, and `run-closeout` all passed.
 
-- `policy_impact_audit.json` existed and had `gate_status=PASSED`.
-- It identified policy-sensitive files: `reverse_agent/project_gate.py` and `tests/test_project_gate.py`.
-- It identified impacted domains: `command_plan`, `final_check`, `policy_lint`, `report_status_schema`, `report_summary`, and `tests`.
-- `missing_report_topics=[]` and `blocking_reasons=[]`.
-- final-check ultimately passed.
+Current gap:
 
-Limitation to fix:
-
-- `codex_report_summary.files_changed` included `project_state/gates/policy_impact_audit.json`.
-- `codex_report_summary.generated_artifacts` omitted `project_state/gates/policy_impact_audit.json`.
-- The project rule is that generated or updated gate artifacts must be listed in `generated_artifacts`, especially when the decision contract explicitly requires that artifact.
+- `pytest_result.txt` is still the only complete command execution record.
+- command-plan authority still depends heavily on parsing text command blocks.
+- future auto-report-summary and run-round/execute-decision will need a structured command ledger with command, kind, phase, expected_exit_codes, actual_exit_code, start/end timestamps if available, and stdout/stderr references or summaries.
 
 Existing relevant capabilities to reuse:
 
-- `report-summary` synthesis and diff checks
-- final-check `generated_artifacts_cover_round_delta`, `generated_artifacts_cover_round_archive`, `required_closeout_artifacts_covered`, and related report/round checks
-- round delta evidence from `project_state/gates/round_delta_summary.json`
-- policy-impact artifact at `project_state/gates/policy_impact_audit.json`
-- command-plan execution authority and report-summary/final-check status checks
+- command-plan artifact and expected command list
+- command kind and command-plan authority checks
+- pytest_result command block parsing
+- report-summary synthesis
+- final-check checks for command coverage and unauthorized commands
+- generated artifact coverage logic for gate artifacts
+- run-closeout and round archive behavior
 - tests in `tests/test_project_gate.py`
 
 This is not a reverse-solving round. Do not inspect or run sample binaries. Do not use IDA, Ghidra, debuggers, emulators, runtime probes, harnesses, or full `solve_reports/`.
 
 ## 3. Do Not Do
 
-Do not redesign Policy Impact Audit.
+Do not implement a full runner, scheduler, AgentRunner, background worker, database, message queue, workflow engine, or web UI.
 
-Do not change the policy-sensitive domain mapping unless it is strictly necessary to test artifact coverage.
+Do not replace `project_state/pytest_result.txt`. It remains the required human-readable execution record and must still be written.
 
-Do not create a policy manifest, prompt generator, database, workflow engine, or `execution_log.json`.
+Do not remove existing pytest_result parsing in this round. Structured execution log should be additive and backward-compatible.
 
-Do not modify prompt docs in this round. The limitation is in artifact reporting, not prompt wording.
+Do not weaken command-plan authority. If structured execution log and pytest_result disagree, final-check must not silently accept the mismatch.
 
-Do not weaken final-check to accept missing generated artifacts.
+Do not make execution_log a long-term dynamic memory store. It is a current-round gate artifact under `project_state/gates/`, not a skill, prompt, or historical database.
 
-Do not remove `policy_impact_audit.json` from `files_changed` to hide the problem. The fix must add or require it in `generated_artifacts`.
+Do not log full huge stdout/stderr bodies into a separate heavy artifact unless already present in `pytest_result.txt`. Keep v1 compact.
 
-Do not change profile names. The current profile names are `fast`, `standard`, and `full`; do not introduce `medium` as a profile.
+Do not modify prompt docs in this round. The stable docs were accepted previously and are not the target here.
+
+Do not change profile names. The current profile names are `fast`, `standard`, and `full`; do not introduce `medium`.
 
 Do not mutate `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, `.codex-skills/registry.json`, or `docs/prompts/*`.
 
@@ -132,36 +137,35 @@ Read default state files first:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Then inspect only files relevant to this artifact coverage cleanup:
+Then inspect only files relevant to structured execution logging:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `project_state/gates/policy_impact_audit.json`
+3. `project_state/gates/command_plan.json`
 4. `project_state/gates/report_summary_synthesis.json`
 5. `project_state/gates/final_gate_result.json`
 6. `project_state/gates/round_delta_summary.json`
-7. `project_state/gates/round_close_snapshot.json`
-8. `project_state/gates/run_closeout_result.json`
-9. `project_state/rounds/round_20260621_policy_impact_audit_v1/round_manifest.json` only if needed to understand the prior limitation
+7. `project_state/gates/run_closeout_result.json`
+8. `project_state/gates/execution_log.json` if it already exists
 
-Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
+Historical files may be read only by exact path when needed for a focused regression fixture. Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
 Answer all items in `project_state/codex_execution_report.md` before claiming success:
 
-1. What exact generated_artifacts omission from the previous round is being fixed?
-2. Which code path now ensures `project_state/gates/policy_impact_audit.json` appears in `codex_report_summary.generated_artifacts` when it is generated or updated?
-3. How does report-summary detect a missing `policy_impact_audit.json` generated_artifacts entry?
-4. How does final-check detect or block the same omission for a `SUCCESS` / `ACCEPTED` report?
-5. Does the fix generalize to other generated gate artifacts under `project_state/gates/*.json`, or is it intentionally limited to policy-impact? Explain the boundary.
-6. How does the fix avoid false failures for rounds where policy-impact was not run and no `policy_impact_audit.json` was generated?
-7. What regression tests prove the previous omission now fails and the corrected report now passes?
-8. How does this round preserve Policy Impact Audit v1, policy-lint, command-plan authority, report-summary, final-check, and closeout behavior?
+1. What schema does `project_state/gates/execution_log.json` use, and which fields are required per command entry?
+2. How is `execution_log.json` created or derived in v1, and why does `pytest_result.txt` remain required?
+3. How does command-plan authority use `execution_log.json` when available, and how does it fall back to `pytest_result.txt` when absent?
+4. How does final-check detect mismatches between `execution_log.json`, `pytest_result.txt`, `codex_report_summary.tests_ran`, and `command_plan.commands`?
+5. How is `execution_log.json` included in `generated_artifacts`, report-summary synthesis, final-check artifact coverage, and round archive coverage?
+6. How does v1 avoid creating a heavy runtime log, database, queue, background runner, or replacing pytest_result?
+7. What regression tests prove authorized commands pass, unauthorized commands fail, omitted commands fail, mismatch with pytest_result fails, and absence of execution_log remains backward-compatible?
+8. How does this round preserve policy-impact, policy-lint, command-plan authority, report-summary, final-check, closeout, and prompt-doc behavior?
 
 ## 6. Implementation Scope
 
-Implement one bounded cleanup: generated_artifacts coverage for `policy_impact_audit.json` and any directly related gate artifact accounting.
+Implement one bounded feature: Structured Execution Log v1 as a current-round gate artifact.
 
 Allowed source changes:
 
@@ -173,6 +177,7 @@ Allowed state/artifact updates:
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/command_plan.json`
+- `project_state/gates/execution_log.json`
 - `project_state/gates/gate_profile_plan.json`
 - `project_state/gates/preflight_result.json`
 - `project_state/gates/policy_lint_result.json`
@@ -183,22 +188,20 @@ Allowed state/artifact updates:
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/run_closeout_result.json`
-- `project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/*` only if command-plan authorizes closeout
+- `project_state/rounds/round_20260621_structured_execution_log_v1/*` only if command-plan authorizes closeout
 
 Required implementation behavior:
 
-1. Ensure `policy_impact_audit.json` is included in the synthesized `generated_artifacts` list when it is generated or appears in the current round delta as a gate artifact.
-2. Ensure final-check treats a missing generated_artifacts entry for `project_state/gates/policy_impact_audit.json` as a failure for `SUCCESS` / `ACCEPTED` reports when the file exists and belongs to the current round.
-3. Prefer a general gate-artifact coverage rule for generated `project_state/gates/*.json` artifacts, but keep the change bounded. Do not introduce broad historical scanning.
-4. Preserve the distinction between `files_changed` and `generated_artifacts`: source/test files belong in `files_changed`; generated project_state/gates artifacts belong in both `files_changed` when changed and `generated_artifacts` when generated or updated.
-5. Ensure report-summary synthesis and final-check agree on the expected `generated_artifacts` set.
-6. Ensure closeout refresh preserves the corrected `generated_artifacts` list.
-7. Add regression tests for:
-   - report summary/final-check failing when `policy_impact_audit.json` is omitted from `generated_artifacts`;
-   - passing when it is included;
-   - no false failure when policy-impact was not run and the artifact is absent for the current round;
-   - existing policy-impact, policy-lint, command-plan, final-check, report-summary, and closeout tests still passing.
-8. Do not modify prompt docs or `.codex-skills/` in this round.
+1. Define a compact JSON schema for `project_state/gates/execution_log.json`. At minimum include `schema_version`, `artifact_name`, `decision_id`, `round_id`, `report_id` if known, `generated_at`, `source`, `commands`, `warnings`, `blocking_reasons`, and `recommended_next_action`.
+2. Each command entry must include at least `index`, `command`, `kind` if known, `phase` if known, `expected_exit_codes`, `exit_code`, and `status` such as `PASSED`, `FAILED`, or `UNKNOWN`.
+3. In v1, allow the artifact to be derived from the existing `pytest_result.txt` command blocks plus `command_plan.json`. Do not require a new command runner yet.
+4. Add a CLI entrypoint such as `python -m reverse_agent.project_gate execution-log --state-dir project_state` to generate or validate the artifact, if this fits existing project_gate structure.
+5. Update report-summary/final-check to include `execution_log.json` in generated gate artifact accounting when present.
+6. Update command-plan authority validation to prefer structured execution_log entries when available, while retaining pytest_result fallback for backward compatibility.
+7. Add checks so a `SUCCESS` / `ACCEPTED` report fails if execution_log and pytest_result disagree on executed command list or exit codes.
+8. Add tests for authorized commands, unauthorized commands, omitted commands, command/exit mismatch, missing execution_log fallback, generated_artifacts coverage, and closeout archive coverage.
+
+Do not build automatic report generation in this round. This round only supplies the structured execution substrate.
 
 ## 7. Tests
 
@@ -230,11 +233,12 @@ Targeted tests:
 python -m pytest tests/test_project_gate.py -q
 ```
 
-Run policy-lint and policy-impact only if command-plan explicitly includes or authorizes them:
+Run policy-lint, policy-impact, and execution-log only if command-plan explicitly includes or authorizes them:
 
 ```powershell
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
 python -m reverse_agent.project_gate policy-impact --state-dir project_state
+python -m reverse_agent.project_gate execution-log --state-dir project_state
 ```
 
 Final validation commands, only when authorized by command-plan:
@@ -249,7 +253,7 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 Run closeout only if command-plan explicitly includes or authorizes the closeout command for this round:
 
 ```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_policy_impact_generated_artifacts_coverage_fix_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_structured_execution_log_v1
 ```
 
 If closeout runs, rerun report-summary and final-check afterward.
@@ -261,12 +265,13 @@ Record all executed commands, stdout/stderr, exit codes, and final conclusion in
 Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 
 1. preflight fails before implementation for unrelated reasons;
-2. this requires redesigning report-summary, final-check, closeout, or Policy Impact Audit beyond artifact coverage accounting;
+2. this requires a full runner, scheduler, AgentRunner, database, queue, web UI, or execution automation beyond generating/validating a structured log;
 3. source changes outside `reverse_agent/project_gate.py` and `tests/test_project_gate.py` are needed;
 4. prompt docs, `.codex-skills/`, or forbidden project_state source files need changes;
-5. the fix requires scanning full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`;
-6. the fix hides the artifact by removing it from `files_changed` instead of adding it to `generated_artifacts`;
-7. command-plan authority, policy-impact, policy-lint, decision-command-plan conflict detection, report-summary, final-check, or closeout regresses;
-8. `codex_execution_report.md`, `pytest_result.txt`, or gate artifacts use stale decision_id/round_id;
-9. tests fail or any required command exit code is nonzero;
-10. closeout archive files are created but not listed in `files_changed` and `generated_artifacts`.
+5. the implementation replaces or removes `pytest_result.txt` instead of preserving it;
+6. command-plan authority becomes weaker when execution_log exists;
+7. execution_log and pytest_result can disagree while final-check still passes for a SUCCESS report;
+8. the fix requires scanning full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`;
+9. policy-impact, policy-lint, command-plan authority, decision-command-plan conflict detection, report-summary, final-check, or closeout regresses;
+10. tests fail or any required command exit code is nonzero;
+11. closeout archive files are created but not listed in `files_changed` and `generated_artifacts`.
