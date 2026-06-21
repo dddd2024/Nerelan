@@ -2228,7 +2228,9 @@ def test_close_round_archives_unarchived_consistent_round(tmp_path: Path) -> Non
     }
     assert _check(result, "requested_round_id_match")["status"] == "PASS"
     assert result["actions"][0]["name"] == "final_check_before_archive"
-    assert result["actions"][0]["allowed_archive_pending_failures"] == []
+    assert result["actions"][0]["allowed_archive_pending_failures"] == [
+        "report_summary_fields_match_synthesis"
+    ]
     assert result["actions"][1]["name"] == "archive_round"
     assert result["actions"][1]["status"] == "created"
     assert result["actions"][2]["name"] == "final_check_after_archive"
@@ -2255,7 +2257,9 @@ def test_close_round_allows_engineering_success_legacy_artifacts_until_archive(t
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
 
     assert result["close_status"] == "CLOSED"
-    assert result["actions"][0]["allowed_archive_pending_failures"] == []
+    assert result["actions"][0]["allowed_archive_pending_failures"] == [
+        "report_summary_fields_match_synthesis"
+    ]
     assert result["actions"][0]["unexpected_failures"] == []
     assert result["actions"][2]["status"] == "PASSED"
     assert result["actions"][2]["gate_status"] == "PASSED"
@@ -15954,4 +15958,411 @@ def test_execution_authority_failed_report_fails_when_not_acknowledged(
     )
     assert auth_check is not None
     assert auth_check["status"] == "FAIL"
+
+
+# ---------------------------------------------------------------------------
+# Regression: closeout/report-summary archive policy
+# ---------------------------------------------------------------------------
+
+
+def _make_closeout_policy_state(
+    tmp_path: Path,
+    *,
+    profile: str = "full",
+    closeout_allowed: bool = True,
+    close_snapshot_for_current_round: bool = False,
+    report_files_changed: list[str] | None = None,
+    report_generated_artifacts: list[str] | None = None,
+) -> Path:
+    """Create a minimal state for closeout/report-summary archive policy tests."""
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+
+    decision_id = "decision_closeout_policy"
+    report_id = "codex_report_closeout_policy"
+    round_id = "round_closeout_policy"
+
+    if profile == "fast":
+        required_command_kinds = ["startup", "preflight", "command-plan", "report-summary", "final-check"]
+    elif profile == "standard":
+        required_command_kinds = ["startup", "preflight", "command-plan", "pytest", "report-summary", "final-check"]
+    else:
+        required_command_kinds = [
+            "startup", "preflight", "command-plan", "run-round", "pytest",
+            "doctor", "lint-report", "report-summary", "final-check", "close-round",
+        ]
+
+    _write_json(state_dir / "current_state.json", {
+        "round_id": round_id,
+        "state_build_id": "state_test",
+        "state_digest": "digest_test",
+        "state_scope": "sample_state",
+        "source_harness_run": "run_test",
+    })
+    _write_json(state_dir / "task_packet.json", {
+        "state_scope": "sample_state",
+        "task_source": "derived_from_sample_artifacts",
+        "execution_scope": "decision_packet_controls_current_round",
+        "active_decision_packet": "project_state/decision_packet.md",
+    })
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+
+    _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
+    _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(exist_ok=True)
+
+    _write_json(gates_dir / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "profile": profile,
+        "profile_reason": "test fixture",
+        "closeout_allowed": closeout_allowed,
+        "required_command_kinds": required_command_kinds,
+    })
+
+    plan_commands = [
+        {"index": 1, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+         "phase": "preflight", "kind": "preflight", "required": True, "expected_exit_codes": [0]},
+        {"index": 2, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+         "phase": "gate", "kind": "command-plan", "required": True, "expected_exit_codes": [0]},
+        {"index": 3, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+         "phase": "gate", "kind": "report-summary", "required": True, "expected_exit_codes": [0, 1]},
+        {"index": 4, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+         "phase": "gate", "kind": "final-check", "required": True, "expected_exit_codes": [0, 1]},
+    ]
+    if profile != "fast":
+        plan_commands.insert(2, {
+            "index": 3, "command": "python -m pytest tests/test_project_gate.py -q",
+            "phase": "test", "kind": "pytest", "required": True, "expected_exit_codes": [0],
+        })
+
+    _write_json(gates_dir / "command_plan.json", {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "generated_at": "2026-06-21T00:00:00Z",
+        "profile_meta": {
+            "profile": profile,
+            "profile_reason": "test fixture",
+            "closeout_allowed": closeout_allowed,
+            "required_command_kinds": required_command_kinds,
+        },
+        "omitted_commands": [],
+        "commands": plan_commands,
+        "warnings": [],
+        "blocking_reasons": [],
+        "recommended_next_action": "record_and_follow_command_plan_manually",
+    })
+
+    _write_json(gates_dir / "round_delta_summary.json", {
+        "schema_version": 1,
+        "artifact_name": "round_delta_summary.json",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "baseline_available": True,
+        "new_dirty_files_since_baseline": [],
+        "inherited_dirty_files": [],
+        "final_dirty_files": [],
+    })
+    _write_json(gates_dir / "report_summary_synthesis.json", {
+        "schema_version": 1,
+        "artifact_name": "report_summary_synthesis.json",
+        "decision_id": decision_id,
+        "round_id": round_id,
+    })
+    _write_json(gates_dir / "final_gate_result.json", {
+        "schema_version": 1,
+        "artifact_name": "final_gate_result.json",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "gate_status": "PASSED",
+    })
+
+    # Optionally write round_close_snapshot for current round
+    if close_snapshot_for_current_round:
+        _write_json(gates_dir / "round_close_snapshot.json", {
+            "schema_version": 1,
+            "artifact_name": "round_close_snapshot.json",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "round_closed": True,
+            "generated_at": "2026-06-21T00:00:00Z",
+        })
+        # Also create the round archive directory so archive paths are
+        # included by build_report_summary_synthesis.
+        archive_dir = state_dir / "rounds" / round_id
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(archive_dir / "round_manifest.json", {
+            "schema_version": 1,
+            "artifact_name": "round_manifest.json",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "round_closed": True,
+        })
+        (archive_dir / "codex_execution_report.md").write_text(
+            "# CODEX_EXECUTION_REPORT\n", encoding="utf-8"
+        )
+        (archive_dir / "decision_packet.md").write_text(
+            "# DECISION_PACKET\n", encoding="utf-8"
+        )
+        (archive_dir / "pytest_result.txt").write_text(
+            "# PYTEST_RESULT\n", encoding="utf-8"
+        )
+
+    # Build default files_changed and generated_artifacts
+    if report_files_changed is None:
+        report_files_changed = [
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ]
+    if report_generated_artifacts is None:
+        report_generated_artifacts = [
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/command_plan.json",
+        ]
+
+    _write_pytest(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        tests_ran=["python -m reverse_agent.project_gate preflight --state-dir project_state"],
+        body=_command_block(
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "preflight: PASSED",
+            exit_code=0,
+        ),
+    )
+    _write_report(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        status="SUCCESS",
+        acceptance="ACCEPTED",
+        files_changed=report_files_changed,
+        tests_ran=["python -m reverse_agent.project_gate preflight --state-dir project_state"],
+        generated_artifacts=report_generated_artifacts,
+    )
+
+    return state_dir
+
+
+def test_closeout_policy_pre_closeout_excludes_archive_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When closeout_allowed=true but closeout hasn't run, archive paths
+    should NOT be in synthesized files_changed/generated_artifacts."""
+    # Override autouse _clean_git_diff to return empty git changes
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [],
+    )
+    state_dir = _make_closeout_policy_state(
+        tmp_path,
+        profile="full",
+        closeout_allowed=True,
+        close_snapshot_for_current_round=False,
+    )
+
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+
+    synthesized = synthesis.get("synthesized_summary") or {}
+    files_changed = synthesized.get("files_changed") or []
+    generated_artifacts = synthesized.get("generated_artifacts") or []
+
+    # Archive paths should NOT be present
+    assert not any("project_state/rounds/" in p for p in files_changed), (
+        f"archive paths should not be in files_changed pre-closeout: {files_changed}"
+    )
+    assert not any("project_state/rounds/" in p for p in generated_artifacts), (
+        f"archive paths should not be in generated_artifacts pre-closeout: {generated_artifacts}"
+    )
+
+    # No diffs should be produced for archive paths
+    diffs = synthesis.get("diffs") or []
+    archive_diffs = [
+        d for d in diffs
+        if any("project_state/rounds/" in str(item) for item in (d.get("expected") or []))
+        or any("project_state/rounds/" in str(item) for item in (d.get("actual") or []))
+    ]
+    assert not archive_diffs, f"archive path diffs should not exist pre-closeout: {archive_diffs}"
+
+
+def test_closeout_policy_post_closeout_includes_archive_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When closeout_allowed=true and closeout has run (round_close_snapshot
+    matches current round), archive paths SHOULD be in synthesized
+    files_changed/generated_artifacts."""
+    # Override autouse _clean_git_diff to return empty git changes
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [],
+    )
+    state_dir = _make_closeout_policy_state(
+        tmp_path,
+        profile="full",
+        closeout_allowed=True,
+        close_snapshot_for_current_round=True,
+    )
+
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+
+    synthesized = synthesis.get("synthesized_summary") or {}
+    files_changed = synthesized.get("files_changed") or []
+    generated_artifacts = synthesized.get("generated_artifacts") or []
+
+    # Archive paths SHOULD be present
+    assert any("project_state/rounds/" in p for p in files_changed), (
+        f"archive paths should be in files_changed post-closeout: {files_changed}"
+    )
+    assert any("project_state/rounds/" in p for p in generated_artifacts), (
+        f"archive paths should be in generated_artifacts post-closeout: {generated_artifacts}"
+    )
+
+
+def test_closeout_policy_fast_profile_excludes_archive_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When closeout_allowed=false (fast profile), archive paths should NOT
+    be in synthesized files_changed/generated_artifacts."""
+    # Override autouse _clean_git_diff to return empty git changes
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [],
+    )
+    state_dir = _make_closeout_policy_state(
+        tmp_path,
+        profile="fast",
+        closeout_allowed=False,
+        close_snapshot_for_current_round=False,
+    )
+
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+
+    synthesized = synthesis.get("synthesized_summary") or {}
+    files_changed = synthesized.get("files_changed") or []
+    generated_artifacts = synthesized.get("generated_artifacts") or []
+
+    # Archive paths should NOT be present
+    assert not any("project_state/rounds/" in p for p in files_changed), (
+        f"archive paths should not be in files_changed for fast profile: {files_changed}"
+    )
+    assert not any("project_state/rounds/" in p for p in generated_artifacts), (
+        f"archive paths should not be in generated_artifacts for fast profile: {generated_artifacts}"
+    )
+
+
+def test_closeout_policy_pre_closeout_report_summary_passes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """report_summary_fields_match_synthesis should not produce archive path
+    diffs when pre-closeout and report doesn't include archive paths."""
+    # Override autouse _clean_git_diff to return empty git changes
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [],
+    )
+    state_dir = _make_closeout_policy_state(
+        tmp_path,
+        profile="full",
+        closeout_allowed=True,
+        close_snapshot_for_current_round=False,
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    match_check = next(
+        (c for c in result.get("checks", []) if c.get("name") == "report_summary_fields_match_synthesis"),
+        None,
+    )
+    assert match_check is not None
+    # The check may fail for other reasons (files_changed, tests_ran, etc.),
+    # but it must NOT produce diffs that reference archive paths.
+    diffs = match_check.get("diffs") or []
+    archive_diffs = [
+        d for d in diffs
+        if any("project_state/rounds/" in str(item) for item in (d.get("expected") or []))
+        or any("project_state/rounds/" in str(item) for item in (d.get("actual") or []))
+    ]
+    assert not archive_diffs, (
+        f"archive path diffs should not exist pre-closeout: {archive_diffs}"
+    )
+
+
+def test_closeout_policy_stale_close_snapshot_excludes_archive_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When round_close_snapshot exists but doesn't match current round,
+    archive paths should NOT be included (stale snapshot)."""
+    # Override autouse _clean_git_diff to return empty git changes
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [],
+    )
+    state_dir = _make_closeout_policy_state(
+        tmp_path,
+        profile="full",
+        closeout_allowed=True,
+        close_snapshot_for_current_round=False,
+    )
+    # Write a stale close snapshot
+    gates_dir = state_dir / "gates"
+    _write_json(gates_dir / "round_close_snapshot.json", {
+        "schema_version": 1,
+        "artifact_name": "round_close_snapshot.json",
+        "decision_id": "stale_decision",
+        "round_id": "stale_round",
+        "round_closed": True,
+        "generated_at": "2026-06-20T00:00:00Z",
+    })
+
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+
+    synthesized = synthesis.get("synthesized_summary") or {}
+    files_changed = synthesized.get("files_changed") or []
+    generated_artifacts = synthesized.get("generated_artifacts") or []
+
+    # Archive paths should NOT be present (stale snapshot)
+    assert not any("project_state/rounds/" in p for p in files_changed), (
+        f"archive paths should not be in files_changed with stale snapshot: {files_changed}"
+    )
+    assert not any("project_state/rounds/" in p for p in generated_artifacts), (
+        f"archive paths should not be in generated_artifacts with stale snapshot: {generated_artifacts}"
+    )
 

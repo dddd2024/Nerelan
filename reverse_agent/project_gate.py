@@ -4336,6 +4336,50 @@ def _has_structural_field_diff(diffs: list[dict[str, Any]]) -> bool:
     return any(d.get("field") in structural_fields for d in diffs)
 
 
+def _diff_is_archive_path_only(diff: dict[str, Any]) -> bool:
+    """Return True if a report-summary diff is solely about round archive paths.
+
+    A diff is archive-path-only when the field is ``files_changed`` or
+    ``generated_artifacts`` and the symmetric difference between the
+    expected and actual values consists exclusively of paths under
+    ``project_state/rounds/``.
+    """
+    field = diff.get("field")
+    if field not in ("files_changed", "generated_artifacts"):
+        return False
+    expected = diff.get("expected") or []
+    actual = diff.get("actual") or []
+    expected_set = {str(item) for item in expected}
+    actual_set = {str(item) for item in actual}
+    sym_diff = expected_set ^ actual_set
+    return bool(sym_diff) and all(
+        "project_state/rounds/" in path for path in sym_diff
+    )
+
+
+def _report_summary_failure_is_archive_only(check: dict[str, Any]) -> bool:
+    """Return True if a ``report_summary_fields_match_synthesis`` FAIL is solely
+    due to round archive path diffs.
+
+    When the round archive directory does not exist yet (pre-closeout),
+    the synthesis excludes archive paths from ``files_changed`` and
+    ``generated_artifacts``.  If the report includes those paths, the
+    check fails — but only because of archive paths.  This failure is
+    expected pre-archive and is resolved after ``archive_round`` creates
+    the archive directory.
+
+    If the check also fails for other reasons (status mismatch,
+    tests_ran mismatch, non-archive file changes, etc.), this returns
+    ``False`` so that ``close_round`` treats it as a legitimate failure.
+    """
+    if check.get("errors"):
+        return False
+    diffs = check.get("diffs") or []
+    if not diffs:
+        return False
+    return all(_diff_is_archive_path_only(d) for d in diffs)
+
+
 def _command_plan_has_active_kind(commands: list[dict[str, Any]], kind: str) -> bool:
     for item in commands:
         declared_kind = str(item.get("kind") or "")
@@ -4351,6 +4395,46 @@ def _artifact_matches_current_round(payload: dict[str, Any], *, decision_id: str
         and str(payload.get("decision_id") or "") == decision_id
         and str(payload.get("round_id") or "") == round_id
     )
+
+
+def _update_report_archive_paths(*, state_dir: Path, round_id: str) -> None:
+    """Add round archive paths to the report's files_changed and generated_artifacts.
+
+    Called after ``archive_round`` creates the archive directory.  The report
+    was written pre-closeout and excludes archive paths, but the post-archive
+    synthesis includes them.  This function adds archive paths to the report's
+    ``files_changed`` and ``generated_artifacts`` lists and re-copies the
+    updated report to the round archive so ``archived_report_matches_live_report``
+    stays consistent.
+    """
+    report = read_codex_report_summary(state_dir)
+    if not report:
+        return
+    archive_paths = _expected_archive_paths(state_dir, round_id, [])
+    files_changed = set(report.get("files_changed") or [])
+    generated_artifacts = set(report.get("generated_artifacts") or [])
+    files_changed |= archive_paths
+    generated_artifacts |= archive_paths
+    report["files_changed"] = sorted(files_changed)
+    report["generated_artifacts"] = sorted(generated_artifacts)
+    report_path = state_dir / "codex_execution_report.md"
+    existing_text = _read_text(report_path)
+    # Replace the JSON code block in the report
+    import re as _re
+    new_json = json.dumps(report, ensure_ascii=True, indent=2)
+    updated_text = _re.sub(
+        r"```json codex_report_summary\n.*?\n```",
+        f"```json codex_report_summary\n{new_json}\n```",
+        existing_text,
+        count=1,
+        flags=_re.DOTALL,
+    )
+    report_path.write_text(updated_text, encoding="utf-8", newline="\n")
+    # Re-copy to archive
+    _archive_dir = state_dir / "rounds" / round_id
+    if _archive_dir.exists():
+        import shutil as _shutil
+        _shutil.copy2(report_path, _archive_dir / "codex_execution_report.md")
 
 
 def build_report_summary_synthesis(
@@ -4441,6 +4525,15 @@ def build_report_summary_synthesis(
     # files_changed or generated_artifacts.
     if closeout_allowed is False:
         archive_paths = set()
+    # Pre-closeout pending: when closeout_allowed=true but the round archive
+    # directory does not exist yet, archive files are not present on disk.
+    # Treat missing archive files as pre-closeout pending, not as a required
+    # summary mismatch.  After closeout runs, the archive directory will
+    # exist and archive paths will be included in the synthesis.
+    elif closeout_allowed is True:
+        _archive_dir = state_dir / "rounds" / round_id
+        if not _archive_dir.exists():
+            archive_paths = set()
     round_delta_files = _string_set(
         delta_summary.get("new_dirty_files_since_baseline")
         if delta_summary.get("baseline_available")
@@ -6457,6 +6550,24 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         )
 
     precheck_failures = [check for check in checks if check.get("status") == "FAIL"]
+    # When the round archive directory does not exist yet (pre-closeout),
+    # report_summary_fields_match_synthesis may fail because the synthesis
+    # excludes archive paths that the report includes.  This is expected
+    # pre-archive and will be resolved after archive_round creates the
+    # archive directory.  Exempt this check from pre-archive precheck
+    # failures ONLY when the failure is solely due to archive path diffs.
+    # If the check also fails for other reasons (status mismatch,
+    # tests_ran mismatch, non-archive file changes, etc.), it must
+    # remain a precheck failure so close_round returns FAILED.
+    _archive_dir_missing = not (state_dir / "rounds" / requested_round_id).exists()
+    if _archive_dir_missing:
+        precheck_failures = [
+            check for check in precheck_failures
+            if not (
+                check.get("name") == "report_summary_fields_match_synthesis"
+                and _report_summary_failure_is_archive_only(check)
+            )
+        ]
     if critical_metadata_errors:
         close_status = "INVALID"
         archive_payload = _close_round_archive_payload(
@@ -6476,6 +6587,13 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         )
         before_failed = _failed_check_names(before)
         allowed_pending = set(ARCHIVE_PENDING_CHECKS)
+        # report_summary_fields_match_synthesis may fail pre-archive because
+        # the synthesis excludes archive paths when the archive directory
+        # does not exist yet.  This is resolved after archive_round creates
+        # the archive directory.  See _final_gate_is_retriable_status_source_failure
+        # for the same treatment.
+        if _archive_dir_missing:
+            allowed_pending.add("report_summary_fields_match_synthesis")
         if _status_policy_failure_is_archive_pending(result=before, decision=decision):
             allowed_pending.add("status_policy_valid")
         unexpected_before = sorted(before_failed - allowed_pending)
@@ -6572,6 +6690,13 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         archive_result=archive_result,
                     )
             if close_status != "FAILED":
+                # Update the report's files_changed and generated_artifacts
+                # to include archive paths now that the archive directory
+                # exists.  The report was written pre-closeout and excludes
+                # archive paths, but the post-archive synthesis includes them.
+                # Also re-copy the refreshed report to the archive so
+                # archived_report_matches_live_report stays consistent.
+                _update_report_archive_paths(state_dir=state_dir, round_id=requested_round_id)
                 after = final_check(
                     state_dir=state_dir,
                     repo_root=repo_root,
@@ -6865,6 +6990,17 @@ def _command_expected_exit_codes(
     # must not be treated as execution mismatches.
     if kind in {"doctor", "lint-report", "report-summary", "final-check"}:
         return [0, 1], f"{kind} diagnostic allows exit 0 or 1; findings captured in report/final gate", None
+    # Run-closeout: meta-command that wraps close-round and other gates.
+    # When close-round fails (e.g., precheck failures, archive drift),
+    # run-closeout exits 1.  This is expected when the round has pending
+    # gate failures and must not be treated as an execution mismatch.
+    if kind == "run-closeout":
+        if final_check_passed is True:
+            return [0], "run-closeout expected exit 0 after final-check passed", None
+        if final_check_passed is False:
+            return [0, 1], "run-closeout diagnostic after final-check failed; exit 1 is expected", None
+        # final_check_passed is None (unknown) — allow exit 0 or 1
+        return [0, 1], "run-closeout allows exit 0 or 1 (final-check status unknown)", None
     # Close-round: conditional execution semantics
     # When final-check has passed, close-round must exit 0 (normal closeout).
     # When final-check has failed, close-round is a diagnostic/failure-path
@@ -7950,7 +8086,11 @@ def _refresh_codex_report_for_closeout(
     decision_text = _read_text(state_dir / "decision_packet.md")
     command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
 
-    # Compute expected files_changed from git diff
+    # Compute expected files_changed from git diff and round delta summary.
+    # The synthesis (build_report_summary_synthesis) derives expected_files_changed
+    # from round_delta_files (which includes gate artifacts added by
+    # _build_round_delta_summary to final_dirty_files).  The report must match,
+    # so we include the same delta files here.
     dirty_files = _git_changed_files(repo_root)
     dirty_files_norm = {_norm_path(p) for p in dirty_files}
     # Read baseline dirty files to exclude inherited dirty files
@@ -7991,26 +8131,18 @@ def _refresh_codex_report_for_closeout(
     # therefore includes it in expected_files_changed.  _git_changed_files
     # excludes it from the raw git diff, so it must be added explicitly here.
     files_changed_set.add(SELF_OUTPUT_PATH)
-    # Include gate artifacts that exist on disk in files_changed so the
-    # report matches the synthesis expected_files_changed.
-    gates_dir = state_dir / "gates"
-    for artifact_name, artifact_path in [
-        (REPORT_SUMMARY_RESULT_NAME, REPORT_SUMMARY_OUTPUT_PATH),
-        (ROUND_DELTA_SUMMARY_NAME, ROUND_DELTA_OUTPUT_PATH),
-        (ROUND_BASELINE_RESULT_NAME, ROUND_BASELINE_OUTPUT_PATH),
-        (PREFLIGHT_RESULT_NAME, PREFLIGHT_OUTPUT_PATH),
-        (COMMAND_PLAN_RESULT_NAME, COMMAND_PLAN_OUTPUT_PATH),
-        (GATE_PROFILE_PLAN_RESULT_NAME, GATE_PROFILE_PLAN_OUTPUT_PATH),
-    ]:
-        if (gates_dir / artifact_name).exists():
-            # REPORT_SUMMARY_OUTPUT_PATH is always included in files_changed
-            # because the synthesis always adds it via {REPORT_SUMMARY_OUTPUT_PATH}.
-            # Other gate artifacts are only included if not inherited dirty.
-            if (
-                artifact_path == REPORT_SUMMARY_OUTPUT_PATH
-                or _norm_path(artifact_path) not in baseline_dirty_files
-            ):
-                files_changed_set.add(artifact_path)
+    # REPORT_SUMMARY_OUTPUT_PATH is always included in files_changed because
+    # the synthesis always adds it via {REPORT_SUMMARY_OUTPUT_PATH}.
+    # Other gate artifacts are only included in files_changed if they appear
+    # in the git diff (i.e., they are already in new_dirty_files and thus
+    # files_changed_set).  Adding them unconditionally would create a mismatch
+    # with the synthesis which derives expected_files_changed from round_delta.
+    files_changed_set.add(REPORT_SUMMARY_OUTPUT_PATH)
+    # ROUND_DELTA_OUTPUT_PATH is added by _build_round_delta_summary to
+    # final_dirty_files when write_result=True, so the synthesis includes it
+    # in expected_files_changed.  _git_changed_files excludes it from the raw
+    # git diff, so it must be added explicitly here.
+    files_changed_set.add(ROUND_DELTA_OUTPUT_PATH)
 
     # Compute expected generated_artifacts from gate artifacts that exist
     generated_artifact_set: set[str] = {
@@ -8033,8 +8165,17 @@ def _refresh_codex_report_for_closeout(
     # because the synthesis does not expect it.  The run_closeout_result.json
     # is a gate artifact but not a report-level generated artifact.
 
-    # Include predicted archive paths
+    # Include predicted archive paths.  The report always includes archive
+    # paths when closeout is allowed, even before the archive directory
+    # exists.  The synthesis (build_report_summary_synthesis) excludes
+    # archive paths when the archive directory does not exist, which can
+    # create an archive-only diff.  The close_round() precheck exemption
+    # handles this diff so closeout can proceed.
+    gate_profile_payload = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+    closeout_allowed = gate_profile_payload.get("closeout_allowed") if gate_profile_payload else None
     archive_paths = _expected_archive_paths(state_dir, round_id, [])
+    if closeout_allowed is False:
+        archive_paths = set()
     generated_artifact_set |= archive_paths
     files_changed_set |= archive_paths
 
@@ -8098,6 +8239,12 @@ def _refresh_codex_report_for_closeout(
         and str(final_gate_payload.get("round_id") or "") == round_id
         and str(final_gate_payload.get("gate_status") or "")
     )
+    # When the final gate FAILED only due to retriable report-summary/archive
+    # drift failures, the status cannot be gate-derived yet.  Use PARTIAL/
+    # NEEDS_REVIEW instead of FAILED/REWORK_REQUIRED so the report does not
+    # self-reinforce a FAILED status from a transient pre-closeout mismatch.
+    if final_gate_matches and _final_gate_is_retriable_status_source_failure(final_gate_payload):
+        final_gate_matches = False
     if final_gate_matches:
         status_pair = _report_status_from_gate_payload(final_gate_payload, mainline=mainline)
         if status_pair is not None:
@@ -8106,7 +8253,7 @@ def _refresh_codex_report_for_closeout(
             gate_status = str(final_gate_payload.get("gate_status") or "")
             status, acceptance = _report_status_from_gate(gate_status) or ("PARTIAL", "REWORK_REQUIRED")
     else:
-        status, acceptance = "PARTIAL", "REWORK_REQUIRED"
+        status, acceptance = "PARTIAL", "NEEDS_REVIEW"
 
     payload = {
         "schema_version": 1,

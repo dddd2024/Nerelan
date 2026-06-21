@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260621_command_plan_execution_authority_v1",
-  "report_id": "codex_report_20260621_command_plan_execution_authority_v1",
-  "round_id": "round_20260621_command_plan_execution_authority_v1",
-  "generated_at": "2026-06-20T17:08:18.349488Z",
+  "gate_status": "WARN",
+  "decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
+  "report_id": "codex_report_20260621_closeout_authorization_report_summary_rework_v1",
+  "round_id": "round_20260621_closeout_authorization_report_summary_rework_v1",
+  "generated_at": "2026-06-21T05:49:43.959494Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -26,19 +26,19 @@
     },
     {
       "name": "round_manifest_present",
-      "status": "WARN",
-      "detail": "round manifest is missing",
-      "round_manifest_path": "project_state\\rounds\\round_20260621_command_plan_execution_authority_v1\\round_manifest.json"
+      "status": "PASS",
+      "detail": "round manifest is present",
+      "round_manifest_path": "project_state\\rounds\\round_20260621_closeout_authorization_report_summary_rework_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "WARN",
-      "detail": "archived report differs from live report"
+      "status": "PASS",
+      "detail": "archived report matches live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "WARN",
-      "detail": "archived pytest_result differs from live pytest_result",
+      "status": "PASS",
+      "detail": "archived pytest_result matches live pytest_result",
       "required": true,
       "skipped_reason": null
     },
@@ -57,8 +57,14 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -70,8 +76,14 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -95,8 +107,14 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -108,9 +126,14 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_command_plan_execution_authority_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -124,10 +147,7 @@
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
-      "claimed_source_test_paths": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ]
+      "claimed_source_test_paths": []
     },
     {
       "name": "generated_artifacts_cover_round_delta",
@@ -143,27 +163,23 @@
     {
       "name": "baseline_lifecycle_guard",
       "status": "PASS",
-      "detail": "baseline source/test dirty files are absent or explicitly allowed",
+      "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
       "source_test_baseline_dirty": [],
-      "allowed_inherited_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/pytest_result.txt",
+      "close_source_test_dirty": [
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
-      "generated_or_archive_baseline_dirty_files": []
+      "allowed_inherited_dirty_files": [],
+      "generated_or_archive_baseline_dirty_files": [],
+      "close_worktree_clean": false,
+      "close_snapshot_available": true
     },
     {
       "name": "baseline_capture_order",
       "status": "PASS",
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
-      "allowed_inherited_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/pytest_result.txt",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
+      "allowed_inherited_dirty_files": [],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
       "confirmed_inherited_from_startup_evidence": [],
@@ -173,11 +189,8 @@
     {
       "name": "report_prose_claims_covered_by_files_changed",
       "status": "PASS",
-      "detail": "report prose source/test claims are covered by files_changed",
-      "claimed_source_test_paths": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ]
+      "detail": "report prose does not claim source/test changes beyond files_changed",
+      "claimed_source_test_paths": []
     },
     {
       "name": "tmp_paths_absent_from_dirty_state",
@@ -196,6 +209,7 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt"
       ]
@@ -243,11 +257,9 @@
     },
     {
       "name": "generated_artifacts_cover_round_archive",
-      "status": "WARN",
-      "detail": "generated_artifacts omits round archive files",
-      "missing_artifacts": [
-        "project_state/rounds/round_20260621_command_plan_execution_authority_v1/round_manifest.json"
-      ]
+      "status": "PASS",
+      "detail": "generated_artifacts covers round archive files",
+      "missing_artifacts": []
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -269,8 +281,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260621_command_plan_execution_authority_v1",
-      "command_plan_round_id": "round_20260621_command_plan_execution_authority_v1"
+      "command_plan_decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
+      "command_plan_round_id": "round_20260621_closeout_authorization_report_summary_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -305,8 +317,42 @@
     },
     {
       "name": "command_plan_execution_authority",
-      "status": "PASS",
-      "detail": "all recorded commands are authorized by command_plan"
+      "status": "WARN",
+      "detail": "unauthorized commands detected in pytest_result; report acknowledges stopping due to unauthorized commands",
+      "unauthorized_commands": [
+        {
+          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
+          "kind": "gate-profile",
+          "reason": "kind 'gate-profile' not in required_command_kinds"
+        },
+        {
+          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
+          "kind": "gate-profile",
+          "reason": "kind 'gate-profile' not in required_command_kinds"
+        },
+        {
+          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
+          "kind": "gate-profile",
+          "reason": "kind 'gate-profile' not in required_command_kinds"
+        },
+        {
+          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
+          "kind": "gate-profile",
+          "reason": "kind 'gate-profile' not in required_command_kinds"
+        },
+        {
+          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
+          "kind": "gate-profile",
+          "reason": "kind 'gate-profile' not in required_command_kinds"
+        },
+        {
+          "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
+          "kind": "gate-profile",
+          "reason": "kind 'gate-profile' not in required_command_kinds"
+        }
+      ],
+      "report_status": "PARTIAL",
+      "report_acknowledges_unauthorized": true
     },
     {
       "name": "report_summary_synthesis_required",
@@ -317,84 +363,17 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "FAIL",
-      "detail": "codex_report_summary differs from synthesized summary",
+      "status": "PASS",
+      "detail": "codex_report_summary matches synthesized summary",
       "errors": [],
-      "diffs": [
-        {
-          "field": "files_changed",
-          "expected": [
-            "project_state/codex_execution_report.md",
-            "project_state/gates/command_plan.json",
-            "project_state/gates/final_gate_result.json",
-            "project_state/gates/gate_profile_plan.json",
-            "project_state/gates/preflight_result.json",
-            "project_state/gates/report_summary_synthesis.json",
-            "project_state/gates/round_baseline.json",
-            "project_state/gates/round_delta_summary.json",
-            "project_state/pytest_result.txt",
-            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/codex_execution_report.md",
-            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/decision_packet.md",
-            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/pytest_result.txt",
-            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/round_manifest.json",
-            "reverse_agent/project_gate.py",
-            "tests/test_project_gate.py"
-          ],
-          "actual": [
-            "project_state/codex_execution_report.md",
-            "project_state/gates/command_plan.json",
-            "project_state/gates/final_gate_result.json",
-            "project_state/gates/gate_profile_plan.json",
-            "project_state/gates/preflight_result.json",
-            "project_state/gates/report_summary_synthesis.json",
-            "project_state/gates/round_baseline.json",
-            "project_state/gates/round_delta_summary.json",
-            "project_state/pytest_result.txt",
-            "reverse_agent/project_gate.py",
-            "tests/test_project_gate.py"
-          ]
-        },
-        {
-          "field": "generated_artifacts",
-          "expected": [
-            "project_state/codex_execution_report.md",
-            "project_state/gates/command_plan.json",
-            "project_state/gates/final_gate_result.json",
-            "project_state/gates/gate_profile_plan.json",
-            "project_state/gates/preflight_result.json",
-            "project_state/gates/report_summary_synthesis.json",
-            "project_state/gates/round_baseline.json",
-            "project_state/gates/round_delta_summary.json",
-            "project_state/pytest_result.txt",
-            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/codex_execution_report.md",
-            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/decision_packet.md",
-            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/pytest_result.txt",
-            "project_state/rounds/round_20260621_command_plan_execution_authority_v1/round_manifest.json"
-          ],
-          "actual": [
-            "project_state/codex_execution_report.md",
-            "project_state/gates/command_plan.json",
-            "project_state/gates/final_gate_result.json",
-            "project_state/gates/gate_profile_plan.json",
-            "project_state/gates/preflight_result.json",
-            "project_state/gates/report_summary_synthesis.json",
-            "project_state/gates/round_baseline.json",
-            "project_state/gates/round_delta_summary.json",
-            "project_state/pytest_result.txt"
-          ]
-        }
-      ]
+      "diffs": []
     },
     {
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [
-        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
-      ],
-      "non_blocking_warnings": [
-        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
-      ]
+      "warnings": [],
+      "non_blocking_warnings": []
     },
     {
       "name": "preflight_failure_handoff",
@@ -415,7 +394,7 @@
     {
       "name": "decision_contract_artifact_placement",
       "status": "PASS",
-      "detail": "decision_contract artifact placement requirements satisfied"
+      "detail": "decision_contract has no required artifact/file constraints"
     },
     {
       "name": "decision_contract_status_hardening",
@@ -426,8 +405,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260621_command_plan_execution_authority_v1",
-      "gate_profile_round_id": "round_20260621_command_plan_execution_authority_v1"
+      "gate_profile_decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
+      "gate_profile_round_id": "round_20260621_closeout_authorization_report_summary_rework_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -462,14 +441,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "Where is the existing fast/standard/full profile logic implemented, and what command kinds does each profile require?",
-        "How does current `command-plan` represent omitted commands, active commands, profile metadata, and `closeout_allowed`?",
-        "How are executed commands currently recorded and parsed from `pytest_result.txt`?",
-        "Which prior failure would have been caught earlier if unplanned/omitted commands were treated as a final-check violation?",
-        "Which command kinds should be exempt from unplanned-command failure, if any, and why?",
-        "Should an unplanned command be FAIL or WARN when report status is already FAILED? Define the policy clearly.",
-        "How will the new check avoid breaking standard/full rounds where pytest or close-round is actually planned?",
-        "How will tests prove that fast profile omits pytest/run-closeout/close-round and final-check detects those commands if they were nevertheless recorded as executed?"
+        "Why did `report_summary_fields_match_synthesis` fail in the previous round? Cite the expected archive files and the actual missing summary fields.",
+        "Why did command-plan say `full` and `closeout_allowed=true` while not listing `run-closeout` or `close-round` in `commands`?",
+        "Should archive-producing closeout be represented as a command-plan command, a recommended fallback action, or a post-final-check manual action? Define the policy.",
+        "Which component must change: `command_plan`, `report_summary`, `final_check`, `run_closeout`, or report generation? Explain why.",
+        "How does the fix preserve command-plan execution authority and avoid authorizing omitted/unplanned commands?",
+        "How does the fix avoid breaking fast profile rounds where closeout is intentionally forbidden?",
+        "How does the fix avoid breaking full profile rounds where closeout is required or allowed?",
+        "What tests prove that report-summary and final-check no longer disagree about round archive files?"
       ],
       "missing_answers": [],
       "placeholder_answers": []
@@ -486,7 +465,6 @@
       "lint_errors": [],
       "warnings": [
         "report_status is PARTIAL",
-        "report round not archived yet",
         "doctor status is WARN (historical/backlog artifacts non-blocking)"
       ],
       "doctor_status": "WARN",
@@ -508,28 +486,22 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "archive-pending final-check status is allowed to differ before close-round",
-      "required": false,
-      "skipped_reason": "archive_pending_pre_close_round"
+      "detail": "no recorded final-check stdout status to compare",
+      "required": false
     }
   ],
-  "blocking_reasons": [
-    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
-  ],
+  "blocking_reasons": [],
   "warnings": [
-    "round_manifest_present: round manifest is missing",
-    "archived_report_matches_live_report: archived report differs from live report",
-    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
-    "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
+    "command_plan_execution_authority: unauthorized commands detected in pytest_result; report acknowledges stopping due to unauthorized commands",
     "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
   ],
-  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
+  "recommended_next_action": "review_warnings_before_closeout",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": false,
-    "archive_status": "not_archived",
-    "report_status": "FAILED",
-    "report_acceptance_recommendation": "REWORK_REQUIRED"
+    "archive_status": "archived",
+    "report_status": "PARTIAL",
+    "report_acceptance_recommendation": "NEEDS_REVIEW"
   }
 }

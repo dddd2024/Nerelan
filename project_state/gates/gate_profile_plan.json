@@ -2,14 +2,14 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_command_plan_execution_authority_v1",
-  "round_id": "round_20260621_command_plan_execution_authority_v1",
+  "decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
+  "round_id": "round_20260621_closeout_authorization_report_summary_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-21T00:00:00Z",
+  "generated_at": "2026-06-21T05:49:38.945232Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [
-    "source/test files in round delta require full validation"
+    "gate/project_state source changes require full validation"
   ],
   "closeout_allowed": true,
   "required_command_kinds": [
@@ -25,8 +25,7 @@
     "close-round"
   ],
   "reasons": [
-    "decision scope includes reverse_agent/project_gate.py which is a full-scope path",
-    "tests/test_project_gate.py is in the decision scope"
+    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py"
   ],
   "suggested_commands": [
     {
@@ -49,21 +48,45 @@
     },
     {
       "index": 4,
-      "command": "pytest",
+      "command": "run-round",
+      "phase": "gate",
+      "kind": "run-round"
+    },
+    {
+      "index": 5,
+      "command": "full pytest for gate/project_state modules",
       "phase": "test",
       "kind": "pytest"
     },
     {
-      "index": 5,
+      "index": 6,
+      "command": "doctor",
+      "phase": "status",
+      "kind": "doctor"
+    },
+    {
+      "index": 7,
+      "command": "lint-report",
+      "phase": "status",
+      "kind": "lint-report"
+    },
+    {
+      "index": 8,
       "command": "report-summary",
       "phase": "gate",
       "kind": "report-summary"
     },
     {
-      "index": 6,
+      "index": 9,
       "command": "final-check",
       "phase": "gate",
       "kind": "final-check"
+    },
+    {
+      "index": 10,
+      "command": "close-round",
+      "phase": "gate",
+      "kind": "close-round"
     }
   ],
   "future_phases": []

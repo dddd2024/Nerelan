@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260621_command_plan_execution_authority_v1",
-  "round_id": "round_20260621_command_plan_execution_authority_v1",
-  "head_commit": "e5d8c44ada13",
+  "decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
+  "round_id": "round_20260621_closeout_authorization_report_summary_rework_v1",
+  "head_commit": "fb4cf982af5b",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-20T16:38:24.780302Z"
+  "generated_at": "2026-06-20T17:18:56.043298Z"
 }

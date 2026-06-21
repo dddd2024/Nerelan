@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_command_plan_execution_authority_v1",
-  "round_id": "round_20260621_command_plan_execution_authority_v1",
+  "decision_id": "decision_20260621_closeout_authorization_report_summary_rework_v1",
+  "round_id": "round_20260621_closeout_authorization_report_summary_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-20T16:38:24.781107Z",
+  "generated_at": "2026-06-21T05:48:49.102666Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -55,8 +55,8 @@
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260620_training_capability_gap_matrix_v1"
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "report_id": "codex_report_20260621_closeout_authorization_report_summary_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,16 +71,24 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "Add focused regression tests covering both pre-closeout and closeout-allowed behavior.",
+        "Do not weaken final-check generally.",
+        "Ensure a SUCCESS report cannot omit required archive files if archive creation was actually performed or required by policy.",
+        "Preserve current fast/standard/full naming and behavior except for the narrow closeout/report-summary contract fix.",
+        "command_plan_execution_authority",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_command_plan_execution_authority_v1/*",
+        "project_state/rounds/round_20260621_closeout_authorization_report_summary_rework_v1/*",
+        "report_summary_fields_match_synthesis",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -119,12 +127,7 @@
       "status": "PASS",
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
-      "allowed_inherited_dirty_baseline_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/pytest_result.txt",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
+      "allowed_inherited_dirty_baseline_files": [],
       "baseline_source_test_dirty": []
     }
   ],
@@ -134,11 +137,11 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "e5d8c44ada13"
+    "head_commit": "fb4cf982af5b"
   },
   "status_summary": {
-    "decision_execution_state": "READY_FOR_EXECUTION",
-    "decision_report_id_match": false,
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_report_id_match": true,
     "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
