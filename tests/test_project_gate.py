@@ -8763,6 +8763,254 @@ class TestGeneratedArtifactExistenceCheck:
         assert result["live_paths"] == []
 
 
+class TestGeneratedArtifactsCoverGateArtifacts:
+    """Regression tests for generated_artifacts coverage of gate artifacts.
+
+    These tests verify that policy_impact_audit.json and policy_lint_result.json
+    are included in synthesized generated_artifacts when they exist on disk,
+    and that final-check detects omissions for SUCCESS/ACCEPTED reports.
+    """
+
+    def test_synthesis_includes_policy_impact_audit_when_exists(self, tmp_path: Path) -> None:
+        """Synthesis includes policy_impact_audit.json in generated_artifacts
+        when the file exists on disk."""
+        from reverse_agent.project_gate import build_report_summary_synthesis
+
+        state_dir = _make_gate_state(tmp_path)
+        # Create policy_impact_audit.json on disk
+        _write_json(state_dir / "gates" / "policy_impact_audit.json", {
+            "schema_version": 1, "gate_name": "policy-impact",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Create policy_lint_result.json on disk
+        _write_json(state_dir / "gates" / "policy_lint_result.json", {
+            "schema_version": 1, "gate_name": "policy-lint",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+
+        result = build_report_summary_synthesis(
+            state_dir=state_dir, repo_root=tmp_path, write_result=False,
+        )
+        ga = result.get("synthesized_summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/policy_impact_audit.json" in ga
+        assert "project_state/gates/policy_lint_result.json" in ga
+
+    def test_synthesis_excludes_gate_artifacts_when_absent(self, tmp_path: Path) -> None:
+        """Synthesis does not include policy_impact_audit.json when the file
+        does not exist on disk (policy-impact was not run)."""
+        from reverse_agent.project_gate import build_report_summary_synthesis
+
+        state_dir = _make_gate_state(tmp_path)
+        # policy_impact_audit.json does NOT exist on disk
+        assert not (state_dir / "gates" / "policy_impact_audit.json").exists()
+        assert not (state_dir / "gates" / "policy_lint_result.json").exists()
+
+        result = build_report_summary_synthesis(
+            state_dir=state_dir, repo_root=tmp_path, write_result=False,
+        )
+        ga = result.get("synthesized_summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/policy_impact_audit.json" not in ga
+        assert "project_state/gates/policy_lint_result.json" not in ga
+
+    def test_final_check_fails_when_policy_impact_audit_omitted_success(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check FAILs when policy_impact_audit.json exists on disk but
+        is omitted from generated_artifacts and report status is SUCCESS."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Create policy_impact_audit.json on disk
+        _write_json(state_dir / "gates" / "policy_impact_audit.json", {
+            "schema_version": 1, "gate_name": "policy-impact",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Update report to include policy_impact_audit.json in files_changed
+        # but NOT in generated_artifacts (the omission being fixed)
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            files_changed=[
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/policy_impact_audit.json",
+                *archive_paths,
+            ],
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                *archive_paths,
+                # Deliberately omit policy_impact_audit.json
+            ],
+            extra_body=(
+                "## Policy Impact\n\n"
+                "command-plan, final-check, report-summary, policy-lint, "
+                "report status schema, and tests reviewed.\n"
+            ),
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        gate_artifact_check = _check(result, "generated_artifacts_cover_gate_artifacts")
+        assert gate_artifact_check["status"] == "FAIL"
+        assert "project_state/gates/policy_impact_audit.json" in gate_artifact_check.get(
+            "missing_artifacts", []
+        )
+
+    def test_final_check_passes_when_policy_impact_audit_included(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check PASSes when policy_impact_audit.json exists on disk and
+        is included in generated_artifacts."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Create policy_impact_audit.json on disk
+        _write_json(state_dir / "gates" / "policy_impact_audit.json", {
+            "schema_version": 1, "gate_name": "policy-impact",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Create policy_lint_result.json on disk
+        _write_json(state_dir / "gates" / "policy_lint_result.json", {
+            "schema_version": 1, "gate_name": "policy-lint",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Update report to include both in files_changed and generated_artifacts
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            files_changed=[
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/policy_impact_audit.json",
+                "project_state/gates/policy_lint_result.json",
+                *archive_paths,
+            ],
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                "project_state/gates/policy_impact_audit.json",
+                "project_state/gates/policy_lint_result.json",
+                *archive_paths,
+            ],
+            extra_body=(
+                "## Policy Impact\n\n"
+                "command-plan, final-check, report-summary, policy-lint, "
+                "report status schema, and tests reviewed.\n"
+            ),
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        gate_artifact_check = _check(result, "generated_artifacts_cover_gate_artifacts")
+        assert gate_artifact_check["status"] == "PASS"
+
+    def test_final_check_warns_when_gate_artifact_omitted_non_success(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check WARNs (not FAILs) when a gate artifact is omitted from
+        generated_artifacts and report status is not SUCCESS."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        # Create policy_impact_audit.json on disk
+        _write_json(state_dir / "gates" / "policy_impact_audit.json", {
+            "schema_version": 1, "gate_name": "policy-impact",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Report omits policy_impact_audit.json from generated_artifacts
+        # but status is PARTIAL, so it should WARN not FAIL
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        gate_artifact_check = _check(result, "generated_artifacts_cover_gate_artifacts")
+        # WARN is acceptable for non-SUCCESS reports
+        assert gate_artifact_check["status"] in ("PASS", "WARN")
+
+    def test_no_false_failure_when_policy_impact_not_run(self, tmp_path: Path) -> None:
+        """No false failure when policy_impact_audit.json does not exist
+        (policy-impact was not run for this round)."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # policy_impact_audit.json does NOT exist on disk
+        assert not (state_dir / "gates" / "policy_impact_audit.json").exists()
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        gate_artifact_check = _check(result, "generated_artifacts_cover_gate_artifacts")
+        assert gate_artifact_check["status"] == "PASS"
+
+    def test_closeout_refresh_preserves_gate_artifacts_in_generated_artifacts(
+        self, tmp_path: Path,
+    ) -> None:
+        """_refresh_codex_report_for_closeout includes policy_impact_audit.json
+        in generated_artifacts when it exists on disk."""
+        from reverse_agent.project_gate import _refresh_codex_report_for_closeout
+
+        state_dir = _make_gate_state(tmp_path)
+        # Create policy_impact_audit.json on disk
+        _write_json(state_dir / "gates" / "policy_impact_audit.json", {
+            "schema_version": 1, "gate_name": "policy-impact",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Create policy_lint_result.json on disk
+        _write_json(state_dir / "gates" / "policy_lint_result.json", {
+            "schema_version": 1, "gate_name": "policy-lint",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+
+        _refresh_codex_report_for_closeout(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_gate",
+            round_id="round_gate",
+        )
+        from reverse_agent.project_gate import read_codex_report_summary
+        report = read_codex_report_summary(state_dir)
+        ga = report.get("generated_artifacts", [])
+        assert "project_state/gates/policy_impact_audit.json" in ga
+        assert "project_state/gates/policy_lint_result.json" in ga
+
+
 class TestExistingChecksPreserved:
     """Req 7-10: Existing check categories continue to pass."""
 
@@ -9392,6 +9640,74 @@ class TestStartupBaselineConsistency:
         assert result["name"] == "startup_baseline_consistency"
         assert result["status"] == "PASS"
         assert result.get("startup_evidence_trusted") is False
+
+    def test_continuation_session_round_work_not_flagged(self) -> None:
+        """Startup shows source/test dirty that are in new_dirty_files_since_baseline
+        (this round's work in a continuation session) -> PASS, not FAIL."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": [],
+                "inherited_dirty_files": [],
+                "new_dirty_files_since_baseline": [
+                    "reverse_agent/project_gate.py",
+                    "tests/test_project_gate.py",
+                ],
+            },
+            decision_text=self._DECISION_TEXT,
+            report_text="",
+            pytest_text=self._DIRTY_PYTEST_TEXT,
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "PASS"
+        assert result.get("missing_from_baseline") == []
+
+    def test_continuation_session_truly_inherited_still_fails(self) -> None:
+        """Startup shows source/test dirty that are NOT in new_dirty_files_since_baseline
+        (truly inherited dirty, not this round's work) -> FAIL."""
+        dirty_with_extra = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "Path\n----\nF:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            " M reverse_agent/project_gate.py\n"
+            " M reverse_agent/other.py\n"
+            "===== EXIT: 0 =====\n"
+        )
+        decision_with_other = (
+            "## Implementation Scope\n\n"
+            "Allowed source files:\n\n"
+            "- `reverse_agent/project_gate.py`\n\n"
+            "- `reverse_agent/other.py`\n\n"
+            "Allowed tests:\n\n"
+            "- `tests/test_project_gate.py`\n\n"
+            "## Do Not Do\nNothing\n"
+        )
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": [],
+                "inherited_dirty_files": [],
+                "new_dirty_files_since_baseline": [
+                    "reverse_agent/project_gate.py",
+                ],
+            },
+            decision_text=decision_with_other,
+            report_text="",
+            pytest_text=dirty_with_extra,
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "FAIL"
+        assert "reverse_agent/other.py" in result.get("missing_from_baseline", [])
 
 
 class TestStaleArtifactIds:

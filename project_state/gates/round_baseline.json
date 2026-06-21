@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260621_policy_impact_audit_v1",
-  "round_id": "round_20260621_policy_impact_audit_v1",
-  "head_commit": "4beebf8532b5",
+  "decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "head_commit": "d04e50a8b471",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-21T11:23:51.773325Z"
+  "generated_at": "2026-06-21T14:00:53.412562Z"
 }

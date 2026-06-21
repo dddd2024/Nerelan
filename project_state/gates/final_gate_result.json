@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_policy_impact_audit_v1",
-  "report_id": "codex_report_20260621_policy_impact_audit_v1",
-  "round_id": "round_20260621_policy_impact_audit_v1",
-  "generated_at": "2026-06-21T13:40:26.138115Z",
+  "decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "report_id": "codex_report_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+  "generated_at": "2026-06-21T15:21:54.109190Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260621_policy_impact_audit_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260621_policy_impact_generated_artifacts_coverage_fix_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -63,10 +63,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -84,10 +84,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -117,10 +117,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -138,10 +138,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_audit_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -155,9 +155,7 @@
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
-      "claimed_source_test_paths": [
-        "reverse_agent/project_gate.py"
-      ]
+      "claimed_source_test_paths": []
     },
     {
       "name": "generated_artifacts_cover_round_delta",
@@ -199,10 +197,8 @@
     {
       "name": "report_prose_claims_covered_by_files_changed",
       "status": "PASS",
-      "detail": "report prose source/test claims are covered by files_changed",
-      "claimed_source_test_paths": [
-        "reverse_agent/project_gate.py"
-      ]
+      "detail": "report prose does not claim source/test changes beyond files_changed",
+      "claimed_source_test_paths": []
     },
     {
       "name": "tmp_paths_absent_from_dirty_state",
@@ -218,6 +214,8 @@
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/policy_impact_audit.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -231,12 +229,12 @@
       "status": "PASS",
       "detail": "startup git status --short appears after path confirmation commands",
       "valid": true,
-      "startup_status_block_index": 7,
+      "startup_status_block_index": 4,
       "path_confirmation_block_indexes": {
-        "Set-Location": 3,
-        "Get-Location": 4,
-        "Test-Path": 5,
-        "git rev-parse": 6
+        "Set-Location": 0,
+        "Get-Location": 1,
+        "Test-Path": 2,
+        "git rev-parse": 3
       },
       "startup_status_evidence_trusted": true
     },
@@ -262,9 +260,13 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
-      "startup_source_test_dirty": [],
+      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
+      "startup_source_test_dirty": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
       "baseline_dirty_files": [],
+      "inherited_dirty_files": [],
       "missing_from_baseline": []
     },
     {
@@ -274,10 +276,27 @@
       "missing_artifacts": []
     },
     {
+      "name": "generated_artifacts_cover_gate_artifacts",
+      "status": "PASS",
+      "detail": "generated_artifacts covers all existing gate artifacts",
+      "missing_artifacts": [],
+      "existing_gate_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/policy_impact_audit.json",
+        "project_state/gates/policy_lint_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json"
+      ]
+    },
+    {
       "name": "required_closeout_artifacts_covered",
       "status": "PASS",
-      "detail": "no required closeout artifacts declared in decision",
-      "required_closeout_artifacts": [],
+      "detail": "required closeout artifacts covered by referenced or generated artifacts",
+      "required_closeout_artifacts": [
+        "project_state/gates/policy_impact_audit.json",
+        "project_state/gates/round_delta_summary.json"
+      ],
       "referenced_artifacts": [],
       "uncovered_artifacts": []
     },
@@ -293,8 +312,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260621_policy_impact_audit_v1",
-      "command_plan_round_id": "round_20260621_policy_impact_audit_v1"
+      "command_plan_decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+      "command_plan_round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -383,8 +402,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260621_policy_impact_audit_v1",
-      "gate_profile_round_id": "round_20260621_policy_impact_audit_v1"
+      "gate_profile_decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
+      "gate_profile_round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -419,14 +438,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "What file patterns are considered policy-sensitive by Policy Impact Audit v1, and why?",
-        "How does the audit determine that prompt docs, skills, command-plan, final-check, report-summary, policy-lint, or report status semantics may be affected?",
-        "What structured artifact is written, and what fields does it contain?",
-        "When does Policy Impact Audit produce FAIL, WARN, or PASS?",
-        "How does final-check consume or verify the Policy Impact Audit result?",
-        "How does the audit avoid requiring heavy scans of `solve_reports/`, full `project_state/rounds/`, or full `PROJECT_PROGRESS_LOG.txt`?",
-        "What tests prove policy-sensitive source changes require a substantive policy impact answer, while ordinary non-policy changes do not create false failures?",
-        "How does this round preserve existing prompt docs, policy-lint, decision-command-plan conflict detection, command-plan authority, report-summary, final-check, and closeout behavior?"
+        "What exact generated_artifacts omission from the previous round is being fixed?",
+        "Which code path now ensures `project_state/gates/policy_impact_audit.json` appears in `codex_report_summary.generated_artifacts` when it is generated or updated?",
+        "How does report-summary detect a missing `policy_impact_audit.json` generated_artifacts entry?",
+        "How does final-check detect or block the same omission for a `SUCCESS` / `ACCEPTED` report?",
+        "Does the fix generalize to other generated gate artifacts under `project_state/gates/*.json`, or is it intentionally limited to policy-impact? Explain the boundary.",
+        "How does the fix avoid false failures for rounds where policy-impact was not run and no `policy_impact_audit.json` was generated?",
+        "What regression tests prove the previous omission now fails and the corrected report now passes?",
+        "How does this round preserve Policy Impact Audit v1, policy-lint, command-plan authority, report-summary, final-check, and closeout behavior?"
       ],
       "missing_answers": [],
       "placeholder_answers": []
@@ -479,8 +498,10 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "no recorded final-check stdout status to compare",
-      "required": false
+      "detail": "recorded final-check stdout matches gate_status",
+      "expected_gate_status": "PASSED",
+      "recorded_stdout_status": "PASSED",
+      "conservative_warn_accepted": false
     }
   ],
   "blocking_reasons": [],
