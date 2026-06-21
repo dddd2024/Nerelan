@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_decision_command_plan_conflict_lint_v1",
-  "report_id": "codex_report_20260621_decision_command_plan_conflict_lint_v1",
-  "round_id": "round_20260621_decision_command_plan_conflict_lint_v1",
-  "generated_at": "2026-06-21T09:27:55.924702Z",
+  "decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
+  "report_id": "codex_report_20260621_policy_lint_prompt_consistency_v1",
+  "round_id": "round_20260621_policy_lint_prompt_consistency_v1",
+  "generated_at": "2026-06-21T09:55:01.327892Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260621_decision_command_plan_conflict_lint_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260621_policy_lint_prompt_consistency_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -54,6 +54,7 @@
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -61,10 +62,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -73,6 +74,7 @@
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -80,10 +82,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -104,6 +106,7 @@
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -111,10 +114,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -123,6 +126,7 @@
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -130,10 +134,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -219,12 +223,12 @@
       "status": "PASS",
       "detail": "startup git status --short appears after path confirmation commands",
       "valid": true,
-      "startup_status_block_index": 4,
+      "startup_status_block_index": 12,
       "path_confirmation_block_indexes": {
-        "Set-Location": 0,
-        "Get-Location": 1,
-        "Test-Path": 2,
-        "git rev-parse": 3
+        "Set-Location": 8,
+        "Get-Location": 9,
+        "Test-Path": 10,
+        "git rev-parse": 11
       },
       "startup_status_evidence_trusted": true
     },
@@ -281,8 +285,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260621_decision_command_plan_conflict_lint_v1",
-      "command_plan_round_id": "round_20260621_decision_command_plan_conflict_lint_v1"
+      "command_plan_decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
+      "command_plan_round_id": "round_20260621_policy_lint_prompt_consistency_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -371,8 +375,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260621_decision_command_plan_conflict_lint_v1",
-      "gate_profile_round_id": "round_20260621_decision_command_plan_conflict_lint_v1"
+      "gate_profile_decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
+      "gate_profile_round_id": "round_20260621_policy_lint_prompt_consistency_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -407,14 +411,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "What concrete conflict classes between decision Tests and command-plan are now detected?",
-        "Which component performs the check: `decision-lint`, `preflight`, `command-plan`, or final-check, and why?",
-        "How does the check detect a decision that requires `run-closeout` or `close-round` while `closeout_allowed=false`?",
-        "How does the check detect a decision Tests block that hard-codes a command listed in `command_plan.omitted_commands`?",
-        "How does the check avoid false positives for commands that command-plan explicitly authorizes under `standard` or `full`?",
-        "How does the check avoid treating explanatory prose or examples as mandatory commands?",
-        "How does the fix preserve command-plan execution authority and the previous closeout/report-refresh behavior?",
-        "What regression tests prove fast omitted-command conflicts, closeout conflicts, and standard/full authorized commands behave correctly?"
+        "What policy drift patterns does policy-lint v1 detect?",
+        "Which files are scanned by default, and why are heavy paths such as full `solve_reports/` excluded?",
+        "How does policy-lint detect obsolete profile naming such as `medium` when the project supports `fast/standard/full`?",
+        "How does policy-lint detect text that contradicts command-plan authority, such as making Tests authoritative over command-plan?",
+        "How does policy-lint detect text that makes `task_packet` execution authority over `decision_packet`?",
+        "How does policy-lint detect unsupported report statuses such as using `COMPLETED_WITH_LIMITATIONS` as `codex_report_summary.status`?",
+        "How are findings classified as FAIL, WARN, or INFO so existing docs/skills do not produce noisy false failures?",
+        "What regression tests prove policy-lint catches real drift while allowing valid current project wording?"
       ],
       "missing_answers": [],
       "placeholder_answers": []

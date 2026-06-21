@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "gate_name": "policy-lint",
+  "gate_status": "WARN",
+  "decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
+  "round_id": "round_20260621_policy_lint_prompt_consistency_v1",
+  "generated_at": "2026-06-21T09:47:46.945804Z",
+  "scanned_files": [
+    ".codex-skills/reverse-agent-iteration/SKILL.md",
+    ".codex-skills/samplereverse-frontier/SKILL.md",
+    "README.md",
+    "project_state/decision_packet.md"
+  ],
+  "findings": [
+    {
+      "kind": "obsolete_profile_name",
+      "severity": "WARN",
+      "file": "project_state/decision_packet.md",
+      "line": 58,
+      "detail": "uses 'medium' as a profile name; project supports fast/standard/full",
+      "evidence": "The previous accepted round added early decision/command-plan conflict detection. The next engineering gap is policy drift: the code can evolve to `fast/standard/full`, command-plan authority, supported report statuses, and no-default-heavy-artifact rules while prompts or skills continue to say `medium`, make Tests authoritative, allow `task_packet` to control execution, or write unsupported report statuses."
+    },
+    {
+      "kind": "obsolete_profile_name",
+      "severity": "WARN",
+      "file": "project_state/decision_packet.md",
+      "line": 139,
+      "detail": "uses 'medium' as a profile name; project supports fast/standard/full",
+      "evidence": "3. How does policy-lint detect obsolete profile naming such as `medium` when the project supports `fast/standard/full`?"
+    },
+    {
+      "kind": "obsolete_profile_name",
+      "severity": "WARN",
+      "file": "project_state/decision_packet.md",
+      "line": 177,
+      "detail": "uses 'medium' as a profile name; project supports fast/standard/full",
+      "evidence": "- obsolete profile name `medium` used as a project profile instead of `standard`;"
+    }
+  ],
+  "warnings": [
+    "[WARN] obsolete_profile_name in project_state/decision_packet.md:58: uses 'medium' as a profile name; project supports fast/standard/full",
+    "[WARN] obsolete_profile_name in project_state/decision_packet.md:139: uses 'medium' as a profile name; project supports fast/standard/full",
+    "[WARN] obsolete_profile_name in project_state/decision_packet.md:177: uses 'medium' as a profile name; project supports fast/standard/full"
+  ],
+  "blocking_reasons": [],
+  "recommended_next_action": "review_policy_drift_warnings"
+}

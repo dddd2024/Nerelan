@@ -17100,3 +17100,253 @@ python -m reverse_agent.project_gate run-closeout --state-dir project_state --ro
     assert not any("preflight" in cmd for cmd in conditional)
 
 
+# ---------------------------------------------------------------------------
+# policy-lint tests
+# ---------------------------------------------------------------------------
+
+def _make_policy_lint_state(
+    tmp_path: Path,
+    *,
+    decision_id: str = "decision_policy_lint",
+    round_id: str = "round_policy_lint",
+    skill_text: str = "",
+    readme_text: str = "",
+    decision_text: str = "",
+) -> Path:
+    """Create a minimal state for policy-lint tests with optional skill/readme text."""
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": "engineering_branch",
+        "skill_profiles": ["reverse-agent-iteration@v2"],
+    }
+
+    extra = decision_text or "Test policy-lint."
+
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+{extra}
+""",
+        encoding="utf-8",
+    )
+
+    _write_json(
+        state_dir / "current_state.json",
+        {"round_id": round_id, "state_build_id": "state_test", "state_digest": "digest_test"},
+    )
+    _write_json(
+        state_dir / "task_packet.json",
+        {"execution_scope": "decision_packet_controls_current_round", "active_decision_packet": "project_state/decision_packet.md"},
+    )
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+
+    # Write skill file if text provided
+    if skill_text:
+        skills_dir = tmp_path / ".codex-skills" / "reverse-agent-iteration"
+        skills_dir.mkdir(parents=True, exist_ok=True)
+        (skills_dir / "SKILL.md").write_text(skill_text, encoding="utf-8")
+
+    # Write README if text provided
+    if readme_text:
+        (tmp_path / "README.md").write_text(readme_text, encoding="utf-8")
+
+    return state_dir
+
+
+def test_policy_lint_passes_with_clean_text(tmp_path: Path) -> None:
+    """policy-lint returns PASSED when no drift patterns are found."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        skill_text="# Clean Skill\n\nNo drift patterns here.\n",
+        readme_text="# Clean README\n\nNo issues.\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "PASSED"
+    assert result["findings"] == []
+    assert result["blocking_reasons"] == []
+
+
+def test_policy_lint_detects_obsolete_medium_profile(tmp_path: Path) -> None:
+    """policy-lint detects 'medium' used as a profile name."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        skill_text="# Skill\n\nUse the medium profile for this task.\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "WARN"
+    medium_findings = [f for f in result["findings"] if f["kind"] == "obsolete_profile_name"]
+    assert len(medium_findings) >= 1
+    assert all(f["severity"] == "WARN" for f in medium_findings)
+
+
+def test_policy_lint_detects_tests_authoritative_over_command_plan(tmp_path: Path) -> None:
+    """policy-lint detects text making Tests authoritative over command-plan."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        readme_text="# README\n\nTests are authoritative over command-plan.\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "FAILED"
+    findings = [f for f in result["findings"] if f["kind"] == "tests_authoritative_over_command_plan"]
+    assert len(findings) >= 1
+    assert all(f["severity"] == "FAIL" for f in findings)
+
+
+def test_policy_lint_detects_task_packet_authority(tmp_path: Path) -> None:
+    """policy-lint detects text making task_packet authoritative over decision_packet."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        skill_text="# Skill\n\ntask_packet is authoritative for execution.\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "FAILED"
+    findings = [f for f in result["findings"] if f["kind"] == "task_packet_authority_over_decision_packet"]
+    assert len(findings) >= 1
+
+
+def test_policy_lint_detects_default_heavy_path_read(tmp_path: Path) -> None:
+    """policy-lint detects suggestions to read full solve_reports/ by default."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        readme_text="# README\n\nRead the full solve_reports directory.\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "WARN"
+    findings = [f for f in result["findings"] if f["kind"] == "default_heavy_path_read"]
+    assert len(findings) >= 1
+
+
+def test_policy_lint_detects_unsupported_report_status(tmp_path: Path) -> None:
+    """policy-lint detects COMPLETED_WITH_LIMITATIONS used as a status value."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        readme_text="# README\n\nSet codex_report_summary.status to COMPLETED_WITH_LIMITATIONS.\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "FAILED"
+    findings = [f for f in result["findings"] if f["kind"] == "unsupported_report_status"]
+    assert len(findings) >= 1
+
+
+def test_policy_lint_detects_dynamic_facts_in_skill(tmp_path: Path) -> None:
+    """policy-lint detects dynamic one-run facts in .codex-skills/ text."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        skill_text="# Skill\n\nBest candidate: 78d540b49c59077041414141414141\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    findings = [f for f in result["findings"] if f["kind"] == "dynamic_fact_in_skill"]
+    assert len(findings) >= 1
+    assert all(f["severity"] == "WARN" for f in findings)
+
+
+def test_policy_lint_does_not_flag_do_not_read_heavy_paths(tmp_path: Path) -> None:
+    """policy-lint does not flag 'do not read full solve_reports' as drift."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        skill_text="# Skill\n\nDo not read the full solve_reports directory.\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    heavy_findings = [f for f in result["findings"] if f["kind"] == "default_heavy_path_read"]
+    assert heavy_findings == []
+
+
+def test_policy_lint_writes_artifact(tmp_path: Path) -> None:
+    """policy-lint writes policy_lint_result.json when write_result=True."""
+    from reverse_agent.project_gate import policy_lint, POLICY_LINT_RESULT_NAME
+
+    state_dir = _make_policy_lint_state(tmp_path)
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+    artifact = state_dir / "gates" / POLICY_LINT_RESULT_NAME
+    assert artifact.exists()
+    saved = json.loads(artifact.read_text(encoding="utf-8"))
+    assert saved["gate_name"] == "policy-lint"
+    assert saved["decision_id"] == "decision_policy_lint"
+    assert saved["round_id"] == "round_policy_lint"
+
+
+def test_policy_lint_scans_only_bounded_files(tmp_path: Path) -> None:
+    """policy-lint does not scan solve_reports/ or project_state/rounds/."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(tmp_path)
+
+    # Create heavy paths that should NOT be scanned (after state setup)
+    heavy_dir = tmp_path / "solve_reports"
+    heavy_dir.mkdir()
+    (heavy_dir / "bad.txt").write_text("medium profile is used here\n", encoding="utf-8")
+
+    rounds_dir = tmp_path / "project_state" / "rounds" / "round_test"
+    rounds_dir.mkdir(parents=True, exist_ok=True)
+    (rounds_dir / "manifest.json").write_text('{"medium": "profile"}', encoding="utf-8")
+
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    # No findings from heavy paths
+    assert all("solve_reports" not in f.get("file", "") for f in result["findings"])
+    assert all("project_state/rounds" not in f.get("file", "") for f in result["findings"])
+
+
+def test_policy_lint_cli_exit_code(tmp_path: Path) -> None:
+    """policy-lint CLI returns 0 for PASSED, 1 for FAILED."""
+    from reverse_agent.project_gate import main
+
+    # Clean state -> exit 0
+    state_dir = _make_policy_lint_state(tmp_path)
+    exit_code = main(["policy-lint", "--state-dir", str(state_dir)])
+    assert exit_code == 0
+
+
+def test_policy_lint_allows_valid_current_wording(tmp_path: Path) -> None:
+    """policy-lint does not flag valid current project wording."""
+    from reverse_agent.project_gate import policy_lint
+
+    state_dir = _make_policy_lint_state(
+        tmp_path,
+        skill_text="""# Reverse Agent Iteration
+
+Use fast, standard, or full profiles.
+Do not use medium as a profile name.
+task_packet does not override decision_packet.
+Do not read full solve_reports by default.
+""",
+        readme_text="# README\n\nUse standard or full profiles.\n",
+    )
+    result = policy_lint(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    # Valid wording should not produce findings
+    fail_findings = [f for f in result["findings"] if f["severity"] == "FAIL"]
+    assert fail_findings == []
+
+

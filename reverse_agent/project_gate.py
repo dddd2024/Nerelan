@@ -62,6 +62,10 @@ RUN_CLOSEOUT_NAME = "run-closeout"
 RUN_CLOSEOUT_RESULT_NAME = "run_closeout_result.json"
 RUN_CLOSEOUT_OUTPUT_PATH = f"project_state/gates/{RUN_CLOSEOUT_RESULT_NAME}"
 
+POLICY_LINT_NAME = "policy-lint"
+POLICY_LINT_RESULT_NAME = "policy_lint_result.json"
+POLICY_LINT_OUTPUT_PATH = f"project_state/gates/{POLICY_LINT_RESULT_NAME}"
+
 # Allowlist of command kinds that run-closeout is permitted to execute.
 # Anything outside this set is refused to prevent arbitrary shell execution.
 RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
@@ -7604,6 +7608,270 @@ def _detect_decision_command_plan_conflicts(
     return conflicts
 
 
+# ---------------------------------------------------------------------------
+# policy-lint: detect drift between current engineering rules and long-lived
+# text contracts (skills, prompts, docs, decision templates).
+# ---------------------------------------------------------------------------
+
+# Supported profile names — anything else (e.g. "medium") is drift.
+_POLICY_LINT_VALID_PROFILES: frozenset[str] = frozenset(_GATE_PROFILE_NAMES)
+
+# Supported codex_report_summary.status values — anything else is drift.
+_POLICY_LINT_VALID_REPORT_STATUSES: frozenset[str] = frozenset({
+    "SUCCESS", "PARTIAL", "FAILED", "BLOCKED",
+})
+
+# Bounded file globs to scan by default.  Heavy paths like solve_reports/,
+# project_state/rounds/, and PROJECT_PROGRESS_LOG.txt are intentionally
+# excluded — policy-lint scans long-lived text contracts, not runtime output.
+_POLICY_LINT_SCAN_GLOBS: tuple[str, ...] = (
+    ".codex-skills/*/SKILL.md",
+    "README.md",
+    "project_state/decision_packet.md",
+)
+
+# Patterns that indicate dynamic one-run facts in .codex-skills/ text.
+# These should live in project_state, not in skill files.
+_POLICY_LINT_DYNAMIC_FACT_PATTERNS: tuple[tuple[str, str], ...] = (
+    # Hex candidate strings (8+ hex chars in a row that look like candidates)
+    (r"\b[0-9a-fA-F]{16,}\b", "candidate hex string"),
+    # Run names like samplereverse_..._20260512_rerun6
+    (r"\b\w+_runtime_\w+_\d{8}_\w+\b", "run name"),
+    # Windows local paths
+    (r"[A-Za-z]:\\[^\s\"']+", "local machine path"),
+    # Artifact paths with round IDs
+    (r"project_state/rounds/round_\d{8}_\w+", "artifact path with round ID"),
+    # Runtime metrics (e.g. "distance5 246", "exact2 / distance5")
+    (r"\b(?:exact[12]|distance\d+)\s*/?\s*distance\d+\s+\d+\b", "runtime metric"),
+)
+
+
+def _policy_lint_scan_file(path: Path, *, is_skill: bool) -> list[dict[str, Any]]:
+    """Scan a single text file for policy drift patterns.
+
+    Returns a list of finding dicts with keys:
+    kind, severity, file, line, detail, evidence
+    """
+    findings: list[dict[str, Any]] = []
+    if not path.exists() or not path.is_file():
+        return findings
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return findings
+
+    lines = text.splitlines()
+    rel_path = str(path).replace("\\", "/")
+    # Normalize to repo-relative if possible
+    if "reverse-agent/" in rel_path:
+        rel_path = rel_path.split("reverse-agent/", 1)[-1]
+    if rel_path.startswith("./"):
+        rel_path = rel_path[2:]
+
+    for line_no, line in enumerate(lines, 1):
+        lowered = line.lower()
+
+        # 1. Obsolete profile name "medium" used as a project profile
+        if re.search(r"\bmedium\b", lowered) and re.search(
+            r"profile|gate|fast|standard|full", lowered
+        ):
+            # Skip lines that explicitly say "do not" or "not medium"
+            if not re.search(r"do not|not.*medium|instead of.*medium", lowered):
+                findings.append({
+                    "kind": "obsolete_profile_name",
+                    "severity": "WARN",
+                    "file": rel_path,
+                    "line": line_no,
+                    "detail": "uses 'medium' as a profile name; project supports fast/standard/full",
+                    "evidence": line.strip(),
+                })
+
+        # 2. Tests authoritative over command-plan
+        if re.search(r"tests?\s+(?:is|are)\s+(?:the\s+)?authoritative", lowered) or (
+            re.search(r"tests?\s+override\s+command", lowered)
+        ):
+            findings.append({
+                "kind": "tests_authoritative_over_command_plan",
+                "severity": "FAIL",
+                "file": rel_path,
+                "line": line_no,
+                "detail": "makes Tests authoritative over command-plan",
+                "evidence": line.strip(),
+            })
+
+        # 3. task_packet authority over decision_packet
+        if (
+            re.search(r"task_packet\s+(?:is|are)\s+(?:the\s+)?authoritative", lowered)
+            or re.search(r"task_packet\s+overrides?\s+decision", lowered)
+            or re.search(r"task_packet\s+controls?\s+execution", lowered)
+        ):
+            findings.append({
+                "kind": "task_packet_authority_over_decision_packet",
+                "severity": "FAIL",
+                "file": rel_path,
+                "line": line_no,
+                "detail": "makes task_packet execution authority over decision_packet",
+                "evidence": line.strip(),
+            })
+
+        # 4. Default full solve_reports/ or PROJECT_PROGRESS_LOG.txt reads
+        if (
+            re.search(r"read\s+(?:the\s+)?full\s+solve_reports", lowered)
+            or re.search(r"scan\s+(?:the\s+)?full\s+solve_reports", lowered)
+            or re.search(r"read\s+(?:the\s+)?full\s+project_progress_log", lowered)
+            or re.search(r"scan\s+(?:the\s+)?full\s+project_progress_log", lowered)
+        ):
+            # Only flag if not explicitly saying "do not"
+            if not re.search(r"do not|don't|must not|should not", lowered):
+                findings.append({
+                    "kind": "default_heavy_path_read",
+                    "severity": "WARN",
+                    "file": rel_path,
+                    "line": line_no,
+                    "detail": "suggests reading full solve_reports/ or PROJECT_PROGRESS_LOG.txt by default",
+                    "evidence": line.strip(),
+                })
+
+        # 5. Unsupported codex_report_summary.status values
+        if re.search(r"COMPLETED_WITH_LIMITATIONS", line):
+            # Check if it's used as a status value (not in a "do not use" context)
+            if not re.search(r"do not use|not.*valid|forbidden|unsupported", lowered):
+                findings.append({
+                    "kind": "unsupported_report_status",
+                    "severity": "FAIL",
+                    "file": rel_path,
+                    "line": line_no,
+                    "detail": "uses COMPLETED_WITH_LIMITATIONS as a status; only allowed as human-readable conclusion",
+                    "evidence": line.strip(),
+                })
+
+        # 6. Dynamic one-run facts in .codex-skills/ text
+        if is_skill:
+            for pattern, description in _POLICY_LINT_DYNAMIC_FACT_PATTERNS:
+                if re.search(pattern, line):
+                    # Skip lines that explicitly say "do not" store these
+                    if not re.search(r"do not|must not|should not|forbidden", lowered):
+                        findings.append({
+                            "kind": "dynamic_fact_in_skill",
+                            "severity": "WARN",
+                            "file": rel_path,
+                            "line": line_no,
+                            "detail": f"skill file contains {description}; dynamic facts belong in project_state",
+                            "evidence": line.strip(),
+                        })
+                        break  # one finding per line is enough
+
+    return findings
+
+
+def policy_lint(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Detect policy drift between current engineering rules and long-lived text contracts.
+
+    Scans bounded text files (skills, decision packet, README) for patterns
+    that contradict current project rules:
+    - obsolete profile names (e.g. "medium" instead of "standard")
+    - Tests authoritative over command-plan
+    - task_packet authority over decision_packet
+    - default heavy path reads (full solve_reports/, PROJECT_PROGRESS_LOG.txt)
+    - unsupported codex_report_summary.status values
+    - dynamic one-run facts in .codex-skills/ text
+
+    Writes a structured artifact to project_state/gates/policy_lint_result.json.
+    """
+    repo_root = repo_root or Path.cwd()
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+
+    scanned_files: list[str] = []
+    all_findings: list[dict[str, Any]] = []
+
+    # Scan bounded text files
+    for glob_pattern in _POLICY_LINT_SCAN_GLOBS:
+        for path in repo_root.glob(glob_pattern):
+            if not path.is_file():
+                continue
+            rel = str(path.relative_to(repo_root)).replace("\\", "/")
+            scanned_files.append(rel)
+            is_skill = rel.startswith(".codex-skills/")
+            file_findings = _policy_lint_scan_file(path, is_skill=is_skill)
+            all_findings.extend(file_findings)
+
+    # Classify gate status
+    has_fail = any(f.get("severity") == "FAIL" for f in all_findings)
+    has_warn = any(f.get("severity") == "WARN" for f in all_findings)
+    if has_fail:
+        gate_status = "FAILED"
+    elif has_warn:
+        gate_status = "WARN"
+    else:
+        gate_status = "PASSED"
+
+    blocking_reasons: list[str] = []
+    warnings: list[str] = []
+    for finding in all_findings:
+        msg = (
+            f"[{finding['severity']}] {finding['kind']} "
+            f"in {finding['file']}:{finding.get('line', '?')}: {finding['detail']}"
+        )
+        if finding["severity"] == "FAIL":
+            blocking_reasons.append(msg)
+        else:
+            warnings.append(msg)
+
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": POLICY_LINT_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "generated_at": _now_iso(),
+        "scanned_files": sorted(scanned_files),
+        "findings": all_findings,
+        "warnings": warnings,
+        "blocking_reasons": blocking_reasons,
+        "recommended_next_action": (
+            "fix_policy_drift_findings"
+            if has_fail
+            else "review_policy_drift_warnings"
+            if has_warn
+            else "no_action_required"
+        ),
+    }
+
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / POLICY_LINT_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+    return result
+
+
+def _print_policy_lint(result: dict[str, Any]) -> None:
+    print(f"policy-lint: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"scanned_files: {len(result.get('scanned_files') or [])} file(s)")
+    for finding in result.get("findings", []):
+        severity = finding.get("severity", "?")
+        kind = finding.get("kind", "?")
+        file_path = finding.get("file", "?")
+        line = finding.get("line", "?")
+        detail = finding.get("detail", "")
+        print(f"  [{severity}] {kind} in {file_path}:{line}: {detail}")
+    print(f"recommended_next_action: {result.get('recommended_next_action')}")
+
+
 def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
@@ -9372,6 +9640,9 @@ def main(argv: list[str] | None = None) -> int:
     decision_lint_parser = subparsers.add_parser("decision-lint", help="Lint a decision before implementation starts.")
     decision_lint_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     decision_lint_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    policy_lint_parser = subparsers.add_parser("policy-lint", help="Detect policy drift in skills, prompts, and docs.")
+    policy_lint_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    policy_lint_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -9486,6 +9757,17 @@ def main(argv: list[str] | None = None) -> int:
                 cmd_part = f" (command: {conflict['command']})" if conflict.get("command") else ""
                 print(f"  [CONFLICT] [{conflict['kind']}] {conflict['reason']}{cmd_part}")
         return 0 if result.get("ok") else 1
+    if args.command == "policy-lint":
+        result = policy_lint(
+            state_dir=Path(args.state_dir),
+            repo_root=_derive_repo_root(Path(args.state_dir)),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_policy_lint(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
     return 1
 
 

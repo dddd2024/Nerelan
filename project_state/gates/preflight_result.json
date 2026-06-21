@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_decision_command_plan_conflict_lint_v1",
-  "round_id": "round_20260621_decision_command_plan_conflict_lint_v1",
+  "decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
+  "round_id": "round_20260621_policy_lint_prompt_consistency_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-21T09:27:14.810913Z",
+  "generated_at": "2026-06-21T09:54:03.448654Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260621_decision_command_plan_conflict_lint_v1"
+      "report_id": "codex_report_20260621_policy_lint_prompt_consistency_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -75,6 +75,7 @@
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -82,7 +83,7 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/*",
+        "project_state/rounds/round_20260621_policy_lint_prompt_consistency_v1/*",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -137,7 +138,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "bcd1ba99dc69"
+    "head_commit": "5bf2f923af82"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
