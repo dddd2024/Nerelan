@@ -526,6 +526,11 @@ def _make_gate_state(
             "project_state/gates/gate_profile_plan.json",
             *archive_paths,
         ],
+        extra_body=(
+            "## Policy Impact\n\n"
+            "command-plan, final-check, report-summary, policy-lint, "
+            "report status schema, and tests reviewed.\n"
+        ),
     )
     # Build startup command blocks; if startup_dirty_files is provided,
     # include them in the ``git status --short`` output so that
@@ -735,6 +740,11 @@ def _make_command_plan_gate_state(
             "project_state/gates/gate_profile_plan.json",
             *archive_paths,
         ],
+        extra_body=(
+            "## Policy Impact\n\n"
+            "command-plan, final-check, report-summary, policy-lint, "
+            "report status schema, and tests reviewed.\n"
+        ),
     )
     _write_json(state_dir / "gates" / "command_plan.json", plan_payload)
     body = pytest_body
@@ -17485,5 +17495,263 @@ def test_policy_lint_exempts_stable_repo_path_in_prompt_docs(tmp_path: Path) -> 
         and "local machine path" in f.get("detail", "")
     ]
     assert path_findings == [], f"Expected no findings for stable repo path, got: {path_findings}"
+
+
+# ---------------------------------------------------------------------------
+# Policy Impact Audit tests
+# ---------------------------------------------------------------------------
+
+
+def _make_policy_impact_state(
+    tmp_path: Path,
+    *,
+    decision_id: str = "decision_policy_impact",
+    round_id: str = "round_policy_impact",
+    changed_files: list[str] | None = None,
+    report_status: str = "SUCCESS",
+    report_body: str = "",
+) -> Path:
+    """Create a minimal state for policy-impact tests."""
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+
+    _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
+    _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True, exist_ok=True)
+
+    dirty = changed_files if changed_files is not None else []
+    _write_json(gates_dir / "round_delta_summary.json", {
+        "schema_version": 1,
+        "artifact_name": "round_delta_summary.json",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "baseline_available": True,
+        "new_dirty_files_since_baseline": dirty,
+        "inherited_dirty_files": [],
+        "final_dirty_files": dirty,
+    })
+
+    _write_report(
+        state_dir,
+        decision_id=decision_id,
+        report_id="codex_report_policy_impact",
+        round_id=round_id,
+        status=report_status,
+        files_changed=dirty,
+        extra_body=report_body,
+    )
+
+    _write_json(
+        state_dir / "current_state.json",
+        {"round_id": round_id, "state_build_id": "state_test", "state_digest": "digest_test"},
+    )
+    _write_json(
+        state_dir / "task_packet.json",
+        {"execution_scope": "decision_packet_controls_current_round", "active_decision_packet": "project_state/decision_packet.md"},
+    )
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+
+    return state_dir
+
+
+def test_policy_impact_passes_with_no_policy_sensitive_changes(tmp_path: Path) -> None:
+    """policy-impact returns PASS when no policy-sensitive files changed."""
+    from reverse_agent.project_gate import policy_impact
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["README.md", "docs/some_doc.md"],
+    )
+    result = policy_impact(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "PASSED"
+    assert result["policy_sensitive_files"] == []
+    assert result["impacted_domains"] == []
+    assert result["missing_report_topics"] == []
+    assert result["blocking_reasons"] == []
+
+
+def test_policy_impact_fails_when_source_changed_but_report_omits_coverage(tmp_path: Path) -> None:
+    """policy-impact FAILs when source changed but report omits impact coverage."""
+    from reverse_agent.project_gate import policy_impact
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["reverse_agent/project_gate.py"],
+        report_body="# Report\n\nNo policy impact discussion here.\n",
+    )
+    result = policy_impact(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "FAILED"
+    assert "reverse_agent/project_gate.py" in result["policy_sensitive_files"]
+    assert "command_plan" in result["impacted_domains"]
+    assert "final_check" in result["impacted_domains"]
+    assert "policy_lint" in result["impacted_domains"]
+    assert len(result["missing_report_topics"]) > 0
+    assert len(result["blocking_reasons"]) > 0
+
+
+def test_policy_impact_passes_when_report_covers_impacted_domains(tmp_path: Path) -> None:
+    """policy-impact PASSes when report covers all impacted domains."""
+    from reverse_agent.project_gate import policy_impact
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
+        report_body=(
+            "## Policy Impact\n\n"
+            "command-plan, final-check, report-summary, policy-lint, "
+            "report status schema, and tests reviewed.\n"
+        ),
+    )
+    result = policy_impact(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "PASSED"
+    assert result["missing_report_topics"] == []
+
+
+def test_policy_impact_detects_prompt_doc_changes(tmp_path: Path) -> None:
+    """policy-impact detects prompt-doc changes and maps to prompt_docs domain."""
+    from reverse_agent.project_gate import policy_impact
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["docs/prompts/codex_execution_prompt.md"],
+        report_body="## Policy Impact\n\nPrompt docs updated.\n",
+    )
+    result = policy_impact(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert "docs/prompts/codex_execution_prompt.md" in result["policy_sensitive_files"]
+    assert "prompt_docs" in result["impacted_domains"]
+
+
+def test_policy_impact_detects_skills_changes(tmp_path: Path) -> None:
+    """policy-impact detects .codex-skills changes and maps to skills domain."""
+    from reverse_agent.project_gate import policy_impact
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=[".codex-skills/registry.json"],
+        report_body="## Policy Impact\n\nSkill registry updated.\n",
+    )
+    result = policy_impact(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert ".codex-skills/registry.json" in result["policy_sensitive_files"]
+    assert "skills" in result["impacted_domains"]
+
+
+def test_policy_impact_warns_when_report_not_success(tmp_path: Path) -> None:
+    """policy-impact WARNs when coverage missing but report status is not SUCCESS."""
+    from reverse_agent.project_gate import policy_impact
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["reverse_agent/project_gate.py"],
+        report_status="PARTIAL",
+        report_body="# Report\n\nNo policy impact discussion.\n",
+    )
+    result = policy_impact(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    assert result["gate_status"] == "WARN"
+    assert len(result["warnings"]) > 0
+    assert result["blocking_reasons"] == []
+
+
+def test_policy_impact_writes_artifact(tmp_path: Path) -> None:
+    """policy-impact writes project_state/gates/policy_impact_audit.json."""
+    from reverse_agent.project_gate import policy_impact
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["reverse_agent/project_gate.py"],
+        report_body=(
+            "## Policy Impact\n\n"
+            "command-plan, final-check, report-summary, policy-lint, "
+            "report status schema, and tests reviewed.\n"
+        ),
+    )
+    result = policy_impact(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+    artifact_path = state_dir / "gates" / "policy_impact_audit.json"
+    assert artifact_path.exists()
+    saved = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert saved["gate_name"] == "policy-impact"
+    assert saved["decision_id"] == "decision_policy_impact"
+    assert saved["round_id"] == "round_policy_impact"
+    assert saved["gate_status"] == result["gate_status"]
+
+
+def test_policy_impact_cli_exit_code_pass(tmp_path: Path) -> None:
+    """policy-impact CLI exits 0 when PASS."""
+    from reverse_agent.project_gate import main as gate_main
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["README.md"],
+    )
+    exit_code = gate_main(["policy-impact", "--state-dir", str(state_dir)])
+    assert exit_code == 0
+
+
+def test_policy_impact_cli_exit_code_fail(tmp_path: Path) -> None:
+    """policy-impact CLI exits 1 when FAIL."""
+    from reverse_agent.project_gate import main as gate_main
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["reverse_agent/project_gate.py"],
+        report_body="# Report\n\nNo coverage.\n",
+    )
+    exit_code = gate_main(["policy-impact", "--state-dir", str(state_dir)])
+    assert exit_code == 1
+
+
+def test_policy_impact_cli_json_output(tmp_path: Path) -> None:
+    """policy-impact CLI --json prints valid JSON."""
+    from reverse_agent.project_gate import main as gate_main
+    from io import StringIO
+    import contextlib
+
+    state_dir = _make_policy_impact_state(
+        tmp_path,
+        changed_files=["README.md"],
+    )
+    buf = StringIO()
+    with contextlib.redirect_stdout(buf):
+        exit_code = gate_main(["policy-impact", "--state-dir", str(state_dir), "--json"])
+    assert exit_code == 0
+    payload = json.loads(buf.getvalue())
+    assert payload["gate_name"] == "policy-impact"
+    assert payload["gate_status"] == "PASSED"
+
+
+def test_final_check_policy_impact_coverage_fails_on_missing_coverage(tmp_path: Path) -> None:
+    """final-check fails when policy-sensitive changes present but report omits coverage."""
+    from reverse_agent.project_gate import final_check
+
+    state_dir = _make_gate_state(tmp_path)
+    # Override report to omit policy impact coverage
+    _write_report(
+        state_dir,
+        decision_id="decision_gate",
+        report_id="codex_report_gate",
+        round_id="round_gate",
+        status="SUCCESS",
+        files_changed=["reverse_agent/project_gate.py"],
+        extra_body="# Report\n\nNo policy impact discussion.\n",
+    )
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    pi_checks = [c for c in result["checks"] if c["name"] == "policy_impact_coverage"]
+    assert len(pi_checks) == 1
+    assert pi_checks[0]["status"] == "FAIL"
+
+
+def test_final_check_policy_impact_coverage_passes_with_coverage(tmp_path: Path) -> None:
+    """final-check passes policy_impact_coverage when report covers impacted domains."""
+    from reverse_agent.project_gate import final_check
+
+    state_dir = _make_gate_state(tmp_path)
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    pi_checks = [c for c in result["checks"] if c["name"] == "policy_impact_coverage"]
+    assert len(pi_checks) == 1
+    assert pi_checks[0]["status"] == "PASS"
 
 

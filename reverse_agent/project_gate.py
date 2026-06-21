@@ -66,6 +66,36 @@ POLICY_LINT_NAME = "policy-lint"
 POLICY_LINT_RESULT_NAME = "policy_lint_result.json"
 POLICY_LINT_OUTPUT_PATH = f"project_state/gates/{POLICY_LINT_RESULT_NAME}"
 
+POLICY_IMPACT_NAME = "policy-impact"
+POLICY_IMPACT_RESULT_NAME = "policy_impact_audit.json"
+POLICY_IMPACT_OUTPUT_PATH = f"project_state/gates/{POLICY_IMPACT_RESULT_NAME}"
+
+# File patterns considered policy-sensitive by Policy Impact Audit v1.
+# Changes to these files may affect stable project rules and require
+# explicit impact analysis in the codex execution report.
+_POLICY_SENSITIVE_EXACT = frozenset({
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py",
+    "project_state/decision_packet.md",
+})
+_POLICY_SENSITIVE_PREFIXES = (
+    "docs/prompts/",
+    ".codex-skills/",
+)
+
+# Mapping from impacted domain to report keywords that indicate coverage.
+# A substantive report addressing policy impact will mention these terms.
+_POLICY_DOMAIN_REPORT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "prompt_docs": ("prompt",),
+    "skills": ("skill",),
+    "command_plan": ("command-plan", "command_plan"),
+    "final_check": ("final-check", "final_check"),
+    "report_summary": ("report-summary", "report_summary"),
+    "policy_lint": ("policy-lint", "policy_lint"),
+    "report_status_schema": ("status",),
+    "tests": ("test",),
+}
+
 # Allowlist of command kinds that run-closeout is permitted to execute.
 # Anything outside this set is refused to prevent arbitrary shell execution.
 RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
@@ -5808,6 +5838,42 @@ def final_check(
         )
     )
 
+    # Policy Impact Audit coverage check: when policy-sensitive files changed,
+    # the report must cover each impacted domain.  This prevents a
+    # SUCCESS/ACCEPTED report from silently skipping policy impact analysis.
+    _pi_changed_files = new_dirty_files if baseline_available else changed_files
+    _pi_analysis = _policy_impact_analysis(
+        changed_files=_pi_changed_files,
+        report_text=report_text,
+        report_status=report_status,
+    )
+    _pi_sensitive = _pi_analysis["policy_sensitive_files"]
+    _pi_missing = _pi_analysis["missing_report_topics"]
+    if _pi_sensitive and _pi_missing and report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
+        checks.append(
+            _check(
+                "policy_impact_coverage",
+                "FAIL",
+                f"policy-sensitive changes present but report omits impact coverage for: {', '.join(_pi_missing)}",
+                policy_sensitive_files=_pi_sensitive,
+                impacted_domains=_pi_analysis["impacted_domains"],
+                missing_report_topics=_pi_missing,
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "policy_impact_coverage",
+                "PASS",
+                "policy impact coverage satisfied or no policy-sensitive changes"
+                if not _pi_missing
+                else f"report omits policy impact coverage for: {', '.join(_pi_missing)} but report status is {report_status}",
+                policy_sensitive_files=_pi_sensitive,
+                impacted_domains=_pi_analysis["impacted_domains"],
+                missing_report_topics=_pi_missing,
+            )
+        )
+
     # Command-plan recommendation check: when the decision_contract
     # explicitly requires run-closeout (via required_command_fragments),
     # the saved command_plan.json must recommend the canonical run-closeout
@@ -7877,6 +7943,197 @@ def _print_policy_lint(result: dict[str, Any]) -> None:
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
+def _policy_sensitive_domains(file_path: str) -> set[str]:
+    """Map a policy-sensitive file path to impacted domains.
+
+    Returns an empty set if the file is not policy-sensitive.
+    """
+    norm = file_path.replace("\\", "/")
+    domains: set[str] = set()
+    is_sensitive = False
+    if norm in _POLICY_SENSITIVE_EXACT:
+        is_sensitive = True
+    elif any(norm.startswith(prefix) for prefix in _POLICY_SENSITIVE_PREFIXES):
+        is_sensitive = True
+    if not is_sensitive:
+        return domains
+    if norm == "reverse_agent/project_gate.py":
+        # project_gate.py contains all gate logic: command-plan, final-check,
+        # report-summary, policy-lint, and report status schema code paths.
+        domains.update({"command_plan", "final_check", "report_summary", "policy_lint", "report_status_schema"})
+    if norm == "tests/test_project_gate.py":
+        domains.add("tests")
+    if norm.startswith("docs/prompts/"):
+        domains.add("prompt_docs")
+    if norm.startswith(".codex-skills/"):
+        domains.add("skills")
+    if norm == "project_state/decision_packet.md":
+        domains.add("command_plan")
+    return domains
+
+
+def _policy_impact_analysis(
+    *,
+    changed_files: set[str],
+    report_text: str,
+    report_status: str,
+) -> dict[str, Any]:
+    """Core policy-impact analysis shared by policy_impact() and final_check().
+
+    Detects policy-sensitive files, determines impacted domains, and checks
+    whether the report covers each impacted domain.  Does not write artifacts.
+    """
+    policy_sensitive_files: list[str] = []
+    impacted_domains: set[str] = set()
+    for file_path in sorted(changed_files):
+        norm = file_path.replace("\\", "/")
+        domains = _policy_sensitive_domains(norm)
+        if domains:
+            policy_sensitive_files.append(norm)
+            impacted_domains.update(domains)
+
+    required_report_topics = sorted(impacted_domains)
+    missing_report_topics: list[str] = []
+    report_lower = report_text.lower()
+    for domain in required_report_topics:
+        keywords = _POLICY_DOMAIN_REPORT_KEYWORDS.get(domain, ())
+        if keywords and not any(kw in report_lower for kw in keywords):
+            missing_report_topics.append(domain)
+
+    blocking_reasons: list[str] = []
+    warnings: list[str] = []
+    if not policy_sensitive_files:
+        gate_status = "PASSED"
+    elif missing_report_topics:
+        if report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
+            gate_status = "FAILED"
+            blocking_reasons.append(
+                f"report omits policy impact coverage for: {', '.join(missing_report_topics)}"
+            )
+        else:
+            gate_status = "WARN"
+            warnings.append(
+                f"report omits policy impact coverage for: {', '.join(missing_report_topics)} "
+                f"but report status is {report_status}"
+            )
+    else:
+        gate_status = "PASSED"
+
+    return {
+        "policy_sensitive_files": policy_sensitive_files,
+        "impacted_domains": sorted(impacted_domains),
+        "required_report_topics": required_report_topics,
+        "missing_report_topics": missing_report_topics,
+        "warnings": warnings,
+        "blocking_reasons": blocking_reasons,
+        "gate_status": gate_status,
+    }
+
+
+def policy_impact(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Audit policy-sensitive changes for impact coverage.
+
+    Detects policy-sensitive changed files from round_delta_summary.json (or
+    git diff as fallback), determines impacted domains, checks report coverage,
+    and writes project_state/gates/policy_impact_audit.json.
+
+    Classifies as FAIL when policy-sensitive changes are present but the report
+    omits required impact coverage; WARN when impact is plausible but no hard
+    evidence requires a block; PASS when coverage is present or no
+    policy-sensitive files changed.
+    """
+    repo_root = repo_root or Path.cwd()
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+
+    # Read round_delta_summary for changed files; fall back to git diff.
+    delta_summary = _read_json(_round_delta_summary_path(state_dir))
+    delta_decision_id = str(delta_summary.get("decision_id") or "") if delta_summary else ""
+    delta_round_id = str(delta_summary.get("round_id") or "") if delta_summary else ""
+    if (
+        delta_summary
+        and delta_decision_id == decision_id
+        and delta_round_id == round_id
+    ):
+        changed_files = _string_set(delta_summary.get("new_dirty_files_since_baseline"))
+        if not changed_files:
+            changed_files = _string_set(delta_summary.get("final_dirty_files"))
+    else:
+        changed_files = set(_git_changed_files(repo_root))
+
+    report_text = _read_text(state_dir / "codex_execution_report.md")
+    report = read_codex_report_summary(state_dir)
+    report_status = str(report.get("status") or "UNKNOWN")
+
+    analysis = _policy_impact_analysis(
+        changed_files=changed_files,
+        report_text=report_text,
+        report_status=report_status,
+    )
+
+    gate_status = analysis["gate_status"]
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": POLICY_IMPACT_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "generated_at": _now_iso(),
+        "policy_sensitive_files": analysis["policy_sensitive_files"],
+        "impacted_domains": analysis["impacted_domains"],
+        "required_report_topics": analysis["required_report_topics"],
+        "missing_report_topics": analysis["missing_report_topics"],
+        "warnings": analysis["warnings"],
+        "blocking_reasons": analysis["blocking_reasons"],
+        "recommended_next_action": (
+            "fix_policy_impact_coverage"
+            if gate_status == "FAILED"
+            else "review_policy_impact_warnings"
+            if gate_status == "WARN"
+            else "no_action_required"
+        ),
+    }
+
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / POLICY_IMPACT_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+    return result
+
+
+def _print_policy_impact(result: dict[str, Any]) -> None:
+    print(f"policy-impact: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    sensitive = result.get("policy_sensitive_files") or []
+    print(f"policy_sensitive_files: {len(sensitive)} file(s)")
+    for path in sensitive:
+        print(f"  {path}")
+    domains = result.get("impacted_domains") or []
+    if domains:
+        print(f"impacted_domains: {', '.join(domains)}")
+    missing = result.get("missing_report_topics") or []
+    if missing:
+        print(f"missing_report_topics: {', '.join(missing)}")
+    for warning in result.get("warnings", []):
+        print(f"  [WARN] {warning}")
+    for reason in result.get("blocking_reasons", []):
+        print(f"  [FAIL] {reason}")
+    print(f"recommended_next_action: {result.get('recommended_next_action')}")
+
+
 def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
@@ -8931,6 +9188,14 @@ def _refresh_codex_report_for_closeout(
             report_body += f"- {path}\n"
     if audit_section_to_use:
         report_body += f"\n{audit_section_to_use}\n"
+    # Preserve existing ## Policy Impact section so policy_impact_coverage
+    # check in final-check can verify report coverage for impacted domains
+    # after close-round refreshes the report.
+    if report_path.exists():
+        _existing_text = _read_text(report_path)
+        _existing_policy_impact = _markdown_section(_existing_text, "Policy Impact")
+        if _existing_policy_impact.strip():
+            report_body += f"\n## Policy Impact\n\n{_existing_policy_impact}\n"
     report_path.write_text(
         f"```json codex_report_summary\n"
         f"{json.dumps(payload, ensure_ascii=True, indent=2)}\n"
@@ -9654,6 +9919,9 @@ def main(argv: list[str] | None = None) -> int:
     policy_lint_parser = subparsers.add_parser("policy-lint", help="Detect policy drift in skills, prompts, and docs.")
     policy_lint_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     policy_lint_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    policy_impact_parser = subparsers.add_parser("policy-impact", help="Audit policy-sensitive changes for impact coverage.")
+    policy_impact_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    policy_impact_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -9777,6 +10045,17 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_policy_lint(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "policy-impact":
+        result = policy_impact(
+            state_dir=Path(args.state_dir),
+            repo_root=_derive_repo_root(Path(args.state_dir)),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_policy_impact(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     return 1
