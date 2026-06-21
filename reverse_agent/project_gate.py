@@ -70,6 +70,10 @@ POLICY_IMPACT_NAME = "policy-impact"
 POLICY_IMPACT_RESULT_NAME = "policy_impact_audit.json"
 POLICY_IMPACT_OUTPUT_PATH = f"project_state/gates/{POLICY_IMPACT_RESULT_NAME}"
 
+EXECUTION_LOG_NAME = "execution-log"
+EXECUTION_LOG_RESULT_NAME = "execution_log.json"
+EXECUTION_LOG_OUTPUT_PATH = f"project_state/gates/{EXECUTION_LOG_RESULT_NAME}"
+
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This excludes RUN_CLOSEOUT_RESULT_NAME (not a
 # report-level artifact) and artifacts already always included unconditionally
@@ -83,6 +87,7 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     ROUND_BASELINE_RESULT_NAME,
     POLICY_LINT_RESULT_NAME,
     POLICY_IMPACT_RESULT_NAME,
+    EXECUTION_LOG_RESULT_NAME,
 )
 
 
@@ -138,6 +143,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "close-round",
     "decision-lint",
     "gate-profile",
+    "execution-log",
     "run-closeout",
 })
 
@@ -4739,6 +4745,11 @@ def build_report_summary_synthesis(
         generated_artifact_set.add(POLICY_LINT_OUTPUT_PATH)
     if (state_dir / "gates" / POLICY_IMPACT_RESULT_NAME).exists():
         generated_artifact_set.add(POLICY_IMPACT_OUTPUT_PATH)
+    # Include execution_log.json when it exists on disk.  This is generated
+    # by the execution-log gate command and must appear in generated_artifacts
+    # just like other gate artifacts.
+    if (state_dir / "gates" / EXECUTION_LOG_RESULT_NAME).exists():
+        generated_artifact_set.add(EXECUTION_LOG_OUTPUT_PATH)
     # Include decision-scope required deliverables that were promoted from
     # inherited dirty files into generated_artifacts.
     generated_artifact_set |= inherited_scope_deliverables
@@ -6112,6 +6123,93 @@ def final_check(
         )
     else:
         checks.append(_final_check_stdout_status_check(pytest_text, gate_status))
+
+    # Execution log consistency check: when execution_log.json exists on disk,
+    # verify that its command entries do not disagree with pytest_result.txt
+    # or command_plan.json.  A SUCCESS/ACCEPTED report must not have a mismatch.
+    execution_log_payload = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
+    if execution_log_payload:
+        el_decision_id = str(execution_log_payload.get("decision_id") or "")
+        el_round_id = str(execution_log_payload.get("round_id") or "")
+        el_ids_match = el_decision_id == decision_id and el_round_id == round_id
+        el_entries = [
+            entry for entry in (execution_log_payload.get("commands") or [])
+            if isinstance(entry, dict)
+        ]
+        el_mismatches: list[dict[str, Any]] = []
+        if not el_ids_match:
+            el_mismatches.append({
+                "error": "execution_log.json has stale decision_id or round_id",
+                "execution_log_decision_id": el_decision_id,
+                "execution_log_round_id": el_round_id,
+            })
+        else:
+            # Compare exit codes between execution_log and pytest_result.
+            recorded_el = _parse_recorded_command_blocks(pytest_text)
+            el_blocks = [b for b in (recorded_el.get("blocks") or []) if isinstance(b, dict)]
+            el_blocks_by_command: dict[str, list[dict[str, Any]]] = {}
+            for block in el_blocks:
+                el_blocks_by_command.setdefault(str(block.get("command") or ""), []).append(block)
+            for entry in el_entries:
+                command = str(entry.get("command") or "")
+                entry_exit = entry.get("exit_code")
+                matching = el_blocks_by_command.get(command, [])
+                if not matching:
+                    continue
+                pytest_exit = matching[0].get("exit_code")
+                if entry_exit is not None and pytest_exit is not None and entry_exit != pytest_exit:
+                    el_mismatches.append({
+                        "command": command,
+                        "execution_log_exit_code": entry_exit,
+                        "pytest_result_exit_code": pytest_exit,
+                    })
+            # Compare command lists: execution_log commands vs command_plan commands.
+            if command_plan_data:
+                el_recorded_commands = {str(e.get("command") or "") for e in el_entries}
+                el_plan_commands = {
+                    str(item.get("command") or "")
+                    for item in (command_plan_data.get("commands") or [])
+                    if isinstance(item, dict)
+                }
+                el_unauthorized = sorted(
+                    cmd for cmd in (el_recorded_commands - el_plan_commands)
+                    if not _is_startup_command(cmd)
+                )
+                if el_unauthorized:
+                    el_mismatches.append({
+                        "error": "execution_log contains commands not in command_plan",
+                        "unauthorized_commands": el_unauthorized,
+                    })
+        if not el_mismatches:
+            el_check_status = "PASS"
+            el_check_detail = "execution_log.json is consistent with pytest_result and command_plan"
+        elif report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
+            el_check_status = "FAIL"
+            el_check_detail = "execution_log.json disagrees with pytest_result or command_plan"
+        else:
+            el_check_status = "WARN"
+            el_check_detail = "execution_log.json disagrees with pytest_result or command_plan (non-SUCCESS report)"
+        checks.append(
+            _check(
+                "execution_log_consistency",
+                el_check_status,
+                el_check_detail,
+                mismatches=el_mismatches,
+                required=True if el_mismatches else False,
+            )
+        )
+    else:
+        # execution_log.json not present: backward-compatible, no check needed.
+        checks.append(
+            _check(
+                "execution_log_consistency",
+                "PASS",
+                "execution_log.json not present; backward-compatible fallback to pytest_result",
+                required=False,
+                skipped_reason="execution_log_not_present",
+            )
+        )
+
     gate_status = _result_status(checks, report_status, mainline=str(decision.get("mainline") or ""))
     warnings = [
         f"{check['name']}: {check['detail']}"
@@ -7059,6 +7157,8 @@ def _command_kind(command: str) -> str:
         return "gate-profile"
     if "project_gate" in lowered and "decision-lint" in lowered:
         return "decision-lint"
+    if "project_gate" in lowered and "execution-log" in lowered:
+        return "execution-log"
     if "project_gate" in lowered and "report-summary" in lowered:
         return "report-summary"
     if "project_gate" in lowered and "close-round" in lowered:
@@ -7129,7 +7229,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -7191,11 +7291,11 @@ def _command_expected_exit_codes(
         return [0], "post-report preflight is not explicitly marked expected nonzero", (
             f"command '{command}' looks like a post-report preflight diagnostic without expected nonzero wording"
         )
-    # Diagnostic commands: doctor, lint-report, report-summary, final-check
-    # These commands intentionally return non-zero when they detect gate/report
-    # problems. Their findings are captured in report/final gate artifacts and
-    # must not be treated as execution mismatches.
-    if kind in {"doctor", "lint-report", "report-summary", "final-check"}:
+    # Diagnostic commands: doctor, lint-report, report-summary, final-check,
+    # execution-log.  These commands intentionally return non-zero when they
+    # detect gate/report problems. Their findings are captured in report/final
+    # gate artifacts and must not be treated as execution mismatches.
+    if kind in {"doctor", "lint-report", "report-summary", "final-check", "execution-log"}:
         return [0, 1], f"{kind} diagnostic allows exit 0 or 1; findings captured in report/final gate", None
     # Run-closeout: meta-command that wraps close-round and other gates.
     # When close-round fails (e.g., precheck failures, archive drift),
@@ -8228,6 +8328,235 @@ def _print_policy_impact(result: dict[str, Any]) -> None:
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
+def _execution_log_derive_commands(
+    *,
+    pytest_text: str,
+    command_plan_payload: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Derive structured command entries from pytest_result.txt command blocks
+    and command_plan.json.
+
+    Each entry includes at least ``index``, ``command``, ``kind`` (if known),
+    ``phase`` (if known), ``expected_exit_codes``, ``exit_code``, and
+    ``status`` (``PASSED``, ``FAILED``, or ``UNKNOWN``).
+    """
+    recorded = _parse_recorded_command_blocks(pytest_text)
+    blocks = [b for b in (recorded.get("blocks") or []) if isinstance(b, dict)]
+
+    # Build a lookup of expected_exit_codes by command string from command_plan.
+    expected_by_command: dict[str, list[int]] = {}
+    kind_by_command: dict[str, str] = {}
+    phase_by_command: dict[str, str] = {}
+    for item in (command_plan_payload.get("commands") or []):
+        if not isinstance(item, dict):
+            continue
+        cmd = str(item.get("command") or "")
+        if not cmd:
+            continue
+        expected_by_command[cmd] = list(item.get("expected_exit_codes") or [])
+        kind_by_command[cmd] = str(item.get("kind") or "")
+        phase_by_command[cmd] = str(item.get("phase") or "")
+
+    entries: list[dict[str, Any]] = []
+    for index, block in enumerate(blocks, start=1):
+        command = str(block.get("command") or "")
+        kind = kind_by_command.get(command) or _command_kind(command)
+        phase = phase_by_command.get(command) or _command_phase(kind, archive_seen=False)
+        expected = expected_by_command.get(command) or []
+        exit_code = block.get("exit_code")
+        if exit_code is None:
+            status = "UNKNOWN"
+        elif expected and exit_code in expected:
+            status = "PASSED"
+        elif expected and exit_code not in expected:
+            status = "FAILED"
+        else:
+            # No expected_exit_codes from command_plan; derive from kind.
+            kind_expected, _, _ = _command_expected_exit_codes(
+                kind=kind,
+                phase=phase,
+                command=command,
+                decision_text="",
+                final_check_passed=None,
+            )
+            if exit_code in kind_expected:
+                status = "PASSED"
+            else:
+                status = "FAILED"
+        entries.append({
+            "index": index,
+            "command": command,
+            "kind": kind,
+            "phase": phase,
+            "expected_exit_codes": expected,
+            "exit_code": exit_code,
+            "status": status,
+        })
+    return entries
+
+
+def _execution_log_validate(
+    *,
+    entries: list[dict[str, Any]],
+    command_plan_payload: dict[str, Any],
+    pytest_text: str,
+) -> tuple[list[str], list[str]]:
+    """Validate execution_log entries against command_plan and pytest_result.
+
+    Returns ``(warnings, blocking_reasons)``.
+    """
+    warnings: list[str] = []
+    blocking_reasons: list[str] = []
+
+    # Check for unauthorized commands: commands in entries that are not in
+    # command_plan.commands (excluding startup commands).
+    authorized_commands: set[str] = set()
+    for item in (command_plan_payload.get("commands") or []):
+        if isinstance(item, dict):
+            cmd = str(item.get("command") or "")
+            if cmd:
+                authorized_commands.add(cmd)
+
+    for entry in entries:
+        command = str(entry.get("command") or "")
+        if not command:
+            continue
+        if _is_startup_command(command):
+            continue
+        if command not in authorized_commands:
+            warnings.append(
+                f"command '{command}' is not in command_plan.commands"
+            )
+
+    # Check for omitted commands: commands in command_plan that are not in entries.
+    recorded_commands = {str(entry.get("command") or "") for entry in entries}
+    plan_commands = set(authorized_commands)
+    omitted = sorted(
+        cmd for cmd in (plan_commands - recorded_commands)
+        if not _is_startup_command(cmd)
+    )
+    if omitted:
+        warnings.append(
+            f"command_plan has {len(omitted)} command(s) not recorded in execution_log: "
+            + ", ".join(omitted)
+        )
+
+    # Check for exit code mismatches between execution_log and pytest_result.
+    recorded = _parse_recorded_command_blocks(pytest_text)
+    blocks = [b for b in (recorded.get("blocks") or []) if isinstance(b, dict)]
+    blocks_by_command: dict[str, list[dict[str, Any]]] = {}
+    for block in blocks:
+        blocks_by_command.setdefault(str(block.get("command") or ""), []).append(block)
+
+    for entry in entries:
+        command = str(entry.get("command") or "")
+        entry_exit = entry.get("exit_code")
+        matching = blocks_by_command.get(command, [])
+        if not matching:
+            continue
+        pytest_exit = matching[0].get("exit_code")
+        if entry_exit is not None and pytest_exit is not None and entry_exit != pytest_exit:
+            blocking_reasons.append(
+                f"exit_code mismatch for '{command}': execution_log={entry_exit}, pytest_result={pytest_exit}"
+            )
+
+    return warnings, blocking_reasons
+
+
+def execution_log(
+    *,
+    state_dir: Path,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Generate or validate the structured execution log artifact.
+
+    In v1, the artifact is derived from the existing ``pytest_result.txt``
+    command blocks plus ``command_plan.json``.  It does not require a new
+    command runner.  The ``pytest_result.txt`` remains the required
+    human-readable execution record.
+
+    The artifact is written to ``project_state/gates/execution_log.json``.
+    """
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+
+    pytest_text = _read_text(state_dir / "pytest_result.txt")
+    command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    report = read_codex_report_summary(state_dir)
+    report_id = str(report.get("report_id") or "")
+
+    entries = _execution_log_derive_commands(
+        pytest_text=pytest_text,
+        command_plan_payload=command_plan_payload or {},
+    )
+    warnings, blocking_reasons = _execution_log_validate(
+        entries=entries,
+        command_plan_payload=command_plan_payload or {},
+        pytest_text=pytest_text,
+    )
+
+    # Determine gate status: FAILED if blocking_reasons, WARN if warnings, else PASSED.
+    if blocking_reasons:
+        gate_status = "FAILED"
+    elif warnings:
+        gate_status = "WARN"
+    else:
+        gate_status = "PASSED"
+
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": EXECUTION_LOG_RESULT_NAME,
+        "gate_name": EXECUTION_LOG_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "generated_at": _now_iso(),
+        "source": "derived_from_pytest_result_and_command_plan",
+        "commands": entries,
+        "warnings": warnings,
+        "blocking_reasons": blocking_reasons,
+        "recommended_next_action": (
+            "fix_execution_log_mismatches"
+            if gate_status == "FAILED"
+            else "review_execution_log_warnings"
+            if gate_status == "WARN"
+            else "no_action_required"
+        ),
+    }
+
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / EXECUTION_LOG_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+    return result
+
+
+def _print_execution_log(result: dict[str, Any]) -> None:
+    print(f"execution-log: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    commands = result.get("commands") or []
+    print(f"commands: {len(commands)} entry/entries")
+    for entry in commands:
+        status = entry.get("status") or "UNKNOWN"
+        command = entry.get("command") or ""
+        exit_code = entry.get("exit_code")
+        print(f"  [{status}] {command} (exit={exit_code})")
+    for warning in result.get("warnings", []):
+        print(f"  [WARN] {warning}")
+    for reason in result.get("blocking_reasons", []):
+        print(f"  [FAIL] {reason}")
+    print(f"recommended_next_action: {result.get('recommended_next_action')}")
+
+
 def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
@@ -9129,6 +9458,11 @@ def _refresh_codex_report_for_closeout(
         generated_artifact_set.add(POLICY_LINT_OUTPUT_PATH)
     if (gates_dir / POLICY_IMPACT_RESULT_NAME).exists():
         generated_artifact_set.add(POLICY_IMPACT_OUTPUT_PATH)
+    # Include execution_log.json when it exists on disk.  This is generated
+    # by the execution-log gate command and must appear in generated_artifacts
+    # just like other gate artifacts.
+    if (gates_dir / EXECUTION_LOG_RESULT_NAME).exists():
+        generated_artifact_set.add(EXECUTION_LOG_OUTPUT_PATH)
     # Note: RUN_CLOSEOUT_OUTPUT_PATH is not included in generated_artifacts
     # because the synthesis does not expect it.  The run_closeout_result.json
     # is a gate artifact but not a report-level generated artifact.
@@ -10023,6 +10357,9 @@ def main(argv: list[str] | None = None) -> int:
     policy_impact_parser = subparsers.add_parser("policy-impact", help="Audit policy-sensitive changes for impact coverage.")
     policy_impact_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     policy_impact_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    execution_log_parser = subparsers.add_parser("execution-log", help="Generate or validate structured execution log.")
+    execution_log_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    execution_log_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -10157,6 +10494,14 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_policy_impact(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "execution-log":
+        result = execution_log(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_execution_log(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     return 1

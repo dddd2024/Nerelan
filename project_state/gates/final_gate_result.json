@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
-  "report_id": "codex_report_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
-  "round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
-  "generated_at": "2026-06-21T15:21:54.109190Z",
+  "decision_id": "decision_20260621_structured_execution_log_v1",
+  "report_id": "codex_report_20260621_structured_execution_log_v1",
+  "round_id": "round_20260621_structured_execution_log_v1",
+  "generated_at": "2026-06-21T16:16:44.881880Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260621_policy_impact_generated_artifacts_coverage_fix_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260621_structured_execution_log_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -52,6 +52,7 @@
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/policy_impact_audit.json",
@@ -63,16 +64,17 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/policy_impact_audit.json",
@@ -84,10 +86,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -106,6 +108,7 @@
       "git_changed_files": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/policy_impact_audit.json",
@@ -117,16 +120,17 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/policy_impact_audit.json",
@@ -138,10 +142,10 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_policy_impact_generated_artifacts_coverage_fix_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_structured_execution_log_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -213,6 +217,7 @@
       "live_paths": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
@@ -260,13 +265,9 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
-      "startup_source_test_dirty": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
+      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
+      "startup_source_test_dirty": [],
       "baseline_dirty_files": [],
-      "inherited_dirty_files": [],
       "missing_from_baseline": []
     },
     {
@@ -282,6 +283,7 @@
       "missing_artifacts": [],
       "existing_gate_artifacts": [
         "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
@@ -292,11 +294,8 @@
     {
       "name": "required_closeout_artifacts_covered",
       "status": "PASS",
-      "detail": "required closeout artifacts covered by referenced or generated artifacts",
-      "required_closeout_artifacts": [
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/round_delta_summary.json"
-      ],
+      "detail": "no required closeout artifacts declared in decision",
+      "required_closeout_artifacts": [],
       "referenced_artifacts": [],
       "uncovered_artifacts": []
     },
@@ -312,8 +311,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
-      "command_plan_round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1"
+      "command_plan_decision_id": "decision_20260621_structured_execution_log_v1",
+      "command_plan_round_id": "round_20260621_structured_execution_log_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -369,8 +368,12 @@
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [],
-      "non_blocking_warnings": []
+      "warnings": [
+        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+      ],
+      "non_blocking_warnings": [
+        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+      ]
     },
     {
       "name": "preflight_failure_handoff",
@@ -402,8 +405,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260621_policy_impact_generated_artifacts_coverage_fix_v1",
-      "gate_profile_round_id": "round_20260621_policy_impact_generated_artifacts_coverage_fix_v1"
+      "gate_profile_decision_id": "decision_20260621_structured_execution_log_v1",
+      "gate_profile_round_id": "round_20260621_structured_execution_log_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -438,14 +441,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "What exact generated_artifacts omission from the previous round is being fixed?",
-        "Which code path now ensures `project_state/gates/policy_impact_audit.json` appears in `codex_report_summary.generated_artifacts` when it is generated or updated?",
-        "How does report-summary detect a missing `policy_impact_audit.json` generated_artifacts entry?",
-        "How does final-check detect or block the same omission for a `SUCCESS` / `ACCEPTED` report?",
-        "Does the fix generalize to other generated gate artifacts under `project_state/gates/*.json`, or is it intentionally limited to policy-impact? Explain the boundary.",
-        "How does the fix avoid false failures for rounds where policy-impact was not run and no `policy_impact_audit.json` was generated?",
-        "What regression tests prove the previous omission now fails and the corrected report now passes?",
-        "How does this round preserve Policy Impact Audit v1, policy-lint, command-plan authority, report-summary, final-check, and closeout behavior?"
+        "What schema does `project_state/gates/execution_log.json` use, and which fields are required per command entry?",
+        "How is `execution_log.json` created or derived in v1, and why does `pytest_result.txt` remain required?",
+        "How does command-plan authority use `execution_log.json` when available, and how does it fall back to `pytest_result.txt` when absent?",
+        "How does final-check detect mismatches between `execution_log.json`, `pytest_result.txt`, `codex_report_summary.tests_ran`, and `command_plan.commands`?",
+        "How is `execution_log.json` included in `generated_artifacts`, report-summary synthesis, final-check artifact coverage, and round archive coverage?",
+        "How does v1 avoid creating a heavy runtime log, database, queue, background runner, or replacing pytest_result?",
+        "What regression tests prove authorized commands pass, unauthorized commands fail, omitted commands fail, mismatch with pytest_result fails, and absence of execution_log remains backward-compatible?",
+        "How does this round preserve policy-impact, policy-lint, command-plan authority, report-summary, final-check, closeout, and prompt-doc behavior?"
       ],
       "missing_answers": [],
       "placeholder_answers": []
@@ -502,6 +505,13 @@
       "expected_gate_status": "PASSED",
       "recorded_stdout_status": "PASSED",
       "conservative_warn_accepted": false
+    },
+    {
+      "name": "execution_log_consistency",
+      "status": "PASS",
+      "detail": "execution_log.json is consistent with pytest_result and command_plan",
+      "mismatches": [],
+      "required": false
     }
   ],
   "blocking_reasons": [],

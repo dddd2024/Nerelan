@@ -9011,6 +9011,502 @@ class TestGeneratedArtifactsCoverGateArtifacts:
         assert "project_state/gates/policy_lint_result.json" in ga
 
 
+class TestStructuredExecutionLog:
+    """Regression tests for Structured Execution Log v1.
+
+    These tests verify that execution_log.json is derived from
+    pytest_result.txt and command_plan.json, that it is included in
+    generated_artifacts when present, that final-check detects mismatches
+    between execution_log and pytest_result/command_plan, and that absence
+    of execution_log remains backward-compatible.
+    """
+
+    def test_execution_log_derives_from_pytest_result_and_command_plan(
+        self, tmp_path: Path,
+    ) -> None:
+        """execution_log() derives command entries from pytest_result.txt
+        command blocks and command_plan.json expected_exit_codes."""
+        from reverse_agent.project_gate import execution_log
+
+        state_dir = _make_gate_state(tmp_path)
+        # Write a pytest_result.txt with command blocks
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            body="\n\n".join(_STARTUP_COMMAND_BLOCKS)
+            + "\n\n"
+            + _command_block("python -m pytest -q", "1 passed", exit_code=0)
+            + "\n\n"
+            + _command_block(
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                "final-check: PASSED",
+                exit_code=0,
+            )
+            + "\n",
+        )
+
+        result = execution_log(state_dir=state_dir, write_result=False)
+        commands = result.get("commands") or []
+        assert len(commands) >= 2
+        # Each entry must have required fields
+        for entry in commands:
+            assert "index" in entry
+            assert "command" in entry
+            assert "kind" in entry
+            assert "phase" in entry
+            assert "expected_exit_codes" in entry
+            assert "exit_code" in entry
+            assert "status" in entry
+        # The pytest command should have status PASSED
+        pytest_entry = next(
+            (e for e in commands if "pytest" in str(e.get("command") or "")), None
+        )
+        assert pytest_entry is not None
+        assert pytest_entry["status"] == "PASSED"
+        assert pytest_entry["exit_code"] == 0
+
+    def test_execution_log_detects_exit_code_mismatch(self, tmp_path: Path) -> None:
+        """execution_log() marks a command as FAILED when its exit code
+        does not match command_plan expected_exit_codes."""
+        from reverse_agent.project_gate import execution_log
+
+        state_dir = _make_gate_state(tmp_path)
+        # Write a pytest_result.txt where pytest exits 1 but command_plan
+        # expects exit 0
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            body="\n\n".join(_STARTUP_COMMAND_BLOCKS)
+            + "\n\n"
+            + _command_block("python -m pytest -q", "1 failed", exit_code=1)
+            + "\n\n"
+            + _command_block(
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                "final-check: PASSED",
+                exit_code=0,
+            )
+            + "\n",
+        )
+
+        result = execution_log(state_dir=state_dir, write_result=False)
+        commands = result.get("commands") or []
+        pytest_entry = next(
+            (e for e in commands if "pytest" in str(e.get("command") or "")), None
+        )
+        assert pytest_entry is not None
+        assert pytest_entry["status"] == "FAILED"
+
+    def test_execution_log_writes_artifact_to_disk(self, tmp_path: Path) -> None:
+        """execution_log() writes execution_log.json to project_state/gates/."""
+        from reverse_agent.project_gate import execution_log, EXECUTION_LOG_RESULT_NAME
+
+        state_dir = _make_gate_state(tmp_path)
+        result = execution_log(state_dir=state_dir, write_result=True)
+        assert (state_dir / "gates" / EXECUTION_LOG_RESULT_NAME).exists()
+        assert result.get("artifact_name") == EXECUTION_LOG_RESULT_NAME
+        assert result.get("source") == "derived_from_pytest_result_and_command_plan"
+
+    def test_synthesis_includes_execution_log_when_exists(self, tmp_path: Path) -> None:
+        """build_report_summary_synthesis includes execution_log.json in
+        generated_artifacts when the file exists on disk."""
+        from reverse_agent.project_gate import build_report_summary_synthesis
+
+        state_dir = _make_gate_state(tmp_path)
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1, "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+
+        result = build_report_summary_synthesis(
+            state_dir=state_dir, repo_root=tmp_path, write_result=False,
+        )
+        ga = result.get("synthesized_summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/execution_log.json" in ga
+
+    def test_synthesis_excludes_execution_log_when_absent(self, tmp_path: Path) -> None:
+        """build_report_summary_synthesis does not include execution_log.json
+        when the file does not exist on disk."""
+        from reverse_agent.project_gate import build_report_summary_synthesis
+
+        state_dir = _make_gate_state(tmp_path)
+        assert not (state_dir / "gates" / "execution_log.json").exists()
+
+        result = build_report_summary_synthesis(
+            state_dir=state_dir, repo_root=tmp_path, write_result=False,
+        )
+        ga = result.get("synthesized_summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/execution_log.json" not in ga
+
+    def test_final_check_fails_when_execution_log_omitted_success(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check FAILs when execution_log.json exists on disk but is
+        omitted from generated_artifacts and report status is SUCCESS."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1, "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Report omits execution_log.json from generated_artifacts
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            files_changed=[
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/execution_log.json",
+                *archive_paths,
+            ],
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                *archive_paths,
+                # Deliberately omit execution_log.json
+            ],
+            extra_body=(
+                "## Policy Impact\n\n"
+                "command-plan, final-check, report-summary, policy-lint, "
+                "report status schema, and tests reviewed.\n"
+            ),
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        gate_artifact_check = _check(result, "generated_artifacts_cover_gate_artifacts")
+        assert gate_artifact_check["status"] == "FAIL"
+        assert "project_state/gates/execution_log.json" in gate_artifact_check.get(
+            "missing_artifacts", []
+        )
+
+    def test_final_check_passes_when_execution_log_included(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check PASSes when execution_log.json exists on disk and is
+        included in generated_artifacts."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1, "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            files_changed=[
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/execution_log.json",
+                *archive_paths,
+            ],
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                "project_state/gates/execution_log.json",
+                *archive_paths,
+            ],
+            extra_body=(
+                "## Policy Impact\n\n"
+                "command-plan, final-check, report-summary, policy-lint, "
+                "report status schema, and tests reviewed.\n"
+            ),
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        gate_artifact_check = _check(result, "generated_artifacts_cover_gate_artifacts")
+        assert gate_artifact_check["status"] == "PASS"
+
+    def test_final_check_execution_log_consistency_pass_when_consistent(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check execution_log_consistency PASSes when execution_log.json
+        is consistent with pytest_result and command_plan."""
+        from reverse_agent.project_gate import execution_log
+
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Write a consistent pytest_result.txt
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            body="\n\n".join(_STARTUP_COMMAND_BLOCKS)
+            + "\n\n"
+            + _command_block("python -m pytest -q", "1 passed", exit_code=0)
+            + "\n\n"
+            + _command_block(
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                "final-check: PASSED",
+                exit_code=0,
+            )
+            + "\n",
+        )
+        # Generate execution_log.json from the consistent pytest_result
+        execution_log(state_dir=state_dir, write_result=True)
+        # Update report to include execution_log.json
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            files_changed=[
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/execution_log.json",
+                *archive_paths,
+            ],
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                "project_state/gates/execution_log.json",
+                *archive_paths,
+            ],
+            extra_body=(
+                "## Policy Impact\n\n"
+                "command-plan, final-check, report-summary, policy-lint, "
+                "report status schema, and tests reviewed.\n"
+            ),
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        consistency_check = _check(result, "execution_log_consistency")
+        assert consistency_check["status"] == "PASS"
+
+    def test_final_check_execution_log_consistency_fails_on_mismatch(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check execution_log_consistency FAILs when execution_log.json
+        has an exit code that disagrees with pytest_result.txt for a SUCCESS
+        report."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Create execution_log.json with a mismatched exit code
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1,
+            "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "generated_at": "2026-06-21T00:00:00Z",
+            "source": "derived_from_pytest_result_and_command_plan",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m pytest -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "expected_exit_codes": [0],
+                    "exit_code": 0,  # Claims exit 0
+                    "status": "PASSED",
+                },
+            ],
+            "warnings": [],
+            "blocking_reasons": [],
+            "recommended_next_action": "no_action_required",
+        })
+        # But pytest_result.txt records pytest as exit 1
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            body="\n\n".join(_STARTUP_COMMAND_BLOCKS)
+            + "\n\n"
+            + _command_block("python -m pytest -q", "1 failed", exit_code=1)
+            + "\n\n"
+            + _command_block(
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                "final-check: PASSED",
+                exit_code=0,
+            )
+            + "\n",
+        )
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            files_changed=[
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/execution_log.json",
+                *archive_paths,
+            ],
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                "project_state/gates/execution_log.json",
+                *archive_paths,
+            ],
+            extra_body=(
+                "## Policy Impact\n\n"
+                "command-plan, final-check, report-summary, policy-lint, "
+                "report status schema, and tests reviewed.\n"
+            ),
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        consistency_check = _check(result, "execution_log_consistency")
+        assert consistency_check["status"] == "FAIL"
+
+    def test_final_check_execution_log_absent_backward_compatible(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check execution_log_consistency PASSes (skipped) when
+        execution_log.json is not present on disk (backward-compatible)."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        assert not (state_dir / "gates" / "execution_log.json").exists()
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        consistency_check = _check(result, "execution_log_consistency")
+        assert consistency_check["status"] == "PASS"
+        assert consistency_check.get("skipped_reason") == "execution_log_not_present"
+
+    def test_closeout_refresh_includes_execution_log_in_generated_artifacts(
+        self, tmp_path: Path,
+    ) -> None:
+        """_refresh_codex_report_for_closeout includes execution_log.json in
+        generated_artifacts when it exists on disk."""
+        from reverse_agent.project_gate import _refresh_codex_report_for_closeout
+
+        state_dir = _make_gate_state(tmp_path)
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1, "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+
+        _refresh_codex_report_for_closeout(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_gate",
+            round_id="round_gate",
+        )
+        from reverse_agent.project_gate import read_codex_report_summary
+        report = read_codex_report_summary(state_dir)
+        ga = report.get("generated_artifacts", [])
+        assert "project_state/gates/execution_log.json" in ga
+
+    def test_command_kind_recognizes_execution_log(self) -> None:
+        """_command_kind recognizes execution-log commands."""
+        from reverse_agent.project_gate import _command_kind
+        assert _command_kind(
+            "python -m reverse_agent.project_gate execution-log --state-dir project_state"
+        ) == "execution-log"
+
+    def test_command_expected_exit_codes_allows_0_or_1_for_execution_log(self) -> None:
+        """_command_expected_exit_codes allows exit 0 or 1 for execution-log."""
+        from reverse_agent.project_gate import _command_expected_exit_codes
+        codes, _, _ = _command_expected_exit_codes(
+            kind="execution-log",
+            phase="gate",
+            command="python -m reverse_agent.project_gate execution-log --state-dir project_state",
+            decision_text="",
+            final_check_passed=None,
+        )
+        assert codes == [0, 1]
+
+
 class TestExistingChecksPreserved:
     """Req 7-10: Existing check categories continue to pass."""
 
@@ -14191,7 +14687,7 @@ def test_run_closeout_constants_and_allowlist():
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
         "git diff", "preflight", "pytest", "command-plan", "report-summary",
         "final-check", "close-round", "decision-lint", "gate-profile",
-        "run-closeout",
+        "execution-log", "run-closeout",
     }
     assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
 
