@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260621_structured_execution_log_v1",
-  "round_id": "round_20260621_structured_execution_log_v1",
-  "head_commit": "efb23f643ddb",
+  "decision_id": "decision_20260621_codex_report_auto_summary_v1",
+  "round_id": "round_20260621_codex_report_auto_summary_v1",
+  "head_commit": "dc673cb18ef5",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-21T15:28:21.256977Z"
+  "generated_at": "2026-06-21T16:26:43.632836Z"
 }

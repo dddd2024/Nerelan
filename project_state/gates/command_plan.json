@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260621_structured_execution_log_v1",
-  "round_id": "round_20260621_structured_execution_log_v1",
+  "decision_id": "decision_20260621_codex_report_auto_summary_v1",
+  "round_id": "round_20260621_codex_report_auto_summary_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-21T16:14:28.683847Z",
+  "generated_at": "2026-06-21T16:50:24.719494Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -28,32 +28,6 @@
   "commands": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 2,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 3,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -67,7 +41,7 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 4,
+      "index": 2,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -79,6 +53,32 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 3,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 4,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
     },
     {
       "index": 5,
@@ -213,6 +213,20 @@
     },
     {
       "index": 15,
+      "command": "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
+      "phase": "gate",
+      "kind": "report-auto-summary",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "report-auto-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "phase": "gate",
       "kind": "decision-lint",
@@ -225,7 +239,7 @@
       "notes": "decision-lint expected to exit 0"
     },
     {
-      "index": 16,
+      "index": 17,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -238,8 +252,8 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_structured_execution_log_v1",
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_codex_report_auto_summary_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -249,10 +263,10 @@
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "run-closeout allows exit 0 or 1 (final-check status unknown)"
+      "notes": "run-closeout diagnostic after final-check failed; exit 1 is expected"
     }
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_structured_execution_log_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_codex_report_auto_summary_v1"
 }

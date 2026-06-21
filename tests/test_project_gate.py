@@ -9507,6 +9507,371 @@ class TestStructuredExecutionLog:
         assert codes == [0, 1]
 
 
+class TestReportAutoSummary:
+    """Regression tests for Codex Report Auto-Summary v1.
+
+    These tests verify that report_auto_summary() synthesizes codex_report_summary
+    fields from structured evidence, uses execution_log for tests_ran with
+    command_plan fallback, derives files_changed from round_delta_summary,
+    includes gate artifacts in generated_artifacts, rejects unsupported statuses,
+    and that final-check detects mismatches between auto-summary and live report.
+    """
+
+    def test_auto_summary_synthesizes_fields(self, tmp_path: Path) -> None:
+        """report_auto_summary() generates all required summary fields from
+        structured evidence."""
+        from reverse_agent.project_gate import report_auto_summary
+
+        state_dir = _make_gate_state(tmp_path)
+        result = report_auto_summary(state_dir=state_dir, write_result=False)
+        summary = result.get("summary") or {}
+        assert "schema_version" in summary
+        assert "report_id" in summary
+        assert "round_id" in summary
+        assert "based_on_decision_id" in summary
+        assert "status" in summary
+        assert "acceptance_recommendation" in summary
+        assert "files_changed" in summary
+        assert "tests_ran" in summary
+        assert "generated_artifacts" in summary
+        assert "referenced_artifacts" in summary
+        assert "required_closeout_artifacts" in summary
+        assert summary["based_on_decision_id"] == "decision_gate"
+        assert summary["round_id"] == "round_gate"
+        assert summary["report_id"] == "codex_report_gate"
+
+    def test_auto_summary_uses_execution_log_for_tests_ran(
+        self, tmp_path: Path,
+    ) -> None:
+        """report_auto_summary() derives tests_ran from execution_log.json
+        when available."""
+        from reverse_agent.project_gate import report_auto_summary
+
+        state_dir = _make_gate_state(tmp_path)
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1,
+            "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "generated_at": "2026-06-21T00:00:00Z",
+            "source": "derived_from_pytest_result_and_command_plan",
+            "commands": [
+                {"index": 1, "command": "Set-Location F:\\reverse-agent", "kind": "set-location", "phase": "status", "expected_exit_codes": [0], "exit_code": 0, "status": "PASSED"},
+                {"index": 2, "command": "python -m pytest -q", "kind": "pytest", "phase": "test", "expected_exit_codes": [0], "exit_code": 0, "status": "PASSED"},
+                {"index": 3, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "kind": "final-check", "phase": "gate", "expected_exit_codes": [0, 1], "exit_code": 0, "status": "PASSED"},
+            ],
+            "warnings": [],
+            "blocking_reasons": [],
+            "recommended_next_action": "no_action_required",
+        })
+
+        result = report_auto_summary(state_dir=state_dir, write_result=False)
+        tests_ran = result.get("summary", {}).get("tests_ran", [])
+        # Startup commands should be excluded
+        assert "Set-Location F:\\reverse-agent" not in tests_ran
+        assert "python -m pytest -q" in tests_ran
+        assert "python -m reverse_agent.project_gate final-check --state-dir project_state" in tests_ran
+        assert result.get("source_provenance", {}).get("tests_ran_source") == "execution_log.json"
+
+    def test_auto_summary_uses_round_delta_for_files_changed(
+        self, tmp_path: Path,
+    ) -> None:
+        """report_auto_summary() derives files_changed from
+        round_delta_summary.json."""
+        from reverse_agent.project_gate import report_auto_summary
+
+        state_dir = _make_gate_state(tmp_path)
+        result = report_auto_summary(state_dir=state_dir, write_result=False)
+        files_changed = result.get("summary", {}).get("files_changed", [])
+        # round_delta_summary.json in _make_gate_state has
+        # new_dirty_files_since_baseline = [project_gate.py, test_project_gate.py]
+        assert "reverse_agent/project_gate.py" in files_changed
+        assert "tests/test_project_gate.py" in files_changed
+        # Standard report artifacts should also be present
+        assert "project_state/codex_execution_report.md" in files_changed
+        assert "project_state/pytest_result.txt" in files_changed
+
+    def test_auto_summary_includes_gate_artifacts_in_generated_artifacts(
+        self, tmp_path: Path,
+    ) -> None:
+        """report_auto_summary() includes gate artifacts on disk in
+        generated_artifacts."""
+        from reverse_agent.project_gate import report_auto_summary
+
+        state_dir = _make_gate_state(tmp_path)
+        # _make_gate_state already creates command_plan.json, round_baseline.json
+        result = report_auto_summary(state_dir=state_dir, write_result=False)
+        generated_artifacts = result.get("summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/command_plan.json" in generated_artifacts
+        assert "project_state/gates/round_baseline.json" in generated_artifacts
+
+    def test_auto_summary_rejects_unsupported_status(
+        self, tmp_path: Path,
+    ) -> None:
+        """report_auto_summary() adds a blocking_reason when status is not
+        one of the supported report statuses."""
+        from reverse_agent.project_gate import report_auto_summary
+
+        state_dir = _make_gate_state(tmp_path)
+        # Write a final_gate_result with an unrecognized gate_status
+        _write_json(state_dir / "gates" / "final_gate_result.json", {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "UNKNOWN_STATUS",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "generated_at": "2026-06-21T00:00:00Z",
+            "checks": [],
+            "blocking_reasons": [],
+            "warnings": [],
+            "recommended_next_action": "no_action_required",
+            "status_summary": {},
+        })
+
+        result = report_auto_summary(state_dir=state_dir, write_result=False)
+        # Status should default to PARTIAL when unrecognized
+        assert result.get("summary", {}).get("status") == "PARTIAL"
+        # Should have a warning about unrecognized gate_status
+        warnings = result.get("warnings", [])
+        assert any("UNKNOWN_STATUS" in w for w in warnings)
+
+    def test_final_check_fails_on_auto_summary_mismatch(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check report_auto_summary_consistency FAILs when
+        codex_report_auto_summary.json disagrees with live codex_report_summary
+        for a SUCCESS report."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Write auto-summary with different files_changed than the report
+        _write_json(state_dir / "gates" / "codex_report_auto_summary.json", {
+            "schema_version": 1,
+            "artifact_name": "codex_report_auto_summary.json",
+            "gate_name": "report-auto-summary",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "generated_at": "2026-06-21T00:00:00Z",
+            "source": "synthesized_from_structured_evidence",
+            "summary": {
+                "schema_version": 1,
+                "report_id": "codex_report_gate",
+                "round_id": "round_gate",
+                "based_on_decision_id": "decision_gate",
+                "status": "SUCCESS",
+                "acceptance_recommendation": "ACCEPTED",
+                "files_changed": ["different_file.py"],  # Mismatch
+                "tests_ran": ["python -m pytest -q"],
+                "generated_artifacts": [],
+                "referenced_artifacts": [],
+                "required_closeout_artifacts": [],
+            },
+            "source_provenance": {},
+            "warnings": [],
+            "blocking_reasons": [],
+            "recommended_next_action": "no_action_required",
+        })
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            files_changed=[
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/codex_report_auto_summary.json",
+                *archive_paths,
+            ],
+            tests_ran=[
+                "python -m pytest -q",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                "project_state/gates/codex_report_auto_summary.json",
+                *archive_paths,
+            ],
+            extra_body=(
+                "## Policy Impact\n\n"
+                "command-plan, final-check, report-summary, policy-lint, "
+                "report status schema, and tests reviewed.\n"
+            ),
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        consistency_check = _check(result, "report_auto_summary_consistency")
+        assert consistency_check["status"] == "FAIL"
+
+    def test_auto_summary_falls_back_to_command_plan_when_execution_log_absent(
+        self, tmp_path: Path,
+    ) -> None:
+        """report_auto_summary() falls back to command_plan.json for tests_ran
+        when execution_log.json is not present."""
+        from reverse_agent.project_gate import report_auto_summary
+
+        state_dir = _make_gate_state(tmp_path)
+        assert not (state_dir / "gates" / "execution_log.json").exists()
+
+        result = report_auto_summary(state_dir=state_dir, write_result=False)
+        tests_ran = result.get("summary", {}).get("tests_ran", [])
+        # command_plan.json in _make_gate_state has pytest and final-check
+        assert "python -m pytest -q" in tests_ran
+        assert "python -m reverse_agent.project_gate final-check --state-dir project_state" in tests_ran
+        assert result.get("source_provenance", {}).get("tests_ran_source") == "command_plan.json"
+        # Should have a warning about missing execution_log
+        warnings = result.get("warnings", [])
+        assert any("execution_log.json not present" in w for w in warnings)
+
+    def test_auto_summary_preserves_report_body(self, tmp_path: Path) -> None:
+        """report_auto_summary() does not modify codex_execution_report.md
+        body content."""
+        from reverse_agent.project_gate import report_auto_summary
+
+        state_dir = _make_gate_state(tmp_path)
+        # Write a report with a distinctive body
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            extra_body="## Required Audit\n\nHuman-written audit answers preserved.",
+        )
+        report_before = (state_dir / "codex_execution_report.md").read_text(encoding="utf-8")
+
+        report_auto_summary(state_dir=state_dir, write_result=True)
+
+        report_after = (state_dir / "codex_execution_report.md").read_text(encoding="utf-8")
+        assert report_before == report_after  # Body unchanged
+
+    def test_closeout_refresh_includes_auto_summary_in_generated_artifacts(
+        self, tmp_path: Path,
+    ) -> None:
+        """_refresh_codex_report_for_closeout includes
+        codex_report_auto_summary.json in generated_artifacts when it exists."""
+        from reverse_agent.project_gate import _refresh_codex_report_for_closeout
+
+        state_dir = _make_gate_state(tmp_path)
+        _write_json(state_dir / "gates" / "codex_report_auto_summary.json", {
+            "schema_version": 1,
+            "gate_name": "report-auto-summary",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+        })
+
+        _refresh_codex_report_for_closeout(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_gate",
+            round_id="round_gate",
+        )
+        from reverse_agent.project_gate import read_codex_report_summary
+        report = read_codex_report_summary(state_dir)
+        ga = report.get("generated_artifacts", [])
+        assert "project_state/gates/codex_report_auto_summary.json" in ga
+
+    def test_final_check_auto_summary_absent_backward_compatible(
+        self, tmp_path: Path,
+    ) -> None:
+        """final-check report_auto_summary_consistency PASSes (skipped) when
+        codex_report_auto_summary.json is not present on disk."""
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        assert not (state_dir / "gates" / "codex_report_auto_summary.json").exists()
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        consistency_check = _check(result, "report_auto_summary_consistency")
+        assert consistency_check["status"] == "PASS"
+        assert consistency_check.get("skipped_reason") == "report_auto_summary_not_present"
+
+    def test_command_kind_recognizes_report_auto_summary(self) -> None:
+        """_command_kind recognizes report-auto-summary commands."""
+        from reverse_agent.project_gate import _command_kind
+        assert _command_kind(
+            "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state"
+        ) == "report-auto-summary"
+
+    def test_command_expected_exit_codes_allows_0_or_1_for_report_auto_summary(self) -> None:
+        """_command_expected_exit_codes allows exit 0 or 1 for report-auto-summary."""
+        from reverse_agent.project_gate import _command_expected_exit_codes
+        codes, _, _ = _command_expected_exit_codes(
+            kind="report-auto-summary",
+            phase="gate",
+            command="python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
+            decision_text="",
+            final_check_passed=None,
+        )
+        assert codes == [0, 1]
+
+    def test_auto_summary_writes_artifact_to_disk(self, tmp_path: Path) -> None:
+        """report_auto_summary() writes codex_report_auto_summary.json to
+        project_state/gates/."""
+        from reverse_agent.project_gate import (
+            report_auto_summary,
+            REPORT_AUTO_SUMMARY_RESULT_NAME,
+        )
+
+        state_dir = _make_gate_state(tmp_path)
+        result = report_auto_summary(state_dir=state_dir, write_result=True)
+        assert (state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME).exists()
+        assert result.get("artifact_name") == REPORT_AUTO_SUMMARY_RESULT_NAME
+        assert result.get("source") == "synthesized_from_structured_evidence"
+
+    def test_synthesis_includes_auto_summary_when_exists(self, tmp_path: Path) -> None:
+        """build_report_summary_synthesis includes codex_report_auto_summary.json
+        in generated_artifacts when the file exists on disk."""
+        from reverse_agent.project_gate import build_report_summary_synthesis
+
+        state_dir = _make_gate_state(tmp_path)
+        _write_json(state_dir / "gates" / "codex_report_auto_summary.json", {
+            "schema_version": 1,
+            "gate_name": "report-auto-summary",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+        })
+
+        result = build_report_summary_synthesis(
+            state_dir=state_dir, repo_root=tmp_path, write_result=False,
+        )
+        ga = result.get("synthesized_summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/codex_report_auto_summary.json" in ga
+
+    def test_synthesis_excludes_auto_summary_when_absent(self, tmp_path: Path) -> None:
+        """build_report_summary_synthesis does not include
+        codex_report_auto_summary.json when the file does not exist on disk."""
+        from reverse_agent.project_gate import build_report_summary_synthesis
+
+        state_dir = _make_gate_state(tmp_path)
+        assert not (state_dir / "gates" / "codex_report_auto_summary.json").exists()
+
+        result = build_report_summary_synthesis(
+            state_dir=state_dir, repo_root=tmp_path, write_result=False,
+        )
+        ga = result.get("synthesized_summary", {}).get("generated_artifacts", [])
+        assert "project_state/gates/codex_report_auto_summary.json" not in ga
+
+
 class TestExistingChecksPreserved:
     """Req 7-10: Existing check categories continue to pass."""
 
@@ -14687,7 +15052,7 @@ def test_run_closeout_constants_and_allowlist():
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
         "git diff", "preflight", "pytest", "command-plan", "report-summary",
         "final-check", "close-round", "decision-lint", "gate-profile",
-        "execution-log", "run-closeout",
+        "execution-log", "report-auto-summary", "run-closeout",
     }
     assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
 
