@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_closeout_report_refresh_contract_rework_v1",
-  "round_id": "round_20260621_closeout_report_refresh_contract_rework_v1",
+  "decision_id": "decision_20260621_decision_command_plan_conflict_lint_v1",
+  "round_id": "round_20260621_decision_command_plan_conflict_lint_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-21T08:13:16.211125Z",
+  "generated_at": "2026-06-21T09:27:52.335278Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [

@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_closeout_report_refresh_contract_rework_v1",
-  "report_id": "codex_report_20260621_closeout_report_refresh_contract_rework_v1",
-  "round_id": "round_20260621_closeout_report_refresh_contract_rework_v1",
-  "generated_at": "2026-06-21T08:28:44.882668Z",
+  "decision_id": "decision_20260621_decision_command_plan_conflict_lint_v1",
+  "report_id": "codex_report_20260621_decision_command_plan_conflict_lint_v1",
+  "round_id": "round_20260621_decision_command_plan_conflict_lint_v1",
+  "generated_at": "2026-06-21T09:27:55.924702Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260621_closeout_report_refresh_contract_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260621_decision_command_plan_conflict_lint_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -61,10 +61,11 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "final_dirty_files": [
@@ -79,10 +80,11 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
     },
@@ -109,10 +111,11 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
@@ -127,10 +130,11 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260621_closeout_report_refresh_contract_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/decision_packet.md",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/pytest_result.txt",
+        "project_state/rounds/round_20260621_decision_command_plan_conflict_lint_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "inherited_dirty_files": []
@@ -140,6 +144,7 @@
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
+        "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "claimed_source_test_paths": []
@@ -161,6 +166,7 @@
       "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
+        "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "allowed_inherited_dirty_files": [],
@@ -213,12 +219,12 @@
       "status": "PASS",
       "detail": "startup git status --short appears after path confirmation commands",
       "valid": true,
-      "startup_status_block_index": 5,
+      "startup_status_block_index": 4,
       "path_confirmation_block_indexes": {
-        "Set-Location": 1,
-        "Get-Location": 2,
-        "Test-Path": 3,
-        "git rev-parse": 4
+        "Set-Location": 0,
+        "Get-Location": 1,
+        "Test-Path": 2,
+        "git rev-parse": 3
       },
       "startup_status_evidence_trusted": true
     },
@@ -275,8 +281,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260621_closeout_report_refresh_contract_rework_v1",
-      "command_plan_round_id": "round_20260621_closeout_report_refresh_contract_rework_v1"
+      "command_plan_decision_id": "decision_20260621_decision_command_plan_conflict_lint_v1",
+      "command_plan_round_id": "round_20260621_decision_command_plan_conflict_lint_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -365,8 +371,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260621_closeout_report_refresh_contract_rework_v1",
-      "gate_profile_round_id": "round_20260621_closeout_report_refresh_contract_rework_v1"
+      "gate_profile_decision_id": "decision_20260621_decision_command_plan_conflict_lint_v1",
+      "gate_profile_round_id": "round_20260621_decision_command_plan_conflict_lint_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -401,14 +407,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "Why does `_refresh_codex_report_for_closeout()` need to populate `decision_contract.required_closeout_artifacts`, and which archive files should be listed?",
-        "Why does `close_round()` need a post-archive report status refresh, and how did the previous behavior create a chicken-and-egg cycle?",
-        "Why is it incorrect for `_refresh_codex_report_for_closeout()` to overwrite the `pytest_result.txt` header status?",
-        "Which component owns each field after the fix: report status, acceptance recommendation, files_changed, generated_artifacts, required_closeout_artifacts, and pytest_result status?",
-        "How does the fix preserve command-plan authority and avoid hiding evidence?",
-        "How does the fix preserve the prior successful gate-profile authority cleanup?",
-        "What tests prove `run-closeout`, `report-summary`, and `final-check` all pass after archive creation?",
-        "What tests prove `pytest_result.txt` header status is preserved correctly during closeout refresh?"
+        "What concrete conflict classes between decision Tests and command-plan are now detected?",
+        "Which component performs the check: `decision-lint`, `preflight`, `command-plan`, or final-check, and why?",
+        "How does the check detect a decision that requires `run-closeout` or `close-round` while `closeout_allowed=false`?",
+        "How does the check detect a decision Tests block that hard-codes a command listed in `command_plan.omitted_commands`?",
+        "How does the check avoid false positives for commands that command-plan explicitly authorizes under `standard` or `full`?",
+        "How does the check avoid treating explanatory prose or examples as mandatory commands?",
+        "How does the fix preserve command-plan execution authority and the previous closeout/report-refresh behavior?",
+        "What regression tests prove fast omitted-command conflicts, closeout conflicts, and standard/full authorized commands behave correctly?"
       ],
       "missing_answers": [],
       "placeholder_answers": []
@@ -443,10 +449,8 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "recorded final-check stdout matches gate_status",
-      "expected_gate_status": "PASSED",
-      "recorded_stdout_status": "WARN",
-      "conservative_warn_accepted": true
+      "detail": "no recorded final-check stdout status to compare",
+      "required": false
     }
   ],
   "blocking_reasons": [],

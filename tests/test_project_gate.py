@@ -16738,3 +16738,365 @@ def test_closeout_policy_stale_close_snapshot_excludes_archive_paths(
         f"archive paths should not be in generated_artifacts with stale snapshot: {generated_artifacts}"
     )
 
+
+# ---------------------------------------------------------------------------
+# Regression: decision / command-plan conflict detection
+# ---------------------------------------------------------------------------
+
+
+def _make_conflict_state(
+    tmp_path: Path,
+    *,
+    decision_id: str = "decision_conflict",
+    round_id: str = "round_conflict",
+    mainline: str = "engineering_branch",
+    implementation_scope: str | None = None,
+    tests_block: str | None = None,
+    extra_text: str = "",
+) -> Path:
+    """Create a minimal state for decision/command-plan conflict detection tests.
+
+    The decision scope determines the gate profile:
+    - artifact-only scope -> fast profile (closeout_allowed=false)
+    - source/test scope -> standard profile (closeout_allowed=true)
+    - gate/project_state scope -> full profile (closeout_allowed=true)
+    """
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": mainline,
+        "skill_profiles": ["reverse-agent-iteration@v2"],
+    }
+
+    if implementation_scope is None:
+        # Default: artifact-only scope -> fast profile
+        implementation_scope = """Allowed project_state artifact paths:
+
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
+"""
+
+    tests_section = ""
+    if tests_block is not None:
+        tests_section = f"""
+## 7. Tests
+
+```bash
+{tests_block}
+```
+"""
+
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Test conflict detection.
+
+## 2. Current Evidence
+
+Evidence.
+
+## 6. Implementation Scope
+
+{implementation_scope}
+{tests_section}
+{extra_text}
+""",
+        encoding="utf-8",
+    )
+
+    _write_json(
+        state_dir / "current_state.json",
+        {
+            "round_id": round_id,
+            "state_build_id": "state_test",
+            "state_digest": "digest_test",
+            "state_scope": "sample_state",
+        },
+    )
+    _write_json(
+        state_dir / "task_packet.json",
+        {
+            "state_scope": "sample_state",
+            "task_source": "derived_from_sample_artifacts",
+            "execution_scope": "decision_packet_controls_current_round",
+            "active_decision_packet": "project_state/decision_packet.md",
+        },
+    )
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+    return state_dir
+
+
+def test_preflight_decision_command_plan_conflict_passes_when_no_conflicts(
+    tmp_path: Path,
+) -> None:
+    """Preflight passes decision_command_plan_conflict check when Tests
+    commands are compatible with the active profile."""
+    state_dir = _make_conflict_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m reverse_agent.project_gate report-summary --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    conflict_check = _check(result, "decision_command_plan_conflict")
+    assert conflict_check is not None
+    assert conflict_check["status"] == "PASS"
+
+
+def test_preflight_conflict_fails_when_fast_profile_tests_require_close_round(
+    tmp_path: Path,
+) -> None:
+    """Fast profile (artifact-only scope) with close-round in Tests triggers
+    a decision_command_plan_conflict FAIL because close-round is omitted by
+    fast profile and closeout_allowed=false."""
+    state_dir = _make_conflict_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_conflict
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    conflict_check = _check(result, "decision_command_plan_conflict")
+    assert conflict_check is not None
+    assert conflict_check["status"] == "FAIL"
+    conflicts = conflict_check.get("conflicts") or []
+    # Should detect both omitted_command and closeout_forbidden
+    conflict_kinds = {c.get("kind") for c in conflicts}
+    assert "omitted_command" in conflict_kinds or "closeout_forbidden" in conflict_kinds
+
+
+def test_preflight_conflict_fails_when_fast_profile_tests_require_pytest(
+    tmp_path: Path,
+) -> None:
+    """Fast profile with pytest in Tests triggers omitted_command conflict
+    because pytest is not in fast profile's required_command_kinds."""
+    state_dir = _make_conflict_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    conflict_check = _check(result, "decision_command_plan_conflict")
+    assert conflict_check is not None
+    assert conflict_check["status"] == "FAIL"
+    conflicts = conflict_check.get("conflicts") or []
+    pytest_conflicts = [c for c in conflicts if c.get("command_kind") == "pytest"]
+    assert len(pytest_conflicts) > 0
+
+
+def test_preflight_conflict_passes_for_full_profile_with_close_round(
+    tmp_path: Path,
+) -> None:
+    """Full profile (gate/project_state scope) with close-round in Tests
+    does NOT trigger a conflict because closeout_allowed=true and
+    close-round is in required_command_kinds."""
+    state_dir = _make_conflict_state(
+        tmp_path,
+        implementation_scope="""Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed project_state artifact paths:
+
+- `project_state/gates/final_gate_result.json`
+""",
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_conflict
+""",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    conflict_check = _check(result, "decision_command_plan_conflict")
+    assert conflict_check is not None
+    assert conflict_check["status"] == "PASS"
+
+
+def test_preflight_conflict_passes_for_standard_profile_with_pytest(
+    tmp_path: Path,
+) -> None:
+    """Standard profile (source/test scope) with pytest in Tests does NOT
+    trigger a conflict because pytest is in standard profile's
+    required_command_kinds."""
+    state_dir = _make_conflict_state(
+        tmp_path,
+        implementation_scope="""Allowed source files:
+
+- `reverse_agent/some_module.py`
+
+Allowed tests:
+
+- `tests/test_some_module.py`
+""",
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_some_module.py -q
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    conflict_check = _check(result, "decision_command_plan_conflict")
+    assert conflict_check is not None
+    assert conflict_check["status"] == "PASS"
+
+
+def test_preflight_conflict_does_not_flag_conditional_closeout_command(
+    tmp_path: Path,
+) -> None:
+    """Conditional closeout commands (guarded by 'only if command-plan
+    authorizes') are NOT flagged as conflicts."""
+    state_dir = _make_conflict_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+        extra_text="""
+## 7. Tests
+
+Run closeout only if command-plan explicitly authorizes the closeout command for this round:
+
+```bash
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_conflict
+```
+""",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    conflict_check = _check(result, "decision_command_plan_conflict")
+    assert conflict_check is not None
+    # Conditional commands should not trigger conflicts
+    conflicts = conflict_check.get("conflicts") or []
+    closeout_conflicts = [
+        c for c in conflicts
+        if c.get("kind") == "closeout_forbidden"
+        or c.get("command_kind") in ("run-closeout", "close-round")
+    ]
+    assert len(closeout_conflicts) == 0, (
+        f"conditional closeout command should not be flagged: {closeout_conflicts}"
+    )
+
+
+def test_detect_decision_command_plan_conflicts_returns_empty_for_no_tests(
+    tmp_path: Path,
+) -> None:
+    """_detect_decision_command_plan_conflicts returns empty list when
+    decision has no Tests section."""
+    from reverse_agent.project_gate import _detect_decision_command_plan_conflicts
+
+    state_dir = _make_conflict_state(tmp_path, tests_block=None)
+
+    decision_text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    conflicts = _detect_decision_command_plan_conflicts(
+        decision_text=decision_text,
+        state_dir=state_dir,
+    )
+    assert conflicts == []
+
+
+def test_detect_decision_command_plan_conflicts_detects_omitted_command(
+    tmp_path: Path,
+) -> None:
+    """_detect_decision_command_plan_conflicts detects omitted_command conflict
+    for a fast-profile decision with pytest in Tests."""
+    from reverse_agent.project_gate import _detect_decision_command_plan_conflicts
+
+    state_dir = _make_conflict_state(
+        tmp_path,
+        tests_block="""python -m pytest tests/test_project_gate.py -q
+""",
+    )
+
+    decision_text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    conflicts = _detect_decision_command_plan_conflicts(
+        decision_text=decision_text,
+        state_dir=state_dir,
+    )
+    assert len(conflicts) > 0
+    assert any(c["kind"] == "omitted_command" for c in conflicts)
+    assert any(c["command_kind"] == "pytest" for c in conflicts)
+
+
+def test_detect_decision_command_plan_conflicts_detects_closeout_forbidden(
+    tmp_path: Path,
+) -> None:
+    """_detect_decision_command_plan_conflicts detects closeout_forbidden
+    conflict when close-round is in Tests but closeout_allowed=false."""
+    from reverse_agent.project_gate import _detect_decision_command_plan_conflicts
+
+    state_dir = _make_conflict_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_conflict
+""",
+    )
+
+    decision_text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    conflicts = _detect_decision_command_plan_conflicts(
+        decision_text=decision_text,
+        state_dir=state_dir,
+    )
+    closeout_conflicts = [c for c in conflicts if c["kind"] == "closeout_forbidden"]
+    assert len(closeout_conflicts) > 0
+
+
+def test_conditional_tests_commands_extracts_conditional_commands() -> None:
+    """_conditional_tests_commands correctly identifies commands guarded
+    by conditional phrases."""
+    from reverse_agent.project_gate import _conditional_tests_commands
+
+    decision_text = """
+## 7. Tests
+
+Run preflight:
+
+```bash
+python -m reverse_agent.project_gate preflight --state-dir project_state
+```
+
+Run closeout only if command-plan authorizes the closeout command:
+
+```bash
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_test
+```
+"""
+    conditional = _conditional_tests_commands(decision_text)
+    # The closeout command should be conditional
+    assert any("run-closeout" in cmd for cmd in conditional)
+    # The preflight command should NOT be conditional
+    assert not any("preflight" in cmd for cmd in conditional)
+
+

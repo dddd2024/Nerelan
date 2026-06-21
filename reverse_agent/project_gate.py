@@ -7334,6 +7334,276 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
     return result
 
 
+# ---------------------------------------------------------------------------
+# Decision / command-plan conflict detection
+# ---------------------------------------------------------------------------
+
+_CONDITIONAL_COMMAND_PHRASES: tuple[str, ...] = (
+    "only if",
+    "if command-plan",
+    "if the command-plan",
+    "if authorized",
+    "when authorized",
+    "when command-plan",
+    "conditional",
+    "if closeout is authorized",
+    "if closeout_allowed",
+    "if the command-plan authorizes",
+    "if command-plan explicitly",
+)
+
+_CLOSEOUT_COMMAND_KINDS: frozenset[str] = frozenset({"run-closeout", "close-round"})
+
+
+def _conditional_tests_commands(decision_text: str) -> set[str]:
+    """Return the set of commands from Tests/Required Audit that are guarded
+    by conditional phrases in the preceding prose.
+
+    A command is conditional when the text immediately before its fenced code
+    block contains phrases like "only if", "if command-plan", "if authorized",
+    etc.  These commands represent optional or conditional instructions that
+    should not be flagged as mandatory conflicts.
+    """
+    conditional_commands: set[str] = set()
+    for section_name in ("Required Audit", "Tests"):
+        section_text = _markdown_section(decision_text, section_name)
+        if not section_text.strip():
+            continue
+        lines = section_text.splitlines()
+        in_block = False
+        language = ""
+        body: list[str] = []
+        preceding_lines: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                fence_tail = stripped[3:].strip().lower()
+                if not in_block:
+                    in_block = True
+                    language = fence_tail
+                    body = []
+                    continue
+                # End of fenced block
+                if language in {"bash", "sh", "shell", "powershell", "ps1"}:
+                    recent = "\n".join(preceding_lines[-5:])
+                    lowered = recent.lower()
+                    is_conditional = any(
+                        phrase in lowered
+                        for phrase in _CONDITIONAL_COMMAND_PHRASES
+                    )
+                    if is_conditional:
+                        for body_line in body:
+                            cmd = body_line.strip()
+                            if cmd and not cmd.startswith("#"):
+                                conditional_commands.add(cmd)
+                in_block = False
+                language = ""
+                body = []
+                preceding_lines = []
+                continue
+            if in_block:
+                body.append(line)
+            else:
+                preceding_lines.append(line)
+    return conditional_commands
+
+
+def _detect_decision_command_plan_conflicts(
+    *,
+    decision_text: str,
+    state_dir: Path,
+) -> list[dict[str, Any]]:
+    """Detect conflicts between decision Tests/closeout expectations and
+    command-plan/gate-profile semantics before implementation proceeds.
+
+    Returns a list of conflict dicts, each with:
+    - ``kind``: ``"omitted_command"`` or ``"closeout_forbidden"``
+    - ``severity``: ``"hard"``
+    - ``command``: the conflicting command string (or ``None``)
+    - ``command_kind``: the classified kind of the command (or ``None``)
+    - ``reason``: explanation of the conflict
+
+    Conflict classes detected:
+
+    1. **Omitted command conflict** (hard): A command in the decision Tests
+       section has a kind that the active gate profile would omit from
+       ``command_plan.commands`` (i.e., it appears in
+       ``command_plan.omitted_commands``).  This means the decision demands a
+       command that command-plan does not authorize.
+
+    2. **Closeout forbidden conflict** (hard): The decision requires closeout
+       (``run-closeout``/``close-round`` in Tests, ``close_round_required=true``
+       in the decision contract, or ``project_state/rounds/`` artifacts in the
+       allowed scope) while the gate profile has ``closeout_allowed=false``.
+
+    The check avoids false positives by:
+    - Skipping startup/status commands (always exempt).
+    - Skipping commands explicitly authorized in an existing
+      ``command_plan.json`` (command-plan kept them despite profile trimming).
+    - Skipping conditional commands guarded by phrases like "only if
+      command-plan authorizes".
+    - For ``standard``/``full`` profiles, all gate command kinds are in
+      ``required_command_kinds``, so no commands are omitted (no false
+      positives).
+    """
+    conflicts: list[dict[str, Any]] = []
+
+    # Compute gate profile directly from decision text so the check works
+    # even before gate_profile_plan.json or command_plan.json is written.
+    classification = classify_gate_profile(decision_text)
+    closeout_allowed = classification.get("closeout_allowed")
+    required_kinds = set(classification.get("required_command_kinds") or [])
+    profile = str(classification.get("profile") or "")
+
+    # Extract commands from decision Tests section (same logic as command_plan).
+    tests_text = _markdown_section(decision_text, "Tests")
+    if not tests_text.strip():
+        return conflicts
+
+    required_audit_text = _markdown_section(decision_text, "Required Audit")
+    extracted_commands: list[str] = []
+    if required_audit_text.strip():
+        required_audit_commands, _ = _extract_bash_commands(required_audit_text)
+        extracted_commands.extend(required_audit_commands)
+    tests_commands, _ = _extract_bash_commands(tests_text)
+    extracted_commands.extend(tests_commands)
+    extracted_commands = _dedupe_commands(extracted_commands)
+    extracted_commands = _inject_report_summary_command(extracted_commands, decision_text)
+
+    # Determine which commands are conditional (should not be flagged).
+    conditional_commands = _conditional_tests_commands(decision_text)
+
+    # Read the existing command_plan.json if available, to check against
+    # the actual authorized commands (not just the computed profile).
+    command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    authorized_commands: set[str] = set()
+    omitted_kinds: set[str] = set()
+    if command_plan_payload:
+        for item in (command_plan_payload.get("commands") or []):
+            if isinstance(item, dict):
+                cmd = str(item.get("command") or "")
+                if cmd:
+                    authorized_commands.add(cmd)
+        for item in (command_plan_payload.get("omitted_commands") or []):
+            if isinstance(item, dict):
+                kind = str(item.get("kind") or "")
+                if kind:
+                    omitted_kinds.add(kind)
+
+    # Track whether Tests explicitly requires closeout commands.
+    tests_requires_closeout = False
+
+    # --- Check 1: Omitted command conflict ---
+    for command in extracted_commands:
+        if _is_startup_command(command):
+            continue
+        kind = _command_kind(command)
+        if kind in _EXECUTION_AUTHORITY_EXEMPT_KINDS:
+            continue
+        if kind in _CLOSEOUT_COMMAND_KINDS:
+            tests_requires_closeout = True
+        # Conditional commands are not mandatory conflicts.
+        if command in conditional_commands:
+            continue
+        # If command_plan.json exists and explicitly authorizes this command,
+        # it is not a conflict (command-plan kept it despite profile trimming).
+        if command in authorized_commands:
+            continue
+        # For fast profile, check if the kind would be omitted.
+        if profile == "fast" and required_kinds:
+            mapped_kind = kind
+            if kind in ("set-location", "pwd", "test-path", "git status", "git rev-parse"):
+                mapped_kind = "startup"
+            elif kind == "project-cli":
+                mapped_kind = "startup"
+            if mapped_kind not in required_kinds and kind not in required_kinds:
+                conflicts.append({
+                    "kind": "omitted_command",
+                    "severity": "hard",
+                    "command": command,
+                    "command_kind": kind,
+                    "reason": (
+                        f"decision Tests require command kind '{kind}' "
+                        f"but {profile} profile omits it from required_command_kinds"
+                    ),
+                })
+
+    # Also check omitted_kinds from an existing command_plan.json (covers
+    # cases where the profile is not fast but a command was still omitted).
+    if omitted_kinds:
+        for command in extracted_commands:
+            if _is_startup_command(command):
+                continue
+            kind = _command_kind(command)
+            if kind in _EXECUTION_AUTHORITY_EXEMPT_KINDS:
+                continue
+            if command in conditional_commands:
+                continue
+            if command in authorized_commands:
+                continue
+            if kind in omitted_kinds:
+                # Avoid duplicate conflicts already added by the fast-profile check.
+                already = any(
+                    c.get("command") == command and c.get("kind") == "omitted_command"
+                    for c in conflicts
+                )
+                if not already:
+                    conflicts.append({
+                        "kind": "omitted_command",
+                        "severity": "hard",
+                        "command": command,
+                        "command_kind": kind,
+                        "reason": (
+                            f"decision Tests require command kind '{kind}' "
+                            f"but command_plan.omitted_commands lists it"
+                        ),
+                    })
+
+    # --- Check 2: Closeout forbidden conflict ---
+    if closeout_allowed is False:
+        # Check if decision contract requires closeout.
+        contract = read_decision_contract(state_dir)
+        contract_requires_closeout = False
+        if contract.get("found") and not contract.get("parse_error"):
+            contract_requires_closeout = bool(contract.get("close_round_required", True))
+
+        # Check if decision allowed_state_artifacts includes rounds/ paths.
+        scope_text = _markdown_section(decision_text, "Implementation Scope")
+        allowed_paths = _allowed_scope_paths(scope_text)
+        rounds_artifact_required = any(
+            "project_state/rounds/" in path
+            for path in allowed_paths
+        )
+
+        # Only flag non-conditional closeout commands.
+        non_conditional_closeout = tests_requires_closeout
+        if non_conditional_closeout:
+            # Re-check: are ALL closeout commands conditional?
+            all_closeout_conditional = all(
+                cmd in conditional_commands
+                for cmd in extracted_commands
+                if _command_kind(cmd) in _CLOSEOUT_COMMAND_KINDS
+                and not _is_startup_command(cmd)
+            )
+            if all_closeout_conditional:
+                non_conditional_closeout = False
+
+        if non_conditional_closeout or contract_requires_closeout or rounds_artifact_required:
+            conflicts.append({
+                "kind": "closeout_forbidden",
+                "severity": "hard",
+                "command": None,
+                "command_kind": None,
+                "reason": (
+                    "decision requires closeout (run-closeout/close-round in Tests, "
+                    "contract close_round_required=true, or rounds/ artifacts in scope) "
+                    "but gate profile has closeout_allowed=false"
+                ),
+            })
+
+    return conflicts
+
+
 def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
@@ -7583,6 +7853,27 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
             unauthorized_source_test_dirty=unauthorized_startup_dirty if not clean_start_ok else [],
             allowed_inherited_dirty_baseline_files=sorted(decision_allowed_inherited),
             baseline_source_test_dirty=baseline_source_test_dirty,
+        )
+    )
+
+    # --- decision_command_plan_conflict check ---
+    # Detect conflicts between decision Tests/closeout expectations and
+    # command-plan/gate-profile semantics before implementation proceeds.
+    # This catches decisions that demand commands the active profile would
+    # omit, or that require closeout while closeout_allowed=false.
+    decision_conflicts = _detect_decision_command_plan_conflicts(
+        decision_text=decision_text,
+        state_dir=state_dir,
+    )
+    conflict_ok = not decision_conflicts
+    checks.append(
+        _check(
+            "decision_command_plan_conflict",
+            "PASS" if conflict_ok else "FAIL",
+            "decision Tests/closeout expectations do not conflict with command-plan"
+            if conflict_ok
+            else "decision Tests/closeout expectations conflict with command-plan; stop before implementation",
+            conflicts=decision_conflicts if not conflict_ok else [],
         )
     )
 
@@ -9169,10 +9460,31 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "decision-lint":
         result = lint_decision(state_dir=Path(args.state_dir))
+        # Augment with decision/command-plan conflict warnings (non-blocking).
+        # Hard conflicts are enforced by preflight; decision-lint only warns.
+        state_dir_path = Path(args.state_dir)
+        decision_text = _read_text(state_dir_path / "decision_packet.md")
+        conflicts = _detect_decision_command_plan_conflicts(
+            decision_text=decision_text,
+            state_dir=state_dir_path,
+        )
+        if conflicts:
+            existing_warnings = list(result.get("warnings") or [])
+            for conflict in conflicts:
+                cmd_part = f" (command: {conflict['command']})" if conflict.get("command") else ""
+                existing_warnings.append(
+                    f"decision_command_plan_conflict [{conflict['kind']}]: "
+                    f"{conflict['reason']}{cmd_part}"
+                )
+            result["warnings"] = existing_warnings
+            result["decision_command_plan_conflicts"] = conflicts
         if args.json:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_decision_lint(result)
+            for conflict in conflicts:
+                cmd_part = f" (command: {conflict['command']})" if conflict.get("command") else ""
+                print(f"  [CONFLICT] [{conflict['kind']}] {conflict['reason']}{cmd_part}")
         return 0 if result.get("ok") else 1
     return 1
 
