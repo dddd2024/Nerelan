@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260621_prompt_docs_policy_integration_v1",
-  "round_id": "round_20260621_prompt_docs_policy_integration_v1",
+  "decision_id": "decision_20260621_policy_impact_audit_v1",
+  "round_id": "round_20260621_policy_impact_audit_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,13 +13,13 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260621_policy_lint_prompt_consistency_v1",
-  "previous_round_id": "round_20260621_policy_lint_prompt_consistency_v1",
+  "previous_decision_id": "decision_20260621_prompt_docs_policy_integration_v1",
+  "previous_round_id": "round_20260621_prompt_docs_policy_integration_v1",
   "previous_acceptance": "ACCEPTED",
-  "primary_goal": "Add canonical prompt documents to the repository and include them in policy-lint scanning.",
+  "primary_goal": "Add Policy Impact Audit v1 for policy-sensitive engineering changes.",
   "command_plan_authority_required": true,
-  "accepted_requires_prompt_docs_created": true,
-  "accepted_requires_policy_lint_scans_prompt_docs": true,
+  "accepted_requires_policy_impact_audit_artifact": true,
+  "accepted_requires_policy_impact_required_audit_coverage": true,
   "accepted_requires_final_check_passed": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
@@ -37,13 +37,14 @@
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/policy_lint_result.json",
+    "project_state/gates/policy_impact_audit.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/run_closeout_result.json",
-    "project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/*"
+    "project_state/rounds/round_20260621_policy_impact_audit_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -59,14 +60,11 @@
 
 ## 1. Goal
 
-Add canonical prompt documents to the repository and make policy-lint scan them by default.
+Implement Policy Impact Audit v1 for policy-sensitive engineering changes.
 
-The previous accepted round implemented `policy-lint / prompt-consistency v1`, but the scan target set is still limited to skills, README, and the current decision packet. This round should create bounded, version-controlled prompt documents for:
+The previous accepted round moved long-lived prompts into `docs/prompts/` and made policy-lint scan them. The next gap is impact accounting: when a round changes policy-sensitive code or text, the report should explicitly state whether prompts, skills, command-plan, final-check, policy-lint, tests, and report status semantics are affected. This prevents silent drift where engineering rules change but the stable prompt docs, tests, and audit criteria are not reviewed.
 
-1. the project-level reverse-agent workspace prompt;
-2. the local Codex execution prompt.
-
-Then update policy-lint so these prompt documents are part of the default bounded scan surface. This makes future drift in long-lived prompts visible to tests and gates instead of being tracked only in chat history.
+This round must add a bounded, testable policy-impact audit capability. It should produce a structured artifact and make final acceptance depend on substantive impact analysis when the round changes policy-sensitive files.
 
 ## 2. Current Evidence
 
@@ -74,44 +72,39 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` is background only. It still describes stale `samplereverse` work and must not control this round.
 
-The previous round `decision_20260621_policy_lint_prompt_consistency_v1` is accepted. Its evidence showed:
+The previous round `decision_20260621_prompt_docs_policy_integration_v1` is accepted. Its evidence showed:
 
 - `codex_execution_report.md` had `status=SUCCESS` and `acceptance_recommendation=ACCEPTED`.
-- `policy_lint_result.json` was generated.
-- policy-lint detected six drift classes: obsolete profile names, Tests-over-command-plan authority, task_packet-over-decision_packet authority, default heavy-path reads, unsupported report statuses, and dynamic facts in skill files.
-- policy-lint scanned only bounded files: `.codex-skills/*/SKILL.md`, `README.md`, and `project_state/decision_packet.md`.
-- final-check passed with no blocking reasons.
+- `docs/prompts/project_workspace_prompt.md`, `docs/prompts/codex_execution_prompt.md`, and `docs/prompts/README.md` were created.
+- `policy_lint_result.json` had `gate_status=PASSED`, scanned the prompt docs, and had no findings.
+- `final_gate_result.json` had `gate_status=PASSED`, no blocking reasons, and `recommended_next_action=no_action_required`.
+- command-plan authority, report-summary synthesis, status policy, and required audit coverage all passed.
 
-Current gap:
+Existing relevant capabilities to reuse:
 
-- The project-level workspace prompt and Codex execution prompt are not yet committed as repository files.
-- policy-lint cannot consistently scan those prompts because `docs/prompts/*` is not yet an active canonical prompt location.
-- Future prompt-code drift can still happen outside the repo if these prompts remain only in chat history.
-
-Existing capabilities to reuse:
-
-- `reverse_agent.project_gate policy-lint`
-- policy-lint artifact writer: `project_state/gates/policy_lint_result.json`
-- existing policy-lint scan helpers and drift-class tests in `tests/test_project_gate.py`
-- existing command-plan, report-summary, final-check, closeout, and round archive behavior
+- `reverse_agent.project_gate` CLI structure and artifact-writing conventions
+- `round_delta_summary.json` for changed-file detection
+- `policy-lint` and `policy_lint_result.json`
+- `decision-lint`, `preflight`, `command-plan`, `report-summary`, `final-check`, and `run-closeout`
+- required audit coverage checks in final-check
+- bounded prompt docs under `docs/prompts/*.md`
+- tests in `tests/test_project_gate.py`
 
 This is not a reverse-solving round. Do not inspect or run sample binaries. Do not use IDA, Ghidra, debuggers, emulators, runtime probes, harnesses, or full `solve_reports/`.
 
 ## 3. Do Not Do
 
-Do not redesign the policy system or implement full prompt generation from a manifest.
+Do not redesign the whole policy system or introduce a full policy manifest.
 
 Do not add a database, message queue, workflow engine, or `execution_log.json`.
 
-Do not rewrite `.codex-skills/` or `.codex-skills/registry.json`.
+Do not generate prompts from code. Prompt docs may be updated only to mention stable Policy Impact Audit rules if needed.
 
-Do not treat prompt docs as dynamic project_state. Prompt docs must contain stable workflow rules only, not candidate values, run names, artifact freshness, runtime metrics, single-sample conclusions, or local transient paths except the stable local repo path `F:\reverse-agent` inside the Codex execution prompt.
+Do not weaken policy-lint, decision-command-plan conflict detection, command-plan authority, report-summary synthesis, final-check, or closeout.
 
-Do not weaken policy-lint to make new prompt docs pass. If the prompt docs contain drift, fix the prompt wording rather than hiding findings.
+Do not make Policy Impact Audit a substitute for actual tests. It is an audit layer over policy-sensitive changes, not a replacement for pytest or gates.
 
 Do not change profile names. The current profile names are `fast`, `standard`, and `full`; do not introduce `medium` as a profile.
-
-Do not make Tests authoritative over command-plan. The prompt docs must state that command-plan is the command execution authority.
 
 Do not mutate `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, or `.codex-skills/registry.json`.
 
@@ -132,14 +125,14 @@ Read default state files first:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Then inspect only files relevant to this prompt-policy integration:
+Then inspect only files relevant to this engineering check:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `.codex-skills/registry.json`
-4. `.codex-skills/reverse-agent-iteration/SKILL.md`
-5. `README.md`
-6. `docs/prompts/` if it already exists
+3. `docs/prompts/README.md`
+4. `docs/prompts/project_workspace_prompt.md`
+5. `docs/prompts/codex_execution_prompt.md`
+6. `project_state/gates/round_delta_summary.json`
 7. `project_state/gates/policy_lint_result.json`
 8. `project_state/gates/command_plan.json`
 9. `project_state/gates/final_gate_result.json`
@@ -151,25 +144,25 @@ Historical files may be read only by exact path when needed for a focused regres
 
 Answer all items in `project_state/codex_execution_report.md` before claiming success:
 
-1. Which canonical prompt files were created, and what stable role does each file serve?
-2. How do the prompt docs preserve the current project rules: decision_packet authority, task_packet as background, command-plan authority, fast/standard/full profiles, report status values, and no default heavy artifact scans?
-3. How do the prompt docs avoid dynamic facts such as candidates, run names, artifact paths, freshness, runtime metrics, and single-sample conclusions?
-4. How did policy-lint’s default scan surface change, and how is `docs/prompts/*.md` bounded?
-5. What policy-lint findings were produced after adding the prompt docs, and why are they acceptable or fixed?
-6. What tests prove policy-lint scans prompt docs and catches drift inside them?
-7. What tests prove valid prompt wording is allowed and does not create false blocking failures?
-8. How does this round preserve existing policy-lint, decision-command-plan conflict detection, command-plan authority, report-summary, final-check, and closeout behavior?
+1. What file patterns are considered policy-sensitive by Policy Impact Audit v1, and why?
+2. How does the audit determine that prompt docs, skills, command-plan, final-check, report-summary, policy-lint, or report status semantics may be affected?
+3. What structured artifact is written, and what fields does it contain?
+4. When does Policy Impact Audit produce FAIL, WARN, or PASS?
+5. How does final-check consume or verify the Policy Impact Audit result?
+6. How does the audit avoid requiring heavy scans of `solve_reports/`, full `project_state/rounds/`, or full `PROJECT_PROGRESS_LOG.txt`?
+7. What tests prove policy-sensitive source changes require a substantive policy impact answer, while ordinary non-policy changes do not create false failures?
+8. How does this round preserve existing prompt docs, policy-lint, decision-command-plan conflict detection, command-plan authority, report-summary, final-check, and closeout behavior?
 
 ## 6. Implementation Scope
 
-Implement one bounded feature: repository-backed canonical prompt documents plus policy-lint scanning for those documents.
+Implement one bounded feature: Policy Impact Audit v1 for policy-sensitive changes.
 
 Allowed source changes:
 
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
 
-Allowed prompt/document files:
+Allowed prompt/document changes, only if needed to document the new stable audit rule:
 
 - `docs/prompts/project_workspace_prompt.md`
 - `docs/prompts/codex_execution_prompt.md`
@@ -183,26 +176,34 @@ Allowed state/artifact updates:
 - `project_state/gates/gate_profile_plan.json`
 - `project_state/gates/preflight_result.json`
 - `project_state/gates/policy_lint_result.json`
+- `project_state/gates/policy_impact_audit.json`
 - `project_state/gates/report_summary_synthesis.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/run_closeout_result.json`
-- `project_state/rounds/round_20260621_prompt_docs_policy_integration_v1/*` only if command-plan authorizes closeout
+- `project_state/rounds/round_20260621_policy_impact_audit_v1/*` only if command-plan authorizes closeout
 
 Required implementation behavior:
 
-1. Create `docs/prompts/project_workspace_prompt.md` containing the stable project-level rules for GPT as decision/audit planner: mainlines, evidence precedence, DECISION_PACKET requirements, CODEX_EXECUTION_REPORT requirements, audit outcomes, artifact freshness, negative_results, no default heavy artifact scans, and mature tool priority.
-2. Create `docs/prompts/codex_execution_prompt.md` containing the stable local Codex execution rules: `F:\reverse-agent`, startup checks, first `git status` baseline, decision_packet authority, task_packet background, preflight before implementation, command-plan authority, allowed commands only, report/pytest_result requirements, closeout rules, final response fields, and no remote mutation unless explicitly requested.
-3. Optionally create `docs/prompts/README.md` to document that these files are stable prompt templates and not dynamic state.
-4. Extend policy-lint’s bounded scan surface to include `docs/prompts/*.md` and only that prompt directory, not arbitrary docs or historical outputs.
-5. Ensure policy-lint does not flag valid prohibitive examples such as "do not use medium" or "do not write COMPLETED_WITH_LIMITATIONS as codex_report_summary.status".
-6. Add focused tests proving prompt docs are scanned and drift inside prompt docs is detected.
-7. Add focused tests proving the committed prompt docs pass policy-lint without blocking findings.
-8. Preserve existing policy-lint v1 drift classes and all previous gate behavior.
+1. Add a CLI entrypoint such as `python -m reverse_agent.project_gate policy-impact --state-dir project_state` or integrate an equivalent policy-impact check into an existing gate, while still writing `project_state/gates/policy_impact_audit.json`.
+2. Detect policy-sensitive changed files from `round_delta_summary.json` or equivalent current delta evidence. At minimum, treat these as policy-sensitive:
+   - `reverse_agent/project_gate.py`
+   - `tests/test_project_gate.py` when testing gate/policy behavior
+   - `docs/prompts/*.md`
+   - `.codex-skills/**`
+   - `.codex-skills/registry.json`
+   - `project_state/decision_packet.md` when live decision changes during execution
+   - gate/report schema or status-policy related code paths in `project_gate.py`
+3. Write `project_state/gates/policy_impact_audit.json` with schema_version, gate_name, gate_status, decision_id, round_id, policy_sensitive_files, impacted_domains, required_report_topics, missing_report_topics, warnings, blocking_reasons, and recommended_next_action.
+4. Require substantive report coverage for impacted domains when policy-sensitive files changed. At minimum, domains should include prompt_docs, skills, command_plan, final_check, report_summary, policy_lint, report_status_schema, and tests.
+5. Classify as FAIL when policy-sensitive changes are present but the report omits required impact coverage; WARN when impact is plausible but no hard evidence requires a block; PASS when coverage is present or no policy-sensitive files changed.
+6. Integrate the check into final-check or report-summary so a `SUCCESS/ACCEPTED` report cannot silently skip policy impact analysis for policy-sensitive changes.
+7. Add focused regression tests for policy-sensitive source changes, prompt-doc changes, no-impact ordinary changes, missing report coverage, and successful report coverage.
+8. Preserve existing policy-lint, prompt docs, command-plan authority, report-summary, final-check, closeout, and decision-command-plan conflict behavior.
 
-Do not generate prompts from code or a policy manifest in this round. Do not add new long-term state files outside `docs/prompts/`.
+Do not add a full policy manifest, prompt generation, or execution-log storage in this round.
 
 ## 7. Tests
 
@@ -234,10 +235,11 @@ Targeted tests:
 python -m pytest tests/test_project_gate.py -q
 ```
 
-Run policy-lint only if command-plan explicitly includes or authorizes it:
+Run policy-lint and policy-impact only if command-plan explicitly includes or authorizes them:
 
 ```powershell
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
+python -m reverse_agent.project_gate policy-impact --state-dir project_state
 ```
 
 Final validation commands, only when authorized by command-plan:
@@ -252,7 +254,7 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 Run closeout only if command-plan explicitly includes or authorizes the closeout command for this round:
 
 ```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_prompt_docs_policy_integration_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_policy_impact_audit_v1
 ```
 
 If closeout runs, rerun report-summary and final-check afterward.
@@ -264,13 +266,12 @@ Record all executed commands, stdout/stderr, exit codes, and final conclusion in
 Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
 
 1. preflight fails before implementation for unrelated reasons;
-2. this requires prompt generation, a full policy manifest, a database, workflow engine, or execution-log migration;
+2. this requires a full policy manifest, prompt generation, database, workflow engine, or execution-log migration;
 3. source changes outside `reverse_agent/project_gate.py` and `tests/test_project_gate.py` are needed;
 4. prompt/document changes outside `docs/prompts/project_workspace_prompt.md`, `docs/prompts/codex_execution_prompt.md`, and `docs/prompts/README.md` are needed;
-5. policy-lint scans heavy runtime outputs, full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt` by default;
-6. the prompt docs contain dynamic one-run facts, sample candidates, run names, freshness, runtime metrics, or single-sample conclusions;
-7. policy-lint produces blocking failures on the newly committed prompt docs without a precise intentional test case;
-8. command-plan authority, policy-lint, decision-command-plan conflict detection, report-summary, final-check, or closeout regresses;
-9. `codex_execution_report.md`, `pytest_result.txt`, or gate artifacts use stale decision_id/round_id;
-10. tests fail or any required command exit code is nonzero;
-11. closeout archive files are created but not listed in `files_changed` and `generated_artifacts`.
+5. Policy Impact Audit requires heavy runtime output scans, full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt` by default;
+6. Policy Impact Audit blocks ordinary non-policy changes without a clear policy-sensitive file reason;
+7. command-plan authority, policy-lint, decision-command-plan conflict detection, report-summary, final-check, or closeout regresses;
+8. `codex_execution_report.md`, `pytest_result.txt`, or gate artifacts use stale decision_id/round_id;
+9. tests fail or any required command exit code is nonzero;
+10. closeout archive files are created but not listed in `files_changed` and `generated_artifacts`.
