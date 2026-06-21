@@ -14371,6 +14371,156 @@ Allowed source files:
     )
 
 
+def test_run_closeout_post_archive_refreshes_report_status_to_match_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: close_round post-archive flow must refresh report status/acceptance
+    to match the post-archive final gate result.
+
+    Without this fix (Fix #2), the report retains stale pre-archive status
+    (PARTIAL/NEEDS_REVIEW or BLOCKED/REWORK_REQUIRED) while the post-archive
+    final_gate_result.json has gate_status=PASSED.  This creates a chicken-and-egg
+    cycle: report-summary synthesis expects SUCCESS/ACCEPTED (from PASSED gate)
+    but the report has stale status, causing report_summary_fields_match_synthesis
+    to fail and blocking close-round.
+    """
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    # Monkeypatch close_round to return CLOSED status (like the success path test)
+    def fake_close_round(*, state_dir, round_id, repo_root=None):
+        return {
+            "schema_version": 1,
+            "gate_name": "close-round",
+            "close_status": "CLOSED",
+            "decision_id": "decision_closeout",
+            "report_id": "codex_report_closeout",
+            "round_id": round_id,
+            "generated_at": "2026-06-20T00:00:00Z",
+            "checks": [],
+            "actions": [{"name": "archive_round", "status": "created"}],
+            "archive": {"status": "created"},
+            "blocking_reasons": [],
+            "warnings": [],
+            "recommended_next_action": "no_action_required",
+            "status_summary": {},
+        }
+    monkeypatch.setattr("reverse_agent.project_gate.close_round", fake_close_round)
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._write_round_close_snapshot",
+        lambda **kw: {"schema_version": 1, "round_closed": True, "decision_id": "decision_closeout", "round_id": "round_closeout"},
+    )
+    # Monkeypatch final_check to return PASSED and write the result to
+    # final_gate_result.json so _refresh_codex_report_for_closeout can derive
+    # status=SUCCESS from the post-archive gate result.
+    def fake_final_check(*, state_dir, repo_root=None, write_result=True, **kwargs):
+        result = {
+            "schema_version": 1,
+            "artifact_name": "final_gate_result.json",
+            "gate_name": "final-check",
+            "gate_status": "PASSED",
+            "decision_id": "decision_closeout",
+            "round_id": "round_closeout",
+            "checks": [],
+            "blocking_failures": [],
+            "warnings": [],
+        }
+        if write_result:
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir(parents=True, exist_ok=True)
+            (gates_dir / "final_gate_result.json").write_text(
+                json.dumps(result, indent=2) + "\n", encoding="utf-8"
+            )
+        return result
+    monkeypatch.setattr("reverse_agent.project_gate.final_check", fake_final_check)
+    runner = _fake_runner_factory({})
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # After run-closeout, the report status must match the post-archive gate result.
+    # final_gate_result.json has gate_status=PASSED, so the report should have
+    # status=SUCCESS and acceptance=ACCEPTED.
+    report = read_codex_report_summary(state_dir)
+    assert report["status"] == "SUCCESS", (
+        f"Report status should be SUCCESS (from PASSED gate), got: {report['status']}"
+    )
+    assert report["acceptance_recommendation"] == "ACCEPTED", (
+        f"Report acceptance should be ACCEPTED, got: {report['acceptance_recommendation']}"
+    )
+
+
+def test_refresh_codex_report_for_closeout_preserves_pytest_result_header_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: _refresh_codex_report_for_closeout must NOT overwrite the
+    pytest_result.txt header status (Fix #3).
+
+    The pytest_result.txt header status reflects the actual test execution outcome
+    (set by the pytest step).  Overwriting it with a report-derived status (e.g.,
+    "PASSED" from report status SUCCESS via _report_status_to_pytest_status) creates
+    a contradiction when command blocks from run-closeout steps (report-summary,
+    final-check, close-round) have non-zero exit codes, causing pytest_result_match
+    to fail inside close_round's final_check_after_archive.
+    """
+    from reverse_agent.project_gate import _refresh_codex_report_for_closeout
+    from reverse_agent.project_state import parse_pytest_result_header
+
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    # Overwrite pytest_result.txt with a FAILED header status to simulate
+    # a scenario where some command blocks had non-zero exit codes.
+    _write_pytest(
+        state_dir,
+        decision_id="decision_closeout",
+        report_id="codex_report_closeout",
+        round_id="round_closeout",
+        status="FAILED",
+    )
+    # Verify the header status is FAILED before refresh
+    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    header_before = parse_pytest_result_header(pytest_text)
+    assert header_before["status"] == "FAILED", (
+        f"Pre-condition: header status should be FAILED, got: {header_before['status']}"
+    )
+    # Call _refresh_codex_report_for_closeout directly.
+    # The final_gate_result.json has gate_status=PASSED, so the report status
+    # will be derived as SUCCESS.  Without Fix #3, _update_pytest_result_header_tests_ran
+    # would be called with status="SUCCESS", converting the header status to "PASSED"
+    # via _report_status_to_pytest_status.  With Fix #3, the header status is preserved.
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_closeout",
+        round_id="round_closeout",
+    )
+    # Verify the header status is STILL FAILED (not overwritten to PASSED)
+    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    header_after = parse_pytest_result_header(pytest_text)
+    assert header_after["status"] == "FAILED", (
+        f"_refresh_codex_report_for_closeout must not overwrite pytest_result header status. "
+        f"Expected FAILED, got: {header_after['status']}"
+    )
+
+
 def test_run_closeout_success_path_with_monkeypatched_close_round(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Regression: successful run-closeout close-round path with monkeypatched execution."""
     state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
