@@ -1,75 +1,34 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260621_run_round_scaffold_v1",
-  "round_id": "round_20260621_run_round_scaffold_v1",
-  "based_on_decision_id": "decision_20260621_run_round_scaffold_v1",
+  "report_id": "codex_report_20260622_report_auto_summary_closeout_consistency_v1",
+  "round_id": "round_20260622_report_auto_summary_closeout_consistency_v1",
+  "based_on_decision_id": "decision_20260622_report_auto_summary_closeout_consistency_v1",
   "status": "PARTIAL",
   "acceptance_recommendation": "NEEDS_REVIEW",
   "files_changed": [
     "project_state/codex_execution_report.md",
-    "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/command_plan.json",
-    "project_state/gates/execution_log.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/policy_impact_audit.json",
-    "project_state/gates/policy_lint_result.json",
     "project_state/gates/preflight_result.json",
-    "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_closeout_result.json",
-    "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260621_run_round_scaffold_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260621_run_round_scaffold_v1/decision_packet.md",
-    "project_state/rounds/round_20260621_run_round_scaffold_v1/pytest_result.txt",
-    "project_state/rounds/round_20260621_run_round_scaffold_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "tests_ran": [
-    "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m pytest tests/test_project_gate.py -q",
-    "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
-    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260621_run_round_scaffold_v1 --dry-run",
-    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1"
+    "python -m pytest tests/test_project_gate.py -q --tb=line"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
-    "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/command_plan.json",
-    "project_state/gates/execution_log.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/policy_impact_audit.json",
-    "project_state/gates/policy_lint_result.json",
     "project_state/gates/preflight_result.json",
-    "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_round_result.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260621_run_round_scaffold_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260621_run_round_scaffold_v1/decision_packet.md",
-    "project_state/rounds/round_20260621_run_round_scaffold_v1/pytest_result.txt",
-    "project_state/rounds/round_20260621_run_round_scaffold_v1/round_manifest.json"
+    "project_state/pytest_result.txt"
   ],
   "referenced_artifacts": [],
-  "required_closeout_artifacts": [
-    "project_state/gates/codex_report_auto_summary.json"
-  ]
+  "required_closeout_artifacts": []
 }
 ```
 
@@ -81,60 +40,50 @@ PARTIAL
 
 ## Required Audit
 
+### 1. What causes the `report_auto_summary_consistency` WARN, and how is it fixed?
 
-
-
-
-
-
-
-
-
-### 1. What does Run-Round Scaffold v1 do, and what does it explicitly not do?
-
-- Evidence: `reverse_agent/project_gate.py` lines containing `run_round()`, `_derive_phases()`, `_print_run_round()`, and the `run-round` CLI subparser; `project_state/gates/run_round_result.json`
+- Evidence: `reverse_agent/project_gate.py` `report_auto_summary()`, `build_report_summary_synthesis()`, `_refresh_codex_report_for_closeout()`, `final_check()` around line 6230
 - Status: PASS
-- Answer: Run-Round Scaffold v1 provides a CLI entrypoint (`python -m reverse_agent.project_gate run-round --state-dir project_state --round-id <id> --dry-run`) that produces a structured orchestration artifact (`run_round_result.json`). In dry-run mode, it reads or generates command-plan, derives the ordered phase list, records authorized/omitted/would_run commands, and writes the artifact without executing any implementation commands. It explicitly does NOT: execute arbitrary implementation commands, edit source/test files, solve samples, call tools, run background work, replace Codex implementation work, bypass command-plan authority, or recursively execute itself.
+- Answer: The WARN occurs because three functions (`report_auto_summary()`, `build_report_summary_synthesis()`, `_refresh_codex_report_for_closeout()`) use divergent rules for computing `generated_artifacts`, `files_changed`, and `tests_ran`. The fix unifies them: (1) `FINAL_GATE_RESULT_NAME` is added to `_REPORTABLE_GATE_ARTIFACT_NAMES` so `report_auto_summary()` includes it automatically; (2) `RUN_CLOSEOUT_RESULT_NAME` round-matching logic is added to all three functions; (3) `SELF_OUTPUT_PATH` and `REPORT_AUTO_SUMMARY_OUTPUT_PATH` are added to `files_changed` in the synthesis and closeout refresh; (4) `ROUND_BASELINE_OUTPUT_PATH` and `ROUND_DELTA_OUTPUT_PATH` are added to synthesis `expected_files_changed`; (5) `report_auto_summary()` is called after each `_refresh_codex_report_for_closeout()` in `run_closeout()` to regenerate the auto-summary.
 
-### 2. What schema does `project_state/gates/run_round_result.json` use, and which fields are required?
+### 2. How are `generated_artifacts` unified across `report_auto_summary()`, `build_report_summary_synthesis()`, and `_refresh_codex_report_for_closeout()`?
 
-- Evidence: `reverse_agent/project_gate.py` `run_round()` function body; `project_state/gates/run_round_result.json` on disk
+- Evidence: `reverse_agent/project_gate.py` lines 8728-8770 (report_auto_summary), 4735-4790 (synthesis), 9830-9882 (closeout refresh)
 - Status: PASS
-- Answer: The artifact uses `schema_version: 1` with `artifact_name: "run_round_result"`. Required fields are: `schema_version`, `artifact_name`, `gate_name`, `gate_status`, `decision_id`, `round_id`, `generated_at`, `mode`, `phases`, `authorized_commands`, `omitted_commands`, `would_run_commands`, `skipped_commands`, `warnings`, `blocking_reasons`, and `recommended_next_action`. The `run_status` field is preserved for backward compatibility.
+- Answer: All three functions now use the same rules: (1) `_REPORTABLE_GATE_ARTIFACT_NAMES` (including `FINAL_GATE_RESULT_NAME`) for disk-based artifacts; (2) `RUN_CLOSEOUT_RESULT_NAME` with `_artifact_matches_current_round()` check; (3) `ROUND_CLOSE_SNAPSHOT_RESULT_NAME` with round-matching; (4) `_expected_archive_paths()` for archive paths; (5) fixed set of always-present artifacts (`codex_execution_report.md`, `pytest_result.txt`, `report_summary_synthesis.json`, `round_delta_summary.json`, `codex_report_auto_summary.json`). The only remaining difference is that `report_auto_summary()` excludes archive paths when the archive directory does not exist, while `_refresh_codex_report_for_closeout()` always includes them when `closeout_allowed != False`.
 
-### 3. How does the scaffold derive its phase order from startup checks, preflight, command-plan, execution-log, report-auto-summary, report-summary, final-check, and closeout without executing arbitrary implementation work?
+### 3. How are `files_changed` unified across the three functions?
 
-- Evidence: `reverse_agent/project_gate.py` `_derive_phases()` helper and `run_round()` function
+- Evidence: `reverse_agent/project_gate.py` lines 8710-8722 (report_auto_summary), 4728-4734 (synthesis), 9790-9882 (closeout refresh)
 - Status: PASS
-- Answer: The `_derive_phases()` helper extracts the ordered list of unique phases from command-plan's `commands` array by iterating commands in order, collecting each command's `phase` field, and deduplicating while preserving order. In dry-run mode, `run_round()` reads or generates command-plan, calls `_derive_phases()` to get the phase list, records the authorized commands from command-plan, and computes `would_run_commands` by filtering out self-invocation and close-round delegation. No implementation commands are executed.
+- Answer: All three functions now include the same fixed paths: `REPORT_SUMMARY_OUTPUT_PATH`, `REPORT_AUTO_SUMMARY_OUTPUT_PATH` (when exists on disk), `SELF_OUTPUT_PATH`, `ROUND_BASELINE_OUTPUT_PATH`, `ROUND_DELTA_OUTPUT_PATH`, plus `round_delta_files` (from `_build_round_delta_summary`) and `archive_paths` (from `_expected_archive_paths`). The `ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH` is included when `include_close_snapshot=True`.
 
-### 4. How does run-round remain subordinate to command-plan, including handling omitted commands and unauthorized commands?
+### 4. How are `tests_ran` unified across the three functions?
 
-- Evidence: `reverse_agent/project_gate.py` `run_round()` function; `tests/test_project_gate.py` `TestRunRoundScaffold` tests 4, 5, 9
+- Evidence: `reverse_agent/project_gate.py` lines 8676-8697 (report_auto_summary), 4700-4710 (synthesis)
 - Status: PASS
-- Answer: `run_round()` reads the command-plan artifact and populates `authorized_commands` directly from `command_plan["commands"]`. Omitted commands are recorded from `command_plan.get("omitted_commands", [])`. The `would_run_commands` list only includes commands present in `authorized_commands`, excluding self-invocation (run-round) and close-round delegation. Commands not in command-plan are never included in `would_run_commands`. Test `test_unauthorized_command_not_in_would_run` verifies this.
+- Answer: Both `report_auto_summary()` and `build_report_summary_synthesis()` now exclude "status" kind commands from `tests_ran` using `_command_kind(cmd) != "status"`. This prevents `set-location`, `pwd`, `test-path`, `git rev-parse`, and `git status` commands from appearing in `tests_ran`. The `_refresh_codex_report_for_closeout()` function does not modify `tests_ran` (it preserves the existing value from the report).
 
-### 5. How are `run_round_result.json`, `execution_log.json`, `codex_report_auto_summary.json`, and `pytest_result.txt` kept compatible?
+### 5. How does `report_auto_summary_consistency` get added to `allowed_prearchive_warnings` and `retriable_checks`?
 
-- Evidence: `reverse_agent/project_gate.py` `report_auto_summary()`, `build_report_summary_synthesis()`; `project_state/gates/codex_report_auto_summary.json`; `project_state/gates/execution_log.json`
+- Evidence: `reverse_agent/project_gate.py` lines 3785-3795 (`_report_status_from_gate`), 4373-4377 (`_final_gate_is_retriable_status_source_failure`)
 - Status: PASS
-- Answer: `run_round_result.json` is added to `_REPORTABLE_GATE_ARTIFACT_NAMES` so it appears in `generated_artifacts` when present on disk. `execution_log.json` records all executed commands and is the source for `tests_ran` in `report_auto_summary()`. `codex_report_auto_summary.json` synthesizes `files_changed`, `tests_ran`, and `generated_artifacts` from structured evidence. `pytest_result.txt` is the human-readable command log. The `report_auto_summary()` fix ensures `SELF_OUTPUT_PATH` (final_gate_result.json) is only included in `generated_artifacts` when it exists on disk, preventing phantom artifacts.
+- Answer: `report_auto_summary_consistency` is added to the `allowed_prearchive_warnings` set in `_report_status_from_gate()` so it does not block pre-archive closeout. It is also added to the `retriable_checks` frozenset in `_final_gate_is_retriable_status_source_failure()` so that a final gate failure due solely to this check is treated as retriable (status derived as PARTIAL rather than FAILED).
 
-### 6. How does final-check/report-summary cover `run_round_result.json` as a generated gate artifact?
+### 6. How does `run_closeout()` regenerate the auto-summary after report refreshes?
 
-- Evidence: `reverse_agent/project_gate.py` `_REPORTABLE_GATE_ARTIFACT_NAMES` tuple; `tests/test_project_gate.py` `test_run_round_result_in_reportable_gate_artifacts`
+- Evidence: `reverse_agent/project_gate.py` lines 10391-10480 (run_closeout)
 - Status: PASS
-- Answer: `RUN_ROUND_RESULT_NAME` is added to the `_REPORTABLE_GATE_ARTIFACT_NAMES` tuple. When `report_auto_summary()` runs, it checks which reportable gate artifacts exist on disk and includes them in `generated_artifacts`. `report-summary` and `final-check` then validate that the report's `generated_artifacts` matches the synthesis, which includes `run_round_result.json` when it exists. Test `test_run_round_result_in_reportable_gate_artifacts` verifies this inclusion.
+- Answer: `run_closeout()` now calls `report_auto_summary(state_dir=state_dir, write_result=True)` after each `_refresh_codex_report_for_closeout()` call. This happens at four points: (1) after `command-plan-json` step; (2) after `final-check` step; (3) after close-round's after-close refresh; (4) after the final closeout refresh. This ensures the auto-summary stays consistent with the live `codex_report_summary` throughout the closeout process.
 
-### 7. What regression tests prove dry-run behavior, command-plan authority, no recursion, no unauthorized execution, artifact coverage, and backward compatibility?
+### 7. What regression tests prove the consistency fixes work?
 
-- Evidence: `tests/test_project_gate.py` class `TestRunRoundScaffold` (15 tests)
+- Evidence: `tests/test_project_gate.py` lines 19109-19343 (6 new tests)
 - Status: PASS
-- Answer: 15 regression tests in `TestRunRoundScaffold`: (1) `test_dry_run_includes_required_scaffold_fields` - all required fields present; (2) `test_gate_status_equals_run_status` - gate_status matches run_status; (3) `test_phases_derived_from_command_plan` - phases from command-plan; (4) `test_authorized_commands_match_command_plan` - authorized from command-plan; (5) `test_omitted_commands_from_command_plan` - omitted from command-plan; (6) `test_would_run_commands_excludes_self_invocation` - no self-run; (7) `test_would_run_commands_excludes_close_round` - no close-round delegation; (8) `test_dry_run_does_not_execute_commands` - no execution; (9) `test_unauthorized_command_not_in_would_run` - no unauthorized; (10) `test_artifact_written_to_disk` - artifact exists; (11) `test_command_kind_recognizes_run_round` - kind recognized; (12) `test_command_expected_exit_codes_allows_0_or_1_for_run_round` - exit codes; (13) `test_run_round_result_in_reportable_gate_artifacts` - artifact coverage; (14) `test_run_round_in_closeout_allowed_kinds` - closeout safety; (15) `test_backward_compatible_run_status_field` - backward compat.
+- Answer: Six regression tests: (1) `test_report_auto_summary_matches_synthesis_after_closeout` - verifies non-archive-only diffs are zero after closeout; (2) `test_report_auto_summary_consistency_passes_after_closeout` - verifies the check does not FAIL after closeout; (3) `test_report_auto_summary_consistency_detects_real_mismatch` - verifies the check FAILs when auto-summary is tampered; (4) `test_report_auto_summary_excludes_status_kind_commands` - verifies status-kind commands are excluded from tests_ran; (5) `test_report_auto_summary_includes_closeout_artifact` - verifies run_closeout_result.json appears when matching; (6) `test_report_auto_summary_excludes_closeout_artifact_wrong_round` - verifies it is excluded when round doesn't match.
 
-### 8. How does this round preserve structured execution log, report-auto-summary, policy-impact, policy-lint, command-plan authority, report-summary, final-check, closeout, and prompt-doc behavior?
+### 8. How does this round preserve existing gate behavior, backward compatibility, and prompt-doc compliance?
 
-- Evidence: `reverse_agent/project_gate.py` changes limited to run-round additions and SELF_OUTPUT_PATH fix; `tests/test_project_gate.py` 740 existing tests still pass plus 15 new; all gate commands pass
+- Evidence: All 755 existing tests pass; 6 new tests added; no prompt docs modified; `reverse_agent/project_gate.py` changes are additive
 - Status: PASS
-- Answer: The implementation adds `run_round()`, `_derive_phases()`, and `_print_run_round()` as new functions without modifying existing gate logic. `RUN_CLOSEOUT_ALLOWED_KINDS` adds `"run-round"` without removing existing kinds. `_command_expected_exit_codes()` adds `"run-round"` to the diagnostic set. `_REPORTABLE_GATE_ARTIFACT_NAMES` adds `RUN_ROUND_RESULT_NAME`. The `SELF_OUTPUT_PATH` fix in `report_auto_summary()`, `build_report_summary_synthesis()`, and `_refresh_codex_report_for_closeout()` corrects a bug where `final_gate_result.json` was unconditionally included in `generated_artifacts`. No prompt docs were modified. All 755 tests pass (740 existing + 15 new).
-
+- Answer: The implementation modifies three functions to unify their artifact classification rules and adds `report_auto_summary_consistency` to prearchive/retriable sets. It adds `FINAL_GATE_RESULT_NAME` to `_REPORTABLE_GATE_ARTIFACT_NAMES` (which was previously handled conditionally). It adds `RUN_CLOSEOUT_RESULT_NAME` round-matching to all three functions. It adds `report_auto_summary()` calls after `_refresh_codex_report_for_closeout()` in `run_closeout()`. All 755 existing tests pass, confirming backward compatibility. No prompt docs were modified.

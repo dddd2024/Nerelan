@@ -1,28 +1,16 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260621_run_round_scaffold_v1",
-  "round_id": "round_20260621_run_round_scaffold_v1",
-  "based_on_decision_id": "decision_20260621_run_round_scaffold_v1",
-  "decision_id": "decision_20260621_run_round_scaffold_v1",
-  "generated_at": "2026-06-22T05:30:00Z",
+  "report_id": "codex_report_20260622_report_auto_summary_closeout_consistency_v1",
+  "round_id": "round_20260622_report_auto_summary_closeout_consistency_v1",
+  "based_on_decision_id": "decision_20260622_report_auto_summary_closeout_consistency_v1",
+  "decision_id": "decision_20260622_report_auto_summary_closeout_consistency_v1",
+  "generated_at": "2026-06-22T10:00:00Z",
   "status": "PARTIAL",
   "tests_ran": [
-    "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m pytest tests/test_project_gate.py -q",
-    "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
-    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260621_run_round_scaffold_v1 --dry-run",
-    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1"
+    "python -m pytest tests/test_project_gate.py -q --tb=line"
   ]
 }
 ```
@@ -44,142 +32,28 @@ F:/reverse-agent
 ===== EXIT: 0 =====
 
 ===== COMMAND: git status --short =====
- M project_state/codex_execution_report.md
- M project_state/gates/codex_report_auto_summary.json
  M project_state/gates/command_plan.json
- M project_state/gates/execution_log.json
- M project_state/gates/final_gate_result.json
- M project_state/gates/gate_profile_plan.json
- M project_state/gates/policy_impact_audit.json
- M project_state/gates/policy_lint_result.json
  M project_state/gates/preflight_result.json
- M project_state/gates/report_summary_synthesis.json
  M project_state/gates/round_baseline.json
- D project_state/gates/round_close_snapshot.json
- M project_state/gates/round_delta_summary.json
- M project_state/gates/run_closeout_result.json
- M project_state/pytest_result.txt
  M reverse_agent/project_gate.py
  M tests/test_project_gate.py
-?? project_state/gates/run_round_result.json
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json =====
-run-round: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-mode: dry-run
-phases: gate, preflight, status, test
-authorized_commands: 20 command(s)
-would_run_commands: 17 command(s)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
 preflight: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
+decision_id: decision_20260622_report_auto_summary_closeout_consistency_v1
+round_id: round_20260622_report_auto_summary_closeout_consistency_v1
 mainline: engineering_branch
 recommended_next_action: proceed_with_decision_scope
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
-command-plan: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-20 commands authorized
-===== EXIT: 0 =====
-
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-{"schema_version":1,"plan_name":"command-plan","plan_status":"PASSED","decision_id":"decision_20260621_run_round_scaffold_v1","round_id":"round_20260621_run_round_scaffold_v1","mainline":"engineering_branch","generated_at":"2026-06-22T04:46:04.486280Z","profile_meta":{"profile":"full","profile_reason":"gate/project_state/harness/solver/tool-runner changes require full validation pipeline","closeout_allowed":true,"required_command_kinds":["startup","preflight","gate-profile","command-plan","run-round","pytest","doctor","lint-report","report-summary","final-check","close-round"]},"omitted_commands":[],"commands":[{"index":1,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0,1]},{"index":2,"command":"python -m reverse_agent.project_gate preflight --state-dir project_state","phase":"preflight","kind":"preflight","required":true,"expected_exit_codes":[0]},{"index":3,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0]},{"index":4,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state --json","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0]},{"index":5,"command":"python -m reverse_agent.project_gate report-summary --state-dir project_state","phase":"gate","kind":"report-summary","required":true,"expected_exit_codes":[0,1]},{"index":6,"command":"python -m reverse_agent.project_gate final-check --state-dir project_state","phase":"gate","kind":"final-check","required":true,"expected_exit_codes":[0,1]},{"index":7,"command":"Set-Location F:\\reverse-agent","phase":"status","kind":"set-location","required":true,"expected_exit_codes":[0]},{"index":8,"command":"Get-Location","phase":"status","kind":"pwd","required":true,"expected_exit_codes":[0]},{"index":9,"command":"Test-Path F:\\reverse-agent","phase":"status","kind":"test-path","required":true,"expected_exit_codes":[0]},{"index":10,"command":"git rev-parse --show-toplevel","phase":"status","kind":"git rev-parse","required":true,"expected_exit_codes":[0]},{"index":11,"command":"git status --short","phase":"status","kind":"git status","required":true,"expected_exit_codes":[0]},{"index":12,"command":"python -m pytest tests/test_project_gate.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0]},{"index":13,"command":"python -m reverse_agent.project_gate policy-lint --state-dir project_state","phase":"status","kind":"project-cli","required":true,"expected_exit_codes":[0]},{"index":14,"command":"python -m reverse_agent.project_gate policy-impact --state-dir project_state","phase":"status","kind":"project-cli","required":true,"expected_exit_codes":[0]},{"index":15,"command":"python -m reverse_agent.project_gate execution-log --state-dir project_state","phase":"gate","kind":"execution-log","required":true,"expected_exit_codes":[0,1]},{"index":16,"command":"python -m reverse_agent.project_gate report-auto-summary --state-dir project_state","phase":"gate","kind":"report-auto-summary","required":true,"expected_exit_codes":[0,1]},{"index":17,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260621_run_round_scaffold_v1 --dry-run","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0,1]},{"index":18,"command":"python -m reverse_agent.project_gate decision-lint --state-dir project_state","phase":"gate","kind":"decision-lint","required":true,"expected_exit_codes":[0]},{"index":19,"command":"python -m pytest tests/test_project_gate.py tests/test_project_state.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0]},{"index":20,"command":"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1","phase":"gate","kind":"run-closeout","required":true,"expected_exit_codes":[0,1]}],"warnings":[],"blocking_reasons":[],"recommended_next_action":"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1"}
+command-plan: PASSED
+18 commands authorized, 0 omitted
+closeout_allowed: true
+profile: full
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-report_id: codex_report_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-report_id: codex_report_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py -q =====
-755 passed in 65.37s
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate policy-lint --state-dir project_state =====
-policy-lint: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-scanned_files: 7 file(s)
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate policy-impact --state-dir project_state =====
-policy-impact: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-policy_sensitive_files: 2 file(s)
-  reverse_agent/project_gate.py
-  tests/test_project_gate.py
-impacted_domains: command_plan, final_check, policy_lint, report_status_schema, report_summary, tests
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate execution-log --state-dir project_state =====
-execution-log: WARN
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-commands: 15 entry/entries
-recommended_next_action: review_execution_log_warnings
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate report-auto-summary --state-dir project_state =====
-report-auto-summary: WARN
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-report_id: codex_report_20260621_run_round_scaffold_v1
-status: PARTIAL
-acceptance_recommendation: NEEDS_REVIEW
-files_changed: 18 file(s)
-tests_ran: 15 command(s)
-generated_artifacts: 13 artifact(s)
-tests_ran_source: execution_log.json
-status_source: default
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260621_run_round_scaffold_v1 --dry-run =====
-run-round: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
-mainline: engineering_branch
-mode: dry-run
-phases: gate, preflight, status, test
-authorized_commands: 20 command(s)
-would_run_commands: 17 command(s)
-command_count: 20
-executed_count: 0
-artifact: project_state/gates/run_round_result.json
-recommended_next_action: review_plan_before_execute
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate decision-lint --state-dir project_state =====
-decision-lint: OK
-decision_id: decision_20260621_run_round_scaffold_v1
-decision_status: APPROVED
-mainline: engineering_branch
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
-1053 passed in 100.77s
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1 =====
-run-closeout: PASSED
-decision_id: decision_20260621_run_round_scaffold_v1
-round_id: round_20260621_run_round_scaffold_v1
+===== COMMAND: python -m pytest tests/test_project_gate.py -q --tb=line =====
+761 passed in 69.06s
 ===== EXIT: 0 =====

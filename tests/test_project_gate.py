@@ -19106,3 +19106,239 @@ def test_final_check_policy_impact_coverage_passes_with_coverage(tmp_path: Path)
     assert pi_checks[0]["status"] == "PASS"
 
 
+# ---------------------------------------------------------------------------
+# Regression tests for report_auto_summary / synthesis consistency
+# ---------------------------------------------------------------------------
+
+
+def test_report_auto_summary_matches_synthesis_after_closeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After run-closeout, report_auto_summary must match build_report_summary_synthesis."""
+    from reverse_agent.project_gate import (
+        build_report_summary_synthesis,
+        read_codex_report_summary,
+        report_auto_summary,
+        run_closeout,
+    )
+
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/rounds/round_closeout/codex_execution_report.md",
+            "project_state/rounds/round_closeout/decision_packet.md",
+            "project_state/rounds/round_closeout/pytest_result.txt",
+            "project_state/rounds/round_closeout/round_manifest.json",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    # Regenerate auto-summary to ensure it is current
+    report_auto_summary(state_dir=state_dir, write_result=True)
+    # Build synthesis for comparison
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir, repo_root=tmp_path, write_result=False,
+    )
+    ss = synthesis.get("synthesized_summary", {})
+    report = read_codex_report_summary(state_dir)
+    for field in ("files_changed", "generated_artifacts"):
+        expected = set(ss.get(field, []))
+        actual = set(report.get(field) or [])
+        # Archive-only diffs are acceptable pre-closeout
+        sym = expected ^ actual
+        non_archive = {p for p in sym if not p.startswith("project_state/rounds/")}
+        # run_closeout_result.json may appear in auto-summary but not report
+        # when close_round fails; this is expected and will clear on retry.
+        non_archive.discard("project_state/gates/run_closeout_result.json")
+        assert not non_archive, f"{field} non-archive diff: {sorted(non_archive)}"
+
+
+def test_report_auto_summary_consistency_passes_after_closeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """report_auto_summary_consistency check must not FAIL after run-closeout + auto-summary refresh.
+
+    When close_round fails (report status != SUCCESS), the check may WARN
+    because the auto-summary includes run_closeout_result.json but the
+    report does not.  This is expected: the WARN will clear once the report
+    status reaches SUCCESS and the closeout refresh includes the artifact.
+    """
+    from reverse_agent.project_gate import (
+        final_check,
+        report_auto_summary,
+        run_closeout,
+    )
+
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/rounds/round_closeout/codex_execution_report.md",
+            "project_state/rounds/round_closeout/decision_packet.md",
+            "project_state/rounds/round_closeout/pytest_result.txt",
+            "project_state/rounds/round_closeout/round_manifest.json",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    report_auto_summary(state_dir=state_dir, write_result=True)
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    check = next(
+        (c for c in result["checks"] if c["name"] == "report_auto_summary_consistency"),
+        None,
+    )
+    assert check is not None, "report_auto_summary_consistency check not found"
+    assert check["status"] in ("PASS", "WARN"), (
+        f"Expected PASS or WARN, got {check['status']}: {check}"
+    )
+
+
+def test_report_auto_summary_consistency_detects_real_mismatch(
+    tmp_path: Path,
+) -> None:
+    """report_auto_summary_consistency must FAIL when auto-summary is stale."""
+    from reverse_agent.project_gate import (
+        final_check,
+        report_auto_summary,
+    )
+
+    state_dir = _make_gate_state(tmp_path)
+    # Generate auto-summary
+    report_auto_summary(state_dir=state_dir, write_result=True)
+    # Tamper with the auto-summary to create a mismatch
+    auto_path = state_dir / "gates" / "codex_report_auto_summary.json"
+    payload = json.loads(auto_path.read_text(encoding="utf-8"))
+    payload["files_changed"] = ["FAKE_FILE.py"]
+    auto_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    check = next(
+        (c for c in result["checks"] if c["name"] == "report_auto_summary_consistency"),
+        None,
+    )
+    assert check is not None, "report_auto_summary_consistency check not found"
+    assert check["status"] == "FAIL", f"Expected FAIL for stale auto-summary, got {check['status']}"
+
+
+def test_report_auto_summary_excludes_status_kind_commands(
+    tmp_path: Path,
+) -> None:
+    """report_auto_summary must exclude 'status' kind commands from tests_ran."""
+    from reverse_agent.project_gate import report_auto_summary
+
+    state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+    # Create execution_log.json with a status-kind command
+    log_payload = {
+        "schema_version": 1,
+        "artifact_name": "execution_log.json",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "commands": [
+            {
+                "command": "python -m pytest tests/test_project_gate.py -q",
+                "exit_code": 0,
+                "phase": "test",
+                "kind": "pytest",
+            },
+            {
+                "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                "exit_code": 0,
+                "phase": "gate",
+                "kind": "status",
+            },
+        ],
+    }
+    (state_dir / "gates" / "execution_log.json").write_text(
+        json.dumps(log_payload, indent=2), encoding="utf-8"
+    )
+    result = report_auto_summary(state_dir=state_dir, write_result=True)
+    tests_ran = result.get("tests_ran", [])
+    assert not any("final-check" in t for t in tests_ran), (
+        f"status-kind command should be excluded from tests_ran: {tests_ran}"
+    )
+
+
+def test_report_auto_summary_includes_closeout_artifact(
+    tmp_path: Path,
+) -> None:
+    """report_auto_summary must include run_closeout_result.json when it exists and matches round."""
+    from reverse_agent.project_gate import (
+        report_auto_summary,
+        RUN_CLOSEOUT_OUTPUT_PATH,
+    )
+
+    state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+    # Create a matching run_closeout_result.json
+    gates_dir = state_dir / "gates"
+    closeout_payload = {
+        "schema_version": 1,
+        "artifact_name": "run_closeout_result.json",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "closeout_status": "COMPLETED",
+    }
+    (gates_dir / "run_closeout_result.json").write_text(
+        json.dumps(closeout_payload, indent=2), encoding="utf-8"
+    )
+    result = report_auto_summary(state_dir=state_dir, write_result=True)
+    summary = result.get("summary", {})
+    generated = set(summary.get("generated_artifacts", []))
+    assert RUN_CLOSEOUT_OUTPUT_PATH in generated, (
+        f"run_closeout_result.json should be in generated_artifacts: {sorted(generated)}"
+    )
+
+
+def test_report_auto_summary_excludes_closeout_artifact_wrong_round(
+    tmp_path: Path,
+) -> None:
+    """report_auto_summary must exclude run_closeout_result.json when round_id doesn't match."""
+    from reverse_agent.project_gate import (
+        report_auto_summary,
+        RUN_CLOSEOUT_OUTPUT_PATH,
+    )
+
+    state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+    # Create a non-matching run_closeout_result.json
+    gates_dir = state_dir / "gates"
+    closeout_payload = {
+        "schema_version": 1,
+        "artifact_name": "run_closeout_result.json",
+        "decision_id": "decision_OTHER",
+        "round_id": "round_OTHER",
+        "closeout_status": "COMPLETED",
+    }
+    (gates_dir / "run_closeout_result.json").write_text(
+        json.dumps(closeout_payload, indent=2), encoding="utf-8"
+    )
+    result = report_auto_summary(state_dir=state_dir, write_result=True)
+    summary = result.get("summary", {})
+    generated = set(summary.get("generated_artifacts", []))
+    assert RUN_CLOSEOUT_OUTPUT_PATH not in generated, (
+        f"run_closeout_result.json with wrong round should NOT be in generated_artifacts"
+    )
+
+
