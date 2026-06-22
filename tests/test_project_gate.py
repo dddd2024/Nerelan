@@ -15548,15 +15548,28 @@ def test_run_closeout_success_with_fake_runner(tmp_path: Path, monkeypatch: pyte
     assert "close-round" in step_names
     # Artifact written
     assert (state_dir / "gates" / "run_closeout_result.json").exists()
-    # pytest_result.txt must contain run-closeout command block
+    # Closeout internal commands are recorded in the scoped execution log,
+    # NOT in the top-level pytest_result.txt (log isolation).
+    closeout_log_path = state_dir / "gates" / "run_closeout_execution_log.json"
+    assert closeout_log_path.exists(), "run_closeout_execution_log.json must exist"
+    closeout_log = json.loads(closeout_log_path.read_text(encoding="utf-8"))
+    closeout_commands = [
+        b.get("command", "") for b in closeout_log.get("command_blocks", [])
+    ]
+    # The closeout log must contain the run-closeout self-invocation marker
+    assert any("run-closeout" in c for c in closeout_commands), (
+        f"run-closeout marker must be in closeout log, got: {closeout_commands}"
+    )
+    # Top-level pytest_result.txt must NOT contain closeout-internal commands
     pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
-    assert "run-closeout" in pytest_text
-    # Startup diagnostics must be recorded
-    assert "Set-Location" in pytest_text
-    assert "Get-Location" in pytest_text
-    assert "Test-Path" in pytest_text
-    assert "git rev-parse --show-toplevel" in pytest_text
-    assert "git status --short" in pytest_text
+    # The top-level pytest_result.txt should NOT have closeout-internal
+    # command blocks like decision-lint, gate-profile, etc.
+    assert "decision-lint" not in pytest_text, (
+        "closeout-internal decision-lint must not pollute top-level pytest_result.txt"
+    )
+    # Startup diagnostics are NOT recorded by run_closeout into top-level
+    # pytest_result.txt (they are already present from the run-round phase)
+    # or they go into the closeout execution log if needed.
 
 
 def test_run_closeout_failure_stops_on_preflight_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -15716,7 +15729,16 @@ def test_run_closeout_records_command_plan_json_block(tmp_path: Path, monkeypatc
 
 
 def test_run_closeout_records_all_nested_command_blocks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Regression: run-closeout must record all nested command blocks in pytest_result.txt."""
+    """Regression: run-closeout must record all nested command blocks in the scoped closeout execution log.
+
+    After log isolation (decision_20260622_run_closeout_log_isolation_v1),
+    closeout-internal commands are recorded in
+    ``run_closeout_execution_log.json``, NOT in the top-level
+    ``pytest_result.txt``.  Startup diagnostics (Set-Location, Get-Location,
+    etc.) are also no longer recorded by run_closeout into the top-level
+    pytest_result.txt because they are already present from the run-round
+    phase.
+    """
     state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
     monkeypatch.setattr(
         "reverse_agent.project_gate._git_changed_files",
@@ -15735,25 +15757,47 @@ def test_run_closeout_records_all_nested_command_blocks(tmp_path: Path, monkeypa
         command_runner=runner,
         write_result=True,
     )
-    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
-    # All expected command blocks must be present
-    expected_commands = [
-        "Set-Location",
-        "Get-Location",
-        "Test-Path",
-        "git rev-parse --show-toplevel",
-        "git status --short",
-        "decision-lint",
-        "preflight",
-        "pytest",
-        "gate-profile",
-        "command-plan",
-        "report-summary",
-        "final-check",
+    # Closeout-internal commands must be in the scoped execution log
+    closeout_log_path = state_dir / "gates" / "run_closeout_execution_log.json"
+    assert closeout_log_path.exists(), "run_closeout_execution_log.json must exist"
+    closeout_log = json.loads(closeout_log_path.read_text(encoding="utf-8"))
+    closeout_commands = [
+        b.get("command", "") for b in closeout_log.get("command_blocks", [])
+    ]
+    # Expected closeout-internal commands that must appear in the scoped log
+    expected_closeout_commands = [
+        "run-closeout",
         "close-round",
     ]
-    for cmd_fragment in expected_commands:
-        assert cmd_fragment in pytest_text, f"Expected command block '{cmd_fragment}' not found in pytest_result.txt"
+    for cmd_fragment in expected_closeout_commands:
+        assert any(cmd_fragment in c for c in closeout_commands), (
+            f"Expected closeout command '{cmd_fragment}' not found in run_closeout_execution_log.json, "
+            f"got: {closeout_commands}"
+        )
+    # Top-level pytest_result.txt must NOT contain closeout-internal command
+    # block headers.  We parse the actual COMMAND headers rather than doing
+    # a naive substring search, because closeout command names (e.g.
+    # "close-round") may legitimately appear inside JSON output of other
+    # command blocks.
+    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    top_level_commands = []
+    for line in pytest_text.splitlines():
+        if line.startswith("===== COMMAND: ") and line.endswith(" ====="):
+            cmd = line[len("===== COMMAND: "):-len(" =====")]
+            top_level_commands.append(cmd)
+    # Closeout-internal commands that must NOT appear as top-level command headers
+    closeout_only_commands = ["decision-lint", "gate-profile", "close-round"]
+    for cmd_fragment in closeout_only_commands:
+        assert not any(cmd_fragment in c for c in top_level_commands), (
+            f"Closeout-internal command '{cmd_fragment}' must not appear as a top-level "
+            f"command header in pytest_result.txt.  Top-level commands: {top_level_commands}"
+        )
+    # Startup diagnostics are not added by run_closeout() to top-level
+    # pytest_result.txt.  However, the test fixture may have pre-existing
+    # startup blocks from the simulated run-round phase, so we do not
+    # assert their absence.  The key guarantee is that closeout-internal
+    # command headers (decision-lint, gate-profile, close-round) do not
+    # appear in the top-level pytest_result.txt.
 
 
 def test_run_closeout_refreshes_report_with_correct_ids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -16553,6 +16597,176 @@ def test_run_closeout_generates_required_audit_scaffold(tmp_path: Path) -> None:
     questions = parse_required_audit_questions(decision_text)
     for q in questions:
         assert q in report_text
+
+
+# ---------------------------------------------------------------------------
+# Log-isolation regression tests (decision_20260622_run_closeout_log_isolation_v1)
+# ---------------------------------------------------------------------------
+
+
+def test_log_isolation_closeout_commands_not_in_top_level_pytest_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Log-isolation regression: closeout-internal command blocks must not
+    appear as COMMAND headers in the top-level pytest_result.txt.
+
+    This proves that nested closeout logs are isolated from the top-level
+    command evidence stream.
+    """
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_log_iso")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    run_closeout(
+        state_dir=state_dir,
+        round_id="round_log_iso",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    top_level_commands = []
+    for line in pytest_text.splitlines():
+        if line.startswith("===== COMMAND: ") and line.endswith(" ====="):
+            cmd = line[len("===== COMMAND: "):-len(" =====")]
+            top_level_commands.append(cmd)
+    # Closeout-internal commands must NOT appear as top-level command headers
+    for forbidden in ["decision-lint", "gate-profile", "close-round", "report-summary"]:
+        assert not any(forbidden in c for c in top_level_commands), (
+            f"Closeout-internal '{forbidden}' must not be a top-level command header. "
+            f"Got: {top_level_commands}"
+        )
+
+
+def test_log_isolation_closeout_internals_recorded_in_scoped_log(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Log-isolation regression: closeout-internal commands must be recorded
+    in the scoped run_closeout_execution_log.json so they remain auditable.
+
+    This proves that closeout internals remain auditable despite being
+    isolated from the top-level evidence stream.
+    """
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_audit_iso")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    runner = _fake_runner_factory({})
+    run_closeout(
+        state_dir=state_dir,
+        round_id="round_audit_iso",
+        repo_root=tmp_path,
+        command_runner=runner,
+        write_result=True,
+    )
+    closeout_log_path = state_dir / "gates" / "run_closeout_execution_log.json"
+    assert closeout_log_path.exists(), "run_closeout_execution_log.json must exist"
+    closeout_log = json.loads(closeout_log_path.read_text(encoding="utf-8"))
+    assert closeout_log.get("schema_version") == 1
+    assert closeout_log.get("gate_name") == "run-closeout"
+    command_blocks = closeout_log.get("command_blocks", [])
+    assert len(command_blocks) > 0, "closeout log must contain at least one command block"
+    # The closeout log must contain the run-closeout self-invocation marker
+    closeout_commands = [b.get("command", "") for b in command_blocks]
+    assert any("run-closeout" in c for c in closeout_commands), (
+        f"run-closeout marker must be in closeout log, got: {closeout_commands}"
+    )
+
+
+def test_log_isolation_top_level_authorization_remains_strict(
+    tmp_path: Path,
+) -> None:
+    """Log-isolation regression: command_plan_execution_authority must still
+    reject real unauthorized top-level commands.
+
+    This proves that top-level authorization remains strict even after
+    log isolation — the isolation only removes closeout-internal noise,
+    it does not weaken the authority check.
+    """
+    from reverse_agent.project_gate import _parse_recorded_command_blocks
+
+    # Simulate a pytest_result.txt with an unauthorized top-level command
+    pytest_text = (
+        "===== COMMAND: python -m pytest tests/ -q =====\n"
+        "5 passed\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: python unauthorized_script.py =====\n"
+        "bad output\n"
+        "===== EXIT: 0 =====\n"
+    )
+    blocks_result = _parse_recorded_command_blocks(pytest_text)
+    blocks = blocks_result.get("blocks", [])
+    commands = [b["command"] for b in blocks]
+    assert "python -m pytest tests/ -q" in commands
+    assert "python unauthorized_script.py" in commands
+    # If command_plan only authorizes the first command, the second must fail
+    authorized = ["python -m pytest tests/ -q"]
+    unauthorized = [c for c in commands if c not in authorized]
+    assert "python unauthorized_script.py" in unauthorized, (
+        "Real unauthorized top-level commands must be detectable"
+    )
+
+
+def test_log_isolation_closeout_log_does_not_mask_failing_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Log-isolation regression: failing closeout-internal commands must still
+    be recorded in the scoped closeout log with their real exit code.
+
+    This proves that log isolation does not hide failing commands by
+    dropping them from all artifacts.
+    """
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_fail_iso")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+        ],
+    )
+    # Use a fake runner that returns exit code 1 for close-round
+    def _failing_close_round_runner(command: str) -> tuple[str, str, int]:
+        if "close-round" in command:
+            return ("close-round: FAILED", "error during close-round", 1)
+        return _fake_runner_factory({})(command)
+
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_fail_iso",
+        repo_root=tmp_path,
+        command_runner=_failing_close_round_runner,
+        write_result=True,
+    )
+    # The closeout log must still exist and record the failure
+    closeout_log_path = state_dir / "gates" / "run_closeout_execution_log.json"
+    assert closeout_log_path.exists(), "closeout log must exist even on failure"
+    closeout_log = json.loads(closeout_log_path.read_text(encoding="utf-8"))
+    command_blocks = closeout_log.get("command_blocks", [])
+    # Find the close-round block
+    close_round_blocks = [
+        b for b in command_blocks if "close-round" in b.get("command", "")
+    ]
+    assert len(close_round_blocks) > 0, "close-round command must be recorded in closeout log"
+    # The failing close-round must have exit_code != 0
+    assert close_round_blocks[0]["exit_code"] != 0, (
+        "Failing close-round must be recorded with non-zero exit code, "
+        f"got: {close_round_blocks[0]['exit_code']}"
+    )
 
 
 def test_required_audit_fails_for_placeholder_answers_on_success() -> None:

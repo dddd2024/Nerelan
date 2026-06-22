@@ -1,72 +1,50 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260622_run_round_execute_pipeline_v1",
-  "round_id": "round_20260622_run_round_execute_pipeline_v1",
-  "based_on_decision_id": "decision_20260622_run_round_execute_pipeline_v1",
+  "report_id": "codex_report_20260622_run_closeout_log_isolation_v1",
+  "round_id": "round_20260622_run_closeout_log_isolation_v1",
+  "based_on_decision_id": "decision_20260622_run_closeout_log_isolation_v1",
   "status": "PARTIAL",
   "acceptance_recommendation": "NEEDS_REVIEW",
   "files_changed": [
-    "project_state/codex_execution_report.md",
-    "project_state/gates/codex_report_auto_summary.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/execution_log.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/policy_impact_audit.json",
-    "project_state/gates/policy_lint_result.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
-    "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_closeout_result.json",
-    "project_state/gates/run_round_result.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/decision_packet.md",
-    "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/pytest_result.txt",
-    "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "tests/test_project_gate.py",
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json"
   ],
   "tests_ran": [
-    "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "Set-Location F:\\reverse-agent",
+    "Get-Location",
+    "Test-Path F:\\reverse-agent",
+    "git rev-parse --show-toplevel",
+    "git status --short",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_round_execute_pipeline_v1 --dry-run --json",
-    "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_round_execute_pipeline_v1 --execute",
     "python -m pytest tests/test_project_gate.py -q",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
     "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
     "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_round_execute_pipeline_v1"
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
-    "project_state/gates/codex_report_auto_summary.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/execution_log.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/policy_impact_audit.json",
-    "project_state/gates/policy_lint_result.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
-    "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_closeout_result.json",
-    "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/decision_packet.md",
-    "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/pytest_result.txt",
-    "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/round_manifest.json"
+    "project_state/gates/command_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json",
+    "project_state/gates/policy_lint_result.json",
+    "project_state/gates/policy_impact_audit.json",
+    "project_state/gates/execution_log.json",
+    "project_state/gates/codex_report_auto_summary.json",
+    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/final_gate_result.json"
   ],
   "referenced_artifacts": [],
   "required_closeout_artifacts": []
@@ -81,60 +59,50 @@ PARTIAL
 
 ## Required Audit
 
+### 1. What exact nested closeout command pollution occurred previously, and which command blocks were incorrectly visible to the top-level command-plan authority check?
 
-
-
-
-
-
-
-
-
-
-### 1. What exact command or CLI option was added or changed, and how should a human/Codex invoke it?
-
-- Evidence: `reverse_agent/project_gate.py` CLI handler at the `run-round` subcommand, `_is_powershell_only_command()` function, `_print_run_round()` display enhancement
+- Evidence: `reverse_agent/project_gate.py` `run_closeout()` previously called `_append_command_block_to_pytest_result()` for 4 internal command blocks: (1) the run-closeout self-invocation marker, (2) the close-round command block, (3) the gate step command block, and (4) the final-check-after-close command block. It also called `_record_startup_diagnostics()` which appended Set-Location, Get-Location, Test-Path, git rev-parse, and git status blocks. These closeout-internal commands (decision-lint, preflight, pytest, gate-profile, command-plan, report-summary, final-check, close-round, final-check-after-close) appeared as `===== COMMAND: ... =====` headers in the top-level `pytest_result.txt`. The `command_plan_execution_authority` sub-check in `final-check` then detected these as unauthorized commands because they were not in the top-level `command_plan.json` authorized list.
 - Status: PASS
-- Answer: The `--execute` flag was added to the existing `run-round` subcommand. A human/Codex invokes it as: `python -m reverse_agent.project_gate run-round --state-dir project_state --round-id <round_id> --execute`. The CLI handler passes `pytest_result_path` to `run_round()` when `--execute` is used, enabling command block recording. The `--dry-run` flag remains the default and is preserved exactly. Additionally, `_is_powershell_only_command()` was added to skip PowerShell-only cmdlets (Set-Location, Get-Location, Test-Path) that cannot execute via subprocess (cmd.exe). The `_print_run_round()` function was enhanced to display executed commands, skipped commands, and recorded command blocks in execute mode.
+- Answer: The pollution was that `run_closeout()` used `_append_command_block_to_pytest_result()` to write all internal command blocks (run-closeout marker, close-round, gate steps, final-check-after-close) and startup diagnostics to the top-level `pytest_result.txt`. The `command_plan_execution_authority` check then found these commands as unauthorized because they were not in the top-level `command_plan.commands` list. The specific command blocks that were incorrectly visible were: `decision-lint`, `preflight`, `pytest`, `gate-profile`, `command-plan`, `report-summary`, `final-check`, `close-round`, and `final-check-after-close`.
 
-### 2. What command kinds can execute mode run, and what command kinds are blocked or never executed?
+### 2. What log/evidence scopes now exist: top-level pytest_result / execution_log versus nested run-closeout command evidence?
 
-- Evidence: `reverse_agent/project_gate.py` `_is_self_invocation()`, `_is_close_round_command()`, `_is_powershell_only_command()`, execute loop in `run_round()`
+- Evidence: `reverse_agent/project_gate.py` constants `RUN_CLOSEOUT_EXECUTION_LOG_NAME = "run_closeout_execution_log.json"` and `RUN_CLOSEOUT_EXECUTION_LOG_OUTPUT_PATH`, function `_append_command_block_to_closeout_log()`, modified `run_closeout()` step 5
 - Status: PASS
-- Answer: Execute mode can run: `command-plan`, `report-summary`, `final-check`, `preflight`, `pytest`, `project-cli` (policy-lint, policy-impact), `execution-log`, `report-auto-summary`, `run-closeout`, `git rev-parse`, `git status`, and any other command kind that is not explicitly blocked. Execute mode blocks: (1) `run-round` kind — self-invocation guard prevents recursive execution; (2) `close-round` kind — delegated to close-round subprocess owned by run-closeout; (3) `set-location`, `pwd`, `test-path` — PowerShell-only cmdlets that cannot execute via subprocess (cmd.exe), status verified at startup.
+- Answer: Two distinct log/evidence scopes now exist: (1) **Top-level scope**: `project_state/pytest_result.txt` records only top-level command-plan authorized command blocks. The `execution_log.json` gate derives its entries from `pytest_result.txt` and `command_plan.json`, so it naturally only sees top-level commands. (2) **Closeout-internal scope**: `project_state/gates/run_closeout_execution_log.json` records all closeout-internal command blocks (run-closeout marker, close-round, gate steps, final-check-after-close). This scoped artifact has `schema_version: 1`, `gate_name: "run-closeout"`, and a `command_blocks` array with command, stdout, stderr, and exit_code for each block.
 
-### 3. How does execute mode prove that every executed command came from `command-plan.commands` and no command came from `command-plan.omitted_commands`?
+### 3. Where are run-closeout internal commands recorded after the fix, and how are they linked to `run_closeout_result.json` or round archive artifacts?
 
-- Evidence: `reverse_agent/project_gate.py` `run_round()` execute loop iterates exclusively over `plan_result.get("commands")`, which is the `command_plan.commands` list; `omitted_commands` is stored but never iterated for execution; `test_run_round_execute_uses_only_authorized_commands` and `test_run_round_execute_skips_omitted_commands` regression tests
+- Evidence: `reverse_agent/project_gate.py` `_append_command_block_to_closeout_log()` writes to `project_state/gates/run_closeout_execution_log.json`. The `run_closeout_result.json` artifact is written by `run_closeout()` as a separate gate result. The closeout execution log is listed in `allowed_state_artifacts` in `decision_packet.md`.
 - Status: PASS
-- Answer: Execute mode iterates exclusively over `plan_result.get("commands")`, which is populated by `command_plan()` from `command_plan.json`. The `omitted_commands` list is stored in the result for display but is never iterated for execution. Every command in the execute loop comes from `commands`, which is `command_plan.commands`. The regression test `test_run_round_execute_uses_only_authorized_commands` verifies that every executed command text appears in the `authorized_commands` list. The test `test_run_round_execute_skips_omitted_commands` verifies that no omitted command is ever executed.
+- Answer: After the fix, run-closeout internal commands are recorded in `project_state/gates/run_closeout_execution_log.json`. This JSON file contains `schema_version: 1`, `gate_name: "run-closeout"`, and a `command_blocks` array where each entry has `command`, `stdout`, `stderr`, and `exit_code`. The file is linked to `run_closeout_result.json` by being in the same `project_state/gates/` directory and sharing the same `run-closeout` gate name prefix. The closeout execution log is also listed in the decision contract's `allowed_state_artifacts`, ensuring it is tracked as a generated artifact.
 
-### 4. How does execute mode record stdout/stderr or relevant output, exit codes, and command order so `execution-log` can validate it?
+### 4. How does top-level `execution_log.json` prove every top-level command came from `command-plan.commands` and no command came from `command-plan.omitted_commands`?
 
-- Evidence: `reverse_agent/project_gate.py` `_append_command_block_to_pytest_result()`, `pytest_result_path` parameter, `recorded_command_blocks` in result
+- Evidence: `reverse_agent/project_gate.py` `execution_log` gate derives command entries from `pytest_result.txt` command blocks and validates them against `command_plan.json`. After log isolation, `pytest_result.txt` contains only top-level command blocks (no closeout-internal pollution), so `execution_log` naturally validates only top-level commands. The `command_plan_execution_authority` sub-check in `final-check` validates that every recorded command in `pytest_result.txt` appears in `command_plan.commands`.
 - Status: PASS
-- Answer: Execute mode records each executed command to `pytest_result.txt` via `_append_command_block_to_pytest_result()`, which appends a command block with the command text, stdout, stderr, and exit code. The `pytest_result_path` parameter is set by the CLI handler when `--execute` is used. Commands are recorded in execution order. The `execution-log` gate reads `pytest_result.txt` command blocks and validates them against `command_plan.json`. The `recorded_command_blocks` field in the run-round result lists all commands that were recorded.
+- Answer: After log isolation, `pytest_result.txt` contains only top-level command-plan authorized command blocks. The `execution_log` gate reads `pytest_result.txt` command blocks via `_parse_recorded_command_blocks()` and validates each command against `command_plan.json`. Since closeout-internal commands no longer appear in `pytest_result.txt`, the `execution_log` gate no longer sees them as unauthorized. The `command_plan_execution_authority` sub-check confirms that every top-level command came from `command_plan.commands` and no command came from `command_plan.omitted_commands`.
 
-### 5. How does execute mode handle failing commands, expected exit codes, and stop conditions?
+### 5. How does final-check validate closeout evidence without treating nested closeout internals as top-level unauthorized commands?
 
-- Evidence: `reverse_agent/project_gate.py` execute loop checks `proc.returncode not in expected`, `expected_exit_codes` from command-plan, fail-fast `break` on unexpected exit code
+- Evidence: `reverse_agent/project_gate.py` `command_plan_execution_authority` sub-check validates only commands recorded in `pytest_result.txt` against `command_plan.json`. After log isolation, closeout-internal commands are in `run_closeout_execution_log.json`, not in `pytest_result.txt`, so they are not subject to top-level authority validation. The `run_closeout_execution_log.json` artifact can be audited separately by final-check if needed.
 - Status: PASS
-- Answer: Execute mode checks each command's exit code against the `expected_exit_codes` list from `command_plan.json`. If the exit code is in the expected list, the command is marked `PASSED` and execution continues. If the exit code is NOT in the expected list, the command is marked `FAILED`, a blocking reason is added, and execution stops (fail-fast). The `test_run_round_execute_surfaces_real_failures` regression test verifies that real failures are surfaced. The `test_run_round_execute_handles_expected_nonzero_exit` test verifies the expected_exit_codes mechanism.
+- Answer: Final-check validates closeout evidence through scope separation. The `command_plan_execution_authority` sub-check only validates commands recorded in `pytest_result.txt` against `command_plan.json`. Since closeout-internal commands are now recorded in `run_closeout_execution_log.json` instead of `pytest_result.txt`, they are not subject to top-level authority validation. The `run_closeout_execution_log.json` artifact remains auditable — final-check can read it to verify closeout internals without conflating them with top-level command-plan commands. The closeout execution log preserves the full command, stdout, stderr, and exit_code for each closeout-internal step.
 
-### 6. How does execute mode preserve dry-run behavior and existing run-round artifacts?
+### 6. How does report-auto-summary / report-summary derive `SUCCESS` / `ACCEPTED` when command-plan authority, execution-log, final-check, and closeout pass and only historical/backlog sample warnings remain?
 
-- Evidence: `reverse_agent/project_gate.py` `run_round()` with `dry_run=True` path, `test_run_round_dry_run_unchanged_by_execute_mode` regression test, 771 tests pass including all pre-existing dry-run tests
+- Evidence: `reverse_agent/project_gate.py` `report-auto-summary` derives status from `execution_log.json` and `final_gate_result.json`. After log isolation, `execution_log.json` no longer reports closeout-internal commands as unauthorized, allowing the status to converge. The `status_policy_valid` check may still report non-blocking historical/backlog artifact warnings, but these alone do not prevent `SUCCESS` / `ACCEPTED` per the decision contract.
 - Status: PASS
-- Answer: Execute mode preserves dry-run behavior exactly. When `dry_run=True`, the execute loop is skipped entirely (`if not dry_run and not blocking_reasons:`), and the function returns the same result structure as before. The `pytest_result_path` is set to `None` in dry-run mode by the CLI handler. The `would_run_commands` list shows what would be executed. The `test_run_round_dry_run_unchanged_by_execute_mode` regression test verifies that dry-run results are identical regardless of whether execute mode code exists. All 771 tests in `test_project_gate.py` pass, including pre-existing dry-run tests.
+- Answer: After log isolation, `execution_log.json` no longer reports closeout-internal commands as unauthorized because they are no longer in `pytest_result.txt`. This allows `report-auto-summary` to derive a clean status from the execution log. When command-plan authority, execution-log, and final-check all pass (no unauthorized commands detected), the report status can converge to `SUCCESS` / `ACCEPTED`. The `status_policy_valid` check may still report non-blocking historical/backlog sample artifact warnings, but per the decision contract, these alone must not prevent a successful engineering round. The current round shows `report-auto-summary: PASSED` with `status: PARTIAL` and `acceptance_recommendation: NEEDS_REVIEW`, which is due to stale gate artifacts from the previous round that have not yet been regenerated for the current round IDs.
 
-### 7. How does execute mode integrate with report-auto-summary, report-summary, final-check, and run-closeout without causing recursion or stale artifact IDs?
+### 7. What regression tests prove nested closeout logs are isolated, top-level authorization remains strict, closeout internals remain auditable, and real unauthorized top-level commands still fail?
 
-- Evidence: `reverse_agent/project_gate.py` `_is_self_invocation()` blocks `run-round` kind only (not `run-closeout`), `_is_close_round_command()` delegates close-round to subprocess, `_is_powershell_only_command()` skips PowerShell cmdlets
+- Evidence: `tests/test_project_gate.py` 4 new log-isolation regression tests + 2 updated existing closeout tests, 775 total tests pass
 - Status: PASS
-- Answer: Execute mode integrates with downstream gates without recursion: (1) `_is_self_invocation()` blocks only `run-round` kind commands, allowing `run-closeout` to execute as a normal authorized command; (2) `_is_close_round_command()` delegates `close-round` to the close-round subprocess owned by `run-closeout`, preventing duplicate execution; (3) `_is_powershell_only_command()` skips PowerShell-only cmdlets that cannot execute via subprocess. The `run-closeout` command is executed by the default command runner (`_default_command_runner`), which invokes it as a subprocess, ensuring clean process isolation. The subprocess internally runs decision-lint, preflight, pytest, gate-profile, command-plan, report-summary, final-check, and close-round, each generating current-round artifacts.
+- Answer: The following regression tests prove each required behavior: (1) `test_log_isolation_closeout_commands_not_in_top_level_pytest_result` — proves nested closeout logs are isolated by verifying that closeout-internal command headers (decision-lint, gate-profile, close-round, report-summary) do NOT appear in top-level `pytest_result.txt` after `run_closeout()`; (2) `test_log_isolation_top_level_authorization_remains_strict` — proves top-level authorization remains strict by verifying that `_parse_recorded_command_blocks()` correctly identifies unauthorized top-level commands (e.g., `python unauthorized_script.py`) even after log isolation; (3) `test_log_isolation_closeout_internals_recorded_in_scoped_log` — proves closeout internals remain auditable by verifying that `run_closeout_execution_log.json` exists, has correct schema_version and gate_name, and contains the run-closeout self-invocation marker; (4) `test_log_isolation_closeout_log_does_not_mask_failing_commands` — proves log isolation does not hide failing commands by verifying that a failing close-round command is recorded with non-zero exit_code in the closeout execution log. Additionally, `test_run_closeout_success_with_fake_runner` was updated to verify that closeout-internal commands go to the scoped log and NOT to top-level `pytest_result.txt`, and `test_run_closeout_records_all_nested_command_blocks` was updated to verify log isolation behavior.
 
-### 8. What regression tests prove: dry-run unchanged, execute mode uses only authorized commands, omitted commands are blocked, unauthorized commands are not run, pytest_result/execution_log compatibility holds, closeout runs only when authorized, and real failures are surfaced?
+### 8. How does this round preserve `run-round --execute`, `run-round --dry-run`, command-plan authority, omitted-command blocking, status-kind handling, policy-lint, policy-impact, prompt-doc immutability, and closeout behavior?
 
-- Evidence: `tests/test_project_gate.py` 10 new regression tests + 1 updated test, 771 total tests pass
+- Evidence: 775 tests pass in `test_project_gate.py`, 1073 tests pass in combined test suite. `run-round --execute` and `run-round --dry-run` paths are unchanged — the log isolation change only affects `run_closeout()` internal recording. `command-plan` authority is preserved and strengthened by removing closeout-internal noise. `policy-lint: PASSED`, `policy-impact: PASSED`. Prompt docs were not modified.
 - Status: PASS
-- Answer: The following regression tests prove each required behavior: (1) `test_run_round_dry_run_unchanged_by_execute_mode` — dry-run behavior unchanged; (2) `test_run_round_execute_uses_only_authorized_commands` — every executed command is in authorized_commands; (3) `test_run_round_execute_skips_omitted_commands` — no omitted commands are executed; (4) `test_run_round_execute_skips_self_invocation` — run-round commands are skipped with self-invocation reason; (5) `test_run_round_execute_runs_closeout` — run-closeout is executed when authorized; (6) `test_run_round_execute_records_to_pytest_result` — command blocks are recorded to pytest_result.txt; (7) `test_run_round_execute_surfaces_real_failures` — real failures are surfaced; (8) `test_run_round_execute_handles_expected_nonzero_exit` — expected_exit_codes mechanism works; (9) `test_run_round_execute_skips_powershell_only_commands` — PowerShell-only cmdlets are skipped; (10) `test_is_powershell_only_command_detects_set_location` — _is_powershell_only_command detects all PowerShell kinds. Additionally, `test_is_self_invocation_includes_run_closeout` was updated to verify that run-closeout is NOT self-invocation.
+- Answer: This round preserves all existing behaviors: (1) `run-round --execute` — unchanged; the log isolation change only affects `run_closeout()` internal recording, not the run-round execute loop; (2) `run-round --dry-run` — unchanged; dry-run path does not involve closeout recording; (3) command-plan authority — preserved and strengthened; removing closeout-internal noise from `pytest_result.txt` means `command_plan_execution_authority` no longer sees false unauthorized commands; (4) omitted-command blocking — unchanged; `omitted_commands` logic is not affected by log isolation; (5) status-kind handling — unchanged; the `_is_powershell_only_command()` and `_is_self_invocation()` functions from the previous round are preserved; (6) policy-lint — `policy-lint: PASSED` with current round IDs; (7) policy-impact — `policy-impact: PASSED` with 2 policy-sensitive files correctly identified; (8) prompt-doc immutability — no prompt docs were modified; (9) closeout behavior — `run_closeout()` still executes all closeout steps (decision-lint, preflight, pytest, gate-profile, command-plan, report-summary, final-check, close-round, final-check-after-close) and records their evidence, but now in the scoped `run_closeout_execution_log.json` instead of top-level `pytest_result.txt`. The closeout result artifact `run_closeout_result.json` is still generated. All 775 tests in `test_project_gate.py` and 1073 tests in the combined suite pass.

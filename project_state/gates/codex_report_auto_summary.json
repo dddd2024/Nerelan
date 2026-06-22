@@ -3,16 +3,16 @@
   "artifact_name": "codex_report_auto_summary.json",
   "gate_name": "report-auto-summary",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260622_run_round_execute_pipeline_v1",
-  "round_id": "round_20260622_run_round_execute_pipeline_v1",
-  "report_id": "codex_report_20260622_run_round_execute_pipeline_v1",
-  "generated_at": "2026-06-22T11:41:53.811837Z",
+  "decision_id": "decision_20260622_run_closeout_log_isolation_v1",
+  "round_id": "round_20260622_run_closeout_log_isolation_v1",
+  "report_id": "codex_report_20260622_run_closeout_log_isolation_v1",
+  "generated_at": "2026-06-22T12:55:57.032060Z",
   "source": "synthesized_from_structured_evidence",
   "summary": {
     "schema_version": 1,
-    "report_id": "codex_report_20260622_run_round_execute_pipeline_v1",
-    "round_id": "round_20260622_run_round_execute_pipeline_v1",
-    "based_on_decision_id": "decision_20260622_run_round_execute_pipeline_v1",
+    "report_id": "codex_report_20260622_run_closeout_log_isolation_v1",
+    "round_id": "round_20260622_run_closeout_log_isolation_v1",
+    "based_on_decision_id": "decision_20260622_run_closeout_log_isolation_v1",
     "status": "PARTIAL",
     "acceptance_recommendation": "NEEDS_REVIEW",
     "files_changed": [
@@ -67,15 +67,9 @@
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
-      "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/gates/run_closeout_result.json",
       "project_state/gates/run_round_result.json",
-      "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/decision_packet.md",
-      "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/pytest_result.txt",
-      "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/round_manifest.json"
+      "project_state/pytest_result.txt"
     ],
     "referenced_artifacts": [],
     "required_closeout_artifacts": []
@@ -97,14 +91,7 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/run_round_result.json"
     ],
-    "archive_paths": [
-      "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/decision_packet.md",
-      "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/pytest_result.txt",
-      "project_state/rounds/round_20260622_run_round_execute_pipeline_v1/round_manifest.json"
-    ],
-    "status_source": "final_gate_result.json",
-    "final_gate_result": "project_state/gates/final_gate_result.json"
+    "status_source": "default"
   },
   "warnings": [],
   "blocking_reasons": [],

@@ -61,6 +61,8 @@ CLOSE_ROUND_NAME = "close-round"
 RUN_CLOSEOUT_NAME = "run-closeout"
 RUN_CLOSEOUT_RESULT_NAME = "run_closeout_result.json"
 RUN_CLOSEOUT_OUTPUT_PATH = f"project_state/gates/{RUN_CLOSEOUT_RESULT_NAME}"
+RUN_CLOSEOUT_EXECUTION_LOG_NAME = "run_closeout_execution_log.json"
+RUN_CLOSEOUT_EXECUTION_LOG_OUTPUT_PATH = f"project_state/gates/{RUN_CLOSEOUT_EXECUTION_LOG_NAME}"
 
 POLICY_LINT_NAME = "policy-lint"
 POLICY_LINT_RESULT_NAME = "policy_lint_result.json"
@@ -9352,6 +9354,55 @@ def _append_command_block_to_pytest_result(
         handle.write(f"===== EXIT: {exit_code} =====\n\n")
 
 
+def _append_command_block_to_closeout_log(
+    state_dir: Path,
+    *,
+    command: str,
+    stdout: str,
+    stderr: str,
+    exit_code: int,
+) -> None:
+    """Append a command block to the run-closeout execution log.
+
+    This is the scoped recording mechanism for run-closeout internal
+    commands.  Unlike ``_append_command_block_to_pytest_result``, which
+    writes to the top-level ``pytest_result.txt``, this function writes
+    to ``project_state/gates/run_closeout_execution_log.json`` so that
+    closeout internals do not pollute the top-level command evidence.
+    """
+    log_path = state_dir / "gates" / RUN_CLOSEOUT_EXECUTION_LOG_NAME
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read existing log or create new one
+    if log_path.exists():
+        try:
+            log_data = json.loads(log_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            log_data = {"schema_version": 1, "command_blocks": []}
+    else:
+        log_data = {
+            "schema_version": 1,
+            "gate_name": RUN_CLOSEOUT_NAME,
+            "command_blocks": [],
+        }
+
+    if "command_blocks" not in log_data:
+        log_data["command_blocks"] = []
+
+    log_data["command_blocks"].append({
+        "command": command,
+        "stdout": stdout,
+        "stderr": stderr,
+        "exit_code": exit_code,
+    })
+
+    log_path.write_text(
+        json.dumps(log_data, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
 def run_round(
     *,
     state_dir: Path,
@@ -10254,18 +10305,16 @@ def run_closeout(
             body="",
         )
 
-    # 5. Record startup diagnostics
+    # 5. Execute closeout steps
+    # Note: startup diagnostics are NOT recorded into top-level pytest_result.txt
+    # by run_closeout. They are already present from the run-round --execute
+    # phase. Closeout internal command evidence goes to the scoped
+    # run_closeout_execution_log.json instead.
     runner = command_runner or (lambda command: _default_command_runner(command, cwd=repo_root))
-    startup_blocks = _record_startup_diagnostics(
-        pytest_path,
-        repo_root=repo_root,
-        runner=runner,
-        state_dir=state_dir,
-    )
 
-    # Record run-closeout self-invocation marker
-    _append_command_block_to_pytest_result(
-        pytest_path,
+    # Record run-closeout self-invocation marker in the closeout log
+    _append_command_block_to_closeout_log(
+        state_dir,
         command=run_closeout_command,
         stdout=f"run-closeout: started for round {requested_round_id}",
         stderr="",
@@ -10325,8 +10374,8 @@ def run_closeout(
             close_status = str(close_round_result.get("close_status") or "")
             close_exit_code = _close_round_exit_code(close_status)
             close_stdout = _close_round_output_text(close_round_result)
-            _append_command_block_to_pytest_result(
-                pytest_path,
+            _append_command_block_to_closeout_log(
+                state_dir,
                 command=command,
                 stdout=close_stdout,
                 stderr="",
@@ -10403,8 +10452,8 @@ def run_closeout(
             blocking_reasons.append(f"step {step_name} refused: no direct handler for kind {kind!r}")
             break
 
-        _append_command_block_to_pytest_result(
-            pytest_path,
+        _append_command_block_to_closeout_log(
+            state_dir,
             command=command,
             stdout=step_stdout,
             stderr=step_stderr,
@@ -10488,8 +10537,8 @@ def run_closeout(
             fc_status = str(fc_result.get("gate_status") or "")
             fc_exit_code = _final_check_exit_code(fc_status)
             fc_stdout = f"final-check: {fc_status}"
-            _append_command_block_to_pytest_result(
-                pytest_path,
+            _append_command_block_to_closeout_log(
+                state_dir,
                 command=command,
                 stdout=fc_stdout,
                 stderr="",
@@ -10545,7 +10594,7 @@ def run_closeout(
         "generated_at": _now_iso(),
         "executed_steps": executed_steps,
         "skipped_steps": skipped_steps,
-        "startup_blocks": startup_blocks,
+        "startup_blocks": [],
         "close_round_result": close_round_result,
         "blocking_reasons": blocking_reasons,
         "warnings": warnings,
