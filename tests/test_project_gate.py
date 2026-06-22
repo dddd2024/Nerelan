@@ -9872,6 +9872,180 @@ class TestReportAutoSummary:
         assert "project_state/gates/codex_report_auto_summary.json" not in ga
 
 
+class TestRunRoundScaffold:
+    """Regression tests for Run-Round Scaffold v1.
+
+    These tests verify that run_round() produces the required scaffold
+    artifact fields, derives phases from command-plan, respects command-plan
+    authority, excludes omitted/unauthorized commands, and preserves backward
+    compatibility.
+    """
+
+    def test_dry_run_includes_required_scaffold_fields(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        # Required fields per decision scope
+        assert result["schema_version"] == 1
+        assert result["artifact_name"] == "run_round_result.json"
+        assert result["gate_name"] == "run-round"
+        assert result["gate_status"] in {"PASSED", "WARN", "FAILED"}
+        assert result["decision_id"]
+        assert result["round_id"]
+        assert result["generated_at"]
+        assert result["mode"] == "dry-run"
+        assert isinstance(result["phases"], list)
+        assert isinstance(result["authorized_commands"], list)
+        assert isinstance(result["omitted_commands"], list)
+        assert isinstance(result["would_run_commands"], list)
+        assert isinstance(result["warnings"], list)
+        assert isinstance(result["blocking_reasons"], list)
+        assert result["recommended_next_action"]
+
+    def test_gate_status_equals_run_status(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        assert result["gate_status"] == result["run_status"]
+
+    def test_phases_derived_from_command_plan(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        phases = result["phases"]
+        assert len(phases) > 0
+        # Phases should be unique and ordered
+        assert phases == list(dict.fromkeys(phases))
+
+    def test_authorized_commands_match_command_plan(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        authorized = result["authorized_commands"]
+        assert len(authorized) > 0
+        # Every authorized command should appear in command-plan commands
+        plan_commands = [str(cmd.get("command") or "") for cmd in result["commands"]]
+        for cmd in authorized:
+            assert cmd in plan_commands
+
+    def test_omitted_commands_from_command_plan(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        # omitted_commands should be a list (may be empty)
+        assert isinstance(result["omitted_commands"], list)
+        # Omitted commands must not appear in would_run_commands
+        for cmd in result["omitted_commands"]:
+            assert cmd not in result["would_run_commands"]
+
+    def test_would_run_commands_excludes_self_invocation(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="""python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
+""",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        would_run = result["would_run_commands"]
+        # Self-invocation commands must not be in would_run
+        for cmd in would_run:
+            assert "run-round" not in cmd
+            assert "run-closeout" not in cmd
+
+    def test_would_run_commands_excludes_close_round(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="""python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_1
+""",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        would_run = result["would_run_commands"]
+        for cmd in would_run:
+            assert "close-round" not in cmd
+
+    def test_dry_run_does_not_execute_commands(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+
+        def fail_if_called(command: str) -> subprocess.CompletedProcess[str]:
+            raise AssertionError(f"dry-run executed command: {command}")
+
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path, command_runner=fail_if_called)
+        assert result["executed_commands"] == []
+        assert result["mode"] == "dry-run"
+
+    def test_unauthorized_command_not_in_would_run(self, tmp_path: Path) -> None:
+        """Commands not in command-plan must not appear in would_run_commands."""
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        would_run = result["would_run_commands"]
+        # would_run_commands must be a subset of authorized_commands
+        for cmd in would_run:
+            assert cmd in result["authorized_commands"]
+
+    def test_artifact_written_to_disk(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=True)
+        artifact_path = state_dir / "gates" / "run_round_result.json"
+        assert artifact_path.exists()
+        data = json.loads(artifact_path.read_text(encoding="utf-8"))
+        assert data["artifact_name"] == "run_round_result.json"
+        assert data["gate_name"] == "run-round"
+
+    def test_command_kind_recognizes_run_round(self) -> None:
+        assert _command_kind("python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run") == "run-round"
+        assert _command_kind("python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json") == "run-round"
+
+    def test_command_expected_exit_codes_allows_0_or_1_for_run_round(self) -> None:
+        codes, note, warning = _command_expected_exit_codes(
+            kind="run-round",
+            phase="gate",
+            command="python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run",
+            decision_text="",
+        )
+        assert codes == [0, 1]
+        assert warning is None
+
+    def test_run_round_result_in_reportable_gate_artifacts(self) -> None:
+        """run_round_result.json is in _REPORTABLE_GATE_ARTIFACT_NAMES."""
+        from reverse_agent.project_gate import _REPORTABLE_GATE_ARTIFACT_NAMES
+        assert "run_round_result.json" in _REPORTABLE_GATE_ARTIFACT_NAMES
+
+    def test_run_round_in_closeout_allowed_kinds(self) -> None:
+        """run-round is in RUN_CLOSEOUT_ALLOWED_KINDS."""
+        from reverse_agent.project_gate import RUN_CLOSEOUT_ALLOWED_KINDS
+        assert "run-round" in RUN_CLOSEOUT_ALLOWED_KINDS
+
+    def test_backward_compatible_run_status_field(self, tmp_path: Path) -> None:
+        """run_status field is preserved for backward compatibility."""
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+        assert "run_status" in result
+        assert result["run_status"] == result["gate_status"]
+
+
 class TestExistingChecksPreserved:
     """Req 7-10: Existing check categories continue to pass."""
 
@@ -15052,7 +15226,7 @@ def test_run_closeout_constants_and_allowlist():
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
         "git diff", "preflight", "pytest", "command-plan", "report-summary",
         "final-check", "close-round", "decision-lint", "gate-profile",
-        "execution-log", "report-auto-summary", "run-closeout",
+        "execution-log", "report-auto-summary", "run-round", "run-closeout",
     }
     assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
 

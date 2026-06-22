@@ -3,10 +3,10 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_codex_report_auto_summary_v1",
-  "round_id": "round_20260621_codex_report_auto_summary_v1",
-  "report_id": "codex_report_20260621_codex_report_auto_summary_v1",
-  "generated_at": "2026-06-21T16:52:36.100777Z",
+  "decision_id": "decision_20260621_run_round_scaffold_v1",
+  "round_id": "round_20260621_run_round_scaffold_v1",
+  "report_id": "codex_report_20260621_run_round_scaffold_v1",
+  "generated_at": "2026-06-22T04:39:55.286899Z",
   "source": "derived_from_pytest_result_and_command_plan",
   "commands": [
     {
@@ -77,17 +77,6 @@
     },
     {
       "index": 7,
-      "command": "python -m pytest tests/test_project_gate.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 8,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -98,7 +87,7 @@
       "status": "PASSED"
     },
     {
-      "index": 9,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -109,7 +98,30 @@
       "status": "PASSED"
     },
     {
+      "index": 9,
+      "command": "python -m pytest tests/test_project_gate.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
       "index": 10,
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+      "kind": "run-round",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 11,
       "command": "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
       "kind": "project-cli",
       "phase": "status",
@@ -120,7 +132,7 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
       "kind": "project-cli",
       "phase": "status",
@@ -131,7 +143,7 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -143,7 +155,7 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
       "kind": "report-auto-summary",
       "phase": "gate",
@@ -155,7 +167,19 @@
       "status": "PASSED"
     },
     {
-      "index": 14,
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260621_run_round_scaffold_v1 --dry-run",
+      "kind": "run-round",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "kind": "decision-lint",
       "phase": "gate",
@@ -166,7 +190,7 @@
       "status": "PASSED"
     },
     {
-      "index": 15,
+      "index": 17,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -177,7 +201,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -189,7 +213,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 19,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -201,8 +225,8 @@
       "status": "PASSED"
     },
     {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_codex_report_auto_summary_v1",
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

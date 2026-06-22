@@ -1,30 +1,63 @@
 {
   "schema_version": 1,
-  "plan_name": "command-plan",
-  "plan_status": "PASSED",
+  "artifact_name": "run_round_result.json",
+  "gate_name": "run-round",
+  "gate_status": "PASSED",
+  "run_status": "PASSED",
   "decision_id": "decision_20260621_run_round_scaffold_v1",
   "round_id": "round_20260621_run_round_scaffold_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-22T04:46:04.486280Z",
-  "profile_meta": {
-    "profile": "full",
-    "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
-    "closeout_allowed": true,
-    "required_command_kinds": [
-      "startup",
-      "preflight",
-      "gate-profile",
-      "command-plan",
-      "run-round",
-      "pytest",
-      "doctor",
-      "lint-report",
-      "report-summary",
-      "final-check",
-      "close-round"
-    ]
-  },
+  "generated_at": "2026-06-22T04:14:56.806603Z",
+  "mode": "dry-run",
+  "phases": [
+    "gate",
+    "preflight",
+    "status",
+    "test"
+  ],
+  "authorized_commands": [
+    "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "Set-Location F:\\reverse-agent",
+    "Get-Location",
+    "Test-Path F:\\reverse-agent",
+    "git rev-parse --show-toplevel",
+    "git status --short",
+    "python -m pytest tests/test_project_gate.py -q",
+    "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
+    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+    "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260621_run_round_scaffold_v1 --dry-run",
+    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1"
+  ],
   "omitted_commands": [],
+  "would_run_commands": [
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "Set-Location F:\\reverse-agent",
+    "Get-Location",
+    "Test-Path F:\\reverse-agent",
+    "git rev-parse --show-toplevel",
+    "git status --short",
+    "python -m pytest tests/test_project_gate.py -q",
+    "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
+    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+    "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+  ],
+  "command_count": 20,
   "commands": [
     {
       "index": 1,
@@ -286,15 +319,22 @@
       "kind": "run-closeout",
       "required": true,
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "run-closeout diagnostic after final-check failed; exit 1 is expected"
+      "notes": "run-closeout expected exit 0 after final-check passed"
     }
   ],
-  "warnings": [],
+  "executed_commands": [],
+  "skipped_commands": [],
+  "recorded_command_blocks": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1"
+  "warnings": [],
+  "recommended_next_action": "review_plan_before_execute",
+  "artifacts": {
+    "preflight": "project_state/gates/preflight_result.json",
+    "command_plan": "project_state/gates/command_plan.json",
+    "run_round_result": "project_state/gates/run_round_result.json"
+  }
 }

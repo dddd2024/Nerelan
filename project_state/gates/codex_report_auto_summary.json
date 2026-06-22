@@ -2,19 +2,19 @@
   "schema_version": 1,
   "artifact_name": "codex_report_auto_summary.json",
   "gate_name": "report-auto-summary",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260621_codex_report_auto_summary_v1",
-  "round_id": "round_20260621_codex_report_auto_summary_v1",
-  "report_id": "codex_report_20260621_codex_report_auto_summary_v1",
-  "generated_at": "2026-06-21T16:59:54.505337Z",
+  "gate_status": "WARN",
+  "decision_id": "decision_20260621_run_round_scaffold_v1",
+  "round_id": "round_20260621_run_round_scaffold_v1",
+  "report_id": "codex_report_20260621_run_round_scaffold_v1",
+  "generated_at": "2026-06-22T05:20:44.014066Z",
   "source": "synthesized_from_structured_evidence",
   "summary": {
     "schema_version": 1,
-    "report_id": "codex_report_20260621_codex_report_auto_summary_v1",
-    "round_id": "round_20260621_codex_report_auto_summary_v1",
-    "based_on_decision_id": "decision_20260621_codex_report_auto_summary_v1",
-    "status": "SUCCESS",
-    "acceptance_recommendation": "ACCEPTED",
+    "report_id": "codex_report_20260621_run_round_scaffold_v1",
+    "round_id": "round_20260621_run_round_scaffold_v1",
+    "based_on_decision_id": "decision_20260621_run_round_scaffold_v1",
+    "status": "PARTIAL",
+    "acceptance_recommendation": "NEEDS_REVIEW",
     "files_changed": [
       "project_state/codex_execution_report.md",
       "project_state/gates/codex_report_auto_summary.json",
@@ -30,48 +30,42 @@
       "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/gates/run_closeout_result.json",
+      "project_state/gates/run_round_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/decision_packet.md",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/pytest_result.txt",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/round_manifest.json",
       "reverse_agent/project_gate.py",
       "tests/test_project_gate.py"
     ],
     "tests_ran": [
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "python -m pytest tests/test_project_gate.py -q",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m pytest tests/test_project_gate.py -q",
+      "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
       "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
       "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260621_run_round_scaffold_v1 --dry-run",
       "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_codex_report_auto_summary_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260621_run_round_scaffold_v1"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
       "project_state/gates/codex_report_auto_summary.json",
       "project_state/gates/command_plan.json",
       "project_state/gates/execution_log.json",
-      "project_state/gates/final_gate_result.json",
       "project_state/gates/gate_profile_plan.json",
       "project_state/gates/policy_impact_audit.json",
       "project_state/gates/policy_lint_result.json",
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
-      "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/decision_packet.md",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/pytest_result.txt",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/round_manifest.json"
+      "project_state/gates/run_round_result.json",
+      "project_state/pytest_result.txt"
     ],
     "referenced_artifacts": [],
     "required_closeout_artifacts": []
@@ -89,18 +83,14 @@
       "project_state/gates/policy_impact_audit.json",
       "project_state/gates/policy_lint_result.json",
       "project_state/gates/preflight_result.json",
-      "project_state/gates/round_baseline.json"
+      "project_state/gates/round_baseline.json",
+      "project_state/gates/run_round_result.json"
     ],
-    "archive_paths": [
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/decision_packet.md",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/pytest_result.txt",
-      "project_state/rounds/round_20260621_codex_report_auto_summary_v1/round_manifest.json"
-    ],
-    "status_source": "final_gate_result.json",
-    "final_gate_result": "project_state/gates/final_gate_result.json"
+    "status_source": "default"
   },
-  "warnings": [],
+  "warnings": [
+    "final_gate_result.json contains only retriable status source failures; status derived as PARTIAL"
+  ],
   "blocking_reasons": [],
-  "recommended_next_action": "no_action_required"
+  "recommended_next_action": "review_warnings"
 }

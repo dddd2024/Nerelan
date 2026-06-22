@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "policy-impact",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260621_codex_report_auto_summary_v1",
-  "round_id": "round_20260621_codex_report_auto_summary_v1",
-  "generated_at": "2026-06-21T16:38:59.417527Z",
+  "decision_id": "decision_20260621_run_round_scaffold_v1",
+  "round_id": "round_20260621_run_round_scaffold_v1",
+  "generated_at": "2026-06-22T04:14:25.899283Z",
   "policy_sensitive_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
