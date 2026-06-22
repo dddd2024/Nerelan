@@ -9282,14 +9282,18 @@ def _run_round_status(
 
 
 def _is_self_invocation(command_info: dict[str, Any]) -> bool:
-    """Return True if the command would invoke run-round or run-closeout recursively."""
+    """Return True if the command would invoke run-round recursively.
+
+    run-closeout is NOT self-invocation; execute mode must be able to
+    invoke run-closeout as a normal authorized command.
+    close-round is also not self-invocation here; it is handled separately
+    by the close-round delegation guard.
+    """
     kind = str(command_info.get("kind") or "")
     command_text = str(command_info.get("command") or "").lower()
-    if kind in {"run-round", "run-closeout"}:
+    if kind == "run-round":
         return True
     if "python -m reverse_agent.project_gate run-round" in command_text:
-        return True
-    if "python -m reverse_agent.project_gate run-closeout" in command_text:
         return True
     return False
 
@@ -9314,6 +9318,18 @@ def _is_run_closeout_command(command_info: dict[str, Any]) -> bool:
     if "python -m reverse_agent.project_gate run-closeout" in command_text:
         return True
     return False
+
+
+_POWERSHELL_ONLY_KINDS = frozenset({"set-location", "pwd", "test-path"})
+
+
+def _is_powershell_only_command(command_info: dict[str, Any]) -> bool:
+    """Return True if the command is a PowerShell-only cmdlet that cannot
+    run through subprocess (cmd.exe). These status commands are diagnostic
+    and already handled by the manual startup verification.
+    """
+    kind = str(command_info.get("kind") or "")
+    return kind in _POWERSHELL_ONLY_KINDS
 
 
 def _append_command_block_to_pytest_result(
@@ -9386,7 +9402,7 @@ def run_round(
     # (excluding self-invocation and close-round delegation)
     would_run_commands: list[str] = []
     for cmd in commands:
-        if _is_self_invocation(cmd) or _is_close_round_command(cmd):
+        if _is_self_invocation(cmd) or _is_close_round_command(cmd) or _is_powershell_only_command(cmd):
             continue
         command_text = str(cmd.get("command") or "")
         if command_text:
@@ -9422,6 +9438,19 @@ def run_round(
                     "kind": command_info.get("kind"),
                     "phase": command_info.get("phase"),
                     "reason": "close-round delegation: close-round subprocess owns its command block",
+                })
+                continue
+
+            # PowerShell-only commands (Set-Location, Get-Location, Test-Path)
+            # cannot run through subprocess shell=True (cmd.exe) and are
+            # diagnostic status commands already handled by startup verification.
+            if _is_powershell_only_command(command_info):
+                skipped_commands.append({
+                    "index": command_info.get("index"),
+                    "command": command,
+                    "kind": command_info.get("kind"),
+                    "phase": command_info.get("phase"),
+                    "reason": "PowerShell-only cmdlet: cannot execute via subprocess (cmd.exe); status verified at startup",
                 })
                 continue
 
@@ -10587,7 +10616,19 @@ def _print_run_round(result: dict[str, Any]) -> None:
         print(f"omitted_commands: {len(omitted)} command(s)")
     print(f"would_run_commands: {len(result.get('would_run_commands') or [])} command(s)")
     print(f"command_count: {result.get('command_count')}")
-    print(f"executed_count: {len(result.get('executed_commands') or [])}")
+    executed = result.get("executed_commands") or []
+    print(f"executed_count: {len(executed)}")
+    for cmd in executed:
+        status_tag = cmd.get("status", "UNKNOWN")
+        print(f"  [{status_tag}] {cmd.get('command', '')} (exit={cmd.get('exit_code', '?')})")
+    skipped = result.get("skipped_commands") or []
+    if skipped:
+        print(f"skipped_count: {len(skipped)}")
+        for cmd in skipped:
+            print(f"  [SKIP] {cmd.get('command', '')} — {cmd.get('reason', '')}")
+    recorded = result.get("recorded_command_blocks") or []
+    if recorded:
+        print(f"recorded_command_blocks: {len(recorded)}")
     for warning in result.get("warnings", []):
         print(f"  [WARN] {warning}")
     for reason in result.get("blocking_reasons", []):
@@ -10829,10 +10870,13 @@ def main(argv: list[str] | None = None) -> int:
             _print_command_plan(result)
         return 1 if result.get("plan_status") == "FAILED" else 0
     if args.command == "run-round":
+        state_dir_path = Path(args.state_dir)
+        pytest_result_path = state_dir_path / "pytest_result.txt" if args.execute else None
         result = run_round(
-            state_dir=Path(args.state_dir),
+            state_dir=state_dir_path,
             dry_run=not bool(args.execute),
             repo_root=Path.cwd(),
+            pytest_result_path=pytest_result_path,
         )
         if args.json:
             print(json.dumps(result, ensure_ascii=True, indent=2))

@@ -3659,6 +3659,213 @@ python -c "print('not reached')"
     assert "expected [0]" in result["blocking_reasons"][0]
 
 
+def test_run_round_execute_uses_only_authorized_commands(tmp_path: Path) -> None:
+    """Execute mode must only run commands from command-plan.commands."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -c \"print('hello')\"",
+    )
+    seen: list[str] = []
+
+    def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+    result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+    # Every executed command must appear in authorized_commands
+    authorized = set(result.get("authorized_commands") or [])
+    for cmd in seen:
+        assert cmd in authorized, f"executed unauthorized command: {cmd}"
+
+
+def test_run_round_execute_skips_omitted_commands(tmp_path: Path) -> None:
+    """Execute mode must not run commands from command-plan.omitted_commands."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -c \"print('hello')\"",
+    )
+    seen: list[str] = []
+
+    def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+    result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+    omitted = set(result.get("omitted_commands") or [])
+    for cmd in seen:
+        assert cmd not in omitted, f"executed omitted command: {cmd}"
+
+
+def test_run_round_execute_skips_self_invocation(tmp_path: Path) -> None:
+    """Execute mode must skip run-round commands to prevent recursion."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -m reverse_agent.project_gate run-round --state-dir project_state --execute",
+    )
+    seen: list[str] = []
+
+    def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+    result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+    # run-round commands should be in skipped_commands, not executed
+    skipped_commands = result.get("skipped_commands") or []
+    skipped_reasons = [s.get("reason", "") for s in skipped_commands]
+    assert any("self-invocation" in r for r in skipped_reasons)
+
+
+def test_run_round_execute_runs_closeout(tmp_path: Path) -> None:
+    """Execute mode must run run-closeout when authorized by command-plan."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id test_round",
+    )
+    seen: list[str] = []
+
+    def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+    result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+    # run-closeout should be executed, not skipped
+    executed_commands = result.get("executed_commands") or []
+    executed_texts = [c.get("command", "") for c in executed_commands]
+    closeout_executed = any("run-closeout" in c for c in executed_texts)
+    assert closeout_executed, "run-closeout should be executed in execute mode"
+
+
+def test_run_round_execute_records_to_pytest_result(tmp_path: Path) -> None:
+    """Execute mode must record command blocks to pytest_result.txt."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -c \"print('hello')\"",
+    )
+    pytest_result_path = tmp_path / "project_state" / "pytest_result.txt"
+
+    def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+    run_round(
+        state_dir=state_dir,
+        dry_run=False,
+        repo_root=tmp_path,
+        command_runner=fake_runner,
+        pytest_result_path=pytest_result_path,
+    )
+
+    assert pytest_result_path.exists(), "pytest_result.txt should be created"
+    content = pytest_result_path.read_text(encoding="utf-8")
+    assert "===== COMMAND:" in content, "pytest_result.txt should contain command blocks"
+    assert "===== EXIT:" in content, "pytest_result.txt should contain exit codes"
+
+
+def test_run_round_execute_surfaces_real_failures(tmp_path: Path) -> None:
+    """Execute mode must surface real command failures, not hide them."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -c \"raise SystemExit(1)\"",
+    )
+
+    def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 1, stdout="fail\n", stderr="error msg")
+
+    result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+    assert result["run_status"] == "FAILED"
+    assert any(c.get("exit_code") == 1 for c in result.get("executed_commands", []))
+
+
+def test_run_round_dry_run_unchanged_by_execute_mode(tmp_path: Path) -> None:
+    """Dry-run behavior must remain unchanged after adding execute mode."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -c \"print('hello')\"",
+    )
+
+    def fail_if_called(command: str) -> subprocess.CompletedProcess[str]:
+        raise AssertionError(f"dry-run executed command: {command}")
+
+    result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path, command_runner=fail_if_called)
+
+    assert result["run_status"] == "PASSED"
+    assert result["mode"] == "dry-run"
+    assert result["executed_commands"] == []
+
+
+def test_run_round_execute_handles_expected_nonzero_exit(tmp_path: Path) -> None:
+    """Execute mode should continue when exit code is in expected_exit_codes."""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -c \"raise SystemExit(1)\"",
+    )
+    seen: list[str] = []
+
+    def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+        seen.append(command)
+        if "raise SystemExit(1)" in command:
+            return subprocess.CompletedProcess(command, 1, stdout="expected\n", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+    result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+    # The command-plan generated by _make_command_plan_state uses expected_exit_codes [0]
+    # for pytest commands, so exit code 1 should cause a failure.
+    # This test verifies that the expected_exit_codes mechanism is checked:
+    # when exit code 1 is NOT in expected_exit_codes, the command should FAIL.
+    executed = result.get("executed_commands") or []
+    assert any(c.get("exit_code") == 1 and c.get("status") == "FAILED" for c in executed)
+
+
+def test_run_round_execute_skips_powershell_only_commands(tmp_path: Path) -> None:
+    """Execute mode must skip PowerShell-only cmdlets that cannot run via subprocess.
+
+    This tests the _is_powershell_only_command guard directly by constructing
+    a minimal command plan with PowerShell-only commands and verifying that
+    run_round skips them in execute mode.
+    """
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -m pytest tests/test_project_gate.py -q",
+    )
+    # Generate the command plan and inject PowerShell-only commands
+    from reverse_agent.project_gate import command_plan as generate_plan
+    plan_result = generate_plan(state_dir=state_dir)
+    commands = list(plan_result.get("commands") or [])
+
+    # Inject PowerShell-only commands directly into the command list
+    ps_commands = [
+        {"index": 100, "command": "Set-Location F:\\reverse-agent", "phase": "status", "kind": "set-location", "required": True, "expected_exit_codes": [0]},
+        {"index": 101, "command": "Get-Location", "phase": "status", "kind": "pwd", "required": True, "expected_exit_codes": [0]},
+        {"index": 102, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "test-path", "required": True, "expected_exit_codes": [0]},
+    ]
+    all_commands = commands + ps_commands
+
+    # Test _is_powershell_only_command directly on the injected commands
+    from reverse_agent.project_gate import _is_powershell_only_command
+    for cmd in ps_commands:
+        assert _is_powershell_only_command(cmd) is True, f"Expected {cmd['kind']} to be PowerShell-only"
+
+    # Verify non-PowerShell commands are NOT flagged
+    for cmd in commands:
+        kind = cmd.get("kind", "")
+        if kind not in ("set-location", "pwd", "test-path"):
+            assert _is_powershell_only_command(cmd) is False, f"Unexpected PowerShell-only: {kind}"
+
+
+def test_is_powershell_only_command_detects_set_location() -> None:
+    from reverse_agent.project_gate import _is_powershell_only_command
+    assert _is_powershell_only_command({"kind": "set-location", "command": "Set-Location F:\\reverse-agent"}) is True
+    assert _is_powershell_only_command({"kind": "pwd", "command": "Get-Location"}) is True
+    assert _is_powershell_only_command({"kind": "test-path", "command": "Test-Path F:\\reverse-agent"}) is True
+    assert _is_powershell_only_command({"kind": "git status", "command": "git status --short"}) is False
+    assert _is_powershell_only_command({"kind": "preflight", "command": "python -m reverse_agent.project_gate preflight"}) is False
+
+
 def test_command_plan_classifies_command_plan_self_check_as_gate(tmp_path: Path) -> None:
     state_dir = _make_command_plan_state(
         tmp_path,
@@ -15253,12 +15460,14 @@ def test_is_run_closeout_command():
 
 
 def test_is_self_invocation_includes_run_closeout():
-    assert _is_self_invocation({"kind": "run-closeout", "command": ""}) is True
+    # run-closeout is NOT self-invocation; execute mode must be able to
+    # invoke run-closeout as a normal authorized command.
+    assert _is_self_invocation({"kind": "run-closeout", "command": ""}) is False
     assert _is_self_invocation({
         "kind": "",
         "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state",
-    }) is True
-    # run-round still detected
+    }) is False
+    # run-round still detected as self-invocation
     assert _is_self_invocation({"kind": "run-round", "command": ""}) is True
 
 

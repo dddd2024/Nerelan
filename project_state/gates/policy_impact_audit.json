@@ -2,12 +2,29 @@
   "schema_version": 1,
   "gate_name": "policy-impact",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260622_closeout_consistency_evidence_rework_v1",
-  "round_id": "round_20260622_closeout_consistency_evidence_rework_v1",
-  "generated_at": "2026-06-22T09:23:18.819645Z",
-  "policy_sensitive_files": [],
-  "impacted_domains": [],
-  "required_report_topics": [],
+  "decision_id": "decision_20260622_run_round_execute_pipeline_v1",
+  "round_id": "round_20260622_run_round_execute_pipeline_v1",
+  "generated_at": "2026-06-22T11:23:32.107249Z",
+  "policy_sensitive_files": [
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
+  ],
+  "impacted_domains": [
+    "command_plan",
+    "final_check",
+    "policy_lint",
+    "report_status_schema",
+    "report_summary",
+    "tests"
+  ],
+  "required_report_topics": [
+    "command_plan",
+    "final_check",
+    "policy_lint",
+    "report_status_schema",
+    "report_summary",
+    "tests"
+  ],
   "missing_report_topics": [],
   "warnings": [],
   "blocking_reasons": [],
