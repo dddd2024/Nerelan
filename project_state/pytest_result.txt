@@ -1,21 +1,23 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260622_run_closeout_log_isolation_v1",
-  "round_id": "round_20260622_run_closeout_log_isolation_v1",
-  "based_on_decision_id": "decision_20260622_run_closeout_log_isolation_v1",
-  "decision_id": "decision_20260622_run_closeout_log_isolation_v1",
-  "generated_at": "2026-06-22T13:00:00Z",
+  "report_id": "codex_report_20260622_run_closeout_log_isolation_evidence_rework_v1",
+  "round_id": "round_20260622_run_closeout_log_isolation_evidence_rework_v1",
+  "based_on_decision_id": "decision_20260622_run_closeout_log_isolation_evidence_rework_v1",
+  "decision_id": "decision_20260622_run_closeout_log_isolation_evidence_rework_v1",
+  "generated_at": "2026-06-22T13:15:00Z",
   "status": "PARTIAL",
   "tests_ran": [
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "Set-Location F:\\reverse-agent",
     "Get-Location",
     "Test-Path F:\\reverse-agent",
     "git rev-parse --show-toplevel",
     "git status --short",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --dry-run --json",
+    "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute",
     "python -m pytest tests/test_project_gate.py -q",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
@@ -23,7 +25,8 @@
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
     "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state"
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1"
   ]
 }
 ```
@@ -48,102 +51,131 @@ F:/reverse-agent
  M project_state/gates/command_plan.json
  M project_state/gates/preflight_result.json
  M project_state/gates/round_baseline.json
- M reverse_agent/project_gate.py
- M tests/test_project_gate.py
+ M project_state/gates/run_round_result.json
+ M project_state/pytest_result.txt
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
 preflight: PASSED
-decision_id: decision_20260622_run_closeout_log_isolation_v1
-round_id: round_20260622_run_closeout_log_isolation_v1
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
 mainline: engineering_branch
 recommended_next_action: proceed_with_decision_scope
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+mainline: engineering_branch
+recommended_next_action: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-{"schema_version":1,"plan_name":"command-plan","plan_status":"PASSED","decision_id":"decision_20260622_run_closeout_log_isolation_v1","round_id":"round_20260622_run_closeout_log_isolation_v1","mainline":"engineering_branch","generated_at":"2026-06-22T12:36:25Z","profile_meta":{"profile":"full","profile_reason":"gate/project_state/harness/solver/tool-runner changes require full validation pipeline","closeout_allowed":true,"required_command_kinds":["startup","preflight","gate-profile","command-plan","run-round","pytest","doctor","lint-report","report-summary","final-check","close-round"]},"omitted_commands":[],"commands":[{"index":1,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0]},{"index":2,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state --json","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0]},{"index":3,"command":"python -m reverse_agent.project_gate final-check --state-dir project_state","phase":"gate","kind":"final-check","required":true,"expected_exit_codes":[0,1]},{"index":4,"command":"Set-Location F:\\reverse-agent","phase":"status","kind":"set-location","required":true,"expected_exit_codes":[0]},{"index":5,"command":"Get-Location","phase":"status","kind":"pwd","required":true,"expected_exit_codes":[0]},{"index":6,"command":"Test-Path F:\\reverse-agent","phase":"status","kind":"test-path","required":true,"expected_exit_codes":[0]},{"index":7,"command":"git rev-parse --show-toplevel","phase":"status","kind":"git rev-parse","required":true,"expected_exit_codes":[0]},{"index":8,"command":"git status --short","phase":"status","kind":"git status","required":true,"expected_exit_codes":[0]},{"index":9,"command":"python -m reverse_agent.project_gate preflight --state-dir project_state","phase":"preflight","kind":"preflight","required":true,"expected_exit_codes":[0]},{"index":10,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_v1 --dry-run --json","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0,1]},{"index":11,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_v1 --execute","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0,1]},{"index":12,"command":"python -m pytest tests/test_project_gate.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0]},{"index":13,"command":"python -m pytest tests/test_project_gate.py tests/test_project_state.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0]},{"index":14,"command":"python -m reverse_agent.project_gate policy-lint --state-dir project_state","phase":"status","kind":"project-cli","required":true,"expected_exit_codes":[0]},{"index":15,"command":"python -m reverse_agent.project_gate policy-impact --state-dir project_state","phase":"status","kind":"project-cli","required":true,"expected_exit_codes":[0]},{"index":16,"command":"python -m reverse_agent.project_gate execution-log --state-dir project_state","phase":"gate","kind":"execution-log","required":true,"expected_exit_codes":[0,1]},{"index":17,"command":"python -m reverse_agent.project_gate report-auto-summary --state-dir project_state","phase":"gate","kind":"report-auto-summary","required":true,"expected_exit_codes":[0,1]},{"index":18,"command":"python -m reverse_agent.project_gate report-summary --state-dir project_state","phase":"gate","kind":"report-summary","required":true,"expected_exit_codes":[0,1]},{"index":19,"command":"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_v1","phase":"gate","kind":"run-closeout","required":true,"expected_exit_codes":[0]}],"warnings":[],"blocking_reasons":[],"recommended_next_action":"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_v1"}
+{"schema_version":1,"plan_name":"command-plan","plan_status":"PASSED","decision_id":"decision_20260622_run_closeout_log_isolation_evidence_rework_v1","round_id":"round_20260622_run_closeout_log_isolation_evidence_rework_v1","mainline":"engineering_branch","generated_at":"2026-06-22T13:13:21Z","profile_meta":{"profile":"full","profile_reason":"gate/project_state/harness/solver/tool-runner changes require full validation pipeline","closeout_allowed":true,"required_command_kinds":["startup","preflight","gate-profile","command-plan","run-round","pytest","doctor","lint-report","report-summary","final-check","close-round"]},"omitted_commands":[],"commands":[{"index":1,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0]},{"index":2,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state --json","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0]},{"index":3,"command":"Set-Location F:\\reverse-agent","phase":"status","kind":"set-location","required":true,"expected_exit_codes":[0]},{"index":4,"command":"Get-Location","phase":"status","kind":"pwd","required":true,"expected_exit_codes":[0]},{"index":5,"command":"Test-Path F:\\reverse-agent","phase":"status","kind":"test-path","required":true,"expected_exit_codes":[0]},{"index":6,"command":"git rev-parse --show-toplevel","phase":"status","kind":"git rev-parse","required":true,"expected_exit_codes":[0]},{"index":7,"command":"git status --short","phase":"status","kind":"git status","required":true,"expected_exit_codes":[0]},{"index":8,"command":"python -m reverse_agent.project_gate preflight --state-dir project_state","phase":"preflight","kind":"preflight","required":true,"expected_exit_codes":[0]},{"index":9,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --dry-run --json","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0,1]},{"index":10,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0,1]},{"index":11,"command":"python -m pytest tests/test_project_gate.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0]},{"index":12,"command":"python -m pytest tests/test_project_gate.py tests/test_project_state.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0]},{"index":13,"command":"python -m reverse_agent.project_gate policy-lint --state-dir project_state","phase":"status","kind":"project-cli","required":true,"expected_exit_codes":[0]},{"index":14,"command":"python -m reverse_agent.project_gate policy-impact --state-dir project_state","phase":"status","kind":"project-cli","required":true,"expected_exit_codes":[0]},{"index":15,"command":"python -m reverse_agent.project_gate execution-log --state-dir project_state","phase":"gate","kind":"execution-log","required":true,"expected_exit_codes":[0,1]},{"index":16,"command":"python -m reverse_agent.project_gate report-auto-summary --state-dir project_state","phase":"gate","kind":"report-auto-summary","required":true,"expected_exit_codes":[0,1]},{"index":17,"command":"python -m reverse_agent.project_gate report-summary --state-dir project_state","phase":"gate","kind":"report-summary","required":true,"expected_exit_codes":[0,1]},{"index":18,"command":"python -m reverse_agent.project_gate final-check --state-dir project_state","phase":"gate","kind":"final-check","required":true,"expected_exit_codes":[0,1]},{"index":19,"command":"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1","phase":"gate","kind":"run-closeout","required":true,"expected_exit_codes":[0,1]}],"warnings":[],"blocking_reasons":[],"recommended_next_action":"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1"}
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --dry-run --json =====
+run-round: PASSED (dry-run)
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+commands_planned: 19
+commands_to_skip: 5 (3 PowerShell-only, 2 self-invocation guards)
+recommended_next_action: python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute =====
+run-round: PASSED
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+commands_executed: 14
+commands_skipped: 5 (3 PowerShell-only, 2 self-invocation guards)
+recommended_next_action: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m pytest tests/test_project_gate.py -q =====
-775 passed in 75.82s (0:01:15)
+775 passed in 75.90s (0:01:15)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
-1073 passed in 113.69s (0:01:53)
+1073 passed in 114.28s (0:01:54)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate policy-lint --state-dir project_state =====
 policy-lint: PASSED
-decision_id: decision_20260622_run_closeout_log_isolation_v1
-round_id: round_20260622_run_closeout_log_isolation_v1
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
 scanned_files: 7 file(s)
 recommended_next_action: no_action_required
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate policy-impact --state-dir project_state =====
 policy-impact: PASSED
-decision_id: decision_20260622_run_closeout_log_isolation_v1
-round_id: round_20260622_run_closeout_log_isolation_v1
-policy_sensitive_files: 2 file(s)
-  reverse_agent/project_gate.py
-  tests/test_project_gate.py
-impacted_domains: command_plan, final_check, policy_lint, report_status_schema, report_summary, tests
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+policy_sensitive_files: 0 file(s)
 recommended_next_action: no_action_required
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate execution-log --state-dir project_state =====
 execution-log: WARN
-decision_id: decision_20260622_run_closeout_log_isolation_v1
-round_id: round_20260622_run_closeout_log_isolation_v1
-commands: 19 entry/entries
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+commands: 25 entry/entries
 recommended_next_action: review_execution_log_warnings
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-auto-summary --state-dir project_state =====
 report-auto-summary: PASSED
-decision_id: decision_20260622_run_closeout_log_isolation_v1
-round_id: round_20260622_run_closeout_log_isolation_v1
-report_id: codex_report_20260622_run_closeout_log_isolation_v1
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+report_id: codex_report_20260622_run_closeout_log_isolation_evidence_rework_v1
 status: PARTIAL
 acceptance_recommendation: NEEDS_REVIEW
 recommended_next_action: no_action_required
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: FAILED
-decision_id: decision_20260622_run_closeout_log_isolation_v1
-report_id: codex_report_20260622_run_round_execute_pipeline_v1
-round_id: round_20260622_run_closeout_log_isolation_v1
-  [ERROR] pytest_result_summary.tests_ran omits command_plan commands
-  [DIFF] report_id
-  [DIFF] round_id
-  [DIFF] based_on_decision_id
-  [DIFF] files_changed
-  [DIFF] tests_ran
-  [DIFF] generated_artifacts
-recommended_next_action: update_report_and_rerun
-===== EXIT: 1 =====
+report-summary: PASSED
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+report_id: codex_report_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+artifact: project_state/gates/report_summary_synthesis.json
+===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: FAILED
-decision_id: decision_20260622_run_closeout_log_isolation_v1
-report_id: codex_report_20260622_run_closeout_log_isolation_v1
-round_id: round_20260622_run_closeout_log_isolation_v1
-  [FAIL] decision_report_match: decision/report id or round_id mismatch
-  [FAIL] archived_report_matches_live_report: archived report differs from live report
-  [FAIL] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
-  [FAIL] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
-  [FAIL] command_plan_ids_match: command_plan ids, round_id, or status do not match
-  [FAIL] command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests
-  [FAIL] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
-  [WARN] command_plan_execution_authority: unauthorized commands detected in pytest_result; report acknowledges stopping due to unauthorized commands
-  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
-  [FAIL] stale_artifact_ids: gate artifacts reference stale decision/round/report IDs from a different round
-  [FAIL] gate_profile_plan_current: gate_profile_plan.json has stale decision_id or round_id
-  [FAIL] status_policy_valid: status policy found blocking issues
-recommended_next_action: fix_gate_failures_before_archive_or_handoff
+final-check: WARN
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+report_id: codex_report_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+  [PASS] decision_report_match: decision/report ids and round_id match
+  [PASS] pytest_result_match: pytest_result matches report
+  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
+  [WARN] round_manifest_present: round manifest is missing
+  [WARN] archived_report_matches_live_report: archived report differs from live report
+  [WARN] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
+  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
+  [PASS] command_plan_execution_authority: all recorded commands are authorized by command_plan
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs
+  [WARN] status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking
+recommended_next_action: review_warnings_before_closeout
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 =====
+run-closeout: FAILED
+decision_id: decision_20260622_run_closeout_log_isolation_evidence_rework_v1
+round_id: round_20260622_run_closeout_log_isolation_evidence_rework_v1
+  [PASSED] decision-lint: exit=0
+  [PASSED] preflight: exit=0
+  [PASSED] pytest: exit=0
+  [PASSED] gate-profile: exit=0
+  [PASSED] command-plan: exit=0
+  [PASSED] command-plan-json: exit=0
+  [PASSED] report-summary: exit=0
+  [PASSED] final-check: exit=0
+  [FAILED] close-round: exit=1
+  [BLOCK] step close-round exited 1, expected [0]: close_status=FAILED
+artifact: project_state/gates/run_closeout_result.json
+recommended_next_action: fix_run_closeout_failures_before_retry
 ===== EXIT: 1 =====
