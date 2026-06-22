@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "NEEDS_REVIEW",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-22T09:35:30Z",
+  "decision_id": "decision_20260622_closeout_consistency_evidence_rework_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260622_closeout_consistency_evidence_rework_v1\\codex_execution_report.md",
+      "sha256": "f827104fca548a182b2b1bedf139060eb296cc1291aaaa05f27f3f45de729ba9",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260622_closeout_consistency_evidence_rework_v1\\decision_packet.md",
+      "sha256": "e1873d7d91243fe16dd63c58137142d74f26640554c5d2118967a06088842134",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260622_closeout_consistency_evidence_rework_v1\\pytest_result.txt",
+      "sha256": "7a35f389d4ba7ca44234ece728e9e7554904927244da7b711df6255c6821c556",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260622_closeout_consistency_evidence_rework_v1",
+  "report_status": "PARTIAL",
+  "round_id": "round_20260622_closeout_consistency_evidence_rework_v1",
+  "schema_version": 1,
+  "source_git_commit": "fa3e7ea8a45f",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

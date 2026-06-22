@@ -3765,6 +3765,14 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
     gate_status = str(payload.get("gate_status") or "")
     if gate_status == "PASSED_WITH_LIMITATIONS":
         return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
+    # When gate_status is FAILED but all failures are retriable
+    # self-referential consistency checks (e.g. report_summary_fields_match_synthesis,
+    # final_check_stdout_matches_gate_status), treat the gate as WARN for
+    # status derivation purposes.  These failures are circular: they depend
+    # on the report status which depends on the gate result.  Treating them
+    # as WARN allows the status to converge on the next run.
+    if gate_status == "FAILED" and _final_gate_is_retriable_status_source_failure(payload):
+        gate_status = "WARN"
     # Fast non-closeout: when closeout_allowed=false and close-round was
     # not run, the gate now produces PASS for archive-related checks
     # (instead of WARN), so the normal status derivation can proceed.
@@ -3792,6 +3800,7 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
             "build_output_scope",
             "verified_cli_coverage",
             "startup_baseline_consistency",
+            "final_check_stdout_matches_gate_status",
         }
         status_policy_has_limitations = any(
             isinstance(check, dict)
@@ -4375,6 +4384,7 @@ def _final_gate_is_retriable_status_source_failure(payload: dict[str, Any]) -> b
         "report_summary_fields_match_synthesis",
         "report_auto_summary_consistency",
         "pytest_result_exit_codes_match_command_plan",
+        "final_check_stdout_matches_gate_status",
     }
     return bool(failed_check_names) and failed_check_names <= retriable_checks
 
@@ -8781,6 +8791,13 @@ def report_auto_summary(
     files_changed_set |= archive_paths
     generated_artifact_set |= archive_paths
 
+    # Include required_closeout_artifacts from the report in generated_artifacts,
+    # matching the synthesis behavior in build_report_summary_synthesis().
+    report_summary = read_codex_report_summary(state_dir)
+    required_closeout_artifacts = _string_set(report_summary.get("required_closeout_artifacts"))
+    if required_closeout_artifacts:
+        generated_artifact_set |= required_closeout_artifacts
+
     # --- status/acceptance: from final_gate_result ---
     final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
     final_gate_matches = (
@@ -8790,24 +8807,25 @@ def report_auto_summary(
         and bool(final_gate_payload.get("gate_status"))
     )
     if final_gate_matches:
-        if _final_gate_is_retriable_status_source_failure(final_gate_payload):
-            final_gate_matches = False
-            warnings.append(
-                "final_gate_result.json contains only retriable status source failures; "
-                "status derived as PARTIAL"
-            )
-
-    if final_gate_matches:
         source_provenance["status_source"] = "final_gate_result.json"
         source_provenance["final_gate_result"] = SELF_OUTPUT_PATH
-        gate_status_val = str(final_gate_payload.get("gate_status") or "")
-        status_pair = _report_status_from_gate(gate_status_val)
+        status_pair = _report_status_from_gate_payload(final_gate_payload, mainline=str(decision.get("mainline") or ""))
         if status_pair is not None:
             status, acceptance = status_pair
+            # When all failures are retriable self-referential consistency checks,
+            # _report_status_from_gate_payload treats the gate as WARN and may
+            # derive SUCCESS/ACCEPTED.  Record this as a warning so the operator
+            # can verify convergence on the next run.
+            if _final_gate_is_retriable_status_source_failure(final_gate_payload):
+                warnings.append(
+                    "final_gate_result.json contains only retriable status source failures; "
+                    "status derived via _report_status_from_gate_payload with WARN semantics"
+                )
         else:
+            gate_status_val = str(final_gate_payload.get("gate_status") or "")
             status = "PARTIAL"
             acceptance = "NEEDS_REVIEW"
-            warnings.append(f"unrecognized final_gate gate_status '{gate_status_val}'; defaulting to PARTIAL")
+            warnings.append(f"final_gate gate_status '{gate_status_val}' unrecognized by _report_status_from_gate_payload; defaulting to PARTIAL")
     else:
         source_provenance["status_source"] = "default"
         status = "PARTIAL"

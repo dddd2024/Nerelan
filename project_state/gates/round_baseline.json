@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260622_report_auto_summary_closeout_consistency_v1",
-  "round_id": "round_20260622_report_auto_summary_closeout_consistency_v1",
-  "head_commit": "7391512f7b66",
+  "decision_id": "decision_20260622_closeout_consistency_evidence_rework_v1",
+  "round_id": "round_20260622_closeout_consistency_evidence_rework_v1",
+  "head_commit": "fa3e7ea8a45f",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-22T07:38:34.508589Z"
+  "generated_at": "2026-06-22T09:05:02.402207Z"
 }
