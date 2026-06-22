@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260622_close_round_archive_cycle_fix_v1",
-  "round_id": "round_20260622_close_round_archive_cycle_fix_v1",
+  "decision_id": "decision_20260622_post_closeout_evidence_refresh_v1",
+  "round_id": "round_20260622_post_closeout_evidence_refresh_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,19 +13,20 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260622_run_closeout_log_isolation_evidence_rework_v1",
-  "previous_round_id": "round_20260622_run_closeout_log_isolation_evidence_rework_v1",
+  "previous_decision_id": "decision_20260622_close_round_archive_cycle_fix_v1",
+  "previous_round_id": "round_20260622_close_round_archive_cycle_fix_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "primary_goal": "Fix the close-round/archive cycle so run-closeout can create the round manifest and then allow archive-dependent final-check checks to pass, without weakening command-plan authority or log isolation.",
+  "primary_goal": "Refresh post-closeout evidence so live report, pytest_result, execution_log, report-auto-summary, report-summary, final-check, and archived round artifacts converge to SUCCESS/ACCEPTED without changing close-round core logic unless strictly necessary.",
   "command_plan_authority_required": true,
-  "accepted_requires_close_round_exit_zero": true,
   "accepted_requires_run_closeout_passed": true,
-  "accepted_requires_round_manifest_created": true,
+  "accepted_requires_close_round_exit_zero": true,
+  "accepted_requires_round_manifest_present": true,
   "accepted_requires_archive_matches_live_report_and_pytest": true,
   "accepted_requires_execution_log_consistency_passed": true,
   "accepted_requires_report_auto_summary_consistency_passed": true,
-  "accepted_requires_required_audit_coverage_passed": true,
+  "accepted_requires_report_summary_passed": true,
   "accepted_requires_final_check_passed": true,
+  "accepted_requires_required_audit_coverage_passed": true,
   "accepted_requires_report_status_success": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
@@ -49,7 +50,7 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_round_result.json",
-    "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/*"
+    "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -68,30 +69,24 @@
 
 ## 1. Goal
 
-Implement Close-Round Archive Cycle Fix v1.
+Implement Post-Closeout Evidence Refresh v1.
 
-The previous evidence rework substantially improved the top-level command-plan authority chain and preserved `run-closeout` nested log isolation, but audit still returned `REWORK_REQUIRED`. The remaining hard problem is a closeout/archive cycle:
+The previous round fixed the main close-round/archive cycle: `run-closeout` passed, `close-round` exited 0, and the round archive/manifest could be created. However, audit still returned `REWORK_REQUIRED` because the post-closeout evidence did not converge. The live report remained `PARTIAL / NEEDS_REVIEW`, `pytest_result_summary.status` was `FAILED`, `execution-log` was `FAILED`, `report-summary` was `FAILED`, `final-check` was `FAILED`, and `final_gate_result.json` still contained blocking evidence-mismatch reasons.
 
-- `run-closeout` calls `close-round`.
-- `close-round` exits 1 because the round manifest is missing.
-- The round manifest is normally created by successful close-round.
-- Because close-round fails, archive-dependent final-check checks remain WARN: `round_manifest_present`, `archived_report_matches_live_report`, `archived_pytest_result_matches_live_pytest_result`, and `generated_artifacts_cover_round_archive`.
-- Because archive-dependent checks remain unresolved, the report stays `PARTIAL / NEEDS_REVIEW` instead of `SUCCESS / ACCEPTED`.
+This round must not redesign close-round. It must perform the narrow post-closeout evidence refresh and, if necessary, apply the smallest code fix that lets live and archived state converge after closeout.
 
-This round must break that cycle safely. The fix must make close-round able to create the round archive/manifest when the current live report, pytest_result, command-plan authority, report-summary, and final-check are otherwise valid. It must not weaken command-plan authority, log isolation, stale artifact checks, or real failure detection.
+The target final state is:
 
-Acceptance requires:
-
-- `run-closeout` passes;
+- `run-closeout` is `PASSED`;
 - `close-round` exits 0;
-- `project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/round_manifest.json` exists;
-- archived report and archived pytest_result match live report and live pytest_result at closeout time;
-- `generated_artifacts` covers round archive files;
-- `execution_log_consistency` passes;
-- `report_auto_summary_consistency` passes;
-- Required Audit coverage passes with no placeholder answers;
-- final-check passes, not merely WARN;
-- report status is `SUCCESS` and acceptance recommendation is `ACCEPTED`, except only if a real blocker is explicitly documented.
+- the round manifest exists under `project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/round_manifest.json`;
+- archived report and archived pytest_result match live report and live pytest_result at the final accepted state;
+- top-level `pytest_result.txt` contains only current-round command-plan-authorized command blocks;
+- `execution_log.json` is current-round and `PASSED` with no stale prior-round commands;
+- `codex_report_auto_summary.json`, `report_summary_synthesis.json`, live `codex_report_summary`, and `final_gate_result.json` agree;
+- Required Audit coverage passes with no missing or placeholder answers;
+- final-check is `PASSED`, not merely WARN or FAILED;
+- `codex_report_summary.status` is `SUCCESS` and `acceptance_recommendation` is `ACCEPTED`.
 
 ## 2. Current Evidence
 
@@ -99,45 +94,44 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` remains background-only sample-solving state and must not control this round. This `decision_packet.md` controls the current round.
 
-Previous audit findings:
+Previous audit findings from `decision_20260622_close_round_archive_cycle_fix_v1`:
 
-- `decision_20260622_run_closeout_log_isolation_evidence_rework_v1` was valid and approved, but not accepted.
-- Top-level command-plan authority improved: `command_plan_execution_authority` passed.
-- `pytest_result_exit_codes_match_command_plan` passed.
-- `report_summary_fields_match_synthesis` passed.
-- `stale_artifact_ids` passed.
-- `report-summary` command passed.
-- `final-check` was only WARN, not PASSED.
-- `run-closeout` failed because close-round exited 1.
-- The blocking loop was: round manifest missing -> close-round fails -> archive checks cannot pass -> final report remains PARTIAL.
-- `execution_log_consistency` still warned because execution_log and pytest_result disagreed for `report-summary` and `final-check` exit codes.
-- `report_auto_summary_consistency` still warned because live report and auto-summary `tests_ran` disagreed.
-- `required_audit_coverage` still warned because one Required Audit answer was placeholder-like.
-- historical/backlog sample artifact warnings remain non-blocking for this engineering round and must not be the sole reason for PARTIAL.
+- The decision was valid and approved.
+- `run-closeout` became `PASSED`.
+- `close-round` became `PASSED` with exit 0.
+- `round_manifest_present`, `archived_report_matches_live_report`, `archived_pytest_result_matches_live_pytest_result`, and `generated_artifacts_cover_round_archive` improved to PASS in the post-closeout gate artifact.
+- But live `codex_execution_report.md` still reported `PARTIAL / NEEDS_REVIEW`.
+- `pytest_result_summary.status` was `FAILED`.
+- The command log still showed `execution-log: FAILED`, `report-summary: FAILED`, and `final-check: FAILED` before the later closeout state.
+- `final_gate_result.json` remained `FAILED` with a blocking reason: `final_check_stdout_matches_gate_status` mismatch.
+- `execution_log_consistency` still warned because `execution_log.json` disagreed with `pytest_result` or command-plan and still contained stale prior-round `round_20260622_run_closeout_log_isolation_evidence_rework_v1` commands.
+- `report_auto_summary_consistency` still warned because `codex_report_auto_summary.json` and the live report disagreed on `tests_ran`.
+- `required_audit_coverage` still warned because the Required Audit section was missing all 8 answers in final-check's view.
+- historical/backlog sample artifact warnings remain non-blocking and must not be the only reason for `PARTIAL`.
 
 Existing capabilities to reuse:
 
 - `run-round --execute` and `run-round --dry-run`.
-- `run-closeout`, `close-round`, round archive, and round manifest logic.
-- `run_closeout_execution_log.json` or equivalent scoped closeout internal evidence.
+- `run-closeout`, `close-round`, round archive, and manifest creation.
+- scoped closeout internal evidence in `run_closeout_execution_log.json` or equivalent.
 - `command-plan` and omitted-command authority checks.
 - `execution-log` derived from top-level `pytest_result.txt` and command-plan.
 - `report-auto-summary`.
 - `report-summary` / `build_report_summary_synthesis()`.
 - `final-check`.
 - `policy-lint` and `policy-impact`.
-- Existing closeout, log-isolation, and report-summary tests in `tests/test_project_gate.py`.
+- Existing closeout, log-isolation, archive, and report-summary tests in `tests/test_project_gate.py`.
 
 Artifact freshness:
 
-- Any artifact from `round_20260622_run_round_execute_pipeline_v1`, `round_20260622_run_closeout_log_isolation_v1`, or `round_20260622_run_closeout_log_isolation_evidence_rework_v1` is previous-round context only.
-- Current proof must be regenerated with `decision_20260622_close_round_archive_cycle_fix_v1` and `round_20260622_close_round_archive_cycle_fix_v1`.
+- Any artifact from `round_20260622_run_round_execute_pipeline_v1`, `round_20260622_run_closeout_log_isolation_v1`, `round_20260622_run_closeout_log_isolation_evidence_rework_v1`, or `round_20260622_close_round_archive_cycle_fix_v1` is previous-round context only.
+- Current proof must be regenerated with `decision_20260622_post_closeout_evidence_refresh_v1` and `round_20260622_post_closeout_evidence_refresh_v1`.
 - Historical/backlog sample artifacts are non-blocking unless this round claims sample-solving progress.
 
 Gate/command-plan strategy:
 
 - Use only valid profiles: `fast`, `standard`, `full`.
-- Because this touches closeout/archive/final-check behavior, command-plan should use or require `full` validation.
+- Because this touches evidence refresh, report-summary, final-check, and closeout/archive state, command-plan should use or require `full` validation.
 - Tests remain subordinate to command-plan.
 - Closeout may run only if command-plan authorizes it and profile allows it.
 
@@ -149,17 +143,19 @@ Tool policy:
 
 ## 3. Do Not Do
 
-Do not add new architecture or expand scope beyond fixing the close-round/archive cycle and evidence convergence.
+Do not add new architecture or expand scope beyond post-closeout evidence refresh and status convergence.
 
 Do not build AgentRunner, Codex adapter, Trae adapter, job manager, database, queue, scheduler, daemon, Web UI, API planner, API auditor, GitHub Actions workflow, or background worker.
+
+Do not redesign close-round or run-closeout if a narrower post-closeout refresh order/state fix is sufficient.
 
 Do not weaken command-plan authority. Real unauthorized top-level commands must still fail or warn.
 
 Do not weaken log isolation. Nested `run-closeout` internals must remain outside the top-level `pytest_result.txt` command stream and remain auditable in scoped closeout evidence.
 
-Do not convert close-round failure into success by ignoring missing archive artifacts. The fix must create valid archive/manifest artifacts, not suppress checks.
+Do not convert failures into success by ignoring mismatches. The fix must make report, pytest_result, execution_log, auto-summary, synthesis, final-check, and archive actually agree.
 
-Do not mark archive checks non-blocking unless the decision explicitly makes archive optional. This decision requires closeout/archive success.
+Do not mark archive checks optional. This decision requires closeout/archive success.
 
 Do not execute commands from `command-plan.omitted_commands`.
 
@@ -208,26 +204,26 @@ Then inspect relevant files:
 14. `project_state/gates/round_delta_summary.json`
 15. `project_state/gates/round_close_snapshot.json`
 
-Prior-round artifacts may be read only by exact path if needed to diagnose the close-round cycle. Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
+Prior-round artifacts may be read only by exact path if needed to diagnose stale evidence leakage. Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
 Answer all items in `project_state/codex_execution_report.md` before claiming success:
 
-1. What exact close-round/archive cycle caused `run-closeout` to fail, and which checks depended on the missing round manifest?
-2. What code path now creates or validates `round_manifest.json`, and why no circular dependency remains?
-3. How does `run-closeout` now order report-summary, final-check, close-round, archive creation, and any post-closeout summary/final-check refresh?
-4. How do archived report and archived pytest_result prove they match the live report and live pytest_result at closeout time?
-5. How does final-check distinguish real archive mismatches from pre-closeout/archive-pending state, and why final state is PASSED?
-6. How were `execution_log_consistency` and `report_auto_summary_consistency` resolved so execution_log, pytest_result, auto-summary, synthesis, and live report agree?
-7. What regression tests prove close-round can create the manifest, archive checks pass after closeout, archive mismatches still fail, log isolation is preserved, and command-plan authority remains strict?
+1. What exact post-closeout evidence mismatch remained after `close-round` started succeeding, and which files showed it?
+2. How was top-level `pytest_result.txt` rebuilt or refreshed so it contains only current-round command-plan-authorized command blocks and no stale prior-round commands?
+3. How was `execution_log.json` regenerated so it agrees with `pytest_result.txt` and `command_plan.json` without stale prior-round commands or exit-code mismatches?
+4. How were `codex_report_auto_summary.json`, `report_summary_synthesis.json`, and live `codex_report_summary` regenerated so `tests_ran`, `files_changed`, `generated_artifacts`, status, and acceptance recommendation agree?
+5. How does final-check now prove `round_manifest_present`, archived report/pytest matching, generated archive coverage, command-plan authority, stale artifact IDs, Required Audit coverage, execution-log consistency, and report-auto-summary consistency all pass?
+6. How does `run-closeout` now order close-round, archive creation, live artifact refresh, report-summary, report-auto-summary, and final-check so the accepted live state and archived state do not drift?
+7. What regression tests prove post-closeout evidence refresh, archive/live agreement, stale command exclusion, real mismatch detection, log isolation, and command-plan authority remain correct?
 8. How does this round preserve `run-round --execute`, `run-round --dry-run`, scoped closeout logs, command-plan authority, omitted-command blocking, policy-lint, policy-impact, prompt-doc immutability, and non-blocking historical/backlog sample artifact handling?
 
 Each answer must include concrete evidence and status `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`. Do not write TODO, TBD, PENDING, should-converge placeholders, or speculative answers.
 
 ## 6. Implementation Scope
 
-Primary scope: fix close-round/archive cycle and regenerate clean current-round evidence.
+Primary scope: refresh and converge post-closeout evidence. Apply minimal source changes only if required to make the refresh order/state reproducible.
 
 Allowed source changes only if required:
 
@@ -253,22 +249,24 @@ Allowed state/artifact updates:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_closeout_execution_log.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/*` only if command-plan authorizes closeout
+- `project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/*` only if command-plan authorizes closeout
 
 Required behavior:
 
 1. Establish a current-round baseline before modifications.
-2. Identify why `close-round` exits 1 when the manifest is missing.
-3. Modify the smallest necessary close-round/run-closeout logic so close-round can create the round archive and manifest instead of requiring the manifest before creation.
-4. Preserve strict validation after archive creation: if archive files are missing, stale, or do not match live report/pytest_result, final-check must still fail or warn according to policy.
-5. Keep nested closeout internals in scoped closeout evidence, not in top-level `pytest_result.txt`.
-6. Regenerate clean current-round `pytest_result.txt` with all command-plan-authorized top-level commands.
-7. Regenerate current-round `execution_log.json` and make it pass without exit-code mismatch or stale-command warnings.
-8. Regenerate current-round `codex_report_auto_summary.json`, `report_summary_synthesis.json`, and `final_gate_result.json` after closeout/archive creation.
-9. Ensure `round_manifest.json`, archived report, archived pytest_result, and archived decision packet exist under `project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/`.
-10. Ensure `report-summary` and `final-check` pass after closeout.
-11. Ensure `codex_report_summary.status` is `SUCCESS` and `acceptance_recommendation` is `ACCEPTED` unless a real blocker remains.
-12. Add focused regression tests for close-round archive cycle behavior and preserve previous log-isolation tests.
+2. Ensure command-plan is current for `round_20260622_post_closeout_evidence_refresh_v1`.
+3. Regenerate clean current-round `pytest_result.txt` with all command-plan-authorized top-level commands.
+4. Ensure `pytest_result_summary.status` reflects the final evidence state and is not left `FAILED` when the command body contains no real failure markers.
+5. Ensure top-level `pytest_result.txt` contains no prior-round command blocks from the four previous engineering rounds.
+6. Regenerate current-round `execution_log.json` after the final top-level command stream is stable.
+7. Regenerate current-round `codex_report_auto_summary.json` and `report_summary_synthesis.json` after `execution_log.json` and `final_gate_result.json` are stable.
+8. Regenerate live `codex_execution_report.md` so summary fields exactly match synthesis and auto-summary.
+9. Run closeout if command-plan authorizes it, and ensure archive files are created for this round.
+10. After closeout, run the necessary report-summary / report-auto-summary / final-check refresh sequence so live and archived evidence agree, or apply the minimal code fix that makes this sequence reproducible.
+11. Ensure final-check passes with no blocking reasons.
+12. Ensure Required Audit contains all 8 concrete answers and no placeholder answers.
+13. Ensure report status is `SUCCESS` and acceptance recommendation is `ACCEPTED` unless a real blocker remains.
+14. Add focused regression tests only if needed to lock the refresh order/state convergence.
 
 Do not implement new user-facing features.
 
@@ -301,8 +299,8 @@ After implementation or evidence cleanup, run only command-plan-authorized comma
 ```powershell
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1 --dry-run --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1 --execute
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1 --dry-run --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1 --execute
 python -m pytest tests/test_project_gate.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
@@ -311,7 +309,9 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1
+python -m reverse_agent.project_gate execution-log --state-dir project_state
+python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
@@ -331,15 +331,15 @@ Stop immediately and report `BLOCKED` if:
 - skill profiles do not match active registry entries;
 - command-plan is missing, failed, or conflicts with safe execution;
 - a needed command is not authorized by command-plan;
-- the fix would require weakening command-plan authority or archive validation;
+- the fix would require weakening command-plan authority, log isolation, or archive validation;
 - closeout internals cannot remain auditable after log isolation;
 - implementation requires files outside allowed source scope;
 - state updates require forbidden paths;
-- close-round still exits nonzero after the fix;
 - round manifest cannot be created;
 - archive report or archive pytest_result cannot be made to match live artifacts;
-- final-check reports blocking reasons after closeout refresh;
-- execution-log or report-auto-summary remains inconsistent with live report;
+- execution-log cannot be made consistent with pytest_result and command-plan;
+- report-auto-summary cannot be made consistent with live report;
+- final-check reports blocking reasons after refresh;
 - Required Audit remains incomplete or placeholder-like.
 
-Stop with `REWORK_REQUIRED` if tests fail, `run-closeout` remains FAILED, `close-round` exit remains 1, `round_manifest_present` remains WARN/FAIL, archived report/pytest mismatch remains WARN/FAIL, `execution_log_consistency` remains WARN/FAIL, `report_auto_summary_consistency` remains WARN/FAIL, or the report remains `PARTIAL / NEEDS_REVIEW` for reasons other than explicitly non-blocking historical/backlog sample artifacts.
+Stop with `REWORK_REQUIRED` if tests fail, `run-closeout` remains failed, `close-round` regresses, `round_manifest_present` regresses, archived report/pytest mismatch remains, `execution_log_consistency` remains WARN/FAIL, `report_auto_summary_consistency` remains WARN/FAIL, Required Audit coverage remains WARN/FAIL, or the report remains `PARTIAL / NEEDS_REVIEW` for reasons other than explicitly non-blocking historical/backlog sample artifacts.
