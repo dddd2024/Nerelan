@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260622_run_closeout_log_isolation_v1",
-  "round_id": "round_20260622_run_closeout_log_isolation_v1",
+  "decision_id": "decision_20260622_run_closeout_log_isolation_evidence_rework_v1",
+  "round_id": "round_20260622_run_closeout_log_isolation_evidence_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,17 +13,18 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260622_run_round_execute_pipeline_v1",
-  "previous_round_id": "round_20260622_run_round_execute_pipeline_v1",
-  "previous_acceptance": "ACCEPTED_WITH_LIMITATIONS",
-  "primary_goal": "Isolate run-closeout subprocess/internal command logging so top-level pytest_result.txt contains only top-level command-plan authorized command blocks and command_plan_execution_authority can converge cleanly.",
+  "previous_decision_id": "decision_20260622_run_closeout_log_isolation_v1",
+  "previous_round_id": "round_20260622_run_closeout_log_isolation_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
+  "primary_goal": "Close the run-closeout log isolation evidence gap by regenerating current-round top-level pytest_result, execution_log, report summary, final-check, and closeout/archive artifacts without stale prior-round command blocks.",
   "command_plan_authority_required": true,
-  "accepted_requires_no_unauthorized_command_execution": true,
-  "accepted_requires_top_level_pytest_result_not_polluted_by_nested_closeout_commands": true,
-  "accepted_requires_execution_log_current_round_consistency": true,
-  "accepted_requires_report_status_success_when_only_historical_backlog_warning_remains": true,
-  "accepted_requires_closeout_when_authorized": true,
-  "accepted_requires_prompt_unchanged": true,
+  "accepted_requires_top_level_pytest_result_current_round_only": true,
+  "accepted_requires_no_prior_round_command_blocks": true,
+  "accepted_requires_run_closeout_nested_log_current_round": true,
+  "accepted_requires_execution_log_passed_without_unauthorized_warnings": true,
+  "accepted_requires_report_summary_passed": true,
+  "accepted_requires_final_check_passed": true,
+  "accepted_requires_report_status_success": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
@@ -44,9 +45,9 @@
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_closeout_result.json",
-    "project_state/gates/run_round_result.json",
     "project_state/gates/run_closeout_execution_log.json",
-    "project_state/rounds/round_20260622_run_closeout_log_isolation_v1/*"
+    "project_state/gates/run_round_result.json",
+    "project_state/rounds/round_20260622_run_closeout_log_isolation_evidence_rework_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -65,57 +66,60 @@
 
 ## 1. Goal
 
-Implement Run-Closeout Log Isolation v1.
+Complete Run-Closeout Log Isolation Evidence Rework v1.
 
-The previous round implemented a bounded `run-round --execute` entrypoint and was accepted with limitations. The remaining design limitation is not the execute entrypoint itself. The issue is that `run-closeout` can run as a subprocess and append its own internal command blocks into the top-level `project_state/pytest_result.txt`. That pollutes the top-level command evidence with nested closeout-internal commands that are not part of the top-level `command-plan.commands`, which can make `command_plan_execution_authority` detect apparent unauthorized commands and force `PARTIAL` / `NEEDS_REVIEW` even when the intended top-level command was authorized.
+The previous round attempted to isolate `run-closeout` internal command logging from top-level `pytest_result.txt`, but audit returned `REWORK_REQUIRED`. The implementation may contain useful log-isolation code and tests, but current-round evidence did not close: top-level `pytest_result.txt` and `execution_log.json` still contained commands from `round_20260622_run_round_execute_pipeline_v1`, while command-plan expected `round_20260622_run_closeout_log_isolation_v1`. Report-summary and final-check failed, and `codex_report_summary` remained `PARTIAL` / `NEEDS_REVIEW`.
 
-This round must isolate nested closeout command evidence from the top-level execution evidence.
+This round is an evidence-closure rework with minimal code fixes only if necessary. It must regenerate the current round from a clean top-level command record so that:
 
-The intended outcome is:
-
-- the top-level `pytest_result.txt` records the top-level command-plan commands only;
-- the top-level `execution_log.json` validates against the top-level `command_plan.json` without seeing run-closeout internal commands as unauthorized;
-- run-closeout internal command details remain auditable in a separate nested artifact, such as `project_state/gates/run_closeout_execution_log.json`, `project_state/gates/run_closeout_result.json`, or a scoped archive artifact;
-- final-check can verify both top-level command-plan authority and nested closeout evidence without conflating the two scopes;
-- if the only remaining warning is historical/backlog sample artifact state, the report can converge to `SUCCESS` / `ACCEPTED`.
+- top-level `pytest_result.txt` contains only commands authorized by the current round command-plan;
+- top-level `pytest_result.txt` contains no command block or artifact reference from `round_20260622_run_round_execute_pipeline_v1`;
+- current-round `run-round --dry-run`, `run-round --execute`, and `run-closeout` commands are recorded when command-plan authorizes them;
+- `run-closeout` internal command blocks remain auditable in a nested/scoped artifact such as `run_closeout_execution_log.json`, not in the top-level command stream;
+- `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, and `final_gate_result.json` all carry this rework round ID;
+- report-summary and final-check pass;
+- if only historical/backlog sample artifact notices remain, `codex_report_summary.status` must converge to `SUCCESS` with `acceptance_recommendation: ACCEPTED`.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-`task_packet.json` remains background-only sample-solving context and must not control this round. Current execution authority is this `decision_packet.md`.
+`task_packet.json` remains background-only sample-solving state and does not control this round. This `decision_packet.md` is the current round authority.
 
-Previous accepted-with-limitations evidence:
+Previous audit findings:
 
-- `decision_20260622_run_round_execute_pipeline_v1` added `run-round --execute`.
-- Execute mode used command-plan as execution authority and preserved dry-run behavior.
-- Tests passed for the new execute mode.
-- `execution_log.json` and final-check could validate the command-plan chain, but the top-level status remained limited because summary/status convergence was affected by nested closeout logging.
-- The execution-time limitation explicitly identified the problem: `run-closeout` subprocess appends internal command blocks to top-level `pytest_result.txt`, causing command-plan authority checks to see commands that were not top-level authorized commands.
-- `status_policy_valid` may still report a non-blocking historical/backlog artifact warning; that warning alone must not prevent a successful engineering round.
+- `decision_20260622_run_closeout_log_isolation_v1` was valid and approved, but execution was not accepted.
+- `codex_execution_report.md` remained `PARTIAL` / `NEEDS_REVIEW`.
+- Required Audit item 6 acknowledged that current report-auto-summary still showed `PARTIAL` because stale gate artifacts had not been regenerated for the current round IDs.
+- `pytest_result_summary.status` was `PARTIAL`.
+- `report-summary` failed with `pytest_result_summary.tests_ran omits command_plan commands` and ID/list diffs.
+- `final-check` failed on decision/report mismatch, archive mismatch, command-plan coverage, exit-code coverage, stale artifact IDs, report-summary mismatch, and status policy.
+- `execution_log.json` warned that commands from `round_20260622_run_round_execute_pipeline_v1` were not in current `command_plan.commands` and that current-round `run-round` / `run-closeout` commands were missing.
+- The top-level evidence stream still contained prior-round commands, so the round did not prove the log-isolation fix.
 
 Existing capabilities to reuse:
 
 - `run-round --execute` and `run-round --dry-run`.
-- `command-plan` command list and omitted-command logic.
-- `execution-log` derivation from `pytest_result.txt` and command-plan.
-- `run-closeout` and `run_closeout_result.json`.
+- `command-plan` and omitted-command authority checks.
+- `execution-log` derived from top-level `pytest_result.txt` and command-plan.
+- `run-closeout`, `run_closeout_result.json`, and any scoped closeout log implementation from the previous attempt.
 - `report-auto-summary`.
 - `report-summary` / `build_report_summary_synthesis()`.
 - `final-check`.
-- policy-lint and policy-impact.
-- Existing fake command-runner based tests in `tests/test_project_gate.py`.
+- `policy-lint` and `policy-impact`.
+- Existing log-isolation regression tests in `tests/test_project_gate.py`.
 
 Artifact freshness:
 
-- Current proof must be regenerated for this round.
-- Prior artifacts may be used only as context, not as current acceptance evidence.
-- Any artifact with older decision_id, round_id, or report_id is stale for this round.
+- Any artifact or command block mentioning `round_20260622_run_round_execute_pipeline_v1` is stale for this round.
+- Any artifact from `round_20260622_run_closeout_log_isolation_v1` is prior-attempt context only, not current acceptance evidence.
+- Current proof must be regenerated with `decision_20260622_run_closeout_log_isolation_evidence_rework_v1` and `round_20260622_run_closeout_log_isolation_evidence_rework_v1`.
+- Historical/backlog sample artifacts remain non-blocking for this engineering round unless code claims sample-solving progress.
 
 Gate/command-plan strategy:
 
 - Use only valid profiles: `fast`, `standard`, `full`.
-- Because this changes execution evidence semantics, command-plan should normally select or require `full` validation.
+- Because this touches execution evidence, status derivation, and closeout behavior, command-plan should use or require `full` validation.
 - Tests remain subordinate to command-plan.
 - Closeout may run only if command-plan authorizes it and profile allows it.
 
@@ -123,23 +127,25 @@ Tool policy:
 
 - This is not a reverse-solving round.
 - Do not inspect or run sample binaries.
-- Do not use IDA, Ghidra, debuggers, emulators, runtime probes, solvers, harnesses, or full solve_reports scans.
+- Do not use IDA, Ghidra, debuggers, emulators, runtime probes, solvers, harnesses, or full `solve_reports/` scans.
 
 ## 3. Do Not Do
 
-Do not build AgentRunner, Codex adapter, Trae adapter, job manager, database, queue, scheduler, daemon, Web UI, API planner, API auditor, or GitHub Actions workflow in this round.
+Do not add new architecture or expand scope beyond closing the log-isolation evidence gap.
 
-Do not expand execute mode into arbitrary implementation command execution.
+Do not build AgentRunner, Codex adapter, Trae adapter, job manager, database, queue, scheduler, daemon, Web UI, API planner, API auditor, GitHub Actions workflow, or background worker.
 
-Do not weaken command-plan authority by ignoring unauthorized commands. The correct fix is scope separation: top-level command blocks must be validated against top-level command-plan, and closeout-internal command blocks must be recorded in a nested/closeout-specific artifact.
+Do not weaken command-plan authority. Real unauthorized top-level commands must still fail or warn.
 
-Do not simply delete closeout evidence. Closeout internals must remain auditable, but not as top-level command-plan commands.
-
-Do not hide failing commands by dropping them from all artifacts.
+Do not suppress errors by deleting evidence. Top-level evidence and nested closeout evidence must both remain auditable.
 
 Do not execute commands from `command-plan.omitted_commands`.
 
-Do not change `.codex-skills/` or prompt docs.
+Do not treat prior-round artifacts or command blocks as current evidence.
+
+Do not allow `round_20260622_run_round_execute_pipeline_v1` command blocks to remain in top-level `pytest_result.txt` for this round.
+
+Do not modify `.codex-skills/` or prompt docs.
 
 Do not introduce a `medium` profile.
 
@@ -164,7 +170,7 @@ Read default state files first:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Then inspect relevant implementation and gate files:
+Then inspect relevant files:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
@@ -172,37 +178,38 @@ Then inspect relevant implementation and gate files:
 4. `project_state/gates/execution_log.json`
 5. `project_state/gates/run_round_result.json`
 6. `project_state/gates/run_closeout_result.json`
-7. `project_state/gates/report_summary_synthesis.json`
-8. `project_state/gates/final_gate_result.json`
-9. `project_state/gates/codex_report_auto_summary.json`
-10. `project_state/gates/policy_lint_result.json`
-11. `project_state/gates/policy_impact_audit.json`
-12. `project_state/gates/round_baseline.json`
-13. `project_state/gates/round_delta_summary.json`
-14. `project_state/gates/round_close_snapshot.json`
+7. `project_state/gates/run_closeout_execution_log.json` if present
+8. `project_state/gates/report_summary_synthesis.json`
+9. `project_state/gates/final_gate_result.json`
+10. `project_state/gates/codex_report_auto_summary.json`
+11. `project_state/gates/policy_lint_result.json`
+12. `project_state/gates/policy_impact_audit.json`
+13. `project_state/gates/round_baseline.json`
+14. `project_state/gates/round_delta_summary.json`
+15. `project_state/gates/round_close_snapshot.json`
 
-Prior-round artifacts may be read only by exact path if needed to confirm the pollution pattern. Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
+Prior-round artifacts may be read only by exact path if needed to diagnose stale-command leakage. Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
 Answer all items in `project_state/codex_execution_report.md` before claiming success:
 
-1. What exact nested closeout command pollution occurred previously, and which command blocks were incorrectly visible to the top-level command-plan authority check?
-2. What log/evidence scopes now exist: top-level pytest_result / execution_log versus nested run-closeout command evidence?
-3. Where are run-closeout internal commands recorded after the fix, and how are they linked to `run_closeout_result.json` or round archive artifacts?
-4. How does top-level `execution_log.json` prove every top-level command came from `command-plan.commands` and no command came from `command-plan.omitted_commands`?
-5. How does final-check validate closeout evidence without treating nested closeout internals as top-level unauthorized commands?
-6. How does report-auto-summary / report-summary derive `SUCCESS` / `ACCEPTED` when command-plan authority, execution-log, final-check, and closeout pass and only historical/backlog sample warnings remain?
-7. What regression tests prove nested closeout logs are isolated, top-level authorization remains strict, closeout internals remain auditable, and real unauthorized top-level commands still fail?
-8. How does this round preserve `run-round --execute`, `run-round --dry-run`, command-plan authority, omitted-command blocking, status-kind handling, policy-lint, policy-impact, prompt-doc immutability, and closeout behavior?
+1. Which prior-round command blocks or artifact IDs caused the previous `REWORK_REQUIRED`, and where were they found?
+2. How was top-level `pytest_result.txt` rebuilt so it contains only this rework round's command-plan-authorized commands?
+3. How does the current top-level `execution_log.json` prove there are no stale `round_20260622_run_round_execute_pipeline_v1` command blocks and no unauthorized top-level commands?
+4. Where is nested `run-closeout` internal command evidence recorded now, and how is it linked to `run_closeout_result.json` or round archive artifacts?
+5. Which current-round command-plan commands were authorized, executed, skipped, or omitted, and why?
+6. How do `report-auto-summary`, `report-summary`, and `final-check` agree on current `report_id`, `round_id`, `based_on_decision_id`, `files_changed`, `tests_ran`, and `generated_artifacts`?
+7. What tests prove log isolation, top-level authorization strictness, closeout auditability, stale round exclusion, real unauthorized command detection, and status convergence?
+8. How does this rework preserve `run-round --execute`, `run-round --dry-run`, command-plan authority, omitted-command blocking, policy-lint, policy-impact, prompt-doc immutability, and closeout behavior?
 
-Each answer must include concrete evidence and a status of `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`. Do not write TODO, TBD, PENDING, or placeholder answers.
+Each answer must include concrete evidence and status `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`. Do not write TODO, TBD, PENDING, or placeholders.
 
 ## 6. Implementation Scope
 
-Implement one bounded fix: Run-Closeout Log Isolation v1.
+Primary scope: close the evidence gap and fix any minimal source issue that prevents clean current-round evidence.
 
-Allowed source changes:
+Allowed source changes only if required:
 
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
@@ -224,24 +231,25 @@ Allowed state/artifact updates:
 - `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/run_closeout_result.json`
-- `project_state/gates/run_round_result.json`
 - `project_state/gates/run_closeout_execution_log.json`
-- `project_state/rounds/round_20260622_run_closeout_log_isolation_v1/*` only if command-plan authorizes closeout
+- `project_state/gates/run_round_result.json`
+- `project_state/rounds/round_20260622_run_closeout_log_isolation_evidence_rework_v1/*` only if command-plan authorizes closeout
 
-Required implementation behavior:
+Required behavior:
 
-1. Identify the current mechanism by which `run-closeout` subprocess/internal commands append to top-level `project_state/pytest_result.txt`.
-2. Introduce a scoped recording mechanism so top-level `pytest_result.txt` records only the top-level `run-closeout` command block and not the internal closeout command blocks.
-3. Preserve closeout-internal command evidence in a nested artifact, for example `run_closeout_execution_log.json`, nested fields inside `run_closeout_result.json`, or a round archive artifact.
-4. Ensure top-level `execution_log.json` ignores nested closeout internals and validates only top-level command-plan commands.
-5. Ensure final-check still fails on real unauthorized top-level commands.
-6. Ensure final-check can still audit closeout internals through their nested artifact/provenance.
-7. Ensure report-auto-summary and report-summary include the nested artifact when generated and do not confuse it with top-level command blocks.
-8. Ensure `status_policy_valid` treats historical/backlog sample artifact warnings as non-blocking for engineering rounds.
-9. Preserve `run-round --execute` and `run-round --dry-run` behavior.
-10. Add focused tests in `tests/test_project_gate.py` using fake command runners where possible.
+1. Establish a current-round baseline before modifications.
+2. Regenerate a clean top-level `pytest_result.txt` for this rework round.
+3. Ensure top-level `pytest_result.txt` records current round command-plan commands, including current `run-round --dry-run`, current `run-round --execute`, and current `run-closeout` if authorized.
+4. Ensure top-level `pytest_result.txt` contains no stale command block or command text from `round_20260622_run_round_execute_pipeline_v1`.
+5. Ensure nested `run-closeout` internals are written to scoped closeout evidence, not top-level command blocks.
+6. Regenerate current-round `execution_log.json` and make it pass without stale/unauthorized command warnings.
+7. Regenerate current-round `codex_report_auto_summary.json`, `report_summary_synthesis.json`, and `final_gate_result.json`.
+8. Run closeout if command-plan authorizes it and archive current-round report/pytest/decision/manifest artifacts.
+9. Ensure `report-summary` and `final-check` pass after closeout.
+10. Ensure `codex_report_summary.status` is `SUCCESS` and `acceptance_recommendation` is `ACCEPTED` unless a real blocker remains.
+11. Preserve tests from the previous log-isolation attempt and add focused regression only if needed.
 
-Do not implement prompt rewriting, Web UI, job state machine, background worker, remote automation, or new agent adapters.
+Do not implement new user-facing features.
 
 ## 7. Tests
 
@@ -267,11 +275,13 @@ Generate command-plan and obey it:
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 ```
 
-After implementation, run only command-plan-authorized commands. If authorized, expected validation includes:
+After implementation or evidence cleanup, run only command-plan-authorized commands. If authorized, expected validation includes:
 
 ```powershell
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_v1 --dry-run --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_v1 --execute
+python -m reverse_agent.project_gate command-plan --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --dry-run --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute
 python -m pytest tests/test_project_gate.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
@@ -280,12 +290,12 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1
 ```
 
 The exact command set is whatever current command-plan authorizes. Command-plan overrides this Tests section if there is any conflict.
 
-Record all top-level executed commands in `project_state/pytest_result.txt`, including command, relevant output, stderr if present, exit code, and conclusion. Do not include nested closeout-internal command blocks in the top-level command block stream. Record nested closeout command evidence in its scoped artifact.
+Record all top-level commands in `project_state/pytest_result.txt`. Do not include nested closeout-internal command blocks in the top-level command stream. Record nested closeout command evidence in its scoped artifact.
 
 ## 8. Stop Conditions
 
@@ -298,13 +308,13 @@ Stop immediately and report `BLOCKED` if:
 - skill profiles do not match active registry entries;
 - command-plan is missing, failed, or conflicts with safe execution;
 - a needed command is not authorized by command-plan;
-- the fix would require weakening command-plan authority;
-- closeout internals cannot be preserved anywhere after removing them from top-level pytest_result;
+- top-level `pytest_result.txt` cannot be rebuilt without stale prior-round command blocks;
+- nested closeout internals cannot be preserved after removing them from top-level command blocks;
 - implementation requires files outside allowed source scope;
 - state updates require forbidden paths;
-- final-check reports blocking reasons;
-- execution-log shows unauthorized top-level commands or exit-code mismatches;
-- report-auto-summary/report-summary/final-check become stale or disagree;
+- final-check reports blocking reasons after rerun;
+- execution-log shows unauthorized top-level commands or stale prior-round commands;
+- report-auto-summary/report-summary/final-check remain stale or disagree;
 - Required Audit is incomplete.
 
-Stop with `REWORK_REQUIRED` if tests fail, nested closeout internals still pollute top-level `pytest_result.txt`, closeout internals are no longer auditable, real unauthorized top-level command detection regresses, or the report remains `PARTIAL / NEEDS_REVIEW` for reasons other than explicitly non-blocking historical/backlog sample artifacts.
+Stop with `REWORK_REQUIRED` if tests fail, top-level `pytest_result.txt` still contains `round_20260622_run_round_execute_pipeline_v1`, current-round `run-round` / `run-closeout` command blocks are missing, closeout internals are no longer auditable, real unauthorized top-level command detection regresses, or the report remains `PARTIAL / NEEDS_REVIEW` for reasons other than explicitly non-blocking historical/backlog sample artifacts.
