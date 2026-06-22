@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260622_close_round_archive_cycle_fix_v1",
-  "report_id": "codex_report_20260622_close_round_archive_cycle_fix_v1",
-  "round_id": "round_20260622_close_round_archive_cycle_fix_v1",
-  "generated_at": "2026-06-22T14:02:04.434659Z",
+  "gate_status": "WARN",
+  "decision_id": "decision_20260622_post_closeout_evidence_refresh_v1",
+  "report_id": "codex_report_20260622_post_closeout_evidence_refresh_v1",
+  "round_id": "round_20260622_post_closeout_evidence_refresh_v1",
+  "generated_at": "2026-06-22T16:08:32.885767Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260622_close_round_archive_cycle_fix_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260622_post_closeout_evidence_refresh_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -67,11 +67,12 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/round_manifest.json",
-        "reverse_agent/project_gate.py"
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/decision_packet.md",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/pytest_result.txt",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -91,11 +92,12 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/round_manifest.json",
-        "reverse_agent/project_gate.py"
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/decision_packet.md",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/pytest_result.txt",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
@@ -127,11 +129,12 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/round_manifest.json",
-        "reverse_agent/project_gate.py"
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/decision_packet.md",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/pytest_result.txt",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -151,11 +154,12 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260622_close_round_archive_cycle_fix_v1/round_manifest.json",
-        "reverse_agent/project_gate.py"
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/decision_packet.md",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/pytest_result.txt",
+        "project_state/rounds/round_20260622_post_closeout_evidence_refresh_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "inherited_dirty_files": []
     },
@@ -164,7 +168,8 @@
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
-        "reverse_agent/project_gate.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "claimed_source_test_paths": []
     },
@@ -185,7 +190,8 @@
       "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
-        "reverse_agent/project_gate.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "allowed_inherited_dirty_files": [],
       "generated_or_archive_baseline_dirty_files": [],
@@ -323,8 +329,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260622_close_round_archive_cycle_fix_v1",
-      "command_plan_round_id": "round_20260622_close_round_archive_cycle_fix_v1"
+      "command_plan_decision_id": "decision_20260622_post_closeout_evidence_refresh_v1",
+      "command_plan_round_id": "round_20260622_post_closeout_evidence_refresh_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -380,8 +386,12 @@
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [],
-      "non_blocking_warnings": []
+      "warnings": [
+        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
+      ],
+      "non_blocking_warnings": [
+        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
+      ]
     },
     {
       "name": "preflight_failure_handoff",
@@ -413,8 +423,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260622_close_round_archive_cycle_fix_v1",
-      "gate_profile_round_id": "round_20260622_close_round_archive_cycle_fix_v1"
+      "gate_profile_decision_id": "decision_20260622_post_closeout_evidence_refresh_v1",
+      "gate_profile_round_id": "round_20260622_post_closeout_evidence_refresh_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -446,28 +456,19 @@
     },
     {
       "name": "required_audit_coverage",
-      "status": "WARN",
-      "detail": "report Required Audit section is missing 8 of 8 answers but report status is PARTIAL",
+      "status": "PASS",
+      "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "What exact close-round/archive cycle caused `run-closeout` to fail, and which checks depended on the missing round manifest?",
-        "What code path now creates or validates `round_manifest.json`, and why no circular dependency remains?",
-        "How does `run-closeout` now order report-summary, final-check, close-round, archive creation, and any post-closeout summary/final-check refresh?",
-        "How do archived report and archived pytest_result prove they match the live report and live pytest_result at closeout time?",
-        "How does final-check distinguish real archive mismatches from pre-closeout/archive-pending state, and why final state is PASSED?",
-        "How were `execution_log_consistency` and `report_auto_summary_consistency` resolved so execution_log, pytest_result, auto-summary, synthesis, and live report agree?",
-        "What regression tests prove close-round can create the manifest, archive checks pass after closeout, archive mismatches still fail, log isolation is preserved, and command-plan authority remains strict?",
+        "What exact post-closeout evidence mismatch remained after `close-round` started succeeding, and which files showed it?",
+        "How was top-level `pytest_result.txt` rebuilt or refreshed so it contains only current-round command-plan-authorized command blocks and no stale prior-round commands?",
+        "How was `execution_log.json` regenerated so it agrees with `pytest_result.txt` and `command_plan.json` without stale prior-round commands or exit-code mismatches?",
+        "How were `codex_report_auto_summary.json`, `report_summary_synthesis.json`, and live `codex_report_summary` regenerated so `tests_ran`, `files_changed`, `generated_artifacts`, status, and acceptance recommendation agree?",
+        "How does final-check now prove `round_manifest_present`, archived report/pytest matching, generated archive coverage, command-plan authority, stale artifact IDs, Required Audit coverage, execution-log consistency, and report-auto-summary consistency all pass?",
+        "How does `run-closeout` now order close-round, archive creation, live artifact refresh, report-summary, report-auto-summary, and final-check so the accepted live state and archived state do not drift?",
+        "What regression tests prove post-closeout evidence refresh, archive/live agreement, stale command exclusion, real mismatch detection, log isolation, and command-plan authority remain correct?",
         "How does this round preserve `run-round --execute`, `run-round --dry-run`, scoped closeout logs, command-plan authority, omitted-command blocking, policy-lint, policy-impact, prompt-doc immutability, and non-blocking historical/backlog sample artifact handling?"
       ],
-      "missing_answers": [
-        "What exact close-round/archive cycle caused `run-closeout` to fail, and which checks depended on the missing round manifest?",
-        "What code path now creates or validates `round_manifest.json`, and why no circular dependency remains?",
-        "How does `run-closeout` now order report-summary, final-check, close-round, archive creation, and any post-closeout summary/final-check refresh?",
-        "How do archived report and archived pytest_result prove they match the live report and live pytest_result at closeout time?",
-        "How does final-check distinguish real archive mismatches from pre-closeout/archive-pending state, and why final state is PASSED?",
-        "How were `execution_log_consistency` and `report_auto_summary_consistency` resolved so execution_log, pytest_result, auto-summary, synthesis, and live report agree?",
-        "What regression tests prove close-round can create the manifest, archive checks pass after closeout, archive mismatches still fail, log isolation is preserved, and command-plan authority remains strict?",
-        "How does this round preserve `run-round --execute`, `run-round --dry-run`, scoped closeout logs, command-plan authority, omitted-command blocking, policy-lint, policy-impact, prompt-doc immutability, and non-blocking historical/backlog sample artifact handling?"
-      ],
+      "missing_answers": [],
       "placeholder_answers": []
     },
     {
@@ -475,14 +476,16 @@
       "status": "PASS",
       "detail": "policy impact coverage satisfied or no policy-sensitive changes",
       "policy_sensitive_files": [
-        "reverse_agent/project_gate.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "impacted_domains": [
         "command_plan",
         "final_check",
         "policy_lint",
         "report_status_schema",
-        "report_summary"
+        "report_summary",
+        "tests"
       ],
       "missing_report_topics": []
     },
@@ -497,7 +500,6 @@
       "detail": "current-round artifacts complete; historical/backlog artifacts non-blocking",
       "lint_errors": [],
       "warnings": [
-        "pytest_result header status is FAILED but body contains no failure markers",
         "report_status is PARTIAL",
         "doctor status is WARN (historical/backlog artifacts non-blocking)"
       ],
@@ -519,42 +521,18 @@
     },
     {
       "name": "final_check_stdout_matches_gate_status",
-      "status": "FAIL",
-      "detail": "recorded final-check stdout does not match gate_status",
-      "expected_gate_status": "WARN",
-      "recorded_stdout_status": "FAILED",
-      "conservative_warn_accepted": false
+      "status": "PASS",
+      "detail": "recorded final-check stdout matches gate_status",
+      "expected_gate_status": "PASSED",
+      "recorded_stdout_status": "WARN",
+      "conservative_warn_accepted": true
     },
     {
       "name": "execution_log_consistency",
-      "status": "WARN",
-      "detail": "execution_log.json disagrees with pytest_result or command_plan (non-SUCCESS report)",
-      "mismatches": [
-        {
-          "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-          "execution_log_exit_code": 0,
-          "pytest_result_exit_code": 1
-        },
-        {
-          "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-          "execution_log_exit_code": 0,
-          "pytest_result_exit_code": 1
-        },
-        {
-          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-          "execution_log_exit_code": 0,
-          "pytest_result_exit_code": 1
-        },
-        {
-          "error": "execution_log contains commands not in command_plan",
-          "unauthorized_commands": [
-            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1",
-            "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --dry-run --json",
-            "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute"
-          ]
-        }
-      ],
-      "required": true
+      "status": "PASS",
+      "detail": "execution_log.json is consistent with pytest_result and command_plan",
+      "mismatches": [],
+      "required": false
     },
     {
       "name": "report_auto_summary_consistency",
@@ -565,28 +543,17 @@
           "field": "tests_ran",
           "expected": [
             "python -m pytest tests/test_project_gate.py -q",
-            "python -m pytest tests/test_project_gate.py -q",
-            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
             "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-            "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
             "python -m reverse_agent.project_gate execution-log --state-dir project_state",
             "python -m reverse_agent.project_gate final-check --state-dir project_state",
-            "python -m reverse_agent.project_gate final-check --state-dir project_state",
-            "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
             "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
             "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
-            "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
-            "python -m reverse_agent.project_gate preflight --state-dir project_state",
             "python -m reverse_agent.project_gate preflight --state-dir project_state",
             "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
             "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-            "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1",
-            "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --dry-run --json",
-            "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute"
+            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1"
           ],
           "actual": [
             "python -m pytest tests/test_project_gate.py -q",
@@ -600,31 +567,27 @@
             "python -m reverse_agent.project_gate preflight --state-dir project_state",
             "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
             "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1",
-            "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1 --dry-run --json",
-            "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1 --execute"
+            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1",
+            "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1 --dry-run --json",
+            "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1 --execute"
           ]
         }
       ],
       "required": true
     }
   ],
-  "blocking_reasons": [
-    "final_check_stdout_matches_gate_status: recorded final-check stdout does not match gate_status"
-  ],
+  "blocking_reasons": [],
   "warnings": [
-    "required_audit_coverage: report Required Audit section is missing 8 of 8 answers but report status is PARTIAL",
     "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking",
-    "execution_log_consistency: execution_log.json disagrees with pytest_result or command_plan (non-SUCCESS report)",
     "report_auto_summary_consistency: codex_report_auto_summary.json disagrees with live codex_report_summary (non-SUCCESS report)"
   ],
-  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
+  "recommended_next_action": "review_warnings_before_closeout",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": false,
     "archive_status": "archived",
-    "report_status": "FAILED",
-    "report_acceptance_recommendation": "REWORK_REQUIRED"
+    "report_status": "PARTIAL",
+    "report_acceptance_recommendation": "NEEDS_REVIEW"
   }
 }

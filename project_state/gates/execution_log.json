@@ -2,11 +2,11 @@
   "schema_version": 1,
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260622_close_round_archive_cycle_fix_v1",
-  "round_id": "round_20260622_close_round_archive_cycle_fix_v1",
-  "report_id": "codex_report_20260622_close_round_archive_cycle_fix_v1",
-  "generated_at": "2026-06-22T13:46:19.618280Z",
+  "gate_status": "WARN",
+  "decision_id": "decision_20260622_post_closeout_evidence_refresh_v1",
+  "round_id": "round_20260622_post_closeout_evidence_refresh_v1",
+  "report_id": "codex_report_20260622_post_closeout_evidence_refresh_v1",
+  "generated_at": "2026-06-22T16:08:05.150753Z",
   "source": "derived_from_pytest_result_and_command_plan",
   "commands": [
     {
@@ -66,17 +66,6 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "kind": "preflight",
-      "phase": "preflight",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -87,7 +76,7 @@
       "status": "PASSED"
     },
     {
-      "index": 8,
+      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -98,20 +87,36 @@
       "status": "PASSED"
     },
     {
+      "index": 8,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --dry-run --json",
-      "kind": "run-round",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
       "phase": "gate",
-      "expected_exit_codes": [],
+      "expected_exit_codes": [
+        0,
+        1
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute",
-      "kind": "run-round",
-      "phase": "gate",
-      "expected_exit_codes": [],
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -128,17 +133,6 @@
     },
     {
       "index": 12,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 13,
       "command": "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
       "kind": "project-cli",
       "phase": "status",
@@ -149,7 +143,7 @@
       "status": "PASSED"
     },
     {
-      "index": 14,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
       "kind": "project-cli",
       "phase": "status",
@@ -160,7 +154,7 @@
       "status": "PASSED"
     },
     {
-      "index": 15,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -172,7 +166,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
       "kind": "report-auto-summary",
       "phase": "gate",
@@ -184,7 +178,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -192,163 +186,25 @@
         0,
         1
       ],
-      "exit_code": 0,
+      "exit_code": 1,
       "status": "PASSED"
     },
     {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1",
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1",
       "kind": "run-closeout",
       "phase": "gate",
-      "expected_exit_codes": [],
-      "exit_code": 1,
-      "status": "PASSED"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
       "expected_exit_codes": [
         0,
         1
-      ],
-      "exit_code": 1,
-      "status": "PASSED"
-    },
-    {
-      "index": 21,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 1,
-      "status": "PASSED"
-    },
-    {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 23,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 24,
-      "command": "git rev-parse --show-toplevel",
-      "kind": "git rev-parse",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 25,
-      "command": "git status --short",
-      "kind": "git status",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 26,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "kind": "preflight",
-      "phase": "preflight",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 27,
-      "command": "python -m pytest tests/test_project_gate.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 28,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 29,
-      "command": "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
-      "kind": "project-cli",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 30,
-      "command": "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
-      "kind": "project-cli",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
       ],
       "exit_code": 0,
       "status": "PASSED"
     }
   ],
   "warnings": [
-    "command 'python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --dry-run --json' is not in command_plan.commands",
-    "command 'python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1 --execute' is not in command_plan.commands",
-    "command 'python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_run_closeout_log_isolation_evidence_rework_v1' is not in command_plan.commands",
-    "command_plan has 3 command(s) not recorded in execution_log: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1, python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1 --dry-run --json, python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_close_round_archive_cycle_fix_v1 --execute"
+    "command_plan has 2 command(s) not recorded in execution_log: python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1 --dry-run --json, python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_post_closeout_evidence_refresh_v1 --execute"
   ],
-  "blocking_reasons": [
-    "exit_code mismatch for 'python -m reverse_agent.project_gate report-summary --state-dir project_state': execution_log=1, pytest_result=0",
-    "exit_code mismatch for 'python -m reverse_agent.project_gate final-check --state-dir project_state': execution_log=1, pytest_result=0"
-  ],
-  "recommended_next_action": "fix_execution_log_mismatches"
+  "blocking_reasons": [],
+  "recommended_next_action": "review_execution_log_warnings"
 }

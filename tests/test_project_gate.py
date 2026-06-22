@@ -15575,7 +15575,7 @@ def test_run_closeout_success_with_fake_runner(tmp_path: Path, monkeypatch: pyte
 def test_run_closeout_failure_stops_on_preflight_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
     # Make preflight fail by monkeypatching the preflight function
-    def fake_preflight(*, state_dir, repo_root=None, write_result=True):
+    def fake_preflight(*, state_dir, repo_root=None, write_result=True, allow_consumed=False):
         return {
             "schema_version": 1,
             "gate_name": "preflight",
