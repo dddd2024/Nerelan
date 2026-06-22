@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260622_report_auto_summary_closeout_consistency_v1",
-  "round_id": "round_20260622_report_auto_summary_closeout_consistency_v1",
+  "decision_id": "decision_20260622_closeout_consistency_evidence_rework_v1",
+  "round_id": "round_20260622_closeout_consistency_evidence_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,15 +13,16 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260621_run_round_scaffold_v1",
-  "previous_round_id": "round_20260621_run_round_scaffold_v1",
-  "previous_acceptance": "ACCEPTED_WITH_LIMITATIONS",
-  "primary_goal": "Fix report-auto-summary and live codex_report_summary consistency around closeout/archive artifacts without expanding run-round into an executor.",
+  "previous_decision_id": "decision_20260622_report_auto_summary_closeout_consistency_v1",
+  "previous_round_id": "round_20260622_report_auto_summary_closeout_consistency_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
+  "primary_goal": "Complete the current-round evidence pipeline for report-auto-summary closeout consistency and replace stale prior-round gate artifacts with current-round artifacts.",
   "command_plan_authority_required": true,
-  "accepted_requires_no_unauthorized_command_execution": true,
-  "accepted_requires_pytest_result_and_execution_log_compatibility": true,
-  "accepted_requires_report_auto_summary_consistency": true,
-  "accepted_requires_final_check_passed_or_only_documented_nonblocking_historical_warnings": true,
+  "accepted_requires_current_round_execution_log": true,
+  "accepted_requires_current_round_final_check": true,
+  "accepted_requires_current_round_report_auto_summary": true,
+  "accepted_requires_pytest_result_covering_command_plan": true,
+  "accepted_requires_codex_report_summary_success_or_explicit_blocked_failure": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
@@ -43,7 +44,7 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
-    "project_state/rounds/round_20260622_report_auto_summary_closeout_consistency_v1/*"
+    "project_state/rounds/round_20260622_closeout_consistency_evidence_rework_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -62,93 +63,98 @@
 
 ## 1. Goal
 
-Implement Report Auto-Summary Closeout Consistency v1.
+Complete Closeout Consistency Evidence Rework v1.
 
-The previous round added Run-Round Scaffold v1 and was accepted with limitations. The implementation goal was substantially met: `run-round` exists as a dry-run scaffold, `run_round_result.json` is produced, command-plan authority is preserved, and targeted/combined tests passed. The remaining limitation is not a missing run-round feature. It is a consistency warning between `codex_report_auto_summary.json`, live `codex_report_summary`, `report_summary_synthesis.json`, and closeout/archive artifacts after the closeout step updates round archive files.
+The previous round attempted to fix report-auto-summary / closeout consistency, but the audit result was `REWORK_REQUIRED`. The implementation may contain useful code and tests, but the execution evidence is incomplete and several critical gate artifacts still refer to the older `round_20260621_run_round_scaffold_v1` round. This round is an evidence-closure and current-round gate-artifact rework, not a new feature expansion.
 
-This round must make report-auto-summary and final-check handle closeout/archive-generated artifacts deterministically so a valid current round does not remain in a `PARTIAL` / `NEEDS_REVIEW` state solely because post-closeout archive files or `final_gate_result.json` inclusion differ from the pre-closeout synthesized summary.
+The goal is to complete the full command-plan-authorized validation pipeline for the current round and regenerate all required structured artifacts so that `codex_execution_report.md`, `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, and closeout artifacts all match this rework round.
 
-The intended outcome is:
+Acceptance requires:
 
-- `report-auto-summary`, `report-summary`, and `final-check` agree on whether round archive files and `final_gate_result.json` are generated artifacts, live gate artifacts, closeout artifacts, or non-report-level artifacts;
-- non-SUCCESS/PARTIAL status is not used as a fallback when the only remaining differences are explainable closeout/archive timing differences;
-- `report_auto_summary_consistency` no longer warns for a valid current round whose summary and synthesis are otherwise consistent;
-- no command-plan authority checks are weakened;
-- no run-round execution functionality is added in this round.
+- current `decision_id`, `round_id`, and `report_id` are consistent across report, pytest result, execution log, auto-summary, synthesis, final-check, and closeout artifacts;
+- no stale prior-round gate artifact is used as current evidence;
+- command-plan full profile is followed, or any deviation is explicitly blocked by command-plan and recorded;
+- `pytest_result.txt` records every executed command, stdout/stderr or relevant output, exit code, and conclusion;
+- `execution_log.json` is derived from the current `pytest_result.txt` and current `command_plan.json`;
+- `final-check` is run for the current round and has no blocking reasons;
+- `codex_report_summary.status` is `SUCCESS` with `acceptance_recommendation: ACCEPTED`, unless there is a real blocker, in which case status must be `BLOCKED` or `FAILED` with exact cause.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-`task_packet.json` is background only. It still describes stale `samplereverse` reverse-solving work and must not control this round.
+`task_packet.json` remains background-only sample state for `samplereverse`; it must not control this round. The current execution authority is this `decision_packet.md`.
 
-Current decision control: this `decision_packet.md` controls the current round. `task_packet.task` is only a stale suggestion and must not be used as execution authority.
+Relevant audit findings from the previous round:
 
-Current state summary:
+- `decision_20260622_report_auto_summary_closeout_consistency_v1` was valid and approved, but its Codex report stayed `PARTIAL` / `NEEDS_REVIEW`.
+- That report only recorded three commands: preflight, command-plan `--json`, and `python -m pytest tests/test_project_gate.py -q --tb=line`.
+- Its `command_plan.json` used `full` profile, `closeout_allowed: true`, and listed many required commands including report-summary, final-check, run-round, two pytest commands, policy-lint, policy-impact, execution-log, report-auto-summary, and run-closeout.
+- `pytest_result.txt` did not record the full command-plan pipeline.
+- `execution_log.json`, `final_gate_result.json`, `codex_report_auto_summary.json`, and `report_summary_synthesis.json` still referred to `decision_20260621_run_round_scaffold_v1` / `round_20260621_run_round_scaffold_v1`.
+- Therefore the previous round lacked current-round structured execution evidence.
 
-- `current_state.json` still reflects `state_20260618_134029_d6bd033d2532` / digest `d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5`.
-- The state is sample-oriented and has many missing sample artifacts, but this round is engineering-only, so those missing sample artifacts are non-blocking unless the implementation claims sample evidence.
-- `artifact_index.json` contains many missing sample artifacts; do not treat them as current evidence.
-- `negative_results.json` applies to reverse-solving directions and is not directly relevant to this engineering round. Do not touch reverse-solving.
+Existing implementation evidence from the previous round may be inspected but not treated as accepted evidence until regenerated for this round:
 
-Previous round evidence:
+- `reverse_agent/project_gate.py` may already contain partial report-auto-summary / closeout consistency changes.
+- `tests/test_project_gate.py` may already contain six regression tests around report-auto-summary and closeout consistency.
+- Those changes must be validated through current-round command-plan-authorized gates.
 
-- `decision_20260621_run_round_scaffold_v1` was accepted with limitations.
-- `run_round_result.json` existed and reported dry-run `PASSED`.
-- `execution_log.json` had no unauthorized command or omitted-command violation.
-- `command_plan.json` used `full` profile with no omitted commands.
-- `pytest_result.txt` recorded `755 passed` for `tests/test_project_gate.py -q` and `1053 passed` for `tests/test_project_gate.py tests/test_project_state.py -q`.
-- `final_gate_result.json` had no blocking reasons but had warnings: `report_status is PARTIAL` and `report_auto_summary_consistency` mismatch for non-SUCCESS report.
-- The mismatch involved generated/file lists differing around `final_gate_result.json`, `round_close_snapshot.json`, `run_closeout_result.json`, and archived `project_state/rounds/<round_id>/...` files.
+Artifact freshness:
+
+- Any artifact whose `decision_id` or `round_id` refers to `decision_20260621_run_round_scaffold_v1` / `round_20260621_run_round_scaffold_v1` is stale for this round.
+- Any artifact from `decision_20260622_report_auto_summary_closeout_consistency_v1` may be used only as previous-round context, not as current-round acceptance evidence.
+- Missing sample artifacts in `artifact_index.json` remain historical/backlog evidence and are non-blocking for this engineering round unless code claims sample-solving progress.
 
 Existing capabilities to reuse:
 
-- `command-plan` and command kind classification.
-- `execution_log.json` derived from `pytest_result.txt` and command-plan.
-- `codex_report_auto_summary.json` synthesis from structured evidence.
-- `build_report_summary_synthesis()`.
-- `final-check` checks for report-summary consistency, command-plan authority, artifact coverage, closeout/archive coverage, and Required Audit coverage.
-- `run-closeout` and round archive behavior.
-- policy-lint and policy-impact checks.
-- tests in `tests/test_project_gate.py`.
+- `preflight`
+- `command-plan`
+- `execution-log`
+- `report-auto-summary`
+- `report-summary`
+- `final-check`
+- `run-round --dry-run`
+- `run-closeout`
+- policy-lint and policy-impact gates
+- existing tests in `tests/test_project_gate.py`
 
 Gate/command-plan strategy:
 
-- Use existing profiles only: `fast`, `standard`, `full`.
-- Because this changes project gate/report-summary/final-check behavior, command-plan should normally select or require `full` validation.
-- Tests section must remain subordinate to command-plan. Run only commands authorized by command-plan.
-- Closeout may run only if command-plan authorizes it and gate profile allows it.
+- Use only valid profiles: `fast`, `standard`, `full`.
+- Because this is a gate/report/closeout evidence rework, command-plan should normally use `full`.
+- Tests and closeout must remain subordinate to command-plan.
+- Run only commands authorized by command-plan. If command-plan omits a command, do not run it.
 
 Tool policy:
 
 - This is not a reverse-solving round.
-- Do not inspect or run sample binaries.
-- Do not use IDA, Ghidra, debuggers, emulators, runtime probes, harnesses, solvers, or full `solve_reports/`.
-- Heavy historical artifacts may be read only by exact path if needed for a focused regression fixture. Do not scan full historical directories.
+- Do not run IDA, Ghidra, debuggers, emulators, runtime probes, solvers, harnesses, samples, or full `solve_reports/` scans.
+- Do not inspect full historical `project_state/rounds/`; read only exact paths needed to diagnose stale artifact propagation.
 
 ## 3. Do Not Do
 
-Do not build a full autonomous `execute-decision` runner in this round.
+Do not add a new feature beyond evidence closure and any minimal fix required for current-round gate consistency.
 
-Do not make `run-round` execute arbitrary implementation commands.
+Do not build `execute-decision`, AgentRunner, job manager, database, queue, scheduler, web UI, API planner/auditor, or GitHub Actions workflow.
 
-Do not add AgentRunner, job manager, database, queue, scheduler, web UI, daemon, message bus, GitHub Actions workflow, or API planner/auditor in this round.
+Do not turn `run-round` into a real executor in this round.
 
-Do not weaken command-plan authority to make warnings disappear.
+Do not suppress warnings by weakening final-check, report-summary, command-plan, or execution-log. Real mismatches must still fail or warn as designed.
 
-Do not hide real mismatches by downgrading failures to warnings. Fix the classification/provenance rules so expected closeout/archive artifacts are handled explicitly.
+Do not treat prior-round artifacts as current evidence.
 
-Do not make `codex_report_summary.status` use unsupported values. Use supported project statuses such as `SUCCESS`, `PARTIAL`, `FAILED`, or `BLOCKED`; do not use `COMPLETED_WITH_LIMITATIONS`.
+Do not claim `SUCCESS` if `execution_log.json`, `final_gate_result.json`, `codex_report_auto_summary.json`, or `report_summary_synthesis.json` still references any older round.
 
-Do not modify prompt docs or `.codex-skills/` in this round.
-
-Do not change profile names. The only valid profiles are `fast`, `standard`, and `full`; do not introduce `medium`.
+Do not use unsupported report statuses. `codex_report_summary.status` must be one of `SUCCESS`, `PARTIAL`, `FAILED`, or `BLOCKED`.
 
 Do not mutate `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, `.codex-skills/registry.json`, or `docs/prompts/*`.
 
-Do not continue `samplereverse` solving. Do not run samples, solvers, harnesses, runtime probes, IDA/Ghidra, debuggers, emulators, GUI workflows, or full `solve_reports/` scans.
+Do not continue `samplereverse` solving. Do not run samples or reverse tools.
 
-Do not push, commit, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly requests it in the current message.
+Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+
+Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly requests it in the current message.
 
 ## 4. Files To Inspect
 
@@ -163,41 +169,52 @@ Read default state files first:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Then inspect only files relevant to report-auto-summary / closeout consistency:
+Then inspect current gate/source/test files:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
 3. `project_state/gates/command_plan.json`
-4. `project_state/gates/execution_log.json`
-5. `project_state/gates/codex_report_auto_summary.json`
-6. `project_state/gates/report_summary_synthesis.json`
-7. `project_state/gates/final_gate_result.json`
-8. `project_state/gates/round_delta_summary.json`
-9. `project_state/gates/round_close_snapshot.json`
-10. `project_state/gates/run_closeout_result.json`
+4. `project_state/gates/preflight_result.json`
+5. `project_state/gates/execution_log.json`
+6. `project_state/gates/codex_report_auto_summary.json`
+7. `project_state/gates/report_summary_synthesis.json`
+8. `project_state/gates/final_gate_result.json`
+9. `project_state/gates/policy_lint_result.json`
+10. `project_state/gates/policy_impact_audit.json`
 11. `project_state/gates/run_round_result.json`
-12. `project_state/rounds/round_20260621_run_round_scaffold_v1/round_manifest.json` only if needed to understand archive artifact classification.
+12. `project_state/gates/run_closeout_result.json`
+13. `project_state/gates/round_baseline.json`
+14. `project_state/gates/round_delta_summary.json`
+15. `project_state/gates/round_close_snapshot.json`
 
-Historical files may be read only by exact path when needed for a focused regression fixture. Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
+Read prior-round artifacts only by exact path if needed to confirm what was stale:
+
+1. `project_state/rounds/round_20260622_report_auto_summary_closeout_consistency_v1/codex_execution_report.md`
+2. `project_state/rounds/round_20260622_report_auto_summary_closeout_consistency_v1/pytest_result.txt`
+3. `project_state/rounds/round_20260622_report_auto_summary_closeout_consistency_v1/round_manifest.json`
+
+Do not scan entire `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
 Answer all items in `project_state/codex_execution_report.md` before claiming success:
 
-1. What exact inconsistency caused the previous `report_auto_summary_consistency` warning?
-2. Which artifact classes now exist, and how are they classified: live gate artifacts, report-level generated artifacts, closeout artifacts, archive artifacts, and non-report-level artifacts?
-3. How does `codex_report_auto_summary.json` decide whether to include `final_gate_result.json`, `round_close_snapshot.json`, `run_closeout_result.json`, and `project_state/rounds/<round_id>/*`?
-4. How does `report_summary_synthesis.json` stay consistent with live `codex_report_summary` before and after closeout?
-5. How does final-check distinguish real report-summary mismatches from expected closeout/archive timing differences?
-6. How is `status` / `acceptance_recommendation` derived after this change, and under what conditions can the report be `SUCCESS` / `ACCEPTED`?
-7. What regression tests prove the fix for post-closeout consistency, pre-closeout consistency, partial/non-success behavior, and real mismatch detection?
-8. How does this round preserve command-plan authority, execution-log compatibility, run-round dry-run behavior, policy-impact, policy-lint, final-check, closeout, and prompt-doc behavior?
+1. Which artifacts were stale in the previous attempt, and what prior `decision_id` / `round_id` did they contain?
+2. Which current-round artifacts were regenerated in this rework, and what `decision_id` / `round_id` / `report_id` do they contain?
+3. Which command-plan commands were authorized, which were executed, and were any omitted or unauthorized commands executed?
+4. Does `pytest_result.txt` cover every command claimed in `codex_report_summary.tests_ran` and every current-round command needed by command-plan?
+5. Does `execution_log.json` match current `pytest_result.txt` and current `command_plan.json`?
+6. Does `codex_report_auto_summary.json` match current live `codex_report_summary` and `report_summary_synthesis.json` after closeout/archive handling?
+7. Does current `final_gate_result.json` show no blocking reasons, and what warnings remain if any?
+8. Does the rework preserve the previous implementation behavior: report-auto-summary consistency fix, real mismatch detection, status-kind command exclusion from tests_ran, closeout artifact round matching, command-plan authority, run-round dry-run behavior, policy-lint, policy-impact, and prompt-doc immutability?
+
+Each answer must include concrete evidence references to files/artifacts and a status of `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`. Do not write placeholders such as TODO, TBD, PENDING, or N/A.
 
 ## 6. Implementation Scope
 
-Implement one bounded feature: Report Auto-Summary Closeout Consistency v1.
+Primary scope: finish the current-round evidence pipeline. Prefer no further source changes if the existing implementation passes validation.
 
-Allowed source changes:
+Allowed source changes only if a current-round gate or test proves a real defect:
 
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
@@ -220,29 +237,20 @@ Allowed state/artifact updates:
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260622_report_auto_summary_closeout_consistency_v1/*` only if command-plan authorizes closeout
+- `project_state/rounds/round_20260622_closeout_consistency_evidence_rework_v1/*` only if command-plan authorizes closeout
 
-Required implementation behavior:
+Required behavior:
 
-1. Identify the exact source of the previous generated_artifacts/files_changed mismatch between `codex_report_auto_summary.json`, live `codex_report_summary`, and `report_summary_synthesis.json`.
-2. Introduce or harden a single deterministic classification rule for artifact inclusion.
-3. Ensure live report summary and synthesized report summary use the same classification rule.
-4. Ensure `report-auto-summary` does not omit archive artifacts when they are intentionally included in the live report, or alternatively ensure live report does not claim archive artifacts as report-level generated artifacts unless the synthesis also does.
-5. Ensure `final_gate_result.json`, `round_close_snapshot.json`, and `run_closeout_result.json` have explicit classification instead of ad-hoc inclusion/exclusion.
-6. Ensure final-check can still fail on real mismatches; do not suppress real inconsistency.
-7. Ensure command-plan execution authority checks remain unchanged or stricter.
-8. Ensure execution-log consistency checks remain unchanged or stricter.
-9. Ensure run-round remains dry-run scaffold behavior unless explicitly invoked with future execute mode outside this round.
-10. Add focused regression tests in `tests/test_project_gate.py` covering:
-    - post-closeout archive artifact consistency;
-    - pre-closeout summary consistency;
-    - final_gate_result inclusion only when intended;
-    - round_close_snapshot and run_closeout_result classification;
-    - real generated_artifacts mismatch still warns or fails;
-    - report status can reach `SUCCESS` only when all required checks are satisfied;
-    - backward compatibility when closeout artifacts are absent.
-
-Do not implement unrelated refactors. Do not move report-summary logic into a new subsystem. Do not add a database or workflow engine.
+1. Establish a current-round baseline before modifications.
+2. Run preflight and command-plan.
+3. Follow command-plan exactly.
+4. Execute all required full-profile commands unless command-plan omits them.
+5. Regenerate execution log, report-auto-summary, report-summary synthesis, final-check, and closeout artifacts for this round.
+6. Ensure every regenerated artifact has the current round IDs.
+7. Ensure `codex_execution_report.md` top summary exactly matches current evidence.
+8. Ensure `pytest_result.txt` is the source of truth for actually executed commands and test output.
+9. Ensure stale prior-round gate artifacts are not accepted as current evidence.
+10. If the implementation cannot reach `SUCCESS`, stop with `BLOCKED` or `FAILED` and identify the exact failing gate/check.
 
 ## 7. Tests
 
@@ -256,66 +264,59 @@ git rev-parse --show-toplevel
 git status --short
 ```
 
-Run preflight before implementation:
+Run preflight before any implementation modification:
 
 ```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state
 ```
 
-Then run command-plan and follow only command-plan-authorized commands:
+Generate command-plan and obey it:
 
 ```powershell
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 ```
 
-Targeted tests, only if command-plan authorizes pytest:
+Then run only command-plan-authorized commands. If authorized, the expected full validation set includes:
 
 ```powershell
+python -m reverse_agent.project_gate report-summary --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
 python -m pytest tests/test_project_gate.py -q
-```
-
-Full project-state gate tests, only if command-plan authorizes them:
-
-```powershell
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
-```
-
-Gate validation commands, only if command-plan authorizes them:
-
-```powershell
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
 python -m reverse_agent.project_gate policy-impact --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
-python -m reverse_agent.project_gate report-summary --state-dir project_state
-python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_closeout_consistency_evidence_rework_v1
 ```
 
-Closeout, only if command-plan explicitly includes/authorizes it and the gate profile allows closeout:
+The exact command set is whatever current command-plan authorizes. Command-plan overrides this Tests section if there is any conflict.
 
-```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_report_auto_summary_closeout_consistency_v1
-```
+Record all commands actually executed in `project_state/pytest_result.txt`, including startup checks, gate commands, pytest commands, stdout/stderr or relevant output, exit code, and conclusion.
 
-Record every executed command in `project_state/pytest_result.txt`. Ensure `project_state/gates/execution_log.json` agrees with `pytest_result.txt` and `project_state/gates/command_plan.json`.
+After closeout, rerun any command-plan-authorized report-summary/final-check/report-auto-summary steps needed to ensure current artifacts match the final live report.
 
 ## 8. Stop Conditions
 
-Stop immediately and report `BLOCKED` without source changes if:
+Stop immediately and report `BLOCKED` without further modifications if:
 
+- startup checks do not confirm `F:\reverse-agent` and repository root;
 - `decision_meta` is missing or invalid;
 - `status` is not `APPROVED`;
-- `mainline` is not one of `engineering_branch`, `reverse_solving`, `tool_integration`, `training_dataset`;
-- `skill_profiles` do not match active registry entries;
-- command-plan is missing, failed, or conflicts with Tests;
-- command-plan does not authorize the command needed to proceed;
-- startup path checks do not confirm `F:\reverse-agent` and the repository root;
-- source/test files are already dirty in a way that cannot be recorded as baseline;
-- implementation would require editing forbidden paths;
-- implementation would require reading full `solve_reports/` or running reverse-solving tools;
-- implementation would require changing `.codex-skills/` or prompt docs;
-- final-check fails with blocking reasons;
+- `mainline` is invalid;
+- skill profiles do not match active registry entries;
+- command-plan is missing, failed, or conflicts with safe execution;
+- a needed command is not authorized by command-plan;
+- any source change would require files outside the allowed source list;
+- any artifact update would require forbidden paths;
+- stale prior-round artifacts cannot be regenerated for the current round;
+- `pytest_result.txt`, `execution_log.json`, or `final_gate_result.json` cannot be made current-round consistent;
+- final-check reports blocking reasons;
 - execution-log shows unauthorized commands or exit-code mismatches;
-- report-auto-summary and live report remain inconsistent for reasons other than explicitly documented non-blocking historical/backlog artifacts.
+- report-auto-summary consistency remains unresolved for current-round artifacts;
+- Required Audit remains incomplete.
 
-Stop with `REWORK_REQUIRED` if tests fail, if Required Audit is incomplete, if report-summary mismatch remains unexplained, or if the fix merely suppresses warnings instead of defining artifact classification/provenance clearly.
+Stop with `REWORK_REQUIRED` if tests fail, if generated artifacts still contain old round IDs, if the report stays `PARTIAL / NEEDS_REVIEW` without a precise blocker, or if the result only suppresses warnings instead of producing current-round evidence.
