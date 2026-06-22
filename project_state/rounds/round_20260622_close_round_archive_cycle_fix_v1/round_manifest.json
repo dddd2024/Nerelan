@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "NEEDS_REVIEW",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-22T14:02:01Z",
+  "decision_id": "decision_20260622_close_round_archive_cycle_fix_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260622_close_round_archive_cycle_fix_v1\\codex_execution_report.md",
+      "sha256": "b6495024cd2ad402cd6998ac395951c8da8da196fbb4344d54bc0f66030bf732",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260622_close_round_archive_cycle_fix_v1\\decision_packet.md",
+      "sha256": "931b714831c1565b96604f4ea43b893fdfb481e6d9817bcccd0f4c60a28ea9dd",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260622_close_round_archive_cycle_fix_v1\\pytest_result.txt",
+      "sha256": "d9c08357bf0619b41947eabdc3fcc137db1c8a582b6f7c43741ce7517e337e7a",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260622_close_round_archive_cycle_fix_v1",
+  "report_status": "PARTIAL",
+  "round_id": "round_20260622_close_round_archive_cycle_fix_v1",
+  "schema_version": 1,
+  "source_git_commit": "a23561330bd5",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

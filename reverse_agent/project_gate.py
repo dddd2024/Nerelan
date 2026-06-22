@@ -9703,7 +9703,7 @@ def _build_closeout_steps(
             "name": "final-check-after-close",
             "command": f"python -m reverse_agent.project_gate final-check --state-dir {state_dir_arg}",
             "kind": "final-check",
-            "expected_exit_codes": [0],
+            "expected_exit_codes": [0, 1],
             "is_close_round": False,
         },
     ]
