@@ -3,10 +3,10 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
-  "round_id": "round_20260623_phase1_completion_execute_decision_closure_v1",
-  "report_id": "codex_report_20260623_phase1_completion_execute_decision_closure_v1",
-  "generated_at": "2026-06-23T10:39:36.999383Z",
+  "decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
+  "round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
+  "report_id": "codex_report_20260623_phase1_completion_evidence_path_hardening_v1",
+  "generated_at": "2026-06-23T12:53:43.486934Z",
   "source": "derived_from_pytest_result_and_command_plan",
   "commands": [
     {
@@ -99,7 +99,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --dry-run --json",
       "kind": "run-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -111,7 +111,7 @@
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1 --dry-run --json",
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --execute",
       "kind": "run-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -123,19 +123,18 @@
     },
     {
       "index": 11,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1 --execute",
-      "kind": "run-round",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --dry-run --json",
+      "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "exit_code": 0,
       "status": "PASSED"
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1 --dry-run --json",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -146,17 +145,6 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1",
-      "kind": "execute-decision",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 14,
       "command": "python -m pytest tests/test_project_gate.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -167,7 +155,7 @@
       "status": "PASSED"
     },
     {
-      "index": 15,
+      "index": 14,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -178,7 +166,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
       "kind": "project-cli",
       "phase": "status",
@@ -189,7 +177,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
       "kind": "project-cli",
       "phase": "status",
@@ -200,7 +188,7 @@
       "status": "PASSED"
     },
     {
-      "index": 18,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -212,7 +200,7 @@
       "status": "PASSED"
     },
     {
-      "index": 19,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
       "kind": "report-auto-summary",
       "phase": "gate",
@@ -224,7 +212,7 @@
       "status": "PASSED"
     },
     {
-      "index": 20,
+      "index": 19,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -236,7 +224,7 @@
       "status": "PASSED"
     },
     {
-      "index": 21,
+      "index": 20,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -248,8 +236,8 @@
       "status": "PASSED"
     },
     {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1",
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

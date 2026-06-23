@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
-  "report_id": "codex_report_20260623_phase1_completion_execute_decision_closure_v1",
-  "round_id": "round_20260623_phase1_completion_execute_decision_closure_v1",
-  "generated_at": "2026-06-23T10:39:37.826991Z",
+  "decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
+  "report_id": "codex_report_20260623_phase1_completion_evidence_path_hardening_v1",
+  "round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
+  "generated_at": "2026-06-23T12:56:38.304644Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260623_phase1_completion_execute_decision_closure_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260623_phase1_completion_evidence_path_hardening_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -63,8 +63,6 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/phase1_completion_result.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -74,10 +72,10 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -89,8 +87,6 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/phase1_completion_result.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -100,10 +96,10 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -127,8 +123,6 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/phase1_completion_result.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -138,10 +132,10 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -153,8 +147,6 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/phase1_completion_result.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -164,10 +156,10 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -330,17 +322,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
-      "closeout_log_round_id": "round_20260623_phase1_completion_execute_decision_closure_v1",
-      "expected_decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
-      "expected_round_id": "round_20260623_phase1_completion_execute_decision_closure_v1"
+      "closeout_log_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
+      "closeout_log_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
+      "expected_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
+      "expected_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260623_phase1_completion_execute_decision_closure_v1",
-      "expected_report_id": "codex_report_20260623_phase1_completion_execute_decision_closure_v1"
+      "execution_log_report_id": "codex_report_20260623_phase1_completion_evidence_path_hardening_v1",
+      "expected_report_id": "codex_report_20260623_phase1_completion_evidence_path_hardening_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -362,8 +354,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
-      "command_plan_round_id": "round_20260623_phase1_completion_execute_decision_closure_v1"
+      "command_plan_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
+      "command_plan_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -452,8 +444,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
-      "gate_profile_round_id": "round_20260623_phase1_completion_execute_decision_closure_v1"
+      "gate_profile_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
+      "gate_profile_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -488,14 +480,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "Which Phase 1 capabilities are now present, and what artifact or test proves each one: command-plan authority, decision Tests conflict detection, policy-lint/prompt consistency, execution-log, report-auto-summary, report-summary, final-check, run-round --execute, and run-closeout/archive?",
-        "Does `execute-decision` already exist? If yes, how is it proven to reuse command-plan authority? If no, what thin wrapper/alias was added and how does it delegate to the existing run-round execution path?",
-        "How does the final command-plan prove no omitted or unauthorized commands were executed?",
-        "How do `pytest_result.txt`, `command_plan.json`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `phase1_completion_result.json`, and live `codex_execution_report.md` converge in the final state?",
-        "How does the Phase 1 completion artifact distinguish current evidence from prior-round diagnostic evidence and historical/backlog sample artifacts?",
-        "Which regression tests cover `execute-decision` or its explicit non-duplication, Phase 1 completion matrix generation, command-plan authority preservation, report-summary/auto-summary consistency, execution-log current-round behavior, and closeout/archive consistency?",
-        "If `pytest_result.txt` still records compact stdout for `command-plan --json`, why is it non-blocking, and which artifact remains the authoritative full command plan? If it was fixed, what test proves full JSON stdout recording?",
-        "How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, no heavy artifact scan, and no Phase 2 expansion?"
+        "Why did the previous `phase1_completion_result.json` cite `project_state/gates/execute_decision_result.json` as PASS evidence while that file was missing from GitHub and absent from generated_artifacts?",
+        "What rule now ensures every `phase1_completion_result.json.capabilities[*].evidence_path` exists or is explicitly represented as a valid non-file evidence reference?",
+        "What rule now ensures every `project_state/gates/*` evidence path in Phase 1 completion is included in `generated_artifacts` or `referenced_artifacts` before a SUCCESS report is accepted?",
+        "How is `execute-decision` currently evidenced: by a real `execute_decision_result.json`, or by existing artifacts such as `execution_log.json`, `command_plan.json`, and `run_round_result.json`? Why is that evidence current and sufficient?",
+        "How does final-check prove `phase1_completion_status`, `phase1_completion_evidence_paths_exist`, and `phase1_completion_evidence_paths_reported` all pass?",
+        "Which regression tests prove missing Phase 1 evidence paths block SUCCESS, unreported gate evidence paths block SUCCESS, real execute-decision evidence passes, and alternate existing-artifact execute-decision evidence passes if no separate result artifact is generated?",
+        "If `execute-decision` non-dry-run uses a self-invocation guard and reports `mode: dry-run` / `executed_count: 0`, why is that safe, and how is the report wording corrected to avoid implying that it executed a second independent run?",
+        "How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, no heavy artifact scan, no evidence weakening, and no Phase 2 expansion?"
       ],
       "missing_answers": [],
       "placeholder_answers": []
@@ -571,7 +563,17 @@
     {
       "name": "phase1_completion_status",
       "status": "PASS",
-      "reason": "Phase 1 completion artifact is PASS"
+      "detail": "Phase 1 completion artifact is PASS"
+    },
+    {
+      "name": "phase1_completion_evidence_paths_exist",
+      "status": "PASS",
+      "detail": "All Phase 1 completion capability evidence paths exist on disk"
+    },
+    {
+      "name": "phase1_completion_evidence_paths_reported",
+      "status": "PASS",
+      "detail": "All Phase 1 completion gate evidence paths are in generated_artifacts or referenced_artifacts"
     }
   ],
   "blocking_reasons": [],

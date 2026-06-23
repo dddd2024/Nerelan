@@ -1027,13 +1027,32 @@ def _decision_required_closeout_artifacts(decision_text: str) -> set[str]:
                 return paths
 
     # 2. Markdown list extraction (bullet and numbered) from Current Evidence
+    #    Only extract paths from list items whose entire content is just a
+    #    path (possibly in backticks), not prose that merely mentions a path.
     evidence_text = _markdown_section(decision_text, "Current Evidence")
     paths = set()
     for raw_line in evidence_text.splitlines():
         line = raw_line.strip()
-        item = _path_from_markdown_list_item(line)
-        if item and item.lower().startswith("project_state/"):
-            paths.add(_norm_path(item))
+        stripped = line
+        # Extract content after list marker
+        if stripped.startswith("-") or stripped.startswith("*"):
+            content_after_marker = stripped[1:].strip()
+        else:
+            m = re.match(r"^(\d+)\.\s+(.*)", stripped)
+            if m:
+                content_after_marker = m.group(2).strip()
+            else:
+                continue
+        # Only treat as a required closeout artifact if the content is
+        # just a path (possibly in backticks) with no additional prose.
+        # A path-only item looks like: `project_state/gates/foo.json`
+        # or just: project_state/gates/foo.json
+        # A prose item looks like: `project_state/gates/foo.json` did not exist
+        path_match = re.match(r"^`?([^\s`]+)`?$", content_after_marker)
+        if path_match:
+            candidate = path_match.group(1)
+            if candidate.lower().startswith("project_state/"):
+                paths.add(_norm_path(candidate))
     return paths
 
 
@@ -6718,11 +6737,47 @@ def final_check(
             phase1_data = json.loads(phase1_path.read_text(encoding="utf-8"))
             phase1_status = str(phase1_data.get("overall_status") or "")
             if phase1_status == "PASS":
-                checks.append({"name": "phase1_completion_status", "status": "PASS", "reason": "Phase 1 completion artifact is PASS"})
+                checks.append({"name": "phase1_completion_status", "status": "PASS", "detail": "Phase 1 completion artifact is PASS"})
             else:
-                checks.append({"name": "phase1_completion_status", "status": "FAIL", "reason": f"Phase 1 completion artifact status is {phase1_status}"})
+                checks.append({"name": "phase1_completion_status", "status": "FAIL", "detail": f"Phase 1 completion artifact status is {phase1_status}"})
+            # Validate that every capability evidence_path/evidence_paths exists on disk
+            phase1_caps = phase1_data.get("capabilities") or []
+            missing_evidence: list[str] = []
+            for cap in phase1_caps:
+                eps = cap.get("evidence_paths") or []
+                if not eps:
+                    ep = cap.get("evidence_path") or ""
+                    if ep:
+                        eps = [ep]
+                for ep in eps:
+                    ep_resolved = state_dir.parent / ep if not Path(ep).is_absolute() else Path(ep)
+                    if not ep_resolved.exists():
+                        missing_evidence.append(f"{cap.get('id', '?')}: {ep}")
+            if missing_evidence:
+                checks.append({"name": "phase1_completion_evidence_paths_exist", "status": "FAIL", "detail": f"Phase 1 completion evidence paths missing: {'; '.join(missing_evidence)}"})
+            else:
+                checks.append({"name": "phase1_completion_evidence_paths_exist", "status": "PASS", "detail": "All Phase 1 completion capability evidence paths exist on disk"})
+            # Validate that every project_state/gates/* evidence path is in generated_artifacts or referenced_artifacts
+            report_summary_data = read_codex_report_summary(state_dir) or {}
+            report_gen = set(report_summary_data.get("generated_artifacts") or [])
+            report_ref = set(report_summary_data.get("referenced_artifacts") or [])
+            report_evidence = report_gen | report_ref
+            unreported: list[str] = []
+            for cap in phase1_caps:
+                eps = cap.get("evidence_paths") or []
+                if not eps:
+                    ep = cap.get("evidence_path") or ""
+                    if ep:
+                        eps = [ep]
+                for ep in eps:
+                    if ep.startswith("project_state/gates/") and ep not in report_evidence:
+                        unreported.append(f"{cap.get('id', '?')}: {ep}")
+            if unreported:
+                checks.append({"name": "phase1_completion_evidence_paths_reported", "status": "FAIL", "detail": f"Phase 1 completion evidence paths not in generated_artifacts or referenced_artifacts: {'; '.join(unreported)}"})
+            else:
+                checks.append({"name": "phase1_completion_evidence_paths_reported", "status": "PASS", "detail": "All Phase 1 completion gate evidence paths are in generated_artifacts or referenced_artifacts"})
         except (json.JSONDecodeError, OSError):
-            checks.append({"name": "phase1_completion_status", "status": "FAIL", "reason": "Phase 1 completion artifact is not valid JSON"})
+            checks.append({"name": "phase1_completion_status", "status": "FAIL", "detail": "Phase 1 completion artifact is not valid JSON"})
 
     gate_status = _result_status(checks, report_status, mainline=str(decision.get("mainline") or ""))
     warnings = [
@@ -10851,7 +10906,10 @@ def execute_decision(
 
     This is a decision-level wrapper that reuses the existing
     command-plan-controlled run-round execution path.  It does NOT
-    create a parallel execution engine.
+    create a parallel execution engine.  When called non-dry-run from
+    within a running run-round, the self-invocation guard prevents
+    recursive execution and the wrapper reports as a guarded no-op
+    delegating to the parent run-round.
     """
     result = run_round(
         state_dir=state_dir,
@@ -10863,6 +10921,10 @@ def execute_decision(
     )
     result["entrypoint"] = "execute-decision"
     result["delegates_to"] = "run-round"
+    # When run-round's self-invocation guard prevents execute-decision
+    # from running a second independent execution, annotate the reason.
+    if not dry_run and result.get("mode") == "dry-run":
+        result["guard_reason"] = "execute-decision non-dry-run delegated to run-round which is already executing; self-invocation guard prevented recursive execution"
     return result
 
 
@@ -10956,48 +11018,46 @@ def phase1_completion(
         {
             "id": "execute_decision_entrypoint",
             "name": "Execute-Decision Entrypoint",
-            "evidence_path": f"project_state/gates/{EXECUTE_DECISION_RESULT_NAME}",
+            "evidence_paths": [
+                f"project_state/gates/{EXECUTION_LOG_RESULT_NAME}",
+                f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}",
+                f"project_state/gates/{RUN_ROUND_RESULT_NAME}",
+            ],
             "relevant_tests": ["TestExecuteDecision*"],
-            "notes": "Verifies execute-decision thin wrapper delegates to run-round.",
+            "notes": "Verifies execute-decision thin wrapper delegates to run-round. Evidence: execution-log records execute-decision commands, command-plan authorizes them, run-round-result shows execution outcome.",
         },
     ]
 
     for cap_def in cap_defs:
         cap = dict(cap_def)
-        evidence_file = gates_dir / Path(cap_def["evidence_path"]).name
-        # For capability 10 (execute_decision_entrypoint), also check source
-        if cap_def["id"] == "execute_decision_entrypoint":
+        # Support both singular evidence_path and plural evidence_paths
+        evidence_paths = cap_def.get("evidence_paths")
+        if evidence_paths is None:
+            ep = cap_def.get("evidence_path", "")
+            evidence_paths = [ep] if ep else []
+        # Also store singular evidence_path for backward compatibility
+        if "evidence_path" not in cap and evidence_paths:
+            cap["evidence_path"] = evidence_paths[0]
+        cap["evidence_paths"] = evidence_paths
+
+        all_exist = True
+        missing: list[str] = []
+        for ep in evidence_paths:
+            evidence_file = gates_dir / Path(ep).name
             if evidence_file.exists():
                 try:
                     json.loads(evidence_file.read_text(encoding="utf-8"))
-                    cap["status"] = "PASS"
                 except (json.JSONDecodeError, ValueError):
-                    cap["status"] = "FAIL"
-                    warnings.append(f"{cap_def['id']}: evidence artifact is not valid JSON")
+                    all_exist = False
+                    missing.append(f"{ep}: not valid JSON")
             else:
-                # Fallback: check that execute_decision function exists in source
-                source_file = Path(__file__)
-                if source_file.exists():
-                    source_text = source_file.read_text(encoding="utf-8")
-                    if "def execute_decision(" in source_text:
-                        cap["status"] = "PASS"
-                    else:
-                        cap["status"] = "FAIL"
-                        blocking_reasons.append(f"{cap_def['id']}: execute_decision function not found in source and no evidence artifact")
-                else:
-                    cap["status"] = "FAIL"
-                    blocking_reasons.append(f"{cap_def['id']}: no evidence artifact and source not available")
+                all_exist = False
+                missing.append(f"{ep}: not found")
+        if all_exist:
+            cap["status"] = "PASS"
         else:
-            if evidence_file.exists():
-                try:
-                    json.loads(evidence_file.read_text(encoding="utf-8"))
-                    cap["status"] = "PASS"
-                except (json.JSONDecodeError, ValueError):
-                    cap["status"] = "FAIL"
-                    warnings.append(f"{cap_def['id']}: evidence artifact is not valid JSON")
-            else:
-                cap["status"] = "FAIL"
-                warnings.append(f"{cap_def['id']}: evidence artifact not found")
+            cap["status"] = "FAIL"
+            blocking_reasons.append(f"{cap_def['id']}: evidence path check failed: {'; '.join(missing)}")
         capabilities.append(cap)
 
     overall_status = "PASS" if all(c.get("status") == "PASS" for c in capabilities) else "FAIL"
@@ -11526,6 +11586,9 @@ def _print_execute_decision(result: dict[str, Any]) -> None:
         print(f"mode: {mode}")
     print(f"entrypoint: {result.get('entrypoint', 'execute-decision')}")
     print(f"delegates_to: {result.get('delegates_to', 'run-round')}")
+    guard_reason = result.get('guard_reason', '')
+    if guard_reason:
+        print(f"guard_reason: {guard_reason}")
     executed = result.get("executed_commands") or []
     print(f"executed_count: {len(executed)}")
     for cmd in executed:

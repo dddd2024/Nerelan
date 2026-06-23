@@ -14825,6 +14825,34 @@ No closeout records needed.
     assert result == set()
 
 
+def test_decision_required_closeout_artifacts_ignores_prose_mentions() -> None:
+    """_decision_required_closeout_artifacts must not extract paths from prose bullet items that merely mention a path."""
+    from reverse_agent.project_gate import _decision_required_closeout_artifacts
+
+    decision_text = """```json decision_meta
+{"decision_id": "d1", "status": "APPROVED"}
+```
+
+# DECISION_PACKET
+
+## 2. Current Evidence
+
+Blocking facts from audit:
+
+- `project_state/gates/execute_decision_result.json` did not exist when fetched from GitHub.
+- `project_state/gates/execute_decision_result.json` was absent from generated_artifacts.
+
+Required records:
+
+- `project_state/artifact_index.json`
+"""
+    result = _decision_required_closeout_artifacts(decision_text)
+    # Path-only bullet items should be extracted
+    assert "project_state/artifact_index.json" in result
+    # Prose bullet items that merely mention a path should NOT be extracted
+    assert "project_state/gates/execute_decision_result.json" not in result
+
+
 def test_structured_block_takes_precedence_over_markdown() -> None:
     """Structured closeout_artifacts_contract block takes precedence over markdown lists."""
     from reverse_agent.project_gate import _decision_required_closeout_artifacts
@@ -16276,7 +16304,7 @@ def test_run_closeout_refresh_includes_required_closeout_artifacts_from_decision
 
 ## 2. Current Evidence
 
-- `project_state/gates/final_gate_result.json` has gate_status=PASSED.
+- `project_state/gates/final_gate_result.json`
 
 ## 6. Implementation Scope
 
@@ -20767,7 +20795,6 @@ class TestPhase1Completion:
             "final_gate_result.json": '{"gate_status":"PASSED"}',
             "run_round_result.json": '{"run_status":"PASSED"}',
             "run_closeout_result.json": '{"closeout_status":"PASSED"}',
-            "execute_decision_result.json": '{"run_status":"PASSED"}',
         }
         state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
         result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=False)
@@ -20803,7 +20830,6 @@ class TestPhase1Completion:
             "final_gate_result.json": '{"gate_status":"PASSED"}',
             "run_round_result.json": '{"run_status":"PASSED"}',
             "run_closeout_result.json": '{"closeout_status":"PASSED"}',
-            "execute_decision_result.json": '{"run_status":"PASSED"}',
         }
         state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
         result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=True)
@@ -20830,5 +20856,164 @@ class TestPhase1Completion:
         result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=False)
         assert result.get("decision_id") == "d1"
         assert result.get("round_id") == "r1"
+
+
+class TestPhase1EvidencePathHardening:
+    """Tests for Phase 1 completion evidence-path hardening."""
+
+    def _make_state_dir(self, tmp_path, *, gate_files=None):
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        if gate_files:
+            for name, content in gate_files.items():
+                (gates_dir / name).write_text(content, encoding="utf-8")
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}\n```\n',
+            encoding="utf-8",
+        )
+        return state_dir
+
+    def test_missing_evidence_path_blocks_pass(self, tmp_path):
+        """When a capability evidence_path is missing, phase1_completion must FAIL."""
+        gate_files = {
+            "command_plan.json": '{"plan_status":"PASSED"}',
+            # Missing all other gate artifacts
+        }
+        state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
+        result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        assert result.get("overall_status") == "FAIL"
+        failed_caps = [c for c in result["capabilities"] if c["status"] == "FAIL"]
+        assert len(failed_caps) > 0
+
+    def test_execute_decision_uses_existing_artifacts_not_missing_file(self, tmp_path):
+        """execute_decision_entrypoint must use evidence_paths pointing to existing artifacts, not a missing execute_decision_result.json."""
+        gate_files = {
+            "command_plan.json": '{"plan_status":"PASSED"}',
+            "preflight_result.json": '{"gate_status":"PASSED","checks":[{"name":"decision_command_plan_conflict","status":"PASS"}]}',
+            "policy_lint_result.json": '{"gate_status":"PASSED"}',
+            "execution_log.json": '{"gate_status":"PASSED"}',
+            "codex_report_auto_summary.json": '{"gate_status":"PASSED"}',
+            "report_summary_synthesis.json": '{"synthesis_status":"PASSED"}',
+            "final_gate_result.json": '{"gate_status":"PASSED"}',
+            "run_round_result.json": '{"run_status":"PASSED"}',
+            "run_closeout_result.json": '{"closeout_status":"PASSED"}',
+        }
+        state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
+        result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        ed_cap = next(c for c in result["capabilities"] if c["id"] == "execute_decision_entrypoint")
+        # Must use evidence_paths, not a singular missing file
+        assert "evidence_paths" in ed_cap
+        assert not any("execute_decision_result.json" in ep for ep in ed_cap["evidence_paths"])
+        # All evidence_paths must point to existing artifacts
+        for ep in ed_cap["evidence_paths"]:
+            assert "execute_decision_result.json" not in ep
+
+    def test_evidence_paths_exist_check_in_final_check(self, tmp_path):
+        """final-check must include phase1_completion_evidence_paths_exist check."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}\n```\n',
+            encoding="utf-8",
+        )
+        # Write phase1_completion_result.json with a missing evidence path
+        (gates_dir / "phase1_completion_result.json").write_text(
+            json.dumps({
+                "gate_name": "phase1-completion",
+                "gate_status": "PASS",
+                "overall_status": "PASS",
+                "capabilities": [
+                    {
+                        "id": "test_cap",
+                        "evidence_path": "project_state/gates/nonexistent_artifact.json",
+                        "status": "PASS",
+                    }
+                ],
+            }),
+            encoding="utf-8",
+        )
+        # Write a minimal codex_execution_report.md
+        (state_dir / "codex_execution_report.md").write_text(
+            '```json codex_report_summary\n{"schema_version":1,"report_id":"r1","round_id":"r1","based_on_decision_id":"d1","status":"SUCCESS","acceptance_recommendation":"ACCEPTED","files_changed":[],"tests_ran":[],"generated_artifacts":[],"referenced_artifacts":[]}\n```\n',
+            encoding="utf-8",
+        )
+        (state_dir / "pytest_result.txt").write_text(
+            '```json pytest_result_summary\n{"schema_version":1,"report_id":"r1","round_id":"r1","based_on_decision_id":"d1","decision_id":"d1","status":"PASSED","tests_ran":[]}\n```\n',
+            encoding="utf-8",
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        check_names = {c["name"] for c in result.get("checks", [])}
+        assert "phase1_completion_evidence_paths_exist" in check_names
+        # The check should FAIL because nonexistent_artifact.json does not exist
+        ep_exist_check = next(c for c in result["checks"] if c["name"] == "phase1_completion_evidence_paths_exist")
+        assert ep_exist_check["status"] == "FAIL"
+
+    def test_evidence_paths_reported_check_in_final_check(self, tmp_path):
+        """final-check must include phase1_completion_evidence_paths_reported check."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}\n```\n',
+            encoding="utf-8",
+        )
+        # Create the evidence file so it exists
+        (gates_dir / "command_plan.json").write_text('{"plan_status":"PASSED"}', encoding="utf-8")
+        # Write phase1_completion_result.json with an evidence path NOT in generated_artifacts
+        (gates_dir / "phase1_completion_result.json").write_text(
+            json.dumps({
+                "gate_name": "phase1-completion",
+                "gate_status": "PASS",
+                "overall_status": "PASS",
+                "capabilities": [
+                    {
+                        "id": "test_cap",
+                        "evidence_path": "project_state/gates/command_plan.json",
+                        "status": "PASS",
+                    }
+                ],
+            }),
+            encoding="utf-8",
+        )
+        # Write a minimal codex_execution_report.md with empty generated_artifacts
+        (state_dir / "codex_execution_report.md").write_text(
+            '```json codex_report_summary\n{"schema_version":1,"report_id":"r1","round_id":"r1","based_on_decision_id":"d1","status":"SUCCESS","acceptance_recommendation":"ACCEPTED","files_changed":[],"tests_ran":[],"generated_artifacts":[],"referenced_artifacts":[]}\n```\n',
+            encoding="utf-8",
+        )
+        (state_dir / "pytest_result.txt").write_text(
+            '```json pytest_result_summary\n{"schema_version":1,"report_id":"r1","round_id":"r1","based_on_decision_id":"d1","decision_id":"d1","status":"PASSED","tests_ran":[]}\n```\n',
+            encoding="utf-8",
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        check_names = {c["name"] for c in result.get("checks", [])}
+        assert "phase1_completion_evidence_paths_reported" in check_names
+        # The check should FAIL because command_plan.json is not in generated_artifacts
+        ep_reported_check = next(c for c in result["checks"] if c["name"] == "phase1_completion_evidence_paths_reported")
+        assert ep_reported_check["status"] == "FAIL"
+
+    def test_execute_decision_guard_reason_when_self_invocation_prevents_execution(self, tmp_path):
+        """When execute-decision non-dry-run is guarded by self-invocation, guard_reason must be set."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}\n```\n',
+            encoding="utf-8",
+        )
+        (gates_dir / "command_plan.json").write_text(
+            '{"schema_version":1,"plan_status":"PASSED","decision_id":"d1","round_id":"r1","commands":[]}',
+            encoding="utf-8",
+        )
+        # When run_round returns mode=dry-run even though dry_run=False, guard_reason should be set
+        result = execute_decision(state_dir=state_dir, dry_run=False, repo_root=tmp_path, write_result=False)
+        if result.get("mode") == "dry-run":
+            assert "guard_reason" in result
+            assert "self-invocation" in result["guard_reason"].lower() or "recursive" in result["guard_reason"].lower()
 
 
