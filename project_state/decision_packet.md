@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260623_naming_hygiene_inventory_v1",
-  "round_id": "round_20260623_naming_hygiene_inventory_v1",
+  "decision_id": "decision_20260624_state_hygiene_archive_scope_rework_v1",
+  "round_id": "round_20260624_state_hygiene_archive_scope_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,14 +13,19 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
-  "previous_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
-  "previous_audit_outcome": "ACCEPTED",
+  "previous_decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+  "previous_round_id": "round_20260623_naming_hygiene_inventory_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
   "phase_label": "phase_1_5_pre_phase_2",
-  "primary_goal": "Create a bounded naming-neutralization and project_state hygiene inventory before Phase 2, without renaming, deleting, or migrating live artifacts in this round.",
+  "primary_goal": "Repair state_hygiene_inventory archive-scope coverage by adding bounded current-round and previous-accepted-round archive entries, without renaming, deleting, migrating, or entering Phase 2.",
   "command_plan_authority_required": true,
-  "accepted_requires_naming_migration_plan": true,
   "accepted_requires_state_hygiene_inventory": true,
+  "accepted_requires_archive_scope_complete": true,
+  "accepted_requires_current_round_archive_entries": true,
+  "accepted_requires_previous_accepted_round_archive_entries": true,
+  "accepted_requires_round_archive_artifact_category": true,
+  "accepted_requires_archive_entries_safe_to_delete_false": true,
+  "accepted_requires_no_full_rounds_scan": true,
   "accepted_requires_no_rename": true,
   "accepted_requires_no_delete": true,
   "accepted_requires_no_phase2_scope": true,
@@ -52,7 +57,12 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/gates/state_hygiene_inventory.json",
-    "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/*"
+    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/*"
+  ],
+  "bounded_archive_dirs_to_inventory": [
+    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1",
+    "project_state/rounds/round_20260623_naming_hygiene_inventory_v1",
+    "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -73,29 +83,26 @@
 
 ## 1. Goal
 
-Implement Naming Hygiene Inventory v1 as the first Phase 1.5 pre-Phase-2 cleanup round.
+Implement State Hygiene Archive Scope Rework v1.
 
-The previous accepted round closed Phase 1 completion evidence-path hardening. Phase 1 local gate foundations are now acceptable: command-plan authority, execution-log, report-auto-summary, report-summary, final-check, run-round, run-closeout, and Phase 1 completion evidence checks have current structured evidence.
+The previous Phase 1.5 inventory round generated `project_state/gates/naming_migration_plan.json` and `project_state/gates/state_hygiene_inventory.json`, preserved inventory-only behavior, and did not rename or delete files. However, audit found one blocking issue: `state_hygiene_inventory.json` covered only live root/gate state files and did not include the bounded archive directories that the decision explicitly required.
 
-This round must not change live names yet. It must produce a bounded, structured inventory and migration plan for names and state files that will otherwise create confusion in Phase 2. The immediate problem is that some live artifact names still bind the system to Codex even though Phase 2 may introduce other executors such as a local runner, GitHub Actions, Trae, a future AgentRunner, or a Web-triggered executor.
+This round must repair only that scope gap. Extend `state_hygiene_inventory.json` so it includes bounded archive entries from:
 
-Required outputs:
+1. the current round archive directory after closeout: `project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/*`;
+2. the previous reworked inventory round: `project_state/rounds/round_20260623_naming_hygiene_inventory_v1/*`;
+3. the previous accepted Phase 1 evidence hardening round: `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/*`.
 
-1. `project_state/gates/naming_migration_plan.json`
-2. `project_state/gates/state_hygiene_inventory.json`
+These archive entries must be classified as `round_archive_artifact`, must have `safe_to_delete: false`, and must not trigger any deletion or migration.
 
-`naming_migration_plan.json` must identify executor-specific naming debt, especially Codex-bound names such as `codex_execution_report.md`, `codex_report_summary`, and `codex_report_auto_summary.json`, and propose neutral target names such as `execution_report.md`, `execution_report_summary`, and `execution_report_auto_summary.json`. It must explicitly mark this round as inventory-only and must not perform the migration.
+This is still Phase 1.5 inventory work. Do not perform naming migration, compatibility dual-write, live artifact rename, deletion, cleanup, Phase 2 CI, Web UI, AgentRunner, database, queue, scheduler, or multi-executor implementation.
 
-`state_hygiene_inventory.json` must classify bounded state files as one of:
+Required accepted outputs:
 
-- `current_live_artifact`
-- `round_archive_artifact`
-- `legacy_compat_artifact`
-- `candidate_legacy_artifact`
-- `candidate_orphan_artifact`
-- `unknown_requires_manual_review`
-
-No file may be deleted in this round. No live artifact may be renamed in this round. No new neutral live report path may be created in this round.
+1. `project_state/gates/state_hygiene_inventory.json` with complete bounded archive coverage.
+2. `project_state/gates/naming_migration_plan.json` preserved or regenerated as inventory-only evidence if needed.
+3. final-check coverage proving archive scope completeness.
+4. `project_state/codex_execution_report.md` with all Required Audit items answered.
 
 ## 2. Current Evidence
 
@@ -103,41 +110,41 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` remains background-only `samplereverse` sample state and is not authoritative. The current task is controlled by this `decision_packet.md`.
 
-Previous audit outcome: `ACCEPTED` for `decision_20260623_phase1_completion_evidence_path_hardening_v1`.
+Previous audit outcome: `REWORK_REQUIRED` for `decision_20260623_naming_hygiene_inventory_v1`.
 
 Accepted prior-round facts:
 
-- `codex_execution_report.md` reached `SUCCESS / ACCEPTED` for `round_20260623_phase1_completion_evidence_path_hardening_v1`.
-- `pytest_result.txt` reached `PASSED`, with `tests/test_project_gate.py` and `tests/test_project_gate.py tests/test_project_state.py` passing.
-- `command-plan --json` recorded a full commands array and `omitted_commands=[]`.
-- `phase1_completion_result.json` no longer references missing `execute_decision_result.json`; `execute_decision_entrypoint` uses current existing evidence paths: `execution_log.json`, `command_plan.json`, and `run_round_result.json`.
-- final-check reached `PASSED` and included `phase1_completion_evidence_paths_exist: PASS` and `phase1_completion_evidence_paths_reported: PASS`.
-- `report_summary_synthesis.json` reached `PASSED` with no diffs and synthesized `SUCCESS / ACCEPTED`.
-- `run_closeout_result.json` reached `PASSED` and round manifest reached `SUCCESS / ACCEPTED`.
+- `naming_migration_plan.json` existed, carried current decision/round IDs, and correctly marked `action_this_round: inventory_only`, `no_rename: true`, `no_delete: true`, and `no_neutral_live_path_created: true`.
+- `naming_migration_plan.json` identified the main Codex-bound names and proposed neutral targets without performing migration.
+- `state_hygiene_inventory.json` existed and included live root/gate inventory entries.
+- All inspected inventory entries had `safe_to_delete: false`.
+- No evidence showed actual rename, deletion, or creation of `project_state/execution_report.md` or `project_state/gates/execution_report_auto_summary.json`.
+- command-plan, pytest, naming-hygiene, execution-log, report-auto-summary, report-summary, final-check, and run-closeout passed in the previous inventory round.
 
-Known naming debt:
+Blocking prior-round facts:
 
-- `project_state/codex_execution_report.md` is currently the live execution report path, but the concept is executor-neutral.
-- `codex_report_summary` is currently the report summary block name, but the concept is executor-neutral.
-- `project_state/gates/codex_report_auto_summary.json` is currently the report-auto-summary gate artifact, but the concept is executor-neutral.
-- These names are acceptable for backward compatibility today but should not be carried unexamined into Phase 2 multi-executor or Web/CI integration.
+- The previous decision required inventory generation to inspect bounded live directories plus the current round archive directory and previous accepted round archive directory.
+- The previous report stated `state_hygiene_inventory.json` contained entries across `project_state/` immediate files and `project_state/gates/` immediate JSON files only.
+- The previous report stated no `round_archive_artifact` entries appeared because the scan was bounded to live state roots only.
+- Current and previous accepted archive manifests exist and list archive files such as `codex_execution_report.md`, `decision_packet.md`, and `pytest_result.txt` under their round directories.
+- final-check did not detect the missing bounded archive inventory scope.
 
 Artifact freshness:
 
-- All evidence for this round must be regenerated under `decision_20260623_naming_hygiene_inventory_v1` and `round_20260623_naming_hygiene_inventory_v1`.
+- All proof for this rework must be regenerated under `decision_20260624_state_hygiene_archive_scope_rework_v1` and `round_20260624_state_hygiene_archive_scope_rework_v1`.
 - Prior-round artifacts are diagnostic context only.
 - Historical/backlog `samplereverse` artifacts remain external notices only and must not be claimed as current evidence.
 
-Scope of inventory:
+Scope of archive inventory:
 
-- Inspect only live state roots and bounded current artifacts: `project_state/*.json`, `project_state/*.md`, `project_state/*.txt`, `project_state/gates/*.json`, and the current/previous round manifest/report files explicitly listed in Files To Inspect.
+- Read only the three explicitly bounded archive directories listed in `decision_contract.bounded_archive_dirs_to_inventory`.
 - Do not recursively scan the full `project_state/rounds/` tree.
-- Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+- Archive scope is file-level inventory of known round archive files, not semantic validation of every archived report.
 
 Gate/command-plan strategy:
 
 - Use only valid profiles: `fast`, `standard`, `full`.
-- Because this round changes gate logic and may add a new inventory command/artifact, command-plan should select or require `full` validation.
+- Because this round changes gate logic and final-check coverage, command-plan should select or require `full` validation.
 - Tests are subordinate to command-plan. If this Tests section conflicts with command-plan, command-plan is authoritative.
 - Closeout may run only if command-plan authorizes it and the selected profile allows closeout.
 
@@ -157,11 +164,15 @@ Do not create `project_state/gates/execution_report_auto_summary.json` in this r
 
 Do not delete files in this round.
 
+Do not mark any `round_archive_artifact`, `candidate_orphan_artifact`, `candidate_legacy_artifact`, `legacy_compat_artifact`, or `unknown_requires_manual_review` entry as safe-to-delete.
+
 Do not remove legacy Codex-named files in this round.
 
 Do not modify `project_state/artifact_index.json` in this round.
 
 Do not write dynamic findings into `.codex-skills/`.
+
+Do not scan full `project_state/rounds/`. Only inspect the bounded archive directories explicitly listed in this decision.
 
 Do not broaden this round into Phase 2 GitHub CI, `ci.yml`, `state-gate.yml`, PR automation, branch protection, Web UI, AgentRunner, Codex adapter, Trae adapter, Job Manager, database, queue, scheduler, daemon, API Planner, API Auditor, self-hosted runner, or background worker work.
 
@@ -213,26 +224,24 @@ Then inspect only relevant implementation and gate evidence files:
 6. `project_state/gates/report_summary_synthesis.json`
 7. `project_state/gates/final_gate_result.json`
 8. `project_state/gates/gate_profile_plan.json`
-9. `project_state/gates/phase1_completion_result.json`
-10. `project_state/gates/preflight_result.json`
-11. `project_state/gates/policy_lint_result.json`
-12. `project_state/gates/policy_impact_audit.json`
-13. `project_state/gates/run_round_result.json`
-14. `project_state/gates/run_closeout_result.json`
-15. `project_state/gates/run_closeout_execution_log.json`
-16. `project_state/gates/round_delta_summary.json`
-17. `project_state/gates/round_close_snapshot.json` if present
-18. `project_state/gates/naming_migration_plan.json` if present
-19. `project_state/gates/state_hygiene_inventory.json` if present
-20. `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
-21. `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
+9. `project_state/gates/naming_migration_plan.json`
+10. `project_state/gates/state_hygiene_inventory.json`
+11. `project_state/gates/preflight_result.json`
+12. `project_state/gates/policy_lint_result.json`
+13. `project_state/gates/policy_impact_audit.json`
+14. `project_state/gates/run_round_result.json`
+15. `project_state/gates/run_closeout_result.json`
+16. `project_state/gates/run_closeout_execution_log.json`
+17. `project_state/gates/round_delta_summary.json`
+18. `project_state/gates/round_close_snapshot.json` if present
+19. `project_state/rounds/round_20260623_naming_hygiene_inventory_v1/round_manifest.json`
+20. `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json`
 
-For inventory generation, inspect only bounded live directories:
+For archive inventory generation, inspect only these bounded archive directories:
 
-- `project_state/` immediate files
-- `project_state/gates/` immediate JSON files
-- the current round archive directory after closeout
-- the previous accepted round archive directory listed above
+1. `project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/` after closeout, if it exists at that point;
+2. `project_state/rounds/round_20260623_naming_hygiene_inventory_v1/`;
+3. `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/`.
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -240,20 +249,20 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 Before claiming success, `project_state/codex_execution_report.md` must answer all eight items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Which Codex-bound names were found in live report paths, JSON block names, gate artifact names, code constants, tests, and generated artifacts? Which are true executor-neutral naming debt versus acceptable legacy references?
-2. What does `project_state/gates/naming_migration_plan.json` contain, and how does it distinguish inventory-only recommendations from actual migration actions?
-3. What neutral target names are proposed for `codex_execution_report.md`, `codex_report_summary`, and `codex_report_auto_summary.json`, and what compatibility strategy is recommended for a later round?
-4. What does `project_state/gates/state_hygiene_inventory.json` contain, and how are files classified as `current_live_artifact`, `round_archive_artifact`, `legacy_compat_artifact`, `candidate_legacy_artifact`, `candidate_orphan_artifact`, or `unknown_requires_manual_review`?
-5. How does the inventory prove that no file was renamed, no file was deleted, no neutral live report path was created, and no forbidden path was mutated?
-6. How does the implementation prevent `candidate_orphan_artifact` or `candidate_legacy_artifact` from being treated as safe-to-delete in this round?
-7. Which regression tests cover naming inventory generation, state hygiene classification, no-delete/no-rename enforcement, generated artifact coverage, and preservation of existing final-check/report-summary behavior?
+1. Which archive directories were required by this decision, and which exact files from each were added to `state_hygiene_inventory.json`?
+2. How does `state_hygiene_inventory.json` classify current-round, previous inventory-round, and previous accepted Phase 1 evidence-hardening round archive files as `round_archive_artifact`?
+3. How does the implementation guarantee every archive entry has `safe_to_delete: false` and a delete reason that deletion is deferred?
+4. How does the implementation prove it scanned only the bounded archive directories and did not recursively scan the full `project_state/rounds/` tree?
+5. What final-check rule now verifies archive scope completeness, and how does it fail if any required bounded archive file is missing from the inventory?
+6. Which regression tests prove current-round archive files and previous accepted round archive files are inventoried, classified correctly, safe-to-delete false, and bounded-scan only?
+7. How were existing naming hygiene guarantees preserved: no rename, no delete, no neutral live report path creation, no forbidden path mutation, and no safe-to-delete candidates?
 8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no heavy artifact scan, no evidence weakening, and no Phase 2 expansion?
 
 Do not write TODO, TBD, PENDING, “should pass”, “expected to pass”, or speculative answers.
 
 ## 6. Implementation Scope
 
-Primary scope: add bounded naming and state-hygiene inventory generation for Phase 1.5.
+Primary scope: repair archive-scope coverage in state hygiene inventory and add final-check/test enforcement.
 
 Allowed source changes:
 
@@ -281,26 +290,26 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/state_hygiene_inventory.json`
-- `project_state/rounds/round_20260623_naming_hygiene_inventory_v1/*`
+- `project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/*`
 
 Required behavior:
 
 1. Establish a current-round baseline before modifications.
-2. Add or reuse a bounded CLI/gate command such as `naming-hygiene` or an equivalent project-gate command to generate `naming_migration_plan.json` and `state_hygiene_inventory.json`.
-3. Inventory Codex-bound names in live report paths, JSON block names, gate artifact names, code/test references, and generated artifact names.
-4. Classify each Codex-bound name as `must_keep_current_compat`, `candidate_neutralization`, `archive_only_reference`, or `unknown_requires_manual_review`.
-5. Propose neutral target names but do not create those target files.
-6. Build a bounded state file inventory covering only live root state files, live gate JSON files, and explicitly allowed current/previous round archive files.
-7. Classify each inventoried state path into one of the approved categories.
-8. Set `safe_to_delete` to `false` for every entry in this round, including candidate orphan and candidate legacy entries. Deletion is explicitly deferred.
-9. Include fields such as `path`, `category`, `referenced_by`, `freshness_basis`, `safe_to_delete`, `delete_reason`, `migration_target`, and `notes` where applicable.
-10. Ensure the new inventory artifacts are included in `generated_artifacts` and covered by final-check/generated_artifacts checks.
-11. Add focused regression tests for naming migration plan generation, state hygiene inventory generation, bounded scan behavior, no-delete/no-rename behavior, and report/final-check integration.
-12. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `naming_migration_plan.json`, `state_hygiene_inventory.json`, and `codex_execution_report.md`.
+2. Extend the naming-hygiene/state-hygiene implementation so `state_hygiene_inventory.json` includes archive entries from the explicitly bounded directories only.
+3. Add archive entries for the previous inventory round archive directory: `project_state/rounds/round_20260623_naming_hygiene_inventory_v1/*`.
+4. Add archive entries for the previous accepted Phase 1 evidence-hardening round archive directory: `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/*`.
+5. Ensure the current rework round archive directory is included after closeout or explain the exact sequencing used to regenerate/validate inventory after archive creation. The accepted final state must include current round archive entries if the directory exists.
+6. Classify all bounded archive entries as `round_archive_artifact`.
+7. Set `safe_to_delete: false` for all archive entries.
+8. Include `referenced_by`, `freshness_basis`, `delete_reason`, and `notes` for each archive entry.
+9. Add or harden final-check validation, preferably named `state_hygiene_inventory_scope_complete`, that verifies required bounded archive files are present in `state_hygiene_inventory.json` and classified correctly.
+10. Ensure this check fails if the archive scope is missing or incomplete.
+11. Add focused regression tests for archive inventory coverage, category assignment, safe-to-delete false, bounded scan behavior, and final-check blocking behavior.
+12. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `state_hygiene_inventory.json`, and `codex_execution_report.md`.
 13. Run closeout if and only if command-plan authorizes it.
-14. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, naming migration plan present, state hygiene inventory present, report-summary `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, run-closeout `PASSED`, and no blocking reasons.
+14. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, `state_hygiene_inventory_scope_complete: PASS`, report-summary `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, run-closeout `PASSED`, and no blocking reasons.
 
-Do not implement actual migration, rename, deletion, compatibility dual-write, schema migration, Phase 2, Web, CI, database, or multi-executor adapter in this round.
+Do not implement actual naming migration, rename, deletion, compatibility dual-write, schema migration, Phase 2, Web, CI, database, or multi-executor adapter in this round.
 
 ## 7. Tests
 
@@ -333,8 +342,8 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate naming-hygiene --state-dir project_state
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_naming_hygiene_inventory_v1 --dry-run --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_naming_hygiene_inventory_v1 --execute
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_state_hygiene_archive_scope_rework_v1 --dry-run --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_state_hygiene_archive_scope_rework_v1 --execute
 python -m pytest tests/test_project_gate.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
@@ -343,7 +352,8 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_naming_hygiene_inventory_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_state_hygiene_archive_scope_rework_v1
+python -m reverse_agent.project_gate naming-hygiene --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
@@ -371,8 +381,9 @@ Stop immediately and report `BLOCKED` if:
 - implementation requires deleting files;
 - implementation requires creating new neutral live report paths;
 - implementation requires modifying prompt/skill files;
+- implementation requires scanning full `project_state/rounds/` instead of the explicit bounded archive dirs;
 - implementation requires weakening command-plan authority, execution-log consistency, archive strictness, report-summary consistency, report-auto-summary consistency, final-check strictness, generated_artifacts coverage, or Required Audit coverage;
 - inventory generation would require full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or full recursive `project_state/rounds/` scans;
 - Required Audit remains incomplete or placeholder-like.
 
-Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, execution-log regresses, report-auto-summary regresses, report-summary regresses, policy-lint fails, policy-impact fails, `naming_migration_plan.json` is missing, `state_hygiene_inventory.json` is missing, inventory artifacts are absent from generated_artifacts, any file is renamed, any file is deleted, any neutral live report path is created, any forbidden path is mutated, any candidate artifact is marked safe-to-delete in this round, run-closeout fails, final-check has warnings or blocking reasons, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
+Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, execution-log regresses, report-auto-summary regresses, report-summary regresses, policy-lint fails, policy-impact fails, `state_hygiene_inventory.json` is missing, required archive entries are missing, archive entries are not classified as `round_archive_artifact`, any archive entry has `safe_to_delete: true`, bounded-scan proof is missing, `state_hygiene_inventory_scope_complete` is missing or not PASS, inventory artifacts are absent from generated_artifacts, any file is renamed, any file is deleted, any neutral live report path is created, any forbidden path is mutated, run-closeout fails, final-check has warnings or blocking reasons, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
