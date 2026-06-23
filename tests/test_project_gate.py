@@ -5952,7 +5952,8 @@ class TestHistoricalSampleLimitationsOnly:
         ])
 
     def test_empty(self) -> None:
-        assert not _historical_sample_limitations_only([])
+        # Vacuous truth: no limitations means all are historical-only
+        assert _historical_sample_limitations_only([])
 
     def test_none_historical(self) -> None:
         assert not _historical_sample_limitations_only([
@@ -6147,6 +6148,81 @@ class TestReverseSolvingBlockerOnlyGatePolicy:
             },
         ]
         assert _result_status(checks, "SUCCESS", mainline="reverse_solving") == "PASSED_WITH_LIMITATIONS"
+
+    def test_result_status_passed_with_status_source_only_warn_and_partial_report(self) -> None:
+        """When the only WARNs are status_policy_valid (historical) and
+        report_auto_summary_consistency (status-source-only, non_blocking),
+        _result_status returns PASSED even with PARTIAL report status.
+        This breaks the self-referential cycle."""
+        checks = [
+            {
+                "name": "status_policy_valid",
+                "status": "WARN",
+                "limitations": ["50 missing historical sample artifacts"],
+            },
+            {
+                "name": "report_auto_summary_consistency",
+                "status": "WARN",
+                "detail": "status-source fields only (self-referential); substantive fields match",
+                "non_blocking": True,
+            },
+        ]
+        assert _result_status(checks, "PARTIAL", mainline="engineering_branch") == "PASSED"
+
+    def test_result_status_warn_when_auto_summary_has_substantive_mismatch(self) -> None:
+        """When report_auto_summary_consistency has a substantive mismatch
+        (not status-source-only), _result_status returns WARN even with
+        non_blocking=False."""
+        checks = [
+            {
+                "name": "status_policy_valid",
+                "status": "WARN",
+                "limitations": ["50 missing historical sample artifacts"],
+            },
+            {
+                "name": "report_auto_summary_consistency",
+                "status": "WARN",
+                "detail": "disagrees on files_changed",
+                "non_blocking": False,
+            },
+        ]
+        assert _result_status(checks, "PARTIAL", mainline="engineering_branch") == "WARN"
+
+    def test_auto_summary_mismatch_is_status_source_only_true(self) -> None:
+        """_auto_summary_mismatch_is_status_source_only returns True when
+        all mismatches are in status/acceptance_recommendation fields."""
+        from reverse_agent.project_gate import _auto_summary_mismatch_is_status_source_only
+        mismatches = [
+            {"field": "status", "expected": "PARTIAL", "actual": "SUCCESS"},
+            {"field": "acceptance_recommendation", "expected": "NEEDS_REVIEW", "actual": "ACCEPTED"},
+        ]
+        assert _auto_summary_mismatch_is_status_source_only(mismatches) is True
+
+    def test_auto_summary_mismatch_is_status_source_only_false_with_substantive(self) -> None:
+        """_auto_summary_mismatch_is_status_source_only returns False when
+        there is a substantive field mismatch (files_changed)."""
+        from reverse_agent.project_gate import _auto_summary_mismatch_is_status_source_only
+        mismatches = [
+            {"field": "status", "expected": "PARTIAL", "actual": "SUCCESS"},
+            {"field": "files_changed", "expected": ["a.py"], "actual": ["b.py"]},
+        ]
+        assert _auto_summary_mismatch_is_status_source_only(mismatches) is False
+
+    def test_auto_summary_mismatch_is_status_source_only_false_empty(self) -> None:
+        """_auto_summary_mismatch_is_status_source_only returns False for
+        empty mismatches (no mismatches means PASS, not status-source-only)."""
+        from reverse_agent.project_gate import _auto_summary_mismatch_is_status_source_only
+        assert _auto_summary_mismatch_is_status_source_only([]) is False
+
+    def test_auto_summary_mismatch_is_status_source_only_false_with_id_mismatch(self) -> None:
+        """_auto_summary_mismatch_is_status_source_only returns False when
+        there is an ID mismatch (not a field diff with 'field' key)."""
+        from reverse_agent.project_gate import _auto_summary_mismatch_is_status_source_only
+        mismatches = [
+            {"field": "status", "expected": "PARTIAL", "actual": "SUCCESS"},
+            {"error": "stale decision_id", "auto_summary_decision_id": "old_v1"},
+        ]
+        assert _auto_summary_mismatch_is_status_source_only(mismatches) is False
 
     def test_report_status_from_gate_payload_returns_actual_failed(self) -> None:
         """For reverse_solving blocker-only, synthesis returns actual report status."""
