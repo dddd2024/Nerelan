@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
-  "round_id": "round_20260623_phase1_completion_execute_decision_closure_v1",
+  "decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
+  "round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,13 +13,15 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260623_execution_log_and_auto_summary_current_round_rework_v1",
-  "previous_round_id": "round_20260623_execution_log_and_auto_summary_current_round_rework_v1",
-  "previous_audit_outcome": "ACCEPTED",
-  "primary_goal": "Close Phase 1 local hard-gate foundation by proving the current command-plan, preflight, policy-lint, prompt-consistency coverage, execution-log, report-auto-summary, report-summary, final-check, run-round --execute, and run-closeout chain is complete; add only a thin execute-decision entrypoint if it is absent or not auditable.",
+  "previous_decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
+  "previous_round_id": "round_20260623_phase1_completion_execute_decision_closure_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
+  "primary_goal": "Harden Phase 1 completion evidence-path validation so a PASS/SUCCESS report cannot cite missing or unreported evidence paths, with special focus on the missing execute_decision_result.json evidence path referenced by phase1_completion_result.json.",
   "command_plan_authority_required": true,
   "accepted_requires_phase1_completion_artifact": true,
-  "accepted_requires_execute_decision_closure": true,
+  "accepted_requires_phase1_evidence_paths_exist": true,
+  "accepted_requires_phase1_evidence_paths_reported": true,
+  "accepted_requires_execute_decision_evidence_current": true,
   "accepted_requires_no_phase2_scope": true,
   "accepted_requires_final_check_passed": true,
   "accepted_requires_execution_log_consistency_passed": true,
@@ -37,6 +39,7 @@
     "project_state/pytest_result.txt",
     "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/command_plan.json",
+    "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
@@ -51,7 +54,7 @@
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
-    "project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/*"
+    "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -70,28 +73,13 @@
 
 ## 1. Goal
 
-Implement Phase 1 Completion and Execute-Decision Closure v1.
+Implement Phase 1 Completion Evidence Path Hardening v1.
 
-The previous accepted round closed the remaining current-round evidence pollution: `execution_log.json` now carries the current report ID and current round commands only; `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, live report, round manifest, and archive all converged to `SUCCESS / ACCEPTED`.
+The previous round mostly completed the Phase 1 local hard-gate closure: `execute-decision` was added as a thin wrapper, command-plan authority remained active, `phase1_completion_result.json` was generated, tests passed, and final-check reported `PASSED`. However, audit found a blocker: `project_state/gates/phase1_completion_result.json` marked `execute_decision_entrypoint` as `PASS` while citing `project_state/gates/execute_decision_result.json` as its `evidence_path`, but that artifact did not exist in GitHub and was not included in `generated_artifacts`, `referenced_artifacts`, existing gate artifacts, or final-check live paths.
 
-This round is a Phase 1 closeout round. Its goal is not to add Phase 2 GitHub CI, Web UI, Job Manager, AgentRunner, API Planner, or database features. Its goal is to prove that the Phase 1 local hard-gate foundation is complete and auditable.
+This round must harden the Phase 1 completion gate so a completion artifact cannot claim a PASS using missing or unreported evidence paths. The fix must either generate and report `project_state/gates/execute_decision_result.json` as current evidence, or change the Phase 1 completion evidence path to real current artifacts such as `execution_log.json`, `command_plan.json`, and `run_round_result.json`. In either case, final-check must verify that every `phase1_completion_result.json.capabilities[*].evidence_path` exists and is represented in the report evidence chain.
 
-Phase 1 completion means the following local capabilities are implemented, tested, and covered by current evidence:
-
-1. command-plan authority and unauthorized command detection;
-2. decision Tests versus command-plan conflict detection;
-3. policy-lint and prompt/policy consistency coverage for long-lived prompt and skill files;
-4. execution-log derivation from current top-level command evidence;
-5. report-auto-summary synthesis from structured evidence;
-6. report-summary synthesis and live report consistency;
-7. final-check as the hard acceptance gate;
-8. run-round `--execute` as the local execution orchestrator;
-9. run-closeout / close-round archive and manifest consistency;
-10. a thin `execute-decision` entrypoint, if absent, that delegates to the existing run-round execution path rather than introducing a parallel execution engine.
-
-If `execute-decision` already exists and is auditable, do not duplicate it. If `execute-decision` does not exist, add only a thin CLI alias/wrapper around the existing command-plan-controlled `run-round --execute` flow. Do not create a new executor, scheduler, queue, database, runner daemon, or background worker.
-
-The final accepted state must include a structured `project_state/gates/phase1_completion_result.json` artifact, or an equivalent already-existing gate artifact if the implementation already has a Phase 1 completion gate. This artifact must enumerate each Phase 1 capability, its evidence path, and PASS/FAIL status.
+This is a narrow evidence-path hardening round. Do not start naming-neutralization, state hygiene cleanup, file deletion, Phase 2 CI, Web UI, AgentRunner, database, queue, scheduler, or multi-executor architecture.
 
 ## 2. Current Evidence
 
@@ -99,47 +87,48 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` remains background-only `samplereverse` sample state and is not authoritative. The current task is controlled by this `decision_packet.md`.
 
-Previous audit outcome: `ACCEPTED` for `decision_20260623_execution_log_and_auto_summary_current_round_rework_v1`.
+Previous audit outcome: `REWORK_REQUIRED` for `decision_20260623_phase1_completion_execute_decision_closure_v1`.
 
 Accepted prior-round facts:
 
-- `codex_execution_report.md` reached `SUCCESS / ACCEPTED` for `round_20260623_execution_log_and_auto_summary_current_round_rework_v1`.
+- `codex_execution_report.md` reached `SUCCESS / ACCEPTED` for `round_20260623_phase1_completion_execute_decision_closure_v1`.
 - `pytest_result.txt` reached `PASSED`, with `tests/test_project_gate.py` and `tests/test_project_gate.py tests/test_project_state.py` passing.
-- `execution_log.json` reached `PASSED`, carried current `decision_id`, `round_id`, and `report_id`, and contained only current-round commands.
-- `codex_report_auto_summary.json` reached `PASSED`, carried current IDs, and its `tests_ran` contained current-round commands only.
-- `report_summary_synthesis.json` reached `PASSED`, had zero diffs, and synthesized `SUCCESS / ACCEPTED`.
-- `final_gate_result.json` reached `PASSED` with no warnings and no blocking reasons.
-- `round_manifest.json` reached `SUCCESS / ACCEPTED` and matched the live report.
-- `run-closeout` reached `PASSED` and archived the live report, decision packet, pytest result, and round manifest.
-- `policy-lint` and `policy-impact` reached `PASSED`.
+- `execute-decision` appeared in `command_plan.json` and in `execution_log.json` as an authorized command kind.
+- `pytest_result.txt` recorded `execute-decision --dry-run --json` with `entrypoint: execute-decision` and `delegates_to: run-round`.
+- `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, and `run_closeout_result.json` all reached `PASSED` for the previous round.
+- `phase1_completion_result.json` existed and enumerated 10 Phase 1 capabilities.
 
-Known non-blocking observation from audit:
+Blocking facts from audit:
 
-- `pytest_result.txt` displayed a compact/short stdout line for `command-plan --json` showing `commands: []`, while the live `project_state/gates/command_plan.json` contained the full 19-command plan and final-check treated `command_plan_json_stdout_full` as PASS. This is not a blocker for the previous round, but this Phase 1 closeout may either leave it documented as an accepted display compaction or tighten the recorded stdout behavior if the fix is small and within scope.
+- `phase1_completion_result.json` listed capability `execute_decision_entrypoint` with `evidence_path: project_state/gates/execute_decision_result.json` and `status: PASS`.
+- `project_state/gates/execute_decision_result.json` did not exist when fetched from GitHub.
+- `execute_decision_result.json` was absent from `codex_execution_report.md.generated_artifacts`.
+- `execute_decision_result.json` was absent from `codex_report_auto_summary.json.generated_artifacts`.
+- `execute_decision_result.json` was absent from final-check `generated_artifact_live_paths_exist` and `generated_artifacts_cover_gate_artifacts` evidence.
+- final-check had `phase1_completion_status: PASS`, but did not validate individual capability `evidence_path` existence or report coverage.
+- `execute-decision` non-dry-run stdout reported `mode: dry-run` and `executed_count: 0`; this may be acceptable as self-invocation recursion prevention, but the report must describe the semantics precisely.
 
 Artifact freshness:
 
-- All proof for this closeout must be regenerated under `decision_20260623_phase1_completion_execute_decision_closure_v1` and `round_20260623_phase1_completion_execute_decision_closure_v1`.
+- All proof for this rework must be regenerated under `decision_20260623_phase1_completion_evidence_path_hardening_v1` and `round_20260623_phase1_completion_evidence_path_hardening_v1`.
 - Prior-round artifacts are diagnostic context only.
 - Historical/backlog `samplereverse` artifacts remain external notices only and must not be claimed as current evidence.
 
 Existing capabilities to reuse:
 
 - `preflight` and decision metadata validation.
-- `command-plan` and omitted-command authority.
+- `command-plan`, omitted-command authority, and `execute-decision` command kind handling.
 - `run-round --dry-run --json` and `run-round --execute`.
-- `execution-log`.
-- `report-auto-summary`.
-- `report-summary`.
-- `final-check`.
+- `execution-log` current-round derivation.
+- `report-auto-summary`, `report-summary`, and final-check consistency checks.
+- `phase1_completion_result.json` generation.
+- `run-closeout`, `close-round`, round manifest, and archive consistency checks.
 - `policy-lint` and `policy-impact`.
-- `run-closeout` and `close-round`.
-- Round manifest and archive checks.
 
 Gate/command-plan strategy:
 
 - Use only valid profiles: `fast`, `standard`, `full`.
-- Because this round closes Phase 1 and may add an entrypoint/gate artifact, command-plan should select or require `full` validation.
+- Because this round changes final-check and Phase 1 completion evidence validation, command-plan should select or require `full` validation.
 - Tests are subordinate to command-plan. If this Tests section conflicts with command-plan, command-plan is authoritative.
 - Closeout may run only if command-plan authorizes it and the selected profile allows closeout.
 
@@ -151,7 +140,7 @@ Tool policy:
 
 ## 3. Do Not Do
 
-Do not broaden this round into Phase 2 GitHub CI, `ci.yml`, `state-gate.yml`, PR automation, branch protection, Web UI, AgentRunner, Codex adapter, Trae adapter, Job Manager, database, queue, scheduler, daemon, API Planner, API Auditor, self-hosted runner, or background worker work.
+Do not broaden this round into naming-neutralization, `execution_report.md` migration, Codex-name cleanup, state hygiene deletion, orphan artifact deletion, Phase 2 GitHub CI, `ci.yml`, `state-gate.yml`, PR automation, branch protection, Web UI, AgentRunner, Codex adapter, Trae adapter, Job Manager, database, queue, scheduler, daemon, API Planner, API Auditor, self-hosted runner, or background worker work.
 
 Do not continue `samplereverse` solving or any sample-solving task.
 
@@ -159,13 +148,17 @@ Do not read the full `solve_reports/` directory or full `PROJECT_PROGRESS_LOG.tx
 
 Do not treat old sample artifacts or prior-round gate artifacts as current evidence.
 
-Do not create a second execution engine. If `execute-decision` is implemented, it must reuse the existing command-plan-controlled `run-round --execute` pathway.
+Do not create a second execution engine. `execute-decision` must remain a thin command-plan-controlled wrapper around the existing run-round execution path or an explicitly guarded no-recursion wrapper.
 
-Do not bypass command-plan. `execute-decision`, if added or validated, must obey command-plan and must not execute omitted or unauthorized commands.
+Do not bypass command-plan. `execute-decision` must not execute omitted or unauthorized commands.
 
 Do not weaken existing command-plan authority, execution-log consistency, report-auto-summary consistency, report-summary consistency, final-check strictness, archive strictness, run-closeout evidence scoping, generated_artifacts coverage, or Required Audit coverage.
 
-Do not relabel WARN/FAIL evidence as accepted merely to close Phase 1. A Phase 1 completion artifact must be evidence-driven.
+Do not allow `phase1_completion_result.json` to mark a capability `PASS` with a missing evidence path.
+
+Do not allow a `project_state/gates/*` evidence path to be omitted from both `generated_artifacts` and `referenced_artifacts` unless it is explicitly documented as a non-file logical evidence reference and final-check understands it.
+
+Do not relabel missing evidence as accepted merely to close Phase 1.
 
 Do not inject closeout-internal commands into the top-level `pytest_result.txt` command stream. Closeout-internal commands must remain scoped in closeout evidence.
 
@@ -201,22 +194,23 @@ Then inspect only relevant implementation and gate evidence files:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `project_state/gates/command_plan.json`
-4. `project_state/gates/execution_log.json`
-5. `project_state/gates/codex_report_auto_summary.json`
-6. `project_state/gates/report_summary_synthesis.json`
-7. `project_state/gates/final_gate_result.json`
-8. `project_state/gates/preflight_result.json`
-9. `project_state/gates/policy_lint_result.json`
-10. `project_state/gates/policy_impact_audit.json`
-11. `project_state/gates/run_round_result.json`
-12. `project_state/gates/run_closeout_result.json`
-13. `project_state/gates/run_closeout_execution_log.json`
-14. `project_state/gates/round_delta_summary.json`
-15. `project_state/gates/round_close_snapshot.json` if present
-16. `project_state/gates/phase1_completion_result.json` if present
-17. `project_state/rounds/round_20260623_execution_log_and_auto_summary_current_round_rework_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
-18. `project_state/rounds/round_20260623_execution_log_and_auto_summary_current_round_rework_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
+3. `project_state/gates/phase1_completion_result.json`
+4. `project_state/gates/execute_decision_result.json` if present
+5. `project_state/gates/command_plan.json`
+6. `project_state/gates/execution_log.json`
+7. `project_state/gates/codex_report_auto_summary.json`
+8. `project_state/gates/report_summary_synthesis.json`
+9. `project_state/gates/final_gate_result.json`
+10. `project_state/gates/preflight_result.json`
+11. `project_state/gates/policy_lint_result.json`
+12. `project_state/gates/policy_impact_audit.json`
+13. `project_state/gates/run_round_result.json`
+14. `project_state/gates/run_closeout_result.json`
+15. `project_state/gates/run_closeout_execution_log.json`
+16. `project_state/gates/round_delta_summary.json`
+17. `project_state/gates/round_close_snapshot.json` if present
+18. `project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
+19. `project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
 
 Do not scan the full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -224,20 +218,20 @@ Do not scan the full `project_state/rounds/`, full `solve_reports/`, or full `PR
 
 Before claiming success, `project_state/codex_execution_report.md` must answer all eight items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Which Phase 1 capabilities are now present, and what artifact or test proves each one: command-plan authority, decision Tests conflict detection, policy-lint/prompt consistency, execution-log, report-auto-summary, report-summary, final-check, run-round --execute, and run-closeout/archive?
-2. Does `execute-decision` already exist? If yes, how is it proven to reuse command-plan authority? If no, what thin wrapper/alias was added and how does it delegate to the existing run-round execution path?
-3. How does the final command-plan prove no omitted or unauthorized commands were executed?
-4. How do `pytest_result.txt`, `command_plan.json`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `phase1_completion_result.json`, and live `codex_execution_report.md` converge in the final state?
-5. How does the Phase 1 completion artifact distinguish current evidence from prior-round diagnostic evidence and historical/backlog sample artifacts?
-6. Which regression tests cover `execute-decision` or its explicit non-duplication, Phase 1 completion matrix generation, command-plan authority preservation, report-summary/auto-summary consistency, execution-log current-round behavior, and closeout/archive consistency?
-7. If `pytest_result.txt` still records compact stdout for `command-plan --json`, why is it non-blocking, and which artifact remains the authoritative full command plan? If it was fixed, what test proves full JSON stdout recording?
-8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, no heavy artifact scan, and no Phase 2 expansion?
+1. Why did the previous `phase1_completion_result.json` cite `project_state/gates/execute_decision_result.json` as PASS evidence while that file was missing from GitHub and absent from generated_artifacts?
+2. What rule now ensures every `phase1_completion_result.json.capabilities[*].evidence_path` exists or is explicitly represented as a valid non-file evidence reference?
+3. What rule now ensures every `project_state/gates/*` evidence path in Phase 1 completion is included in `generated_artifacts` or `referenced_artifacts` before a SUCCESS report is accepted?
+4. How is `execute-decision` currently evidenced: by a real `execute_decision_result.json`, or by existing artifacts such as `execution_log.json`, `command_plan.json`, and `run_round_result.json`? Why is that evidence current and sufficient?
+5. How does final-check prove `phase1_completion_status`, `phase1_completion_evidence_paths_exist`, and `phase1_completion_evidence_paths_reported` all pass?
+6. Which regression tests prove missing Phase 1 evidence paths block SUCCESS, unreported gate evidence paths block SUCCESS, real execute-decision evidence passes, and alternate existing-artifact execute-decision evidence passes if no separate result artifact is generated?
+7. If `execute-decision` non-dry-run uses a self-invocation guard and reports `mode: dry-run` / `executed_count: 0`, why is that safe, and how is the report wording corrected to avoid implying that it executed a second independent run?
+8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, no heavy artifact scan, no evidence weakening, and no Phase 2 expansion?
 
 Do not write TODO, TBD, PENDING, “should pass”, “expected to pass”, or speculative answers.
 
 ## 6. Implementation Scope
 
-Primary scope: close Phase 1 local hard-gate foundation and, only if needed, add an auditable thin `execute-decision` entrypoint that reuses the existing run-round execution path.
+Primary scope: harden Phase 1 completion evidence-path validation and correct execute-decision evidence semantics.
 
 Allowed source changes:
 
@@ -250,6 +244,7 @@ Allowed generated or updated state artifacts:
 - `project_state/pytest_result.txt`
 - `project_state/gates/codex_report_auto_summary.json`
 - `project_state/gates/command_plan.json`
+- `project_state/gates/execute_decision_result.json`
 - `project_state/gates/execution_log.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/gate_profile_plan.json`
@@ -264,24 +259,27 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_execution_log.json`
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/*`
+- `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/*`
 
 Required behavior:
 
 1. Establish a current-round baseline before modifications.
-2. Inspect whether an `execute-decision` CLI entrypoint already exists.
-3. If `execute-decision` exists, verify it is command-plan-controlled, does not duplicate the executor path, and is covered by tests.
-4. If `execute-decision` does not exist, add only a thin alias/wrapper that delegates to the existing `run-round --execute` implementation and uses the same command-plan authorization rules.
-5. Generate a structured Phase 1 completion artifact, preferably `project_state/gates/phase1_completion_result.json`, with one row per Phase 1 capability and fields for status, evidence path, relevant tests, and notes.
-6. Ensure Phase 1 completion fails if any required capability is missing, stale, non-current, or only asserted by prose.
-7. Preserve prior fixes: execution-log must remain current-round-only, report-auto-summary must remain current-round-only, report-summary must match live report, final-check must pass, closeout log must remain current, generated_artifacts must remain complete.
-8. Ensure final `codex_report_summary` is `SUCCESS / ACCEPTED` only when Phase 1 completion artifact, execution-log, report-auto-summary, report-summary, final-check, run-closeout, archive, and manifest all agree.
-9. Add focused regression tests for the Phase 1 completion matrix and for `execute-decision` behavior or explicit non-duplication.
-10. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `phase1_completion_result.json`, and `codex_execution_report.md`.
-11. Run closeout if and only if command-plan authorizes it.
-12. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, report-summary `PASSED`, Phase 1 completion `PASSED`, run-closeout `PASSED`, and no blocking reasons.
+2. Inspect existing `phase1_completion_result.json` generation and final-check handling.
+3. Add or harden validation so every capability `evidence_path` is checked for existence when it is a file path.
+4. Add or harden validation so every `project_state/gates/*` capability `evidence_path` is covered by live report `generated_artifacts` or `referenced_artifacts`.
+5. Ensure missing evidence paths block `SUCCESS / ACCEPTED` reports.
+6. Decide one of two valid execute-decision evidence strategies:
+   - Strategy A: generate `project_state/gates/execute_decision_result.json`, include it in generated_artifacts, include it in gate artifact coverage, and make it current; or
+   - Strategy B: change `execute_decision_entrypoint.evidence_path` to a real current artifact or list of artifacts that already exist and are reported, such as `project_state/gates/execution_log.json`, `project_state/gates/command_plan.json`, and `project_state/gates/run_round_result.json`.
+7. If multiple evidence paths are needed for a capability, use a schema that final-check validates, such as `evidence_paths: [...]`, while preserving backward compatibility with singular `evidence_path`.
+8. Correct report wording around `execute-decision` non-dry-run/no-recursion behavior. Do not claim it performed an independent second execution if it intentionally guarded into dry-run/no-op mode.
+9. Preserve prior fixes: execution-log must remain current-round-only, report-auto-summary must remain current-round-only, report-summary must match live report, final-check must pass, closeout log must remain current, generated_artifacts must remain complete.
+10. Add focused regression tests for Phase 1 missing evidence paths, evidence path report coverage, execute-decision evidence strategy, and final-check blocking behavior.
+11. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `phase1_completion_result.json`, and `codex_execution_report.md`.
+12. Run closeout if and only if command-plan authorizes it.
+13. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, phase1 completion `PASSED`, evidence-path checks `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, report-summary `PASSED`, run-closeout `PASSED`, and no blocking reasons.
 
-Do not implement Phase 2.
+Do not implement Phase 2 or naming cleanup in this round.
 
 ## 7. Tests
 
@@ -313,10 +311,10 @@ After implementation, run only command-plan-authorized commands. If authorized, 
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1 --dry-run --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1 --execute
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1 --dry-run --json
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --dry-run --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --execute
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --dry-run --json
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1
 python -m pytest tests/test_project_gate.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
@@ -325,14 +323,14 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_phase1_completion_execute_decision_closure_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-The exact command set is whatever current command-plan authorizes. Command-plan overrides this Tests section if there is any conflict. If `execute-decision` is intentionally not added because an existing auditable equivalent already exists, the report must explain this and command-plan should not include nonexistent commands.
+The exact command set is whatever current command-plan authorizes. Command-plan overrides this Tests section if there is any conflict.
 
 Record all top-level commands in `project_state/pytest_result.txt`. Do not include nested closeout-internal command blocks in the top-level command stream. Record nested closeout command evidence in `project_state/gates/run_closeout_execution_log.json` or the existing scoped closeout evidence artifact.
 
@@ -350,9 +348,9 @@ Stop immediately and report `BLOCKED` if:
 - the fix requires modifying files outside allowed source scope;
 - state updates require forbidden paths;
 - implementation requires weakening command-plan authority, execution-log consistency, archive strictness, report-summary consistency, report-auto-summary consistency, final-check strictness, generated_artifacts coverage, or Required Audit coverage;
-- implementing `execute-decision` would require a second execution engine or non-command-plan-controlled execution path;
-- Phase 1 completion cannot be represented as current structured evidence;
+- implementing evidence validation would require deleting or rewriting unrelated history;
+- execute-decision evidence cannot be represented by current structured evidence;
 - run-closeout cannot keep nested command evidence scoped outside the top-level command stream;
 - Required Audit remains incomplete or placeholder-like.
 
-Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, execution-log regresses, report-auto-summary regresses, report-summary regresses, policy-lint fails, policy-impact fails, Phase 1 completion artifact is missing or not PASSED, run-closeout fails, final-check has warnings or blocking reasons, `execute-decision` is missing without a documented equivalent, `execute-decision` bypasses command-plan, command-plan cannot cover all report tests, `generated_artifacts` misses current gate artifacts, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
+Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, execution-log regresses, report-auto-summary regresses, report-summary regresses, policy-lint fails, policy-impact fails, Phase 1 completion artifact is missing or not PASSED, any capability evidence path is missing, any gate evidence path is absent from generated_artifacts/referenced_artifacts without explicit valid treatment, execute-decision evidence remains missing or misleading, run-closeout fails, final-check has warnings or blocking reasons, `generated_artifacts` misses current gate artifacts, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
