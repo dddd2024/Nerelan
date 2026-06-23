@@ -1,0 +1,113 @@
+{
+  "gate_name": "phase1-completion",
+  "gate_status": "PASS",
+  "decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
+  "round_id": "round_20260623_phase1_completion_execute_decision_closure_v1",
+  "generated_at": "2026-06-23T10:19:10.016432+00:00",
+  "capabilities": [
+    {
+      "id": "command_plan_authority",
+      "name": "Command Plan Authority",
+      "evidence_path": "project_state/gates/command_plan.json",
+      "relevant_tests": [
+        "test_command_plan_*"
+      ],
+      "notes": "Verifies command-plan gate generates and validates execution plans.",
+      "status": "PASS"
+    },
+    {
+      "id": "decision_command_plan_conflict_detection",
+      "name": "Decision/Command-Plan Conflict Detection",
+      "evidence_path": "project_state/gates/preflight_result.json",
+      "relevant_tests": [
+        "test_decision_command_plan_conflict*"
+      ],
+      "notes": "Verifies preflight detects conflicts between decision and command-plan.",
+      "status": "PASS"
+    },
+    {
+      "id": "policy_lint_prompt_consistency",
+      "name": "Policy Lint Prompt Consistency",
+      "evidence_path": "project_state/gates/policy_lint_result.json",
+      "relevant_tests": [
+        "test_policy_lint*"
+      ],
+      "notes": "Verifies policy-lint detects drift in skills, prompts, and docs.",
+      "status": "PASS"
+    },
+    {
+      "id": "execution_log_derivation",
+      "name": "Execution Log Derivation",
+      "evidence_path": "project_state/gates/execution_log.json",
+      "relevant_tests": [
+        "TestExecutionLogCurrentRoundFiltering"
+      ],
+      "notes": "Verifies execution-log generates structured command evidence.",
+      "status": "PASS"
+    },
+    {
+      "id": "report_auto_summary_synthesis",
+      "name": "Report Auto-Summary Synthesis",
+      "evidence_path": "project_state/gates/codex_report_auto_summary.json",
+      "relevant_tests": [
+        "test_report_auto_summary*"
+      ],
+      "notes": "Verifies report-auto-summary synthesizes codex report summary.",
+      "status": "PASS"
+    },
+    {
+      "id": "report_summary_synthesis",
+      "name": "Report Summary Synthesis",
+      "evidence_path": "project_state/gates/report_summary_synthesis.json",
+      "relevant_tests": [
+        "TestReportSummaryMismatchBlocking"
+      ],
+      "notes": "Verifies report-summary synthesis and mismatch blocking.",
+      "status": "PASS"
+    },
+    {
+      "id": "final_check_hard_gate",
+      "name": "Final Check Hard Gate",
+      "evidence_path": "project_state/gates/final_gate_result.json",
+      "relevant_tests": [
+        "test_final_check*"
+      ],
+      "notes": "Verifies final-check enforces hard gate constraints.",
+      "status": "PASS"
+    },
+    {
+      "id": "run_round_execute",
+      "name": "Run-Round Execute",
+      "evidence_path": "project_state/gates/run_round_result.json",
+      "relevant_tests": [
+        "test_run_round*"
+      ],
+      "notes": "Verifies run-round executes command-plan in dry-run and execute modes.",
+      "status": "PASS"
+    },
+    {
+      "id": "run_closeout_archive",
+      "name": "Run-Closeout Archive",
+      "evidence_path": "project_state/gates/run_closeout_result.json",
+      "relevant_tests": [
+        "test_close_round*",
+        "TestCloseoutExecutionLogFreshness"
+      ],
+      "notes": "Verifies run-closeout executes bounded closeout and archives.",
+      "status": "PASS"
+    },
+    {
+      "id": "execute_decision_entrypoint",
+      "name": "Execute-Decision Entrypoint",
+      "evidence_path": "project_state/gates/execute_decision_result.json",
+      "relevant_tests": [
+        "TestExecuteDecision*"
+      ],
+      "notes": "Verifies execute-decision thin wrapper delegates to run-round.",
+      "status": "PASS"
+    }
+  ],
+  "overall_status": "PASS",
+  "warnings": [],
+  "blocking_reasons": []
+}

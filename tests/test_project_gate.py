@@ -43,8 +43,10 @@ from reverse_agent.project_gate import (
     build_report_summary_synthesis,
     close_round,
     command_plan,
+    execute_decision,
     final_check,
     main,
+    phase1_completion,
     preflight,
     run_closeout,
     run_round,
@@ -20693,5 +20695,140 @@ class TestExecutionLogCurrentRoundFiltering:
 
         # Indices should be sequential after dedup.
         assert [e["index"] for e in entries] == [1, 2]
+
+
+class TestExecuteDecision:
+    """Tests for the execute-decision thin wrapper."""
+
+    def test_execute_decision_delegates_to_run_round(self, tmp_path):
+        """execute_decision() should delegate to run_round() and add entrypoint metadata."""
+        state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest tests/test_project_gate.py -q")
+        result = execute_decision(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=False)
+        assert result.get("entrypoint") == "execute-decision"
+        assert result.get("delegates_to") == "run-round"
+        assert result.get("run_status") == "PASSED"
+
+    def test_execute_decision_dry_run_mode(self, tmp_path):
+        """execute-decision --dry-run should delegate to run-round dry-run."""
+        state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest tests/test_project_gate.py -q")
+        result = execute_decision(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=False)
+        assert result.get("mode") == "dry-run"
+
+    def test_execute_decision_not_a_new_executor(self, tmp_path):
+        """execute_decision() must not create a parallel execution engine."""
+        state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest tests/test_project_gate.py -q")
+        result = execute_decision(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=False)
+        # The result should be identical to run_round's result plus entrypoint metadata
+        assert "entrypoint" in result
+        assert "delegates_to" in result
+        # Should NOT contain any new execution-specific keys
+        assert "scheduler" not in result
+        assert "queue" not in result
+        assert "daemon" not in result
+
+    def test_execute_decision_self_invocation_guard(self):
+        """execute-decision commands should be guarded by _is_self_invocation."""
+        cmd_info = {"kind": "execute-decision", "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state"}
+        assert _is_self_invocation(cmd_info) is True
+
+    def test_execute_decision_cli_text_guard(self):
+        """execute-decision CLI text should be guarded by _is_self_invocation."""
+        cmd_info = {"kind": "project-cli", "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id r1"}
+        assert _is_self_invocation(cmd_info) is True
+
+
+class TestPhase1Completion:
+    """Tests for the Phase 1 completion artifact generator."""
+
+    def _make_state_dir(self, tmp_path, *, with_gates=True, gate_files=None):
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        if with_gates:
+            gates_dir = state_dir / "gates"
+            gates_dir.mkdir()
+            if gate_files:
+                for name, content in gate_files.items():
+                    (gates_dir / name).write_text(content, encoding="utf-8")
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}\n```\n',
+            encoding="utf-8",
+        )
+        return state_dir
+
+    def test_phase1_completion_all_pass(self, tmp_path):
+        """When all evidence artifacts exist and are valid, overall_status should be PASS."""
+        gate_files = {
+            "command_plan.json": '{"plan_status":"PASSED"}',
+            "preflight_result.json": '{"gate_status":"PASSED","checks":[{"name":"decision_command_plan_conflict","status":"PASS"}]}',
+            "policy_lint_result.json": '{"gate_status":"PASSED"}',
+            "execution_log.json": '{"gate_status":"PASSED"}',
+            "codex_report_auto_summary.json": '{"gate_status":"PASSED"}',
+            "report_summary_synthesis.json": '{"synthesis_status":"PASSED"}',
+            "final_gate_result.json": '{"gate_status":"PASSED"}',
+            "run_round_result.json": '{"run_status":"PASSED"}',
+            "run_closeout_result.json": '{"closeout_status":"PASSED"}',
+            "execute_decision_result.json": '{"run_status":"PASSED"}',
+        }
+        state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
+        result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        assert result.get("overall_status") == "PASS"
+        for cap in result.get("capabilities", []):
+            assert cap.get("status") == "PASS", f"Capability {cap.get('id')} should be PASS but is {cap.get('status')}"
+
+    def test_phase1_completion_missing_artifact_fails(self, tmp_path):
+        """When an evidence artifact is missing, the corresponding capability should FAIL."""
+        gate_files = {
+            "command_plan.json": '{"plan_status":"PASSED"}',
+            # Missing: preflight_result.json, policy_lint_result.json, etc.
+        }
+        state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
+        result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        assert result.get("overall_status") == "FAIL"
+        # command_plan_authority should PASS
+        cmd_plan_cap = next(c for c in result["capabilities"] if c["id"] == "command_plan_authority")
+        assert cmd_plan_cap["status"] == "PASS"
+        # Others should FAIL
+        missing_caps = [c for c in result["capabilities"] if c["status"] == "FAIL"]
+        assert len(missing_caps) > 0
+
+    def test_phase1_completion_writes_artifact(self, tmp_path):
+        """phase1_completion() should write phase1_completion_result.json when write_result=True."""
+        gate_files = {
+            "command_plan.json": '{"plan_status":"PASSED"}',
+            "preflight_result.json": '{"gate_status":"PASSED","checks":[{"name":"decision_command_plan_conflict","status":"PASS"}]}',
+            "policy_lint_result.json": '{"gate_status":"PASSED"}',
+            "execution_log.json": '{"gate_status":"PASSED"}',
+            "codex_report_auto_summary.json": '{"gate_status":"PASSED"}',
+            "report_summary_synthesis.json": '{"synthesis_status":"PASSED"}',
+            "final_gate_result.json": '{"gate_status":"PASSED"}',
+            "run_round_result.json": '{"run_status":"PASSED"}',
+            "run_closeout_result.json": '{"closeout_status":"PASSED"}',
+            "execute_decision_result.json": '{"run_status":"PASSED"}',
+        }
+        state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
+        result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+        artifact_path = state_dir / "gates" / "phase1_completion_result.json"
+        assert artifact_path.exists()
+        data = json.loads(artifact_path.read_text(encoding="utf-8"))
+        assert data.get("overall_status") == "PASS"
+
+    def test_phase1_completion_has_ten_capabilities(self, tmp_path):
+        """Phase 1 completion should enumerate exactly 10 capabilities."""
+        gate_files = {
+            "command_plan.json": '{"plan_status":"PASSED"}',
+        }
+        state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
+        result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        assert len(result.get("capabilities", [])) == 10
+
+    def test_phase1_completion_distinguishes_current_from_prior(self, tmp_path):
+        """Phase 1 completion artifact should carry current decision_id/round_id, not prior-round IDs."""
+        gate_files = {
+            "command_plan.json": '{"plan_status":"PASSED"}',
+        }
+        state_dir = self._make_state_dir(tmp_path, gate_files=gate_files)
+        result = phase1_completion(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        assert result.get("decision_id") == "d1"
+        assert result.get("round_id") == "r1"
 
 
