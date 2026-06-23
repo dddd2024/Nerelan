@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260623_report_summary_and_closeout_log_coverage_rework_v1",
-  "round_id": "round_20260623_report_summary_and_closeout_log_coverage_rework_v1",
+  "decision_id": "decision_20260623_execution_log_and_auto_summary_current_round_rework_v1",
+  "round_id": "round_20260623_execution_log_and_auto_summary_current_round_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,18 +13,21 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260623_manifest_status_and_artifact_coverage_hardening_v1",
-  "previous_round_id": "round_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "previous_decision_id": "decision_20260623_report_summary_and_closeout_log_coverage_rework_v1",
+  "previous_round_id": "round_20260623_report_summary_and_closeout_log_coverage_rework_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "primary_goal": "Fix report-summary convergence and closeout execution log coverage/freshness so a SUCCESS/ACCEPTED report cannot coexist with a FAILED synthesized summary, stale closeout execution log evidence, or missing generated_artifacts coverage for current-round closeout log artifacts.",
+  "primary_goal": "Fix execution-log and report-auto-summary current-round closure so stale previous-round commands, report IDs, and tests_ran entries cannot keep final-check in WARN or leave the report at PARTIAL/NEEDS_REVIEW after the report-summary and closeout-log fixes have otherwise converged.",
   "command_plan_authority_required": true,
   "accepted_requires_final_check_passed": true,
+  "accepted_requires_execution_log_consistency_passed": true,
+  "accepted_requires_execution_log_current_report_id": true,
+  "accepted_requires_execution_log_current_round_commands_only": true,
+  "accepted_requires_report_auto_summary_consistency_passed": true,
+  "accepted_requires_report_auto_summary_current_round_tests_only": true,
   "accepted_requires_report_summary_passed": true,
-  "accepted_requires_report_summary_fields_match": true,
-  "accepted_requires_report_auto_summary_passed": true,
   "accepted_requires_run_closeout_passed": true,
-  "accepted_requires_closeout_execution_log_current_or_exempt": true,
-  "accepted_requires_generated_artifacts_closeout_log_coverage": true,
+  "accepted_requires_report_status_success": true,
+  "accepted_requires_report_acceptance_accepted": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
@@ -47,7 +50,7 @@
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
-    "project_state/rounds/round_20260623_report_summary_and_closeout_log_coverage_rework_v1/*"
+    "project_state/rounds/round_20260623_execution_log_and_auto_summary_current_round_rework_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -66,22 +69,18 @@
 
 ## 1. Goal
 
-Implement Report Summary and Closeout Log Coverage Rework v1.
+Implement Execution Log and Report Auto Summary Current-Round Closure Rework v1.
 
-The previous round partially succeeded: it added current-round manifest status matching and the current round manifest reached `SUCCESS / ACCEPTED`. However, the audit outcome is `REWORK_REQUIRED` because two blocking issues remain in the acceptance chain:
+The previous rework round fixed two important issues: `report_summary_synthesis.json` converged to `PASSED`, and `run_closeout_execution_log.json` became reportable/current enough for the closeout-log checks. However, the round still ended as `PARTIAL / NEEDS_REVIEW`, with final-check in `WARN`, because current evidence remained contaminated by prior-round command history.
 
-1. `project_state/gates/report_summary_synthesis.json` still had `synthesis_status: FAILED` and synthesized `status: FAILED` / `acceptance_recommendation: REWORK_REQUIRED`, while live `project_state/codex_execution_report.md` claimed `status: SUCCESS` / `acceptance_recommendation: ACCEPTED`. `final-check` allowed this as a WARN, but for a final SUCCESS report this status-source split must not be accepted.
-2. `project_state/gates/run_closeout_execution_log.json` appeared in dirty-state and files_changed evidence, but it was not included in `generated_artifacts`, and its content still referenced an older round (`round_20260622_post_closeout_evidence_refresh_v1`). This leaves closeout execution-log freshness and generated_artifacts coverage unresolved.
+This round must close the remaining current-round evidence chain:
 
-This round must close both gaps. A report may be accepted as `SUCCESS / ACCEPTED` only when:
+1. `project_state/gates/execution_log.json` must be generated for the current report and current round only. It must not carry a previous report_id, previous round_id commands, or commands that are not in the current command-plan.
+2. `project_state/gates/codex_report_auto_summary.json` must derive `tests_ran` from current-round execution evidence only. It must not include prior-round `run-round` or `run-closeout` commands.
+3. `project_state/gates/final_gate_result.json` must have `execution_log_consistency: PASS` and `report_auto_summary_consistency: PASS` for the final accepted state.
+4. The final live `project_state/codex_execution_report.md` must be `SUCCESS / ACCEPTED`, not `PARTIAL / NEEDS_REVIEW`, once report-summary, report-auto-summary, execution-log, final-check, run-closeout, archive, and manifest evidence all agree.
 
-- `report_summary_synthesis.json` is `PASSED` and its synthesized status/recommendation matches the live report summary;
-- `codex_report_auto_summary.json` is `PASSED` and agrees with the live report summary;
-- `final-check` has no blocking reasons and no report-summary status/recommendation mismatch for a SUCCESS report;
-- `run_closeout_execution_log.json`, if present as current dirty/files_changed/gate evidence, is current-round evidence and is covered by `generated_artifacts`, or is explicitly classified as stale/non-current/exempt with auditable reasoning and tests;
-- `run-closeout` is `PASSED` and closeout-internal evidence remains scoped outside the top-level pytest command stream.
-
-This is an engineering rework round only. Do not add new features or resume reverse solving.
+This is a narrow engineering rework. Do not expand into Web UI, CI, AgentRunner, database, scheduler, or reverse-solving work.
 
 ## 2. Current Evidence
 
@@ -89,56 +88,53 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` remains background-only `samplereverse` sample state. It suggests `collect_missing_evidence`, but it is not authoritative. This `decision_packet.md` controls the current round.
 
-Previous audit outcome: `REWORK_REQUIRED` for `decision_20260623_manifest_status_and_artifact_coverage_hardening_v1`.
+Previous audit outcome: `REWORK_REQUIRED` for `decision_20260623_report_summary_and_closeout_log_coverage_rework_v1`.
 
-Previous round accepted facts:
+Previous round improvements:
 
-- `decision_meta` was valid and approved.
-- `codex_execution_report.md` claimed `SUCCESS / ACCEPTED` for `round_20260623_manifest_status_and_artifact_coverage_hardening_v1`.
-- `pytest_result.txt` recorded `PASSED`, with 794 `tests/test_project_gate.py` tests and 1092 combined `tests/test_project_gate.py tests/test_project_state.py` tests passing.
-- `round_manifest.json` for `round_20260623_manifest_status_and_artifact_coverage_hardening_v1` correctly recorded `report_status: SUCCESS` and `acceptance_recommendation: ACCEPTED`.
-- `final-check` included and passed `round_manifest_status_matches_report`.
-- command-plan used `full` profile, `closeout_allowed: true`, and `omitted_commands: []`.
-- policy-lint and policy-impact passed.
+- `report_summary_synthesis.json` was `PASSED`, had `diffs: []`, and synthesized `PARTIAL / NEEDS_REVIEW` consistently with the live report.
+- `generated_artifacts_cover_gate_artifacts` included `project_state/gates/run_closeout_execution_log.json`.
+- `closeout_execution_log_is_current` passed and showed current `decision_id` / `round_id` in the closeout execution log.
+- pytest evidence existed: `tests/test_project_gate.py` had 806 passed tests, and combined `tests/test_project_gate.py tests/test_project_state.py` had 1104 passed tests.
+- `policy-lint` and `policy-impact` passed.
 
-Blocking facts from audit:
+Remaining blocking facts from audit:
 
-- `report_summary_synthesis.json` had `synthesis_status: FAILED`.
-- The synthesized summary expected `status: FAILED` and `acceptance_recommendation: REWORK_REQUIRED`, while live `codex_report_summary` was `SUCCESS / ACCEPTED`.
-- `final-check` recorded `report_summary_fields_match_synthesis` as `WARN`, not PASS, with status and acceptance_recommendation mismatches.
-- `final-check` still summarized as `PASSED` despite that mismatch.
-- `run_closeout_execution_log.json` appeared in `files_changed`, `round_delta_summary.final_dirty_files`, and `round_delta_summary.new_dirty_files_since_baseline`.
-- `run_closeout_execution_log.json` was not present in `generated_artifacts` and was not present in `generated_artifacts_cover_gate_artifacts.existing_gate_artifacts`.
-- The live `run_closeout_execution_log.json` content still referenced the older `round_20260622_post_closeout_evidence_refresh_v1`, not the current `round_20260623_manifest_status_and_artifact_coverage_hardening_v1`.
+- `codex_execution_report.md` ended with `status: PARTIAL` and `acceptance_recommendation: NEEDS_REVIEW`.
+- `final_gate_result.json` had `gate_status: WARN`.
+- `execution_log.json` had `gate_status: WARN` and its `report_id` still pointed to `codex_report_20260623_manifest_status_and_artifact_coverage_hardening_v1`, not the current report.
+- `execution_log.json` still contained previous-round commands for `round_20260623_manifest_status_and_artifact_coverage_hardening_v1`.
+- final-check reported `execution_log_consistency: WARN`, including `execution_log contains commands not in command_plan` for prior-round `run-round` and `run-closeout` commands.
+- `codex_report_auto_summary.json` had current decision/round IDs but `tests_ran` still contained prior-round `round_20260623_manifest_status_and_artifact_coverage_hardening_v1` commands.
+- final-check reported `report_auto_summary_consistency: WARN` because expected and actual `tests_ran` differed by old-vs-current round commands.
 
 Artifact freshness:
 
-- All proof for this rework must be regenerated under `decision_20260623_report_summary_and_closeout_log_coverage_rework_v1` and `round_20260623_report_summary_and_closeout_log_coverage_rework_v1`.
-- Prior-round artifacts from `round_20260623_manifest_status_and_artifact_coverage_hardening_v1` are diagnostic context only.
-- Historical/backlog `samplereverse` artifacts remain external state notices for this engineering round and must not be claimed as current evidence.
+- All proof for this rework must be regenerated under `decision_20260623_execution_log_and_auto_summary_current_round_rework_v1` and `round_20260623_execution_log_and_auto_summary_current_round_rework_v1`.
+- Artifacts from `round_20260623_report_summary_and_closeout_log_coverage_rework_v1` are prior-round diagnostic context only.
+- Historical/backlog `samplereverse` artifacts remain external notices only and must not be claimed as current evidence.
 
 Existing capabilities to reuse:
 
 - `preflight`, decision metadata validation, and task_packet non-authority checks.
-- `command-plan`, including full profile and omitted-command authority.
+- `command-plan`, including full profile, omitted-command authority, and current-round command list.
 - `execution-log` derived from top-level `pytest_result.txt` and `command_plan.json`.
-- `report-auto-summary` and `report-summary` synthesis.
-- `final-check`, including report/pytest/command-plan/execution-log/archive/manifest consistency.
-- `run-closeout`, `close-round`, round archive, round manifest creation, and close snapshot handling.
+- `report-auto-summary`, `report-summary`, and final-check consistency checks.
+- `run-closeout`, `close-round`, round archive, round manifest, and close snapshot handling.
 - `policy-lint` and `policy-impact`.
-- Existing tests in `tests/test_project_gate.py` for command-plan, closeout, archive, generated_artifacts, report-summary, report-auto-summary, manifest status consistency, and status policy.
+- Existing tests for command-plan authority, execution-log consistency, report-auto-summary consistency, report-summary convergence, closeout-log freshness, and generated_artifacts coverage.
 
 Gate/command-plan strategy:
 
 - Use only valid profiles: `fast`, `standard`, `full`.
-- Because this rework touches report-summary/final-check/closeout evidence behavior, command-plan should use or require `full` validation.
-- Tests remain subordinate to command-plan. If the Tests section conflicts with command-plan, command-plan is authoritative.
+- Because this round changes execution-log/report-auto-summary/final-check behavior, command-plan should select or require `full` validation.
+- Tests are subordinate to command-plan. If this Tests section conflicts with command-plan, command-plan is authoritative.
 - Closeout may run only if command-plan authorizes it and the selected profile allows closeout.
 
 Tool policy:
 
 - This is not a reverse-solving round.
-- Do not inspect or run sample binaries.
+- Do not inspect, execute, debug, emulate, or solve sample binaries.
 - Do not use IDA, Ghidra, OllyDbg, x64dbg, radare2, runtime probes, solver expansion, harness sample execution, or full `solve_reports/` scans.
 
 ## 3. Do Not Do
@@ -149,21 +145,19 @@ Do not continue `samplereverse` solving or any sample-solving task.
 
 Do not read the full `solve_reports/` directory or full `PROJECT_PROGRESS_LOG.txt`.
 
-Do not treat old sample artifacts as current evidence.
+Do not treat old sample artifacts or prior-round gate artifacts as current evidence.
 
-Do not weaken command-plan authority. Real unauthorized top-level commands must still fail final-check or execution-log checks.
+Do not weaken command-plan authority. A top-level command from a previous round must not be accepted as current-round authorized execution.
 
-Do not weaken execution-log consistency. Top-level commands must remain auditable through `pytest_result.txt` and `execution_log.json`.
+Do not weaken execution-log consistency. For a final `SUCCESS / ACCEPTED` report, `execution_log.json` must be current and must match current `pytest_result.txt` and current `command_plan.json`.
 
-Do not weaken report-summary or report-auto-summary consistency. For a `SUCCESS / ACCEPTED` report, real status/recommendation mismatches must not be accepted as a generic WARN.
+Do not weaken report-auto-summary consistency. `codex_report_auto_summary.json` must not carry old-round `tests_ran` into the current report.
 
-Do not weaken archive strictness. Archived report and archived pytest_result must still match live artifacts according to the existing strict comparison rule.
+Do not simply delete warnings by relabeling them non-blocking. Current-round stale report IDs, stale round commands, missing command-plan commands, or mismatched tests_ran must remain visible and blocking for a SUCCESS report until fixed.
 
-Do not simply remove `run_closeout_execution_log.json` from the file system or from checks to hide the problem. If it is current evidence, it must be fresh and covered. If it is stale, it must be explicitly excluded from current evidence with a tested rule.
+Do not manually edit only state artifacts to mask the symptom. The required output is code plus regression tests that prevent recurrence.
 
-Do not mark all closeout execution-log mismatches as non-blocking. A stale current-round closeout log or missing generated_artifacts coverage for a current dirty closeout log must block acceptance.
-
-Do not manually edit only state JSON to mask the symptom. The required output is code plus regression tests that prevent recurrence.
+Do not inject closeout-internal commands into the top-level `pytest_result.txt` command stream. Closeout-internal commands must remain scoped in closeout evidence.
 
 Do not modify forbidden paths:
 
@@ -199,17 +193,17 @@ Then inspect only relevant implementation and gate evidence files:
 2. `tests/test_project_gate.py`
 3. `project_state/gates/command_plan.json`
 4. `project_state/gates/execution_log.json`
-5. `project_state/gates/final_gate_result.json`
+5. `project_state/gates/codex_report_auto_summary.json`
 6. `project_state/gates/report_summary_synthesis.json`
-7. `project_state/gates/codex_report_auto_summary.json`
+7. `project_state/gates/final_gate_result.json`
 8. `project_state/gates/run_closeout_result.json`
 9. `project_state/gates/run_closeout_execution_log.json`
-10. `project_state/gates/round_close_snapshot.json` if present
-11. `project_state/gates/round_delta_summary.json`
+10. `project_state/gates/round_delta_summary.json`
+11. `project_state/gates/round_close_snapshot.json` if present
 12. `project_state/gates/policy_lint_result.json`
 13. `project_state/gates/policy_impact_audit.json`
-14. `project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
-15. `project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
+14. `project_state/rounds/round_20260623_report_summary_and_closeout_log_coverage_rework_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
+15. `project_state/rounds/round_20260623_report_summary_and_closeout_log_coverage_rework_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
 
 Do not scan the full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -217,20 +211,20 @@ Do not scan the full `project_state/rounds/`, full `solve_reports/`, or full `PR
 
 Before claiming success, `project_state/codex_execution_report.md` must answer all eight items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Why did the previous round's `report_summary_synthesis.json` synthesize `FAILED / REWORK_REQUIRED` while the live report claimed `SUCCESS / ACCEPTED`?
-2. What rule now prevents a `SUCCESS / ACCEPTED` live report from passing final-check when `report_summary_synthesis.json` is FAILED or when status/recommendation fields differ?
-3. How do `report-summary`, `report-auto-summary`, live `codex_report_summary`, and final-check now converge to the same status and acceptance recommendation?
-4. Why was the previous `run_closeout_execution_log.json` stale, and what identifies the current-round closeout execution log as current evidence now?
-5. How does generated_artifacts coverage now handle `run_closeout_execution_log.json` when it appears in dirty/files_changed/round_delta evidence?
-6. How does the fix distinguish stale previous-round closeout execution logs from current-round closeout execution logs without hiding current evidence?
-7. Which regression tests prove report-summary mismatch blocking, report-summary convergence, closeout execution-log freshness, generated_artifacts coverage for closeout logs, stale-log exclusion, and command-plan authority preservation?
-8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, no heavy artifact scan, and no weakening of archive or execution-log strictness?
+1. Why did the previous `execution_log.json` keep the old `codex_report_20260623_manifest_status_and_artifact_coverage_hardening_v1` report_id while the current decision/report had moved to `decision_20260623_report_summary_and_closeout_log_coverage_rework_v1`?
+2. What rule now ensures `execution_log.json` is rebuilt or filtered to contain only current-round command-plan commands and the current report_id?
+3. What rule now prevents a final `SUCCESS / ACCEPTED` report when `execution_log.json` contains prior-round commands, missing current command-plan commands, wrong report_id, or exit-code mismatches?
+4. Why did the previous `codex_report_auto_summary.json` carry old-round `tests_ran`, and what rule now makes `tests_ran` current-round-only?
+5. How do `pytest_result.txt`, `command_plan.json`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, and live `codex_execution_report.md` converge at closeout?
+6. Which current-round final-check items prove `execution_log_consistency: PASS`, `report_auto_summary_consistency: PASS`, `report_summary_fields_match_synthesis: PASS`, and no unauthorized prior-round commands?
+7. Which regression tests prove stale execution-log report IDs block SUCCESS, prior-round commands block SUCCESS, report-auto-summary old tests_ran blocks SUCCESS, current-round-only regeneration passes, and command-plan authority remains strict?
+8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, no heavy artifact scan, and no weakening of archive, closeout, report-summary, or execution-log strictness?
 
 Do not write TODO, TBD, PENDING, “should pass”, “expected to pass”, or speculative answers.
 
 ## 6. Implementation Scope
 
-Primary scope: rework project-gate report-summary/final-check/closeout-log coverage behavior.
+Primary scope: rework project-gate execution-log and report-auto-summary current-round handling.
 
 Allowed source changes:
 
@@ -256,24 +250,24 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_execution_log.json`
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260623_report_summary_and_closeout_log_coverage_rework_v1/*`
+- `project_state/rounds/round_20260623_execution_log_and_auto_summary_current_round_rework_v1/*`
 
 Required behavior:
 
 1. Establish a current-round baseline before modifications.
-2. Make `report_summary_synthesis.json` converge to `PASSED` for the final accepted state.
-3. For `SUCCESS / ACCEPTED` reports, make status/recommendation mismatches between report-summary synthesis and live `codex_report_summary` blocking unless they are a narrowly proven status-source-only transient that is regenerated away before acceptance.
-4. Ensure final accepted `final_gate_result.json` has `report_summary_fields_match_synthesis: PASS`, not WARN, for status/recommendation fields.
-5. Ensure `codex_report_auto_summary.json`, `report_summary_synthesis.json`, live `codex_execution_report.md`, and `final_gate_result.json` agree on report status and acceptance recommendation at closeout.
-6. Ensure `run_closeout_execution_log.json`, if present as current dirty/files_changed/gate evidence, contains current `decision_id`/`round_id` or current closeout commands, and is covered by `generated_artifacts`.
-7. If a stale previous-round `run_closeout_execution_log.json` exists, classify it as stale/non-current and exclude it from current reportable gate artifacts only when it is not part of current dirty/files_changed evidence. This rule must be tested.
-8. Ensure `generated_artifacts_cover_gate_artifacts` or a new explicit final-check item fails when `run_closeout_execution_log.json` appears in current dirty/files_changed evidence but is absent from `generated_artifacts`.
-9. Preserve the nested closeout log isolation rule: closeout-internal command blocks must not be injected into top-level `pytest_result.txt`, but must remain auditable in scoped closeout evidence.
-10. Keep historical/backlog sample artifacts non-blocking for engineering rounds when not claimed as current evidence.
-11. Add focused regression tests for all blocking conditions above.
+2. Ensure `execution-log` generation writes the current `report_id`, current `decision_id`, and current `round_id`.
+3. Ensure `execution-log` either rebuilds from current `pytest_result.txt` and current `command_plan.json`, or explicitly filters out prior-round commands before writing the current artifact.
+4. Ensure prior-round commands are not counted as current execution evidence.
+5. Ensure current command-plan commands are not falsely reported missing when present in top-level `pytest_result.txt`.
+6. Ensure `execution_log_consistency` is PASS for the final accepted state.
+7. Ensure `codex_report_auto_summary.json` uses current-round `tests_ran` and does not source stale tests from an old execution-log artifact.
+8. Ensure `report_auto_summary_consistency` is PASS for the final accepted state.
+9. Preserve current fixed behavior: `report_summary_synthesis.json` must remain PASSED, `report_summary_fields_match_synthesis` must remain PASS, and `run_closeout_execution_log.json` must remain current and covered by `generated_artifacts`.
+10. Ensure final `codex_report_summary` is `SUCCESS / ACCEPTED` only when execution-log, report-auto-summary, report-summary, final-check, run-closeout, archive, and manifest all agree.
+11. Add focused regression tests for stale execution-log report ID, prior-round commands in execution-log, old-round tests_ran in report-auto-summary, current-round-only regeneration, and command-plan authority preservation.
 12. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, and `codex_execution_report.md`.
 13. Run closeout if and only if command-plan authorizes it.
-14. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, report-summary `PASSED`, report-auto-summary `PASSED`, run-closeout `PASSED`, and no blocking reasons.
+14. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, report-summary `PASSED`, run-closeout `PASSED`, and no blocking reasons.
 
 Do not implement new user-facing features.
 
@@ -307,8 +301,8 @@ After implementation, run only command-plan-authorized commands. If authorized, 
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_report_summary_and_closeout_log_coverage_rework_v1 --dry-run --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_report_summary_and_closeout_log_coverage_rework_v1 --execute
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_execution_log_and_auto_summary_current_round_rework_v1 --dry-run --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_execution_log_and_auto_summary_current_round_rework_v1 --execute
 python -m pytest tests/test_project_gate.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
@@ -317,7 +311,7 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_report_summary_and_closeout_log_coverage_rework_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_execution_log_and_auto_summary_current_round_rework_v1
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
@@ -341,11 +335,10 @@ Stop immediately and report `BLOCKED` if:
 - a needed command is not authorized by command-plan;
 - the fix requires modifying files outside allowed source scope;
 - state updates require forbidden paths;
-- implementation requires weakening command-plan authority, execution-log consistency, archive strictness, report-summary consistency, report-auto-summary consistency, or Required Audit coverage;
-- final-check cannot make report-summary mismatch blocking for final SUCCESS reports;
-- `run_closeout_execution_log.json` cannot be made current-round evidence or explicitly stale/non-current with tests;
-- generated_artifacts coverage cannot be made strict for closeout execution logs;
+- implementation requires weakening command-plan authority, execution-log consistency, archive strictness, report-summary consistency, report-auto-summary consistency, final-check strictness, or Required Audit coverage;
+- current-round execution-log cannot be rebuilt or filtered without losing required current evidence;
+- report-auto-summary cannot be made current-round-only;
 - run-closeout cannot keep nested command evidence scoped outside the top-level command stream;
 - Required Audit remains incomplete or placeholder-like.
 
-Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, execution-log consistency regresses, policy-lint fails, policy-impact fails, run-closeout fails, final-check has blocking reasons, `report_summary_synthesis.json` remains FAILED, `report_summary_fields_match_synthesis` remains WARN/FAIL for status or acceptance_recommendation, `codex_report_auto_summary.json` disagrees with the live report, `run_closeout_execution_log.json` remains stale while treated as current evidence, `run_closeout_execution_log.json` appears in dirty/files_changed but not generated_artifacts, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
+Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, execution-log remains WARN/FAILED, report-auto-summary remains WARN/FAILED, report-summary regresses, policy-lint fails, policy-impact fails, run-closeout fails, final-check has blocking reasons, `execution_log.json` has the wrong report_id, `execution_log.json` contains prior-round commands as current evidence, `codex_report_auto_summary.json` contains old-round `tests_ran`, `report_auto_summary_consistency` remains WARN/FAIL, `execution_log_consistency` remains WARN/FAIL, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
