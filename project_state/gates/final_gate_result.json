@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
-  "report_id": "codex_report_20260623_phase1_completion_evidence_path_hardening_v1",
-  "round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
-  "generated_at": "2026-06-23T12:56:38.304644Z",
+  "decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+  "report_id": "codex_report_20260623_naming_hygiene_inventory_v1",
+  "round_id": "round_20260623_naming_hygiene_inventory_v1",
+  "generated_at": "2026-06-23T16:25:30.650004Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260623_phase1_completion_evidence_path_hardening_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260623_naming_hygiene_inventory_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -62,7 +62,9 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/phase1_completion_result.json",
+        "project_state/gates/naming_migration_plan.json",
+        "project_state/gates/policy_impact_audit.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -71,11 +73,12 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
+        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -86,7 +89,9 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/phase1_completion_result.json",
+        "project_state/gates/naming_migration_plan.json",
+        "project_state/gates/policy_impact_audit.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -95,11 +100,12 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
+        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -122,7 +128,9 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/phase1_completion_result.json",
+        "project_state/gates/naming_migration_plan.json",
+        "project_state/gates/policy_impact_audit.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -131,11 +139,12 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
+        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -146,7 +155,9 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/phase1_completion_result.json",
+        "project_state/gates/naming_migration_plan.json",
+        "project_state/gates/policy_impact_audit.json",
+        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -155,11 +166,12 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
+        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -234,6 +246,7 @@
         "project_state/gates/command_plan.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/naming_migration_plan.json",
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
@@ -245,6 +258,7 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
+        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt"
       ]
     },
@@ -306,6 +320,7 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/naming_migration_plan.json",
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
@@ -315,24 +330,25 @@
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json"
+        "project_state/gates/run_round_result.json",
+        "project_state/gates/state_hygiene_inventory.json"
       ]
     },
     {
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
-      "closeout_log_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
-      "expected_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
-      "expected_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1"
+      "closeout_log_decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+      "closeout_log_round_id": "round_20260623_naming_hygiene_inventory_v1",
+      "expected_decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+      "expected_round_id": "round_20260623_naming_hygiene_inventory_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260623_phase1_completion_evidence_path_hardening_v1",
-      "expected_report_id": "codex_report_20260623_phase1_completion_evidence_path_hardening_v1"
+      "execution_log_report_id": "codex_report_20260623_naming_hygiene_inventory_v1",
+      "expected_report_id": "codex_report_20260623_naming_hygiene_inventory_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -354,8 +370,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
-      "command_plan_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1"
+      "command_plan_decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+      "command_plan_round_id": "round_20260623_naming_hygiene_inventory_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -444,8 +460,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
-      "gate_profile_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1"
+      "gate_profile_decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+      "gate_profile_round_id": "round_20260623_naming_hygiene_inventory_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -480,14 +496,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "Why did the previous `phase1_completion_result.json` cite `project_state/gates/execute_decision_result.json` as PASS evidence while that file was missing from GitHub and absent from generated_artifacts?",
-        "What rule now ensures every `phase1_completion_result.json.capabilities[*].evidence_path` exists or is explicitly represented as a valid non-file evidence reference?",
-        "What rule now ensures every `project_state/gates/*` evidence path in Phase 1 completion is included in `generated_artifacts` or `referenced_artifacts` before a SUCCESS report is accepted?",
-        "How is `execute-decision` currently evidenced: by a real `execute_decision_result.json`, or by existing artifacts such as `execution_log.json`, `command_plan.json`, and `run_round_result.json`? Why is that evidence current and sufficient?",
-        "How does final-check prove `phase1_completion_status`, `phase1_completion_evidence_paths_exist`, and `phase1_completion_evidence_paths_reported` all pass?",
-        "Which regression tests prove missing Phase 1 evidence paths block SUCCESS, unreported gate evidence paths block SUCCESS, real execute-decision evidence passes, and alternate existing-artifact execute-decision evidence passes if no separate result artifact is generated?",
-        "If `execute-decision` non-dry-run uses a self-invocation guard and reports `mode: dry-run` / `executed_count: 0`, why is that safe, and how is the report wording corrected to avoid implying that it executed a second independent run?",
-        "How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, no heavy artifact scan, no evidence weakening, and no Phase 2 expansion?"
+        "Which Codex-bound names were found in live report paths, JSON block names, gate artifact names, code constants, tests, and generated artifacts? Which are true executor-neutral naming debt versus acceptable legacy references?",
+        "What does `project_state/gates/naming_migration_plan.json` contain, and how does it distinguish inventory-only recommendations from actual migration actions?",
+        "What neutral target names are proposed for `codex_execution_report.md`, `codex_report_summary`, and `codex_report_auto_summary.json`, and what compatibility strategy is recommended for a later round?",
+        "What does `project_state/gates/state_hygiene_inventory.json` contain, and how are files classified as `current_live_artifact`, `round_archive_artifact`, `legacy_compat_artifact`, `candidate_legacy_artifact`, `candidate_orphan_artifact`, or `unknown_requires_manual_review`?",
+        "How does the inventory prove that no file was renamed, no file was deleted, no neutral live report path was created, and no forbidden path was mutated?",
+        "How does the implementation prevent `candidate_orphan_artifact` or `candidate_legacy_artifact` from being treated as safe-to-delete in this round?",
+        "Which regression tests cover naming inventory generation, state hygiene classification, no-delete/no-rename enforcement, generated artifact coverage, and preservation of existing final-check/report-summary behavior?",
+        "How does this round preserve no sample-solving behavior, no prompt/skill mutation, no heavy artifact scan, no evidence weakening, and no Phase 2 expansion?"
       ],
       "missing_answers": [],
       "placeholder_answers": []

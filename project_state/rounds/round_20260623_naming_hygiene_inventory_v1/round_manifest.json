@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-23T16:23:39Z",
+  "decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260623_naming_hygiene_inventory_v1\\codex_execution_report.md",
+      "sha256": "fc7fe608073156910c4e08c1e37fbd66101c0f77552284ceda468e682c5e0a24",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260623_naming_hygiene_inventory_v1\\decision_packet.md",
+      "sha256": "142c421487620d7783cc44ecc5ba7b458e0b543a0c3eb1567a127aa217d16ae3",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260623_naming_hygiene_inventory_v1\\pytest_result.txt",
+      "sha256": "59db1ae3a6fa81bc4b155e0b39a9e0a0294eac914c84ab4493a9841d38b06a48",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260623_naming_hygiene_inventory_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260623_naming_hygiene_inventory_v1",
+  "schema_version": 1,
+  "source_git_commit": "84b98dc0a5aa",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

@@ -21017,3 +21017,133 @@ class TestPhase1EvidencePathHardening:
             assert "self-invocation" in result["guard_reason"].lower() or "recursive" in result["guard_reason"].lower()
 
 
+class TestNamingHygiene:
+    """Tests for naming-hygiene command and state hygiene inventory."""
+
+    def test_naming_hygiene_generates_artifacts(self, tmp_path: Path) -> None:
+        """naming-hygiene generates naming_migration_plan.json and state_hygiene_inventory.json."""
+        from reverse_agent.project_gate import naming_hygiene
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}\n```\n'
+            '```json decision_contract\n{"allowed_state_artifacts":["project_state/gates/naming_migration_plan.json"]}\n```\n',
+            encoding="utf-8",
+        )
+        result = naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        assert result["gate_status"] == "PASSED"
+        assert result["no_rename"] is True
+        assert result["no_delete"] is True
+        assert result["no_neutral_live_path_created"] is True
+        assert (gates_dir / "naming_migration_plan.json").exists()
+        assert (gates_dir / "state_hygiene_inventory.json").exists()
+
+    def test_naming_migration_plan_contains_codex_bound_names(self, tmp_path: Path) -> None:
+        """naming_migration_plan.json identifies Codex-bound names."""
+        from reverse_agent.project_gate import naming_hygiene
+        import json
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        (state_dir / "gates").mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n',
+            encoding="utf-8",
+        )
+        naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        plan = json.loads((state_dir / "gates" / "naming_migration_plan.json").read_text(encoding="utf-8"))
+        assert plan["action_this_round"] == "inventory_only"
+        assert plan["no_rename"] is True
+        assert plan["no_delete"] is True
+        codex_names = [e["current_name"] for e in plan["codex_bound_names"]]
+        assert "codex_execution_report.md" in codex_names
+        assert "codex_report_summary" in codex_names
+        assert "codex_report_auto_summary.json" in codex_names
+        # All entries should be inventory_only
+        for entry in plan["codex_bound_names"]:
+            assert entry["action_this_round"] == "inventory_only"
+            assert entry["migration_round"] == "deferred"
+
+    def test_state_hygiene_inventory_classifies_files(self, tmp_path: Path) -> None:
+        """state_hygiene_inventory.json classifies files into approved categories."""
+        from reverse_agent.project_gate import naming_hygiene
+        import json
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n'
+            '```json decision_contract\n{"allowed_state_artifacts":["project_state/codex_execution_report.md"]}\n```\n',
+            encoding="utf-8",
+        )
+        (state_dir / "codex_execution_report.md").write_text("# Report\n", encoding="utf-8")
+        (state_dir / "pytest_result.txt").write_text("PASSED", encoding="utf-8")
+        (gates_dir / "command_plan.json").write_text('{}', encoding="utf-8")
+        naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        inv = json.loads((state_dir / "gates" / "state_hygiene_inventory.json").read_text(encoding="utf-8"))
+        categories = {e["category"] for e in inv["entries"]}
+        assert "current_live_artifact" in categories
+        # codex_execution_report.md should be legacy_compat_artifact
+        codex_entries = [e for e in inv["entries"] if "codex" in e["path"].lower()]
+        assert any(e["category"] == "legacy_compat_artifact" for e in codex_entries)
+
+    def test_no_entry_is_safe_to_delete(self, tmp_path: Path) -> None:
+        """Every entry in state hygiene inventory has safe_to_delete=False."""
+        from reverse_agent.project_gate import naming_hygiene
+        import json
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        (state_dir / "gates").mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n',
+            encoding="utf-8",
+        )
+        naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        inv = json.loads((state_dir / "gates" / "state_hygiene_inventory.json").read_text(encoding="utf-8"))
+        for entry in inv["entries"]:
+            assert entry["safe_to_delete"] is False, f"{entry['path']} has safe_to_delete=True"
+            assert "deferred" in entry["delete_reason"].lower() or "no file may be deleted" in entry["delete_reason"].lower()
+
+    def test_naming_hygiene_no_rename_no_delete_no_neutral_path(self, tmp_path: Path) -> None:
+        """naming-hygiene does not rename, delete, or create neutral live report paths."""
+        from reverse_agent.project_gate import naming_hygiene
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        (state_dir / "gates").mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n',
+            encoding="utf-8",
+        )
+        (state_dir / "codex_execution_report.md").write_text("# Report\n", encoding="utf-8")
+        # Record files before
+        before_files = set(f.name for f in state_dir.iterdir())
+        naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        after_files = set(f.name for f in state_dir.iterdir())
+        # No file was deleted
+        assert before_files.issubset(after_files)
+        # No neutral live report path was created
+        assert not (state_dir / "execution_report.md").exists()
+        assert not (state_dir / "gates" / "execution_report_auto_summary.json").exists()
+        # Original file still exists
+        assert (state_dir / "codex_execution_report.md").exists()
+
+    def test_naming_hygiene_cli_exit_code(self, tmp_path: Path) -> None:
+        """naming-hygiene CLI returns exit code 0 on success."""
+        import subprocess, sys
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        (state_dir / "gates").mkdir()
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n',
+            encoding="utf-8",
+        )
+        repo_root = Path(__file__).resolve().parent.parent
+        result = subprocess.run(
+            [sys.executable, "-m", "reverse_agent.project_gate", "naming-hygiene", "--state-dir", str(state_dir)],
+            capture_output=True, text=True, cwd=str(repo_root),
+        )
+        assert result.returncode == 0
+
+

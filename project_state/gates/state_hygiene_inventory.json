@@ -1,0 +1,1704 @@
+{
+  "schema_version": 1,
+  "plan_name": "state-hygiene-inventory",
+  "decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+  "round_id": "round_20260623_naming_hygiene_inventory_v1",
+  "generated_at": "2026-06-23T16:25:37.214617Z",
+  "no_rename": true,
+  "no_delete": true,
+  "no_neutral_live_path_created": true,
+  "scan_scope": "project_state/ immediate files and project_state/gates/ immediate JSON files. No recursive scan of project_state/rounds/ or solve_reports/.",
+  "entries": [
+    {
+      "path": "project_state/artifact_index.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/artifact_policy.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/close_round_design.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/codex_execution_report.md",
+      "category": "legacy_compat_artifact",
+      "referenced_by": [
+        "codex_naming_convention"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": "Codex-bound name; proposed neutral: execution_report.md",
+      "migration_target": "project_state/execution_report.md"
+    },
+    {
+      "path": "project_state/corpus_solver_gap_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/corpus_static_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/current_state.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/decision_packet.md",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gate_profile_tier_verification.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_current_solver_dispatch_plan.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_current_static_bridge_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_current_static_provenance_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_current_static_triage.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_expected_ciphertext_evidence.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_inverse_handoff_current.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_solve_blocker.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_solve_provenance_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_dispatch_plan.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_evidence.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_provenance_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_8cfebe03_transform_material_static_extract.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_ida_summary.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_inverse_handoff.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_main_input_flow_reextract.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_static_evidence_plan.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_static_feature_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_static_feature_summary.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affine_tool_capability_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cipher_static_evidence_profile.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cipher_static_evidence_profile.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_compare_site_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_constraint_recovery_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_corpus_index.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_7b504c54_runtime_validation.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_7b504c54_static_triage.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_7b504c54_training_status_sync.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_7b504c54_xor_handoff.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_pywinpty_setup.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_static_triage.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_training_status_sync.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_local_env_readiness.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_queue_refresh.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_static_triage.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_32f1713e_training_status_sync.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_candidate.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_candidate_validation.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_formula_readiness_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_input_length_evidence_recovery.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_loop_semantics_mapping.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_883e67b9_training_status_overlay_sync.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_cpp2_f2738577_bounded_static_triage_readiness.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_evaluation_queue.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_first_static_triage_queue.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_first_static_triage_queue_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_forced_ida_extraction_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_ida_solver_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_ida_summary.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_inventory.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_next_static_triage_plan.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_next_static_triage_plan_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_post_solve_state_sync.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_runtime_policy.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_selected_static_triage_target.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_semantic_rule_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_solve_benchmark.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_solver_engineering_recovery_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_solver_profile_dispatch_guardrails_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_solver_profile_dispatch_integration_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_solver_tool_capability_map.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_state_freshness_rebuild_after_cpp2_883e67b9.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_static_triage_type_evidence_schema.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_static_triage_type_evidence_schema_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_static_type_tag_contract.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_static_type_tag_contract_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_string_solver_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_targeted_static_reextraction_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_capability_gap_matrix.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_capability_gap_matrix_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_capability_review.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_coverage_matrix.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_gap_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_inventory_audit.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_inventory_refresh.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_next_queue.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_resume_plan.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_resume_plan.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_review_queue.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_review_report.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_review_report_quality.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_state.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_status.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_training_status_summary_sync.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_type_coverage_matrix.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_validated_candidate_handoff.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_winpty_backend_lifecycle_hardening.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_winpty_py_target_spawn_fix.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_winpty_synthetic_smoke.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/local_reverse_xref_disassembly_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/model_gate.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/negative_results.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/ollydbg_preflight_result.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/pytest_result.txt",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/README.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/samplereverse_handoff_exit_diagnosis.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/samplereverse_sample_path_resolution.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/samplereverse_static_evidence_rebuild_summary.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/solver_dispatch_plan.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/state_rebuild_apply_plan.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/state_rebuild_handoff.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/static_evidence_bridge_capability_matrix.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/static_evidence_bridge_report.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/static_evidence_bridge_report.md",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/structured_evidence_gap_report.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/task_packet.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/tool_capability_inventory.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/tool_interface_gap_audit_material_evidence_v1.json",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/codex_report_auto_summary.json",
+      "category": "legacy_compat_artifact",
+      "referenced_by": [
+        "codex_naming_convention"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": "Codex-bound name; proposed neutral: execution_report_auto_summary.json",
+      "migration_target": "project_state/gates/execution_report_auto_summary.json"
+    },
+    {
+      "path": "project_state/gates/command_plan.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/execution_log.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/final_gate_result.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/gate_profile_plan.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/naming_migration_plan.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/phase1_completion_result.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/policy_impact_audit.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/policy_lint_result.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/preflight_result.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/report_summary_synthesis.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/round_baseline.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/round_close_snapshot.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/round_delta_summary.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/run_closeout_execution_log.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/run_closeout_result.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/run_round_result.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
+      "path": "project_state/gates/state_hygiene_inventory.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "plan_name": "naming-migration-plan",
+  "decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+  "round_id": "round_20260623_naming_hygiene_inventory_v1",
+  "generated_at": "2026-06-23T16:25:37.208038Z",
+  "action_this_round": "inventory_only",
+  "no_rename": true,
+  "no_delete": true,
+  "no_neutral_live_path_created": true,
+  "codex_bound_names": [
+    {
+      "current_name": "codex_execution_report.md",
+      "current_path": "project_state/codex_execution_report.md",
+      "scope": "live_report_path",
+      "classification": "candidate_neutralization",
+      "proposed_neutral_name": "execution_report.md",
+      "proposed_neutral_path": "project_state/execution_report.md",
+      "compat_strategy": "dual_write_then_rename",
+      "action_this_round": "inventory_only",
+      "migration_round": "deferred",
+      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report.md. No rename or migration performed in this round."
+    },
+    {
+      "current_name": "codex_report_summary",
+      "current_path": "codex_report_summary (JSON block name inside codex_execution_report.md)",
+      "scope": "json_block_name",
+      "classification": "candidate_neutralization",
+      "proposed_neutral_name": "execution_report_summary",
+      "proposed_neutral_path": "execution_report_summary (JSON block name)",
+      "compat_strategy": "dual_block_then_rename",
+      "action_this_round": "inventory_only",
+      "migration_round": "deferred",
+      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report_summary. No rename or migration performed in this round."
+    },
+    {
+      "current_name": "codex_report_auto_summary.json",
+      "current_path": "project_state/gates/codex_report_auto_summary.json",
+      "scope": "gate_artifact_name",
+      "classification": "candidate_neutralization",
+      "proposed_neutral_name": "execution_report_auto_summary.json",
+      "proposed_neutral_path": "project_state/gates/execution_report_auto_summary.json",
+      "compat_strategy": "dual_write_then_rename",
+      "action_this_round": "inventory_only",
+      "migration_round": "deferred",
+      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report_auto_summary.json. No rename or migration performed in this round."
+    },
+    {
+      "current_name": "codex_report_auto_summary",
+      "current_path": "codex_report_auto_summary (CLI subcommand and internal function name)",
+      "scope": "code_reference",
+      "classification": "candidate_neutralization",
+      "proposed_neutral_name": "execution_report_auto_summary",
+      "proposed_neutral_path": "execution_report_auto_summary (CLI subcommand and function name)",
+      "compat_strategy": "alias_then_rename",
+      "action_this_round": "inventory_only",
+      "migration_round": "deferred",
+      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report_auto_summary. No rename or migration performed in this round."
+    },
+    {
+      "current_name": "codex_execution_report",
+      "current_path": "codex_execution_report (report heading and variable name)",
+      "scope": "code_reference",
+      "classification": "candidate_neutralization",
+      "proposed_neutral_name": "execution_report",
+      "proposed_neutral_path": "execution_report (report heading and variable name)",
+      "compat_strategy": "alias_then_rename",
+      "action_this_round": "inventory_only",
+      "migration_round": "deferred",
+      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report. No rename or migration performed in this round."
+    }
+  ],
+  "code_references": [
+    {
+      "name": "codex_execution_report",
+      "file": "reverse_agent/project_gate.py",
+      "occurrence_count": "37",
+      "classification": "must_keep_current_compat",
+      "notes": "Code reference to 'codex_execution_report' found 37 time(s). Must keep current name for compat until migration round."
+    },
+    {
+      "name": "codex_report_summary",
+      "file": "reverse_agent/project_gate.py",
+      "occurrence_count": "43",
+      "classification": "must_keep_current_compat",
+      "notes": "Code reference to 'codex_report_summary' found 43 time(s). Must keep current name for compat until migration round."
+    },
+    {
+      "name": "codex_report_auto_summary",
+      "file": "reverse_agent/project_gate.py",
+      "occurrence_count": "21",
+      "classification": "must_keep_current_compat",
+      "notes": "Code reference to 'codex_report_auto_summary' found 21 time(s). Must keep current name for compat until migration round."
+    },
+    {
+      "name": "codex_execution_report",
+      "file": "tests/test_project_gate.py",
+      "occurrence_count": "243",
+      "classification": "must_keep_current_compat",
+      "notes": "Test reference to 'codex_execution_report' found 243 time(s). Must keep current name for compat until migration round."
+    },
+    {
+      "name": "codex_report_summary",
+      "file": "tests/test_project_gate.py",
+      "occurrence_count": "58",
+      "classification": "must_keep_current_compat",
+      "notes": "Test reference to 'codex_report_summary' found 58 time(s). Must keep current name for compat until migration round."
+    },
+    {
+      "name": "codex_report_auto_summary",
+      "file": "tests/test_project_gate.py",
+      "occurrence_count": "22",
+      "classification": "must_keep_current_compat",
+      "notes": "Test reference to 'codex_report_auto_summary' found 22 time(s). Must keep current name for compat until migration round."
+    }
+  ],
+  "migration_strategy": "Inventory-only round. No files renamed, deleted, or created. Migration to neutral names deferred to a later round. Proposed strategy: dual-write both old and new names for one round, then rename in the following round after all references are updated."
+}
