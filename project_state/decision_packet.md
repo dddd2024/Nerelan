@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
-  "round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
+  "decision_id": "decision_20260623_naming_hygiene_inventory_v1",
+  "round_id": "round_20260623_naming_hygiene_inventory_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,21 +13,19 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260623_phase1_completion_execute_decision_closure_v1",
-  "previous_round_id": "round_20260623_phase1_completion_execute_decision_closure_v1",
-  "previous_audit_outcome": "REWORK_REQUIRED",
-  "primary_goal": "Harden Phase 1 completion evidence-path validation so a PASS/SUCCESS report cannot cite missing or unreported evidence paths, with special focus on the missing execute_decision_result.json evidence path referenced by phase1_completion_result.json.",
+  "previous_decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
+  "previous_round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
+  "previous_audit_outcome": "ACCEPTED",
+  "phase_label": "phase_1_5_pre_phase_2",
+  "primary_goal": "Create a bounded naming-neutralization and project_state hygiene inventory before Phase 2, without renaming, deleting, or migrating live artifacts in this round.",
   "command_plan_authority_required": true,
-  "accepted_requires_phase1_completion_artifact": true,
-  "accepted_requires_phase1_evidence_paths_exist": true,
-  "accepted_requires_phase1_evidence_paths_reported": true,
-  "accepted_requires_execute_decision_evidence_current": true,
+  "accepted_requires_naming_migration_plan": true,
+  "accepted_requires_state_hygiene_inventory": true,
+  "accepted_requires_no_rename": true,
+  "accepted_requires_no_delete": true,
   "accepted_requires_no_phase2_scope": true,
   "accepted_requires_final_check_passed": true,
-  "accepted_requires_execution_log_consistency_passed": true,
-  "accepted_requires_report_auto_summary_consistency_passed": true,
   "accepted_requires_report_summary_passed": true,
-  "accepted_requires_run_closeout_passed": true,
   "accepted_requires_report_status_success": true,
   "accepted_requires_report_acceptance_accepted": true,
   "allowed_source_files": [
@@ -39,11 +37,10 @@
     "project_state/pytest_result.txt",
     "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/command_plan.json",
-    "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/phase1_completion_result.json",
+    "project_state/gates/naming_migration_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/policy_impact_audit.json",
     "project_state/gates/policy_lint_result.json",
@@ -54,7 +51,8 @@
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
-    "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/*"
+    "project_state/gates/state_hygiene_inventory.json",
+    "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -64,7 +62,9 @@
     ".codex-skills/registry.json",
     "docs/prompts/project_workspace_prompt.md",
     "docs/prompts/codex_execution_prompt.md",
-    "docs/prompts/README.md"
+    "docs/prompts/README.md",
+    "project_state/execution_report.md",
+    "project_state/gates/execution_report_auto_summary.json"
   ]
 }
 ```
@@ -73,13 +73,29 @@
 
 ## 1. Goal
 
-Implement Phase 1 Completion Evidence Path Hardening v1.
+Implement Naming Hygiene Inventory v1 as the first Phase 1.5 pre-Phase-2 cleanup round.
 
-The previous round mostly completed the Phase 1 local hard-gate closure: `execute-decision` was added as a thin wrapper, command-plan authority remained active, `phase1_completion_result.json` was generated, tests passed, and final-check reported `PASSED`. However, audit found a blocker: `project_state/gates/phase1_completion_result.json` marked `execute_decision_entrypoint` as `PASS` while citing `project_state/gates/execute_decision_result.json` as its `evidence_path`, but that artifact did not exist in GitHub and was not included in `generated_artifacts`, `referenced_artifacts`, existing gate artifacts, or final-check live paths.
+The previous accepted round closed Phase 1 completion evidence-path hardening. Phase 1 local gate foundations are now acceptable: command-plan authority, execution-log, report-auto-summary, report-summary, final-check, run-round, run-closeout, and Phase 1 completion evidence checks have current structured evidence.
 
-This round must harden the Phase 1 completion gate so a completion artifact cannot claim a PASS using missing or unreported evidence paths. The fix must either generate and report `project_state/gates/execute_decision_result.json` as current evidence, or change the Phase 1 completion evidence path to real current artifacts such as `execution_log.json`, `command_plan.json`, and `run_round_result.json`. In either case, final-check must verify that every `phase1_completion_result.json.capabilities[*].evidence_path` exists and is represented in the report evidence chain.
+This round must not change live names yet. It must produce a bounded, structured inventory and migration plan for names and state files that will otherwise create confusion in Phase 2. The immediate problem is that some live artifact names still bind the system to Codex even though Phase 2 may introduce other executors such as a local runner, GitHub Actions, Trae, a future AgentRunner, or a Web-triggered executor.
 
-This is a narrow evidence-path hardening round. Do not start naming-neutralization, state hygiene cleanup, file deletion, Phase 2 CI, Web UI, AgentRunner, database, queue, scheduler, or multi-executor architecture.
+Required outputs:
+
+1. `project_state/gates/naming_migration_plan.json`
+2. `project_state/gates/state_hygiene_inventory.json`
+
+`naming_migration_plan.json` must identify executor-specific naming debt, especially Codex-bound names such as `codex_execution_report.md`, `codex_report_summary`, and `codex_report_auto_summary.json`, and propose neutral target names such as `execution_report.md`, `execution_report_summary`, and `execution_report_auto_summary.json`. It must explicitly mark this round as inventory-only and must not perform the migration.
+
+`state_hygiene_inventory.json` must classify bounded state files as one of:
+
+- `current_live_artifact`
+- `round_archive_artifact`
+- `legacy_compat_artifact`
+- `candidate_legacy_artifact`
+- `candidate_orphan_artifact`
+- `unknown_requires_manual_review`
+
+No file may be deleted in this round. No live artifact may be renamed in this round. No new neutral live report path may be created in this round.
 
 ## 2. Current Evidence
 
@@ -87,48 +103,41 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` remains background-only `samplereverse` sample state and is not authoritative. The current task is controlled by this `decision_packet.md`.
 
-Previous audit outcome: `REWORK_REQUIRED` for `decision_20260623_phase1_completion_execute_decision_closure_v1`.
+Previous audit outcome: `ACCEPTED` for `decision_20260623_phase1_completion_evidence_path_hardening_v1`.
 
 Accepted prior-round facts:
 
-- `codex_execution_report.md` reached `SUCCESS / ACCEPTED` for `round_20260623_phase1_completion_execute_decision_closure_v1`.
+- `codex_execution_report.md` reached `SUCCESS / ACCEPTED` for `round_20260623_phase1_completion_evidence_path_hardening_v1`.
 - `pytest_result.txt` reached `PASSED`, with `tests/test_project_gate.py` and `tests/test_project_gate.py tests/test_project_state.py` passing.
-- `execute-decision` appeared in `command_plan.json` and in `execution_log.json` as an authorized command kind.
-- `pytest_result.txt` recorded `execute-decision --dry-run --json` with `entrypoint: execute-decision` and `delegates_to: run-round`.
-- `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, and `run_closeout_result.json` all reached `PASSED` for the previous round.
-- `phase1_completion_result.json` existed and enumerated 10 Phase 1 capabilities.
+- `command-plan --json` recorded a full commands array and `omitted_commands=[]`.
+- `phase1_completion_result.json` no longer references missing `execute_decision_result.json`; `execute_decision_entrypoint` uses current existing evidence paths: `execution_log.json`, `command_plan.json`, and `run_round_result.json`.
+- final-check reached `PASSED` and included `phase1_completion_evidence_paths_exist: PASS` and `phase1_completion_evidence_paths_reported: PASS`.
+- `report_summary_synthesis.json` reached `PASSED` with no diffs and synthesized `SUCCESS / ACCEPTED`.
+- `run_closeout_result.json` reached `PASSED` and round manifest reached `SUCCESS / ACCEPTED`.
 
-Blocking facts from audit:
+Known naming debt:
 
-- `phase1_completion_result.json` listed capability `execute_decision_entrypoint` with `evidence_path: project_state/gates/execute_decision_result.json` and `status: PASS`.
-- `project_state/gates/execute_decision_result.json` did not exist when fetched from GitHub.
-- `execute_decision_result.json` was absent from `codex_execution_report.md.generated_artifacts`.
-- `execute_decision_result.json` was absent from `codex_report_auto_summary.json.generated_artifacts`.
-- `execute_decision_result.json` was absent from final-check `generated_artifact_live_paths_exist` and `generated_artifacts_cover_gate_artifacts` evidence.
-- final-check had `phase1_completion_status: PASS`, but did not validate individual capability `evidence_path` existence or report coverage.
-- `execute-decision` non-dry-run stdout reported `mode: dry-run` and `executed_count: 0`; this may be acceptable as self-invocation recursion prevention, but the report must describe the semantics precisely.
+- `project_state/codex_execution_report.md` is currently the live execution report path, but the concept is executor-neutral.
+- `codex_report_summary` is currently the report summary block name, but the concept is executor-neutral.
+- `project_state/gates/codex_report_auto_summary.json` is currently the report-auto-summary gate artifact, but the concept is executor-neutral.
+- These names are acceptable for backward compatibility today but should not be carried unexamined into Phase 2 multi-executor or Web/CI integration.
 
 Artifact freshness:
 
-- All proof for this rework must be regenerated under `decision_20260623_phase1_completion_evidence_path_hardening_v1` and `round_20260623_phase1_completion_evidence_path_hardening_v1`.
+- All evidence for this round must be regenerated under `decision_20260623_naming_hygiene_inventory_v1` and `round_20260623_naming_hygiene_inventory_v1`.
 - Prior-round artifacts are diagnostic context only.
 - Historical/backlog `samplereverse` artifacts remain external notices only and must not be claimed as current evidence.
 
-Existing capabilities to reuse:
+Scope of inventory:
 
-- `preflight` and decision metadata validation.
-- `command-plan`, omitted-command authority, and `execute-decision` command kind handling.
-- `run-round --dry-run --json` and `run-round --execute`.
-- `execution-log` current-round derivation.
-- `report-auto-summary`, `report-summary`, and final-check consistency checks.
-- `phase1_completion_result.json` generation.
-- `run-closeout`, `close-round`, round manifest, and archive consistency checks.
-- `policy-lint` and `policy-impact`.
+- Inspect only live state roots and bounded current artifacts: `project_state/*.json`, `project_state/*.md`, `project_state/*.txt`, `project_state/gates/*.json`, and the current/previous round manifest/report files explicitly listed in Files To Inspect.
+- Do not recursively scan the full `project_state/rounds/` tree.
+- Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
 Gate/command-plan strategy:
 
 - Use only valid profiles: `fast`, `standard`, `full`.
-- Because this round changes final-check and Phase 1 completion evidence validation, command-plan should select or require `full` validation.
+- Because this round changes gate logic and may add a new inventory command/artifact, command-plan should select or require `full` validation.
 - Tests are subordinate to command-plan. If this Tests section conflicts with command-plan, command-plan is authoritative.
 - Closeout may run only if command-plan authorizes it and the selected profile allows closeout.
 
@@ -140,7 +149,21 @@ Tool policy:
 
 ## 3. Do Not Do
 
-Do not broaden this round into naming-neutralization, `execution_report.md` migration, Codex-name cleanup, state hygiene deletion, orphan artifact deletion, Phase 2 GitHub CI, `ci.yml`, `state-gate.yml`, PR automation, branch protection, Web UI, AgentRunner, Codex adapter, Trae adapter, Job Manager, database, queue, scheduler, daemon, API Planner, API Auditor, self-hosted runner, or background worker work.
+Do not rename any live artifact in this round.
+
+Do not create `project_state/execution_report.md` in this round.
+
+Do not create `project_state/gates/execution_report_auto_summary.json` in this round.
+
+Do not delete files in this round.
+
+Do not remove legacy Codex-named files in this round.
+
+Do not modify `project_state/artifact_index.json` in this round.
+
+Do not write dynamic findings into `.codex-skills/`.
+
+Do not broaden this round into Phase 2 GitHub CI, `ci.yml`, `state-gate.yml`, PR automation, branch protection, Web UI, AgentRunner, Codex adapter, Trae adapter, Job Manager, database, queue, scheduler, daemon, API Planner, API Auditor, self-hosted runner, or background worker work.
 
 Do not continue `samplereverse` solving or any sample-solving task.
 
@@ -148,19 +171,7 @@ Do not read the full `solve_reports/` directory or full `PROJECT_PROGRESS_LOG.tx
 
 Do not treat old sample artifacts or prior-round gate artifacts as current evidence.
 
-Do not create a second execution engine. `execute-decision` must remain a thin command-plan-controlled wrapper around the existing run-round execution path or an explicitly guarded no-recursion wrapper.
-
-Do not bypass command-plan. `execute-decision` must not execute omitted or unauthorized commands.
-
-Do not weaken existing command-plan authority, execution-log consistency, report-auto-summary consistency, report-summary consistency, final-check strictness, archive strictness, run-closeout evidence scoping, generated_artifacts coverage, or Required Audit coverage.
-
-Do not allow `phase1_completion_result.json` to mark a capability `PASS` with a missing evidence path.
-
-Do not allow a `project_state/gates/*` evidence path to be omitted from both `generated_artifacts` and `referenced_artifacts` unless it is explicitly documented as a non-file logical evidence reference and final-check understands it.
-
-Do not relabel missing evidence as accepted merely to close Phase 1.
-
-Do not inject closeout-internal commands into the top-level `pytest_result.txt` command stream. Closeout-internal commands must remain scoped in closeout evidence.
+Do not weaken command-plan authority, execution-log consistency, report-auto-summary consistency, report-summary consistency, final-check strictness, archive strictness, run-closeout evidence scoping, generated_artifacts coverage, Required Audit coverage, or Phase 1 completion evidence-path checks.
 
 Do not modify forbidden paths:
 
@@ -172,6 +183,8 @@ Do not modify forbidden paths:
 - `docs/prompts/project_workspace_prompt.md`
 - `docs/prompts/codex_execution_prompt.md`
 - `docs/prompts/README.md`
+- `project_state/execution_report.md`
+- `project_state/gates/execution_report_auto_summary.json`
 
 Do not introduce a `medium` profile.
 
@@ -194,13 +207,13 @@ Then inspect only relevant implementation and gate evidence files:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `project_state/gates/phase1_completion_result.json`
-4. `project_state/gates/execute_decision_result.json` if present
-5. `project_state/gates/command_plan.json`
-6. `project_state/gates/execution_log.json`
-7. `project_state/gates/codex_report_auto_summary.json`
-8. `project_state/gates/report_summary_synthesis.json`
-9. `project_state/gates/final_gate_result.json`
+3. `project_state/gates/command_plan.json`
+4. `project_state/gates/execution_log.json`
+5. `project_state/gates/codex_report_auto_summary.json`
+6. `project_state/gates/report_summary_synthesis.json`
+7. `project_state/gates/final_gate_result.json`
+8. `project_state/gates/gate_profile_plan.json`
+9. `project_state/gates/phase1_completion_result.json`
 10. `project_state/gates/preflight_result.json`
 11. `project_state/gates/policy_lint_result.json`
 12. `project_state/gates/policy_impact_audit.json`
@@ -209,29 +222,38 @@ Then inspect only relevant implementation and gate evidence files:
 15. `project_state/gates/run_closeout_execution_log.json`
 16. `project_state/gates/round_delta_summary.json`
 17. `project_state/gates/round_close_snapshot.json` if present
-18. `project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
-19. `project_state/rounds/round_20260623_phase1_completion_execute_decision_closure_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
+18. `project_state/gates/naming_migration_plan.json` if present
+19. `project_state/gates/state_hygiene_inventory.json` if present
+20. `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
+21. `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
 
-Do not scan the full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
+For inventory generation, inspect only bounded live directories:
+
+- `project_state/` immediate files
+- `project_state/gates/` immediate JSON files
+- the current round archive directory after closeout
+- the previous accepted round archive directory listed above
+
+Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
 Before claiming success, `project_state/codex_execution_report.md` must answer all eight items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Why did the previous `phase1_completion_result.json` cite `project_state/gates/execute_decision_result.json` as PASS evidence while that file was missing from GitHub and absent from generated_artifacts?
-2. What rule now ensures every `phase1_completion_result.json.capabilities[*].evidence_path` exists or is explicitly represented as a valid non-file evidence reference?
-3. What rule now ensures every `project_state/gates/*` evidence path in Phase 1 completion is included in `generated_artifacts` or `referenced_artifacts` before a SUCCESS report is accepted?
-4. How is `execute-decision` currently evidenced: by a real `execute_decision_result.json`, or by existing artifacts such as `execution_log.json`, `command_plan.json`, and `run_round_result.json`? Why is that evidence current and sufficient?
-5. How does final-check prove `phase1_completion_status`, `phase1_completion_evidence_paths_exist`, and `phase1_completion_evidence_paths_reported` all pass?
-6. Which regression tests prove missing Phase 1 evidence paths block SUCCESS, unreported gate evidence paths block SUCCESS, real execute-decision evidence passes, and alternate existing-artifact execute-decision evidence passes if no separate result artifact is generated?
-7. If `execute-decision` non-dry-run uses a self-invocation guard and reports `mode: dry-run` / `executed_count: 0`, why is that safe, and how is the report wording corrected to avoid implying that it executed a second independent run?
-8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, no heavy artifact scan, no evidence weakening, and no Phase 2 expansion?
+1. Which Codex-bound names were found in live report paths, JSON block names, gate artifact names, code constants, tests, and generated artifacts? Which are true executor-neutral naming debt versus acceptable legacy references?
+2. What does `project_state/gates/naming_migration_plan.json` contain, and how does it distinguish inventory-only recommendations from actual migration actions?
+3. What neutral target names are proposed for `codex_execution_report.md`, `codex_report_summary`, and `codex_report_auto_summary.json`, and what compatibility strategy is recommended for a later round?
+4. What does `project_state/gates/state_hygiene_inventory.json` contain, and how are files classified as `current_live_artifact`, `round_archive_artifact`, `legacy_compat_artifact`, `candidate_legacy_artifact`, `candidate_orphan_artifact`, or `unknown_requires_manual_review`?
+5. How does the inventory prove that no file was renamed, no file was deleted, no neutral live report path was created, and no forbidden path was mutated?
+6. How does the implementation prevent `candidate_orphan_artifact` or `candidate_legacy_artifact` from being treated as safe-to-delete in this round?
+7. Which regression tests cover naming inventory generation, state hygiene classification, no-delete/no-rename enforcement, generated artifact coverage, and preservation of existing final-check/report-summary behavior?
+8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no heavy artifact scan, no evidence weakening, and no Phase 2 expansion?
 
 Do not write TODO, TBD, PENDING, “should pass”, “expected to pass”, or speculative answers.
 
 ## 6. Implementation Scope
 
-Primary scope: harden Phase 1 completion evidence-path validation and correct execute-decision evidence semantics.
+Primary scope: add bounded naming and state-hygiene inventory generation for Phase 1.5.
 
 Allowed source changes:
 
@@ -244,11 +266,10 @@ Allowed generated or updated state artifacts:
 - `project_state/pytest_result.txt`
 - `project_state/gates/codex_report_auto_summary.json`
 - `project_state/gates/command_plan.json`
-- `project_state/gates/execute_decision_result.json`
 - `project_state/gates/execution_log.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/gate_profile_plan.json`
-- `project_state/gates/phase1_completion_result.json`
+- `project_state/gates/naming_migration_plan.json`
 - `project_state/gates/preflight_result.json`
 - `project_state/gates/policy_impact_audit.json`
 - `project_state/gates/policy_lint_result.json`
@@ -259,27 +280,27 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_execution_log.json`
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/*`
+- `project_state/gates/state_hygiene_inventory.json`
+- `project_state/rounds/round_20260623_naming_hygiene_inventory_v1/*`
 
 Required behavior:
 
 1. Establish a current-round baseline before modifications.
-2. Inspect existing `phase1_completion_result.json` generation and final-check handling.
-3. Add or harden validation so every capability `evidence_path` is checked for existence when it is a file path.
-4. Add or harden validation so every `project_state/gates/*` capability `evidence_path` is covered by live report `generated_artifacts` or `referenced_artifacts`.
-5. Ensure missing evidence paths block `SUCCESS / ACCEPTED` reports.
-6. Decide one of two valid execute-decision evidence strategies:
-   - Strategy A: generate `project_state/gates/execute_decision_result.json`, include it in generated_artifacts, include it in gate artifact coverage, and make it current; or
-   - Strategy B: change `execute_decision_entrypoint.evidence_path` to a real current artifact or list of artifacts that already exist and are reported, such as `project_state/gates/execution_log.json`, `project_state/gates/command_plan.json`, and `project_state/gates/run_round_result.json`.
-7. If multiple evidence paths are needed for a capability, use a schema that final-check validates, such as `evidence_paths: [...]`, while preserving backward compatibility with singular `evidence_path`.
-8. Correct report wording around `execute-decision` non-dry-run/no-recursion behavior. Do not claim it performed an independent second execution if it intentionally guarded into dry-run/no-op mode.
-9. Preserve prior fixes: execution-log must remain current-round-only, report-auto-summary must remain current-round-only, report-summary must match live report, final-check must pass, closeout log must remain current, generated_artifacts must remain complete.
-10. Add focused regression tests for Phase 1 missing evidence paths, evidence path report coverage, execute-decision evidence strategy, and final-check blocking behavior.
-11. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `phase1_completion_result.json`, and `codex_execution_report.md`.
-12. Run closeout if and only if command-plan authorizes it.
-13. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, phase1 completion `PASSED`, evidence-path checks `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, report-summary `PASSED`, run-closeout `PASSED`, and no blocking reasons.
+2. Add or reuse a bounded CLI/gate command such as `naming-hygiene` or an equivalent project-gate command to generate `naming_migration_plan.json` and `state_hygiene_inventory.json`.
+3. Inventory Codex-bound names in live report paths, JSON block names, gate artifact names, code/test references, and generated artifact names.
+4. Classify each Codex-bound name as `must_keep_current_compat`, `candidate_neutralization`, `archive_only_reference`, or `unknown_requires_manual_review`.
+5. Propose neutral target names but do not create those target files.
+6. Build a bounded state file inventory covering only live root state files, live gate JSON files, and explicitly allowed current/previous round archive files.
+7. Classify each inventoried state path into one of the approved categories.
+8. Set `safe_to_delete` to `false` for every entry in this round, including candidate orphan and candidate legacy entries. Deletion is explicitly deferred.
+9. Include fields such as `path`, `category`, `referenced_by`, `freshness_basis`, `safe_to_delete`, `delete_reason`, `migration_target`, and `notes` where applicable.
+10. Ensure the new inventory artifacts are included in `generated_artifacts` and covered by final-check/generated_artifacts checks.
+11. Add focused regression tests for naming migration plan generation, state hygiene inventory generation, bounded scan behavior, no-delete/no-rename behavior, and report/final-check integration.
+12. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `naming_migration_plan.json`, `state_hygiene_inventory.json`, and `codex_execution_report.md`.
+13. Run closeout if and only if command-plan authorizes it.
+14. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, naming migration plan present, state hygiene inventory present, report-summary `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, run-closeout `PASSED`, and no blocking reasons.
 
-Do not implement Phase 2 or naming cleanup in this round.
+Do not implement actual migration, rename, deletion, compatibility dual-write, schema migration, Phase 2, Web, CI, database, or multi-executor adapter in this round.
 
 ## 7. Tests
 
@@ -311,10 +332,9 @@ After implementation, run only command-plan-authorized commands. If authorized, 
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --dry-run --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --execute
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1 --dry-run --json
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1
+python -m reverse_agent.project_gate naming-hygiene --state-dir project_state
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_naming_hygiene_inventory_v1 --dry-run --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_naming_hygiene_inventory_v1 --execute
 python -m pytest tests/test_project_gate.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
@@ -323,7 +343,7 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_phase1_completion_evidence_path_hardening_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_naming_hygiene_inventory_v1
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
@@ -347,10 +367,12 @@ Stop immediately and report `BLOCKED` if:
 - a needed command is not authorized by command-plan;
 - the fix requires modifying files outside allowed source scope;
 - state updates require forbidden paths;
+- implementation requires renaming live report paths;
+- implementation requires deleting files;
+- implementation requires creating new neutral live report paths;
+- implementation requires modifying prompt/skill files;
 - implementation requires weakening command-plan authority, execution-log consistency, archive strictness, report-summary consistency, report-auto-summary consistency, final-check strictness, generated_artifacts coverage, or Required Audit coverage;
-- implementing evidence validation would require deleting or rewriting unrelated history;
-- execute-decision evidence cannot be represented by current structured evidence;
-- run-closeout cannot keep nested command evidence scoped outside the top-level command stream;
+- inventory generation would require full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or full recursive `project_state/rounds/` scans;
 - Required Audit remains incomplete or placeholder-like.
 
-Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, execution-log regresses, report-auto-summary regresses, report-summary regresses, policy-lint fails, policy-impact fails, Phase 1 completion artifact is missing or not PASSED, any capability evidence path is missing, any gate evidence path is absent from generated_artifacts/referenced_artifacts without explicit valid treatment, execute-decision evidence remains missing or misleading, run-closeout fails, final-check has warnings or blocking reasons, `generated_artifacts` misses current gate artifacts, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
+Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, execution-log regresses, report-auto-summary regresses, report-summary regresses, policy-lint fails, policy-impact fails, `naming_migration_plan.json` is missing, `state_hygiene_inventory.json` is missing, inventory artifacts are absent from generated_artifacts, any file is renamed, any file is deleted, any neutral live report path is created, any forbidden path is mutated, any candidate artifact is marked safe-to-delete in this round, run-closeout fails, final-check has warnings or blocking reasons, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
