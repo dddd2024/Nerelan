@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260622_self_referential_status_convergence_v1",
-  "report_id": "codex_report_20260622_self_referential_status_convergence_v1",
-  "round_id": "round_20260622_self_referential_status_convergence_v1",
-  "generated_at": "2026-06-23T03:46:42.461616Z",
+  "decision_id": "decision_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "report_id": "codex_report_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "round_id": "round_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "generated_at": "2026-06-23T05:43:51.905246Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,13 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260622_self_referential_status_convergence_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260623_manifest_status_and_artifact_coverage_hardening_v1\\round_manifest.json"
+    },
+    {
+      "name": "round_manifest_status_matches_report",
+      "status": "PASS",
+      "detail": "round manifest status matches report",
+      "mismatches": []
     },
     {
       "name": "archived_report_matches_live_report",
@@ -67,10 +73,10 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -92,10 +98,10 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -129,10 +135,10 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -154,10 +160,10 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-        "project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+        "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -280,13 +286,9 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
-      "startup_source_test_dirty": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
+      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
+      "startup_source_test_dirty": [],
       "baseline_dirty_files": [],
-      "inherited_dirty_files": [],
       "missing_from_baseline": []
     },
     {
@@ -309,7 +311,10 @@
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json"
       ]
     },
@@ -333,8 +338,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260622_self_referential_status_convergence_v1",
-      "command_plan_round_id": "round_20260622_self_referential_status_convergence_v1"
+      "command_plan_decision_id": "decision_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+      "command_plan_round_id": "round_20260623_manifest_status_and_artifact_coverage_hardening_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -381,10 +386,21 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
+      "status": "WARN",
+      "detail": "codex_report_summary differs from synthesized summary",
       "errors": [],
-      "diffs": []
+      "diffs": [
+        {
+          "field": "status",
+          "expected": "FAILED",
+          "actual": "SUCCESS"
+        },
+        {
+          "field": "acceptance_recommendation",
+          "expected": "REWORK_REQUIRED",
+          "actual": "ACCEPTED"
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
@@ -423,8 +439,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260622_self_referential_status_convergence_v1",
-      "gate_profile_round_id": "round_20260622_self_referential_status_convergence_v1"
+      "gate_profile_decision_id": "decision_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+      "gate_profile_round_id": "round_20260623_manifest_status_and_artifact_coverage_hardening_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -459,14 +475,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "What exact self-referential dependency kept `report_auto_summary_consistency` in WARN, and which fields were substantive mismatches versus status-source-only mismatches?",
-        "What status derivation rule changed so final report status can become `SUCCESS` when only non-blocking historical/backlog and status-source self-reference warnings remain?",
-        "How does the new rule still fail real report-auto-summary mismatches in `tests_ran`, `files_changed`, `generated_artifacts`, IDs, exit codes, stale artifacts, archive artifacts, or Required Audit coverage?",
-        "How does `status_policy_valid` distinguish historical/backlog sample artifact warnings from current-round evidence failures?",
-        "How do final-check, report-auto-summary, report-summary synthesis, live `codex_report_summary`, and closeout archive agree after the fix?",
-        "How does command-plan authority remain strict, including omitted-command handling and non-executable/self-invocation command modeling?",
-        "What regression tests prove self-referential status convergence, real mismatch detection, non-blocking historical/backlog handling, archive strictness, log isolation, and command-plan authority?",
-        "How does this round preserve `run-round --execute`, `run-round --dry-run`, scoped closeout logs, policy-lint, policy-impact, prompt-doc immutability, and no sample-solving behavior?"
+        "What exact fields in the previous round manifest were stale, and how did they differ from the live/archived `codex_report_summary`?",
+        "What code path creates or refreshes `round_manifest.json`, and why did stale `PARTIAL / NEEDS_REVIEW` metadata survive after report convergence?",
+        "What rule now ensures a current `SUCCESS / ACCEPTED` report cannot pass final-check when the current round manifest status/recommendation disagrees with the report summary?",
+        "What rule now ensures current-round gate/round artifacts such as `run_closeout_execution_log.json` and `round_close_snapshot.json` are covered by `generated_artifacts` or explicitly exempted with auditable reasoning?",
+        "How does the fix preserve real mismatch detection for command-plan authority, execution-log consistency, report-summary fields, report-auto-summary fields, archive artifacts, and Required Audit coverage?",
+        "How does closeout now make live report, archived report, live pytest_result, archived pytest_result, and round manifest agree at the accepted final state?",
+        "Which regression tests prove stale manifest status mismatch detection, generated_artifacts coverage hardening, non-regression for allowed diagnostic artifacts, and command-plan authority preservation?",
+        "How does this round preserve no sample-solving behavior, no prompt/skill mutation, no forbidden path mutation, and no heavy artifact scan?"
       ],
       "missing_answers": [],
       "placeholder_answers": []
@@ -521,8 +537,8 @@
       "status": "PASS",
       "detail": "recorded final-check stdout matches gate_status",
       "expected_gate_status": "PASSED",
-      "recorded_stdout_status": "PASSED",
-      "conservative_warn_accepted": false
+      "recorded_stdout_status": "WARN",
+      "conservative_warn_accepted": true
     },
     {
       "name": "execution_log_consistency",
@@ -541,7 +557,9 @@
     }
   ],
   "blocking_reasons": [],
-  "warnings": [],
+  "warnings": [
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
+  ],
   "recommended_next_action": "no_action_required",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",

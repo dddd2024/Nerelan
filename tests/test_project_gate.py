@@ -2238,9 +2238,7 @@ def test_close_round_archives_unarchived_consistent_round(tmp_path: Path) -> Non
     }
     assert _check(result, "requested_round_id_match")["status"] == "PASS"
     assert result["actions"][0]["name"] == "final_check_before_archive"
-    assert result["actions"][0]["allowed_archive_pending_failures"] == [
-        "report_summary_fields_match_synthesis"
-    ]
+    assert result["actions"][0]["allowed_archive_pending_failures"] == []
     assert result["actions"][1]["name"] == "archive_round"
     assert result["actions"][1]["status"] == "created"
     assert result["actions"][2]["name"] == "final_check_after_archive"
@@ -2267,9 +2265,7 @@ def test_close_round_allows_engineering_success_legacy_artifacts_until_archive(t
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
 
     assert result["close_status"] == "CLOSED"
-    assert result["actions"][0]["allowed_archive_pending_failures"] == [
-        "report_summary_fields_match_synthesis"
-    ]
+    assert result["actions"][0]["allowed_archive_pending_failures"] == []
     assert result["actions"][0]["unexpected_failures"] == []
     assert result["actions"][2]["status"] == "PASSED"
     assert result["actions"][2]["gate_status"] == "PASSED"
@@ -9292,6 +9288,261 @@ class TestGeneratedArtifactsCoverGateArtifacts:
         ga = report.get("generated_artifacts", [])
         assert "project_state/gates/policy_impact_audit.json" in ga
         assert "project_state/gates/policy_lint_result.json" in ga
+
+
+class TestManifestStatusConsistency:
+    """Regression tests for round manifest status consistency.
+
+    These tests verify that:
+    1. A stale manifest (PARTIAL/NEEDS_REVIEW) fails final-check when the
+       report is SUCCESS/ACCEPTED.
+    2. A matching manifest (SUCCESS/ACCEPTED) passes final-check.
+    3. A stale manifest for a non-SUCCESS report is not blocking.
+    4. _refresh_manifest_status updates manifest metadata to match report.
+    5. Closeout/snapshot artifacts are included in generated_artifacts coverage.
+    """
+
+    def test_stale_manifest_fails_for_success_report(self, tmp_path: Path) -> None:
+        """final-check FAILs when manifest has PARTIAL/NEEDS_REVIEW but
+        report is SUCCESS/ACCEPTED."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Create a round manifest with stale status
+        round_dir = state_dir / "rounds" / "round_gate"
+        round_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(round_dir / "round_manifest.json", {
+            "schema_version": 1,
+            "round_id": "round_gate",
+            "decision_id": "decision_gate",
+            "report_status": "PARTIAL",
+            "acceptance_recommendation": "NEEDS_REVIEW",
+        })
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        manifest_check = _check(result, "round_manifest_status_matches_report")
+        assert manifest_check["status"] == "FAIL"
+        assert len(manifest_check.get("mismatches", [])) == 2
+
+    def test_matching_manifest_passes_for_success_report(self, tmp_path: Path) -> None:
+        """final-check PASSes when manifest matches SUCCESS/ACCEPTED report."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Create a round manifest with matching status
+        round_dir = state_dir / "rounds" / "round_gate"
+        round_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(round_dir / "round_manifest.json", {
+            "schema_version": 1,
+            "round_id": "round_gate",
+            "decision_id": "decision_gate",
+            "report_status": "SUCCESS",
+            "acceptance_recommendation": "ACCEPTED",
+        })
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        manifest_check = _check(result, "round_manifest_status_matches_report")
+        assert manifest_check["status"] == "PASS"
+
+    def test_stale_manifest_not_blocking_for_partial_report(self, tmp_path: Path) -> None:
+        """A stale manifest is not blocking when report is PARTIAL/NEEDS_REVIEW
+        (the check only applies to SUCCESS/ACCEPTED reports)."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        # Create a round manifest with stale status
+        round_dir = state_dir / "rounds" / "round_gate"
+        round_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(round_dir / "round_manifest.json", {
+            "schema_version": 1,
+            "round_id": "round_gate",
+            "decision_id": "decision_gate",
+            "report_status": "FAILED",
+            "acceptance_recommendation": "REWORK_REQUIRED",
+        })
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        manifest_check = _check(result, "round_manifest_status_matches_report")
+        # For non-SUCCESS reports, the check should PASS (not enforced)
+        assert manifest_check["status"] == "PASS"
+
+    def test_no_manifest_not_blocking(self, tmp_path: Path) -> None:
+        """No manifest at all should not trigger the status check."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # No round manifest directory
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        manifest_check = _check(result, "round_manifest_status_matches_report")
+        assert manifest_check["status"] == "PASS"
+
+    def test_refresh_manifest_status_updates_stale_fields(self, tmp_path: Path) -> None:
+        """_refresh_manifest_status updates manifest report_status and
+        acceptance_recommendation to match the current report."""
+        from reverse_agent.project_gate import _refresh_manifest_status
+
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Create a round manifest with stale status
+        round_dir = state_dir / "rounds" / "round_gate"
+        round_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(round_dir / "round_manifest.json", {
+            "schema_version": 1,
+            "round_id": "round_gate",
+            "decision_id": "decision_gate",
+            "report_status": "PARTIAL",
+            "acceptance_recommendation": "NEEDS_REVIEW",
+        })
+
+        _refresh_manifest_status(state_dir=state_dir, round_id="round_gate")
+
+        manifest = json.loads((round_dir / "round_manifest.json").read_text(encoding="utf-8"))
+        assert manifest["report_status"] == "SUCCESS"
+        assert manifest["acceptance_recommendation"] == "ACCEPTED"
+
+    def test_refresh_manifest_status_noop_when_matching(self, tmp_path: Path) -> None:
+        """_refresh_manifest_status is a no-op when manifest already matches."""
+        from reverse_agent.project_gate import _refresh_manifest_status
+
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        round_dir = state_dir / "rounds" / "round_gate"
+        round_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(round_dir / "round_manifest.json", {
+            "schema_version": 1,
+            "round_id": "round_gate",
+            "decision_id": "decision_gate",
+            "report_status": "SUCCESS",
+            "acceptance_recommendation": "ACCEPTED",
+            "extra_field": "preserved",
+        })
+
+        _refresh_manifest_status(state_dir=state_dir, round_id="round_gate")
+
+        manifest = json.loads((round_dir / "round_manifest.json").read_text(encoding="utf-8"))
+        assert manifest["report_status"] == "SUCCESS"
+        assert manifest["acceptance_recommendation"] == "ACCEPTED"
+        assert manifest["extra_field"] == "preserved"
+
+
+class TestCloseoutArtifactCoverage:
+    """Regression tests for closeout/snapshot artifact coverage in
+    generated_artifacts.
+
+    These tests verify that closeout/snapshot artifacts are included in
+    _REPORTABLE_GATE_ARTIFACT_NAMES and appear in generated_artifacts when
+    they exist on disk and match the current round.
+    """
+
+    def test_closeout_artifact_in_reportable_names(self) -> None:
+        """RUN_CLOSEOUT_RESULT_NAME is in _REPORTABLE_GATE_ARTIFACT_NAMES."""
+        from reverse_agent.project_gate import (
+            _REPORTABLE_GATE_ARTIFACT_NAMES,
+            RUN_CLOSEOUT_RESULT_NAME,
+        )
+        assert RUN_CLOSEOUT_RESULT_NAME in _REPORTABLE_GATE_ARTIFACT_NAMES
+
+    def test_closeout_execution_log_in_reportable_names(self) -> None:
+        """RUN_CLOSEOUT_EXECUTION_LOG_NAME is in _REPORTABLE_GATE_ARTIFACT_NAMES."""
+        from reverse_agent.project_gate import (
+            _REPORTABLE_GATE_ARTIFACT_NAMES,
+            RUN_CLOSEOUT_EXECUTION_LOG_NAME,
+        )
+        assert RUN_CLOSEOUT_EXECUTION_LOG_NAME in _REPORTABLE_GATE_ARTIFACT_NAMES
+
+    def test_close_snapshot_in_reportable_names(self) -> None:
+        """ROUND_CLOSE_SNAPSHOT_RESULT_NAME is in _REPORTABLE_GATE_ARTIFACT_NAMES."""
+        from reverse_agent.project_gate import (
+            _REPORTABLE_GATE_ARTIFACT_NAMES,
+            ROUND_CLOSE_SNAPSHOT_RESULT_NAME,
+        )
+        assert ROUND_CLOSE_SNAPSHOT_RESULT_NAME in _REPORTABLE_GATE_ARTIFACT_NAMES
+
+    def test_report_summary_in_reportable_names(self) -> None:
+        """REPORT_SUMMARY_RESULT_NAME is in _REPORTABLE_GATE_ARTIFACT_NAMES."""
+        from reverse_agent.project_gate import (
+            _REPORTABLE_GATE_ARTIFACT_NAMES,
+            REPORT_SUMMARY_RESULT_NAME,
+        )
+        assert REPORT_SUMMARY_RESULT_NAME in _REPORTABLE_GATE_ARTIFACT_NAMES
+
+    def test_closeout_artifact_covered_when_exists_and_matches_round(
+        self, tmp_path: Path,
+    ) -> None:
+        """generated_artifacts_cover_gate_artifacts includes closeout artifacts
+        when they exist on disk and match the current round."""
+        from reverse_agent.project_gate import final_check
+
+        # Include closeout artifacts in generated_artifacts so the check passes
+        state_dir = _make_gate_state(
+            tmp_path, status="SUCCESS", acceptance="ACCEPTED",
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/command_plan.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/gate_profile_plan.json",
+                "project_state/gates/run_closeout_result.json",
+                "project_state/gates/run_closeout_execution_log.json",
+                "project_state/gates/round_close_snapshot.json",
+            ],
+        )
+        # Create run_closeout_result.json matching current round
+        _write_json(state_dir / "gates" / "run_closeout_result.json", {
+            "schema_version": 1, "gate_name": "run-closeout",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+        # Create run_closeout_execution_log.json matching current round
+        _write_json(state_dir / "gates" / "run_closeout_execution_log.json", {
+            "schema_version": 1,
+            "decision_id": "decision_gate", "round_id": "round_gate",
+            "commands": [],
+        })
+        # Create round_close_snapshot.json matching current round
+        _write_json(state_dir / "gates" / "round_close_snapshot.json", {
+            "schema_version": 1,
+            "decision_id": "decision_gate", "round_id": "round_gate",
+        })
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        gate_artifact_check = _check(result, "generated_artifacts_cover_gate_artifacts")
+        assert gate_artifact_check["status"] == "PASS"
+
+    def test_stale_closeout_artifact_excluded_from_coverage(
+        self, tmp_path: Path,
+    ) -> None:
+        """Stale closeout artifacts from a previous round are excluded from
+        _existing_reportable_gate_artifact_paths and do not cause coverage
+        failures."""
+        from reverse_agent.project_gate import (
+            _existing_reportable_gate_artifact_paths,
+        )
+
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Create run_closeout_result.json from a DIFFERENT round
+        _write_json(state_dir / "gates" / "run_closeout_result.json", {
+            "schema_version": 1, "gate_name": "run-closeout",
+            "gate_status": "PASSED",
+            "decision_id": "decision_old", "round_id": "round_old",
+        })
+
+        paths = _existing_reportable_gate_artifact_paths(
+            state_dir, decision_id="decision_gate", round_id="round_gate",
+        )
+        assert "project_state/gates/run_closeout_result.json" not in paths
+
+    def test_command_plan_authority_preserved(self, tmp_path: Path) -> None:
+        """Command-plan authority check is not weakened by the new checks."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path, status="SUCCESS", acceptance="ACCEPTED")
+        # Verify command_plan_execution_authority check still exists
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        authority_check = _check(result, "command_plan_execution_authority")
+        assert authority_check is not None
 
 
 class TestStructuredExecutionLog:

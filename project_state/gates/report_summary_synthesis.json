@@ -2,15 +2,15 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "PASSED",
-  "decision_id": "decision_20260622_self_referential_status_convergence_v1",
-  "round_id": "round_20260622_self_referential_status_convergence_v1",
-  "report_id": "codex_report_20260622_self_referential_status_convergence_v1",
-  "generated_at": "2026-06-23T03:46:42.389834Z",
+  "synthesis_status": "FAILED",
+  "decision_id": "decision_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "round_id": "round_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "report_id": "codex_report_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "generated_at": "2026-06-23T05:43:51.828005Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260622_self_referential_status_convergence_v1",
-    "round_id": "round_20260622_self_referential_status_convergence_v1",
-    "based_on_decision_id": "decision_20260622_self_referential_status_convergence_v1",
+    "report_id": "codex_report_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+    "round_id": "round_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+    "based_on_decision_id": "decision_20260623_manifest_status_and_artifact_coverage_hardening_v1",
     "files_changed": [
       "project_state/codex_execution_report.md",
       "project_state/gates/codex_report_auto_summary.json",
@@ -29,10 +29,10 @@
       "project_state/gates/run_closeout_result.json",
       "project_state/gates/run_round_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-      "project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-      "project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json",
+      "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+      "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+      "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json",
       "reverse_agent/project_gate.py",
       "tests/test_project_gate.py"
     ],
@@ -53,34 +53,45 @@
       "project_state/gates/run_closeout_result.json",
       "project_state/gates/run_round_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-      "project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-      "project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json"
+      "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+      "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+      "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json"
     ],
     "tests_ran": [
-      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_self_referential_status_convergence_v1 --dry-run --json",
-      "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260622_self_referential_status_convergence_v1 --execute",
+      "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_manifest_status_and_artifact_coverage_hardening_v1 --dry-run --json",
+      "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260623_manifest_status_and_artifact_coverage_hardening_v1 --execute",
       "python -m pytest tests/test_project_gate.py -q",
       "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
       "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260622_self_referential_status_convergence_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260623_manifest_status_and_artifact_coverage_hardening_v1"
     ],
-    "status": "SUCCESS",
-    "acceptance_recommendation": "ACCEPTED",
+    "status": "FAILED",
+    "acceptance_recommendation": "REWORK_REQUIRED",
     "external_state_notices": [
       "50 missing historical sample artifacts"
     ]
   },
-  "diffs": [],
+  "diffs": [
+    {
+      "field": "status",
+      "expected": "FAILED",
+      "actual": "SUCCESS"
+    },
+    {
+      "field": "acceptance_recommendation",
+      "expected": "REWORK_REQUIRED",
+      "actual": "ACCEPTED"
+    }
+  ],
   "errors": [],
   "warnings": [],
   "non_blocking_warnings": [],

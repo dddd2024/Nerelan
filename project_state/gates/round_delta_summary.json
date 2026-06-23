@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260622_self_referential_status_convergence_v1",
-  "round_id": "round_20260622_self_referential_status_convergence_v1",
-  "head_commit": "acfaea63e855",
+  "decision_id": "decision_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "round_id": "round_20260623_manifest_status_and_artifact_coverage_hardening_v1",
+  "head_commit": "5c5a620e53d7",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -30,10 +30,10 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -74,10 +74,10 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-    "project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-    "project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json",
+    "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+    "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+    "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -99,14 +99,14 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260622_self_referential_status_convergence_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260622_self_referential_status_convergence_v1/decision_packet.md",
-    "project_state/rounds/round_20260622_self_referential_status_convergence_v1/pytest_result.txt",
-    "project_state/rounds/round_20260622_self_referential_status_convergence_v1/round_manifest.json",
+    "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/decision_packet.md",
+    "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/pytest_result.txt",
+    "project_state/rounds/round_20260623_manifest_status_and_artifact_coverage_hardening_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-23T03:46:42.386948Z"
+  "generated_at": "2026-06-23T05:43:51.824797Z"
 }
