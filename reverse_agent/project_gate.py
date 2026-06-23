@@ -5899,6 +5899,55 @@ def final_check(
             )
         )
 
+    # Execution log report_id freshness check: execution_log.json must carry
+    # the current round's report_id.  A stale report_id indicates the
+    # execution log was generated for a previous round and has not been
+    # regenerated for the current round.
+    execution_log_payload = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
+    if execution_log_payload:
+        el_report_id = str(execution_log_payload.get("report_id") or "")
+        expected_report_id = _expected_report_id(round_id)
+        if el_report_id == expected_report_id:
+            checks.append(
+                _check(
+                    "execution_log_report_id_is_current",
+                    "PASS",
+                    "execution_log.json carries current report_id",
+                    execution_log_report_id=el_report_id,
+                    expected_report_id=expected_report_id,
+                )
+            )
+        elif report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
+            checks.append(
+                _check(
+                    "execution_log_report_id_is_current",
+                    "FAIL",
+                    "execution_log.json has stale report_id; must be regenerated for current round",
+                    execution_log_report_id=el_report_id,
+                    expected_report_id=expected_report_id,
+                )
+            )
+        else:
+            checks.append(
+                _check(
+                    "execution_log_report_id_is_current",
+                    "WARN",
+                    f"execution_log.json has stale report_id but report status is {report_status}",
+                    execution_log_report_id=el_report_id,
+                    expected_report_id=expected_report_id,
+                )
+            )
+    else:
+        checks.append(
+            _check(
+                "execution_log_report_id_is_current",
+                "PASS",
+                "execution_log.json not present; no stale report_id to check",
+                required=False,
+                skipped_reason="execution_log_not_present",
+            )
+        )
+
     # Required closeout artifacts coverage check: existing state records
     # declared in the decision's Current Evidence section must be covered by
     # the report's referenced_artifacts or generated_artifacts.  This prevents
@@ -6512,7 +6561,9 @@ def final_check(
                 matching = el_blocks_by_command.get(command, [])
                 if not matching:
                     continue
-                pytest_exit = matching[0].get("exit_code")
+                # Use the last block for this command (same dedup logic as
+                # _execution_log_derive_commands and _execution_log_validate).
+                pytest_exit = matching[-1].get("exit_code")
                 if entry_exit is not None and pytest_exit is not None and entry_exit != pytest_exit:
                     el_mismatches.append({
                         "command": command,
@@ -8894,6 +8945,11 @@ def _execution_log_derive_commands(
     """Derive structured command entries from pytest_result.txt command blocks
     and command_plan.json.
 
+    Only commands authorized by the current command_plan are included.
+    Prior-round commands that appear in pytest_result.txt but are not in
+    the current command_plan are filtered out so the execution log reflects
+    current-round evidence only.
+
     Each entry includes at least ``index``, ``command``, ``kind`` (if known),
     ``phase`` (if known), ``expected_exit_codes``, ``exit_code``, and
     ``status`` (``PASSED``, ``FAILED``, or ``UNKNOWN``).
@@ -8905,6 +8961,7 @@ def _execution_log_derive_commands(
     expected_by_command: dict[str, list[int]] = {}
     kind_by_command: dict[str, str] = {}
     phase_by_command: dict[str, str] = {}
+    authorized_commands: set[str] = set()
     for item in (command_plan_payload.get("commands") or []):
         if not isinstance(item, dict):
             continue
@@ -8914,10 +8971,26 @@ def _execution_log_derive_commands(
         expected_by_command[cmd] = list(item.get("expected_exit_codes") or [])
         kind_by_command[cmd] = str(item.get("kind") or "")
         phase_by_command[cmd] = str(item.get("phase") or "")
+        authorized_commands.add(cmd)
 
     entries: list[dict[str, Any]] = []
-    for index, block in enumerate(blocks, start=1):
+    # Track the last occurrence index for each command string so we can
+    # deduplicate.  When pytest_result.txt contains multiple blocks for the
+    # same command (e.g. from run-round re-executing the pipeline), only the
+    # last occurrence reflects the current-round evidence.
+    last_occurrence: dict[str, int] = {}
+    raw_entries: list[dict[str, Any]] = []
+    entry_index = 0
+    for block in blocks:
         command = str(block.get("command") or "")
+        # Filter out commands not authorized by the current command_plan.
+        # Startup commands (Set-Location, Get-Location, etc.) are always
+        # allowed since they are not round-specific.  Non-startup commands
+        # that are not in the current command_plan are prior-round commands
+        # and must be excluded from the current-round execution log.
+        if command and not _is_startup_command(command) and command not in authorized_commands:
+            continue
+        entry_index += 1
         kind = kind_by_command.get(command) or _command_kind(command)
         phase = phase_by_command.get(command) or _command_phase(kind, archive_seen=False)
         expected = expected_by_command.get(command) or []
@@ -8941,8 +9014,8 @@ def _execution_log_derive_commands(
                 status = "PASSED"
             else:
                 status = "FAILED"
-        entries.append({
-            "index": index,
+        raw_entries.append({
+            "index": entry_index,
             "command": command,
             "kind": kind,
             "phase": phase,
@@ -8950,6 +9023,18 @@ def _execution_log_derive_commands(
             "exit_code": exit_code,
             "status": status,
         })
+        last_occurrence[command] = len(raw_entries) - 1
+
+    # Deduplicate: keep only the last occurrence of each command.
+    kept_indices = set(last_occurrence.values())
+    for i, entry in enumerate(raw_entries):
+        if i in kept_indices:
+            entries.append(entry)
+
+    # Re-index entries sequentially after deduplication.
+    for new_idx, entry in enumerate(entries, start=1):
+        entry["index"] = new_idx
+
     return entries
 
 
@@ -9000,6 +9085,7 @@ def _execution_log_validate(
         )
 
     # Check for exit code mismatches between execution_log and pytest_result.
+    # Use the last block for each command (same dedup logic as derive).
     recorded = _parse_recorded_command_blocks(pytest_text)
     blocks = [b for b in (recorded.get("blocks") or []) if isinstance(b, dict)]
     blocks_by_command: dict[str, list[dict[str, Any]]] = {}
@@ -9012,7 +9098,8 @@ def _execution_log_validate(
         matching = blocks_by_command.get(command, [])
         if not matching:
             continue
-        pytest_exit = matching[0].get("exit_code")
+        # Use the last block for this command (same as dedup logic in derive).
+        pytest_exit = matching[-1].get("exit_code")
         if entry_exit is not None and pytest_exit is not None and entry_exit != pytest_exit:
             blocking_reasons.append(
                 f"exit_code mismatch for '{command}': execution_log={entry_exit}, pytest_result={pytest_exit}"
@@ -9042,8 +9129,11 @@ def execution_log(
 
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
-    report = read_codex_report_summary(state_dir)
-    report_id = str(report.get("report_id") or "")
+    # Derive report_id from the current round_id, not from the potentially
+    # stale codex_report_summary.  The execution log must carry the current
+    # round's report_id so execution_log_consistency and
+    # report_auto_summary_consistency checks can verify current-round evidence.
+    report_id = _expected_report_id(round_id)
 
     entries = _execution_log_derive_commands(
         pytest_text=pytest_text,

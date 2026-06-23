@@ -20,6 +20,7 @@ from reverse_agent.project_gate import (
     _report_body_consistency_check,
     _artifact_status_policy,
     _expected_report_id,
+    _execution_log_derive_commands,
     _extract_bash_commands,
     _extract_unfenced_commands,
     _historical_sample_limitations_only,
@@ -29,6 +30,7 @@ from reverse_agent.project_gate import (
     _is_prohibitive_line,
     _is_run_closeout_command,
     _is_self_invocation,
+    _is_startup_command,
     _read_round_close_snapshot,
     _report_status_from_gate,
     _report_status_from_gate_payload,
@@ -20379,5 +20381,317 @@ def test_report_auto_summary_excludes_closeout_artifact_wrong_round(
     assert RUN_CLOSEOUT_OUTPUT_PATH not in generated, (
         f"run_closeout_result.json with wrong round should NOT be in generated_artifacts"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests for execution-log current-round closure: prior-round command
+# filtering and execution_log_report_id_is_current check
+# ---------------------------------------------------------------------------
+
+
+class TestExecutionLogCurrentRoundFiltering:
+    """Verify _execution_log_derive_commands filters prior-round commands
+    and execution_log_report_id_is_current detects stale report_ids."""
+
+    def test_prior_round_commands_filtered_from_execution_log(
+        self, tmp_path: Path
+    ) -> None:
+        """Commands not in the current command_plan are excluded from the
+        execution log, preventing prior-round commands from leaking into
+        current-round evidence."""
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+
+        # Current command_plan with only 2 commands.
+        command_plan_payload = {
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                    "kind": "preflight",
+                    "phase": "gate",
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": "python -m pytest tests/test_project_gate.py -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "expected_exit_codes": [0],
+                },
+            ],
+        }
+        (gates_dir / "command_plan.json").write_text(
+            json.dumps(command_plan_payload, indent=2), encoding="utf-8"
+        )
+
+        # pytest_result.txt with both current and prior-round commands.
+        pytest_text = (
+            "===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====\n"
+            "preflight: PASSED\n"
+            "===== EXIT: 0 =====\n"
+            "\n"
+            "===== COMMAND: python -m pytest tests/test_project_gate.py -q =====\n"
+            "806 passed\n"
+            "===== EXIT: 0 =====\n"
+            "\n"
+            "===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_old_v1 =====\n"
+            "run-closeout: PASSED\n"
+            "===== EXIT: 0 =====\n"
+        )
+
+        entries = _execution_log_derive_commands(
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+
+        commands = [e["command"] for e in entries]
+        assert "python -m reverse_agent.project_gate preflight --state-dir project_state" in commands
+        assert "python -m pytest tests/test_project_gate.py -q" in commands
+        assert "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_old_v1" not in commands, (
+            "Prior-round closeout command should be filtered out"
+        )
+
+    def test_startup_commands_always_included(
+        self, tmp_path: Path
+    ) -> None:
+        """Startup commands (Set-Location, Get-Location, etc.) are always
+        included even if not in command_plan."""
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+
+        command_plan_payload = {
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m pytest tests/test_project_gate.py -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "expected_exit_codes": [0],
+                },
+            ],
+        }
+        (gates_dir / "command_plan.json").write_text(
+            json.dumps(command_plan_payload, indent=2), encoding="utf-8"
+        )
+
+        pytest_text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "===== EXIT: 0 =====\n"
+            "\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "\n"
+            "===== COMMAND: python -m pytest tests/test_project_gate.py -q =====\n"
+            "806 passed\n"
+            "===== EXIT: 0 =====\n"
+        )
+
+        entries = _execution_log_derive_commands(
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+
+        commands = [e["command"] for e in entries]
+        assert "Set-Location F:\\reverse-agent" in commands
+        assert "Get-Location" in commands
+        assert "python -m pytest tests/test_project_gate.py -q" in commands
+
+    def test_execution_log_report_id_is_current_check_passes(
+        self, tmp_path: Path
+    ) -> None:
+        """When execution_log.json has the current round's report_id,
+        the check passes."""
+        state_dir = _make_command_plan_gate_state(
+            tmp_path,
+            report_tests=[
+                "Set-Location F:\\reverse-agent",
+                "python -m pytest tests/test_project_gate.py -q",
+            ],
+        )
+        gates_dir = state_dir / "gates"
+
+        # Write execution_log.json with current report_id.
+        # The default decision_id/round_id from _make_command_plan_gate_state
+        # are "decision_gate" / "round_gate".
+        round_id = "round_gate"
+        expected_report_id = _expected_report_id(round_id)
+        execution_log_payload = {
+            "report_id": expected_report_id,
+            "decision_id": "decision_gate",
+            "round_id": round_id,
+            "commands": [],
+        }
+        (gates_dir / "execution_log.json").write_text(
+            json.dumps(execution_log_payload, indent=2), encoding="utf-8"
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        check = next(
+            (c for c in result.get("checks", []) if c["name"] == "execution_log_report_id_is_current"),
+            None,
+        )
+        assert check is not None, "execution_log_report_id_is_current check should be present"
+        assert check["status"] == "PASS", f"Expected PASS, got {check['status']}: {check.get('detail', '')}"
+
+    def test_execution_log_report_id_stale_warns_for_non_success(
+        self, tmp_path: Path
+    ) -> None:
+        """When execution_log.json has a stale report_id and the report is
+        non-SUCCESS, the check warns."""
+        state_dir = _make_command_plan_gate_state(
+            tmp_path,
+            status="PARTIAL",
+            acceptance="NEEDS_REVIEW",
+            report_tests=[
+                "Set-Location F:\\reverse-agent",
+                "python -m pytest tests/test_project_gate.py -q",
+            ],
+        )
+        gates_dir = state_dir / "gates"
+
+        # Write execution_log.json with stale report_id.
+        execution_log_payload = {
+            "report_id": "codex_report_old_round",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "commands": [],
+        }
+        (gates_dir / "execution_log.json").write_text(
+            json.dumps(execution_log_payload, indent=2), encoding="utf-8"
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        check = next(
+            (c for c in result.get("checks", []) if c["name"] == "execution_log_report_id_is_current"),
+            None,
+        )
+        assert check is not None
+        assert check["status"] == "WARN", f"Expected WARN for non-SUCCESS report, got {check['status']}"
+
+    def test_execution_log_report_id_stale_fails_for_success(
+        self, tmp_path: Path
+    ) -> None:
+        """When execution_log.json has a stale report_id and the report is
+        SUCCESS, the check fails."""
+        state_dir = _make_command_plan_gate_state(
+            tmp_path,
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            report_tests=[
+                "Set-Location F:\\reverse-agent",
+                "python -m pytest tests/test_project_gate.py -q",
+            ],
+        )
+        gates_dir = state_dir / "gates"
+
+        # Write execution_log.json with stale report_id.
+        execution_log_payload = {
+            "report_id": "codex_report_old_round",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "commands": [],
+        }
+        (gates_dir / "execution_log.json").write_text(
+            json.dumps(execution_log_payload, indent=2), encoding="utf-8"
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        check = next(
+            (c for c in result.get("checks", []) if c["name"] == "execution_log_report_id_is_current"),
+            None,
+        )
+        assert check is not None
+        assert check["status"] == "FAIL", f"Expected FAIL for SUCCESS report with stale report_id, got {check['status']}"
+
+    def test_no_execution_log_passes_with_skip(
+        self, tmp_path: Path
+    ) -> None:
+        """When execution_log.json does not exist, the check passes with
+        a skipped_reason."""
+        state_dir = _make_command_plan_gate_state(
+            tmp_path,
+            report_tests=[
+                "Set-Location F:\\reverse-agent",
+                "python -m pytest tests/test_project_gate.py -q",
+            ],
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        check = next(
+            (c for c in result.get("checks", []) if c["name"] == "execution_log_report_id_is_current"),
+            None,
+        )
+        assert check is not None
+        assert check["status"] == "PASS"
+        assert check.get("skipped_reason") == "execution_log_not_present"
+
+    def test_duplicate_commands_deduplicated_keeps_last(
+        self, tmp_path: Path
+    ) -> None:
+        """When pytest_result.txt contains duplicate command blocks (e.g.
+        from run-round re-executing the pipeline), only the last occurrence
+        of each command is kept in the execution log."""
+        command_plan_payload = {
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                    "kind": "preflight",
+                    "phase": "gate",
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": "python -m pytest tests/test_project_gate.py -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "expected_exit_codes": [0],
+                },
+            ],
+        }
+
+        # pytest_result.txt with duplicate command blocks.
+        # The second preflight has exit=1 (simulating a re-run that found
+        # a different result).  The execution log should keep only the last.
+        pytest_text = (
+            "===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====\n"
+            "preflight: PASSED\n"
+            "===== EXIT: 0 =====\n"
+            "\n"
+            "===== COMMAND: python -m pytest tests/test_project_gate.py -q =====\n"
+            "806 passed\n"
+            "===== EXIT: 0 =====\n"
+            "\n"
+            "===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====\n"
+            "preflight: WARN\n"
+            "===== EXIT: 1 =====\n"
+        )
+
+        entries = _execution_log_derive_commands(
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+
+        # Should have exactly 2 entries (deduplicated).
+        commands = [e["command"] for e in entries]
+        assert len(entries) == 2, f"Expected 2 deduplicated entries, got {len(entries)}: {commands}"
+        assert commands.count("python -m reverse_agent.project_gate preflight --state-dir project_state") == 1
+
+        # The preflight entry should have exit_code=1 (last occurrence).
+        preflight_entry = next(e for e in entries if "preflight" in e["command"])
+        assert preflight_entry["exit_code"] == 1, (
+            f"Expected exit_code=1 from last occurrence, got {preflight_entry['exit_code']}"
+        )
+
+        # Indices should be sequential after dedup.
+        assert [e["index"] for e in entries] == [1, 2]
 
 
