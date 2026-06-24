@@ -6769,6 +6769,55 @@ def final_check(
             )
         )
 
+    # execution_log_required_commands_recorded: verify that every command
+    # marked required:true in command_plan.json has a corresponding entry
+    # in execution_log.json.  This prevents a required command from being
+    # silently omitted from the provenance chain.
+    el_payload_for_req = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
+    cp_payload_for_req = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    if el_payload_for_req and cp_payload_for_req:
+        el_recorded_cmds = {
+            str(e.get("command") or "")
+            for e in (el_payload_for_req.get("commands") or [])
+            if isinstance(e, dict)
+        }
+        required_cmds_in_plan: list[str] = []
+        for item in (cp_payload_for_req.get("commands") or []):
+            if isinstance(item, dict) and item.get("required"):
+                cmd = str(item.get("command") or "")
+                if cmd:
+                    required_cmds_in_plan.append(cmd)
+        missing_required = [c for c in required_cmds_in_plan if c not in el_recorded_cmds]
+        if missing_required:
+            checks.append(
+                _check(
+                    "execution_log_required_commands_recorded",
+                    "FAIL",
+                    f"{len(missing_required)} required command(s) from command_plan not recorded in execution_log",
+                    missing_commands=missing_required,
+                    required=True,
+                )
+            )
+        else:
+            checks.append(
+                _check(
+                    "execution_log_required_commands_recorded",
+                    "PASS",
+                    "all required command_plan commands recorded in execution_log",
+                    required=True,
+                )
+            )
+    elif cp_payload_for_req and not el_payload_for_req:
+        checks.append(
+            _check(
+                "execution_log_required_commands_recorded",
+                "PASS",
+                "execution_log.json not present; backward-compatible",
+                required=False,
+                skipped_reason="execution_log_not_present",
+            )
+        )
+
     # Report auto-summary consistency check: when
     # codex_report_auto_summary.json exists on disk, verify that its summary
     # fields (files_changed, tests_ran, generated_artifacts, status,
@@ -9279,17 +9328,35 @@ def _execution_log_validate(
             )
 
     # Check for omitted commands: commands in command_plan that are not in entries.
+    # Required commands missing from execution_log are blocking; optional ones
+    # remain warnings.
     recorded_commands = {str(entry.get("command") or "") for entry in entries}
     plan_commands = set(authorized_commands)
+    # Build a set of required commands from command_plan.
+    required_commands: set[str] = set()
+    for item in (command_plan_payload.get("commands") or []):
+        if isinstance(item, dict) and item.get("required"):
+            cmd = str(item.get("command") or "")
+            if cmd:
+                required_commands.add(cmd)
+
     omitted = sorted(
         cmd for cmd in (plan_commands - recorded_commands)
         if not _is_startup_command(cmd)
     )
     if omitted:
-        warnings.append(
-            f"command_plan has {len(omitted)} command(s) not recorded in execution_log: "
-            + ", ".join(omitted)
-        )
+        omitted_required = [cmd for cmd in omitted if cmd in required_commands]
+        omitted_optional = [cmd for cmd in omitted if cmd not in required_commands]
+        if omitted_required:
+            blocking_reasons.append(
+                f"command_plan has {len(omitted_required)} required command(s) not recorded in execution_log: "
+                + ", ".join(omitted_required)
+            )
+        if omitted_optional:
+            warnings.append(
+                f"command_plan has {len(omitted_optional)} optional command(s) not recorded in execution_log: "
+                + ", ".join(omitted_optional)
+            )
 
     # Check for exit code mismatches between execution_log and pytest_result.
     # Use the last block for each command (same dedup logic as derive).
@@ -9456,16 +9523,11 @@ def report_auto_summary(
             cmd = str(entry.get("command") or "")
             if cmd and not _is_startup_command(cmd) and _command_kind(cmd) != "status":
                 tests_ran.append(cmd)
-        # Supplement with command_plan commands not recorded in execution_log.
-        # This handles self-invocation guards (e.g. run-round skipping itself)
-        # where the command was planned but not executed by the guard.
-        if command_plan_payload and isinstance(command_plan_payload.get("commands"), list):
-            el_command_set = {str(entry.get("command") or "") for entry in el_commands if isinstance(entry, dict)}
-            cp_commands = _command_plan_json_commands(command_plan_payload)
-            for item in cp_commands:
-                cmd = str(item.get("command") or "")
-                if cmd and not _is_startup_command(cmd) and _command_kind(cmd) != "status" and cmd not in el_command_set:
-                    tests_ran.append(cmd)
+        # Do NOT supplement with command_plan commands not recorded in
+        # execution_log.  A required command absent from execution_log means
+        # it was not actually executed; synthesizing it into tests_ran creates
+        # a provenance mismatch.  The execution_log gate will block (FAILED)
+        # if required commands are missing.
     elif command_plan_payload and isinstance(command_plan_payload.get("commands"), list):
         source_provenance["tests_ran_source"] = "command_plan.json"
         source_provenance["command_plan"] = COMMAND_PLAN_OUTPUT_PATH

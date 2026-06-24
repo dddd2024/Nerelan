@@ -20725,6 +20725,303 @@ class TestExecutionLogCurrentRoundFiltering:
         assert [e["index"] for e in entries] == [1, 2]
 
 
+class TestExecutionLogRequiredCommandBlocking:
+    """Verify that required commands missing from execution_log produce
+    blocking_reasons (gate_status=FAILED), while optional ones only warn."""
+
+    def test_required_command_missing_is_blocking(self) -> None:
+        """A command marked required:true in command_plan that is absent
+        from execution_log should produce a blocking_reason."""
+        from reverse_agent.project_gate import _execution_log_validate
+        command_plan_payload = {
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                    "kind": "preflight",
+                    "phase": "gate",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": "python -m pytest tests/test_project_gate.py -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+            ],
+        }
+        # Only preflight is recorded; pytest is missing.
+        pytest_text = (
+            "===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====\n"
+            "preflight: PASSED\n"
+            "===== EXIT: 0 =====\n"
+        )
+        entries = _execution_log_derive_commands(
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+        warnings, blocking_reasons = _execution_log_validate(
+            entries=entries,
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+        assert any("required command" in r.lower() for r in blocking_reasons), (
+            f"Expected a blocking_reason for missing required command, got blocking_reasons={blocking_reasons}"
+        )
+
+    def test_optional_command_missing_is_warning_only(self) -> None:
+        """A command not marked required in command_plan that is absent
+        from execution_log should produce only a warning, not a blocking_reason."""
+        from reverse_agent.project_gate import _execution_log_validate
+        command_plan_payload = {
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                    "kind": "preflight",
+                    "phase": "gate",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
+                    "kind": "project-cli",
+                    "phase": "gate",
+                    "required": False,
+                    "expected_exit_codes": [0],
+                },
+            ],
+        }
+        # Only preflight is recorded; policy-lint is missing but optional.
+        pytest_text = (
+            "===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====\n"
+            "preflight: PASSED\n"
+            "===== EXIT: 0 =====\n"
+        )
+        entries = _execution_log_derive_commands(
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+        warnings, blocking_reasons = _execution_log_validate(
+            entries=entries,
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+        assert not any("required command" in r.lower() for r in blocking_reasons), (
+            f"Optional missing command should not produce blocking_reason, got {blocking_reasons}"
+        )
+        assert any("optional command" in w.lower() for w in warnings), (
+            f"Expected a warning for missing optional command, got warnings={warnings}"
+        )
+
+    def test_all_required_present_no_blocking(self) -> None:
+        """When all required commands are recorded, there should be no
+        blocking_reasons for missing required commands."""
+        from reverse_agent.project_gate import _execution_log_validate
+        command_plan_payload = {
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                    "kind": "preflight",
+                    "phase": "gate",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": "python -m pytest tests/test_project_gate.py -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+            ],
+        }
+        pytest_text = (
+            "===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====\n"
+            "preflight: PASSED\n"
+            "===== EXIT: 0 =====\n"
+            "\n"
+            "===== COMMAND: python -m pytest tests/test_project_gate.py -q =====\n"
+            "840 passed\n"
+            "===== EXIT: 0 =====\n"
+        )
+        entries = _execution_log_derive_commands(
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+        warnings, blocking_reasons = _execution_log_validate(
+            entries=entries,
+            pytest_text=pytest_text,
+            command_plan_payload=command_plan_payload,
+        )
+        assert not any("required command" in r.lower() for r in blocking_reasons), (
+            f"All required present, should have no required-command blocking_reasons, got {blocking_reasons}"
+        )
+
+
+class TestExecutionLogRequiredCommandsRecordedCheck:
+    """Verify the execution_log_required_commands_recorded final-check rule."""
+
+    def test_passes_when_all_required_recorded(self, tmp_path: Path) -> None:
+        """When all required command_plan commands are in execution_log,
+        the check passes."""
+        state_dir = _make_command_plan_gate_state(
+            tmp_path,
+            report_tests=[
+                "Set-Location F:\\reverse-agent",
+                "Get-Location",
+                "Test-Path F:\\reverse-agent",
+                "git rev-parse --show-toplevel",
+                "git status --short",
+                "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+                "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+        )
+        gates_dir = state_dir / "gates"
+
+        # Write execution_log.json with all required commands recorded.
+        execution_log_payload = {
+            "report_id": "codex_report_gate",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "commands": [
+                {"command": "Set-Location F:\\reverse-agent", "exit_code": 0},
+                {"command": "Get-Location", "exit_code": 0},
+                {"command": "Test-Path F:\\reverse-agent", "exit_code": 0},
+                {"command": "git rev-parse --show-toplevel", "exit_code": 0},
+                {"command": "git status --short", "exit_code": 0},
+                {"command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "exit_code": 0},
+                {"command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "exit_code": 0},
+                {"command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "exit_code": 0},
+                {"command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "exit_code": 0},
+            ],
+        }
+        (gates_dir / "execution_log.json").write_text(
+            json.dumps(execution_log_payload, indent=2), encoding="utf-8"
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        check = next(
+            (c for c in result.get("checks", []) if c["name"] == "execution_log_required_commands_recorded"),
+            None,
+        )
+        assert check is not None, "execution_log_required_commands_recorded check should be present"
+        assert check["status"] == "PASS", f"Expected PASS, got {check['status']}: {check.get('detail', '')}"
+
+    def test_fails_when_required_missing(self, tmp_path: Path) -> None:
+        """When a required command_plan command is missing from execution_log,
+        the check fails."""
+        state_dir = _make_command_plan_gate_state(
+            tmp_path,
+            report_tests=[
+                "Set-Location F:\\reverse-agent",
+                "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+                "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+        )
+        gates_dir = state_dir / "gates"
+
+        # Write execution_log.json missing the final-check command.
+        execution_log_payload = {
+            "report_id": "codex_report_gate",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "commands": [
+                {"command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "exit_code": 0},
+                {"command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "exit_code": 0},
+                {"command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "exit_code": 0},
+            ],
+        }
+        (gates_dir / "execution_log.json").write_text(
+            json.dumps(execution_log_payload, indent=2), encoding="utf-8"
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        check = next(
+            (c for c in result.get("checks", []) if c["name"] == "execution_log_required_commands_recorded"),
+            None,
+        )
+        assert check is not None
+        assert check["status"] == "FAIL", f"Expected FAIL for missing required command, got {check['status']}"
+
+    def test_passes_when_no_execution_log(self, tmp_path: Path) -> None:
+        """When execution_log.json does not exist, the check passes with
+        a skipped_reason (backward-compatible)."""
+        state_dir = _make_command_plan_gate_state(
+            tmp_path,
+            report_tests=[
+                "Set-Location F:\\reverse-agent",
+                "python -m pytest tests/test_project_gate.py -q",
+            ],
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        check = next(
+            (c for c in result.get("checks", []) if c["name"] == "execution_log_required_commands_recorded"),
+            None,
+        )
+        assert check is not None
+        assert check["status"] == "PASS"
+        assert check.get("skipped_reason") == "execution_log_not_present"
+
+
+class TestReportAutoSummaryNoSynthesizeMissing:
+    """Verify that report-auto-summary does not synthesize missing commands
+    from command_plan into tests_ran when execution_log exists."""
+
+    def test_missing_command_not_synthesized_into_tests_ran(self, tmp_path: Path) -> None:
+        """When execution_log is present but lacks a command_plan command,
+        report-auto-summary should NOT add that command to tests_ran."""
+        from reverse_agent.project_gate import report_auto_summary
+        state_dir = _make_command_plan_gate_state(
+            tmp_path,
+            report_tests=[
+                "Set-Location F:\\reverse-agent",
+                "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+                "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ],
+        )
+        gates_dir = state_dir / "gates"
+
+        # Write execution_log.json missing the final-check command.
+        execution_log_payload = {
+            "report_id": "codex_report_gate",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "commands": [
+                {"command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "exit_code": 0},
+                {"command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "exit_code": 0},
+                {"command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "exit_code": 0},
+            ],
+        }
+        (gates_dir / "execution_log.json").write_text(
+            json.dumps(execution_log_payload, indent=2), encoding="utf-8"
+        )
+
+        result = report_auto_summary(state_dir=state_dir, write_result=False)
+
+        tests_ran = result.get("summary", {}).get("tests_ran", [])
+        # final-check should NOT be in tests_ran since it was not in execution_log
+        assert not any("final-check" in t for t in tests_ran), (
+            f"final-check should not be synthesized into tests_ran, got {tests_ran}"
+        )
+
+
 class TestExecuteDecision:
     """Tests for the execute-decision thin wrapper."""
 

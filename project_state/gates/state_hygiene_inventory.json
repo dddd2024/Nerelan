@@ -1,18 +1,14 @@
 {
   "schema_version": 1,
   "plan_name": "state-hygiene-inventory",
-  "decision_id": "decision_20260624_state_hygiene_archive_scope_rework_v1",
-  "round_id": "round_20260624_state_hygiene_archive_scope_rework_v1",
-  "generated_at": "2026-06-24T06:17:04.847023Z",
+  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
+  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
+  "generated_at": "2026-06-24T07:14:39.705206Z",
   "no_rename": true,
   "no_delete": true,
   "no_neutral_live_path_created": true,
   "scan_scope": "project_state/ immediate files, project_state/gates/ immediate JSON files, and bounded archive directories from decision_contract.bounded_archive_dirs_to_inventory. No recursive scan of project_state/rounds/ or solve_reports/.",
-  "bounded_archive_dirs": [
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1",
-    "project_state/rounds/round_20260623_naming_hygiene_inventory_v1",
-    "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1"
-  ],
+  "bounded_archive_dirs": [],
   "entries": [
     {
       "path": "project_state/artifact_index.json",
@@ -1701,141 +1697,6 @@
         "gate_pipeline"
       ],
       "freshness_basis": "current_round",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/codex_execution_report.md",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive",
-        "codex_naming_convention"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/decision_packet.md",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/pytest_result.txt",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/round_manifest.json",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/codex_execution_report.md",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive",
-        "codex_naming_convention"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/decision_packet.md",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/pytest_result.txt",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/round_manifest.json",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/codex_execution_report.md",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive",
-        "codex_naming_convention"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/decision_packet.md",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/pytest_result.txt",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1/round_manifest.json",
-      "category": "round_archive_artifact",
-      "referenced_by": [
-        "round_archive"
-      ],
-      "freshness_basis": "round_archive",
       "safe_to_delete": false,
       "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
       "notes": ""

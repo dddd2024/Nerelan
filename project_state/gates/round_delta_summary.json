@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260624_state_hygiene_archive_scope_rework_v1",
-  "round_id": "round_20260624_state_hygiene_archive_scope_rework_v1",
-  "head_commit": "c42fd955535d",
+  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
+  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
+  "head_commit": "24703bdd84c7",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -32,10 +32,10 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -80,10 +80,10 @@
     "project_state/gates/run_round_result.json",
     "project_state/gates/state_hygiene_inventory.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -107,14 +107,14 @@
     "project_state/gates/run_round_result.json",
     "project_state/gates/state_hygiene_inventory.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-24T06:16:47.607312Z"
+  "generated_at": "2026-06-24T07:14:22.281596Z"
 }
