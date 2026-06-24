@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260624_closeout_transient_warning_normalization_v1",
-  "round_id": "round_20260624_closeout_transient_warning_normalization_v1",
+  "decision_id": "decision_20260624_closeout_final_state_sync_rework_v1",
+  "round_id": "round_20260624_closeout_final_state_sync_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,24 +13,28 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
-  "previous_round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
-  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
+  "previous_decision_id": "decision_20260624_closeout_transient_warning_normalization_v1",
+  "previous_round_id": "round_20260624_closeout_transient_warning_normalization_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
   "phase_label": "phase_1_5_pre_phase_2",
-  "primary_goal": "Normalize run-closeout transient pre-archive warning reporting so a resolved pre-archive report-summary/archive drift is scoped as diagnostic history rather than an active closeout warning, without weakening final-check/report-summary/closeout gates.",
+  "primary_goal": "Repair final-state synchronization after closeout transient warning normalization: live report, pytest_result, execution_log, report-summary, final-check, run-closeout, and round archive must all agree before SUCCESS/ACCEPTED is allowed.",
   "command_plan_authority_required": true,
   "accepted_requires_report_status_success": true,
   "accepted_requires_report_acceptance_accepted": true,
-  "accepted_requires_required_audit_complete": true,
   "accepted_requires_pytest_result_passed": true,
   "accepted_requires_execution_log_passed": true,
   "accepted_requires_report_summary_passed": true,
   "accepted_requires_final_check_passed": true,
   "accepted_requires_run_closeout_passed": true,
+  "accepted_requires_round_manifest_present": true,
+  "accepted_requires_archive_status_archived": true,
+  "accepted_requires_archived_report_matches_live_report": true,
+  "accepted_requires_archived_pytest_result_matches_live_pytest_result": true,
+  "accepted_requires_report_summary_fields_match_synthesis_passed": true,
+  "accepted_requires_generated_artifacts_cover_round_archive": true,
+  "accepted_requires_run_closeout_executed_steps_nonempty": true,
   "accepted_requires_no_active_closeout_warnings": true,
-  "accepted_requires_pre_archive_transient_warnings_scoped": true,
-  "accepted_requires_final_check_after_archive_passed": true,
-  "accepted_requires_report_summary_fields_match_synthesis_passed_in_final_state": true,
+  "accepted_requires_required_audit_complete": true,
   "accepted_requires_required_commands_recorded": true,
   "accepted_requires_state_hygiene_inventory_scope_complete": true,
   "accepted_requires_no_rename": true,
@@ -60,7 +64,7 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/gates/state_hygiene_inventory.json",
-    "project_state/rounds/round_20260624_closeout_transient_warning_normalization_v1/*"
+    "project_state/rounds/round_20260624_closeout_final_state_sync_rework_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -81,15 +85,31 @@
 
 ## 1. Goal
 
-Implement Closeout Transient Warning Normalization v1.
+Implement Closeout Final-State Sync Rework v1.
 
-The previous round closed the main report/pytest/final-check/closeout consistency gap and was accepted with limitations. Its final live state was coherent: `codex_execution_report.md` was `SUCCESS / ACCEPTED`, Required Audit was complete, `pytest_result.txt` was `PASSED`, `execution_log.json` was `PASSED`, `report_summary_synthesis.json` was `PASSED`, `final_gate_result.json` was `PASSED`, `run_closeout_result.json.closeout_status` was `PASSED`, and the round manifest was `SUCCESS / ACCEPTED`.
+The previous round attempted to normalize closeout transient warnings. It filled the report and generated some apparently successful artifacts, but audit found that the live final state was not synchronized:
 
-The remaining limitation is narrow: `project_state/gates/run_closeout_result.json` kept a pre-archive diagnostic warning inside `close_round_result.warnings` for `report_summary_fields_match_synthesis` even though the final post-archive check passed and the live final-check/report-summary state had no active warnings. This creates audit noise: a resolved, transient pre-archive report-summary/archive drift appears indistinguishable from an active closeout warning unless the auditor reads the later `final_check_after_archive` action.
+- `codex_execution_report.md` claimed `SUCCESS / ACCEPTED`.
+- `pytest_result.txt` claimed `PASSED` and recorded `run-closeout: PASSED`.
+- But live `project_state/gates/final_gate_result.json` had `gate_status: FAILED`.
+- Live `project_state/gates/report_summary_synthesis.json` had `synthesis_status: FAILED` and expected `FAILED / REWORK_REQUIRED` while the report claimed `SUCCESS / ACCEPTED`.
+- Live final-check reported a missing round manifest, archived report mismatch, archived pytest mismatch, generated artifacts missing the round archive manifest, and a blocking `report_summary_fields_match_synthesis` reason.
+- `project_state/gates/run_closeout_result.json` was a minimal closeout stub with `executed_steps: []`, so it was not sufficient proof of a real closeout run.
 
-This round must normalize that representation. A resolved pre-archive drift may be retained as structured diagnostic history, but it must be explicitly scoped as pre-archive/transient/resolved and must not remain as an active warning in accepted closeout evidence. The final accepted state must have no active closeout warnings, `final_check_after_archive: PASSED`, final `report_summary_fields_match_synthesis: PASS`, and `run_closeout_result.json` must make it mechanically clear that the final state is clean.
+This round must repair only that final-state synchronization problem. A report may be `SUCCESS / ACCEPTED` only when the live final gate artifacts support it mechanically. The final accepted state must have:
 
-This is a Phase 1.5 closeout/reporting cleanup. Do not perform naming migration, file deletion, neutral report path creation, Phase 2 CI/Web/AgentRunner/database work, or sample solving.
+1. `codex_execution_report.md` top summary `SUCCESS / ACCEPTED`.
+2. `pytest_result.txt` summary `PASSED`.
+3. `execution_log.json.gate_status: PASSED`.
+4. `report_summary_synthesis.json.synthesis_status: PASSED` with no diffs, errors, or warnings.
+5. `final_gate_result.json.gate_status: PASSED` with no warnings or blocking reasons.
+6. `run_closeout_result.json.closeout_status: PASSED` with non-empty real `executed_steps` evidence.
+7. current round manifest present under `project_state/rounds/round_20260624_closeout_final_state_sync_rework_v1/round_manifest.json`.
+8. archived report and archived pytest result matching live files.
+9. generated artifacts covering the current round archive files.
+10. no active closeout warnings.
+
+This is still Phase 1.5 engineering hardening. Do not perform naming migration, file deletion, neutral report path creation, Phase 2 CI/Web/AgentRunner/database work, or sample solving.
 
 ## 2. Current Evidence
 
@@ -97,30 +117,30 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` remains background-only `samplereverse` sample state and is not authoritative. The current task is controlled by this `decision_packet.md`.
 
-Previous audit outcome: `ACCEPTED_WITH_LIMITATIONS` for `decision_20260624_report_closeout_summary_consistency_rework_v1`.
+Previous audit outcome: `REWORK_REQUIRED` for `decision_20260624_closeout_transient_warning_normalization_v1`.
 
 Accepted prior-round facts:
 
-- `codex_execution_report.md` reached `SUCCESS / ACCEPTED`.
-- all eight Required Audit items were substantive and `PASS`, with no `PENDING`, `TODO`, `TBD`, or `(to be filled)` placeholder answers.
-- `pytest_result_summary.status` reached `PASSED`.
-- core tests passed: `tests/test_project_gate.py` and `tests/test_project_gate.py tests/test_project_state.py`.
-- `execution_log.json.gate_status` reached `PASSED`, with no warnings and no blocking reasons.
-- required command coverage was preserved; `run-round --execute` and `run-closeout` were recorded and passed.
-- `report_summary_synthesis.json.synthesis_status` reached `PASSED` with no diffs/errors/warnings.
-- `final_gate_result.json.gate_status` reached `PASSED`, with no warnings or blocking reasons.
-- `run_closeout_result.json.closeout_status` reached `PASSED`.
-- the round manifest reached `SUCCESS / ACCEPTED`.
+- The decision was valid and used active `reverse-agent-iteration@v2`.
+- Required Audit answers were filled and not placeholder-like.
+- Core tests passed in `pytest_result.txt`: `tests/test_project_gate.py` and `tests/test_project_gate.py tests/test_project_state.py`.
+- `execution-log`, `report-auto-summary`, and the recorded `run-closeout` command exited successfully in the command transcript.
+- `run_closeout_result.json` represented the intended closeout warning normalization shape: `warnings: []`, `resolved_pre_archive_warnings: []`, `pre_archive_diagnostics: []`, and `final_check_after_archive` with `status: PASSED`, `gate_status: PASSED`.
 
-Accepted-with-limitations fact:
+Blocking prior-round facts:
 
-- `run_closeout_result.json.close_round_result.warnings` still carried a warning for `report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary` from the pre-archive closeout phase.
-- the same `run_closeout_result.json` also recorded `final_check_after_archive` as `PASSED` with `gate_status: PASSED`, so the warning was a resolved pre-archive diagnostic, not an active final-state blocker.
-- this ambiguity should be cleaned before moving into naming migration or Phase 2.
+- Live `final_gate_result.json` had `gate_status: FAILED`.
+- Live `report_summary_synthesis.json` had `synthesis_status: FAILED`.
+- Live report summary said `SUCCESS / ACCEPTED`, but report-summary expected `FAILED / REWORK_REQUIRED`.
+- final-check reported the current round manifest missing.
+- final-check reported archived report and archived pytest result differed from live files.
+- final-check reported generated artifacts omitted the current round archive manifest.
+- final-check blocking reason included `report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary`.
+- `run_closeout_result.json.executed_steps` was empty, which is not sufficient proof of the required closeout command sequence.
 
 Artifact freshness:
 
-- All proof for this round must be regenerated under `decision_20260624_closeout_transient_warning_normalization_v1` and `round_20260624_closeout_transient_warning_normalization_v1`.
+- All proof for this rework must be regenerated under `decision_20260624_closeout_final_state_sync_rework_v1` and `round_20260624_closeout_final_state_sync_rework_v1`.
 - Prior-round artifacts are diagnostic context only.
 - Historical/backlog `samplereverse` artifacts remain external notices only and must not be claimed as current evidence.
 
@@ -134,12 +154,13 @@ Existing capabilities to preserve:
 - Required Audit placeholder blocking.
 - Phase 1 completion evidence-path checks.
 - `state_hygiene_inventory_scope_complete` archive-scope check.
+- closeout transient warning normalization without hiding real failures.
 - naming-hygiene inventory-only behavior with no rename/delete/neutral live path creation.
 
 Gate/command-plan strategy:
 
 - Use only valid profiles: `fast`, `standard`, `full`.
-- Because this round touches closeout result semantics and final accepted evidence, command-plan should select or require `full` validation.
+- Because this round repairs final accepted-state synchronization and closeout evidence, command-plan should select or require `full` validation.
 - Tests are subordinate to command-plan. If this Tests section conflicts with command-plan, command-plan is authoritative.
 - Closeout may run only if command-plan authorizes it and the selected profile allows closeout.
 
@@ -165,15 +186,19 @@ Do not modify `project_state/artifact_index.json` in this round.
 
 Do not write dynamic findings into `.codex-skills/`.
 
-Do not hide real closeout failures by relabeling them as transient. Only report-summary/archive drift that is demonstrably resolved by `final_check_after_archive: PASSED` may be marked resolved/transient.
+Do not write `SUCCESS / ACCEPTED` into `codex_execution_report.md` unless live `report_summary_synthesis.json`, `final_gate_result.json`, `execution_log.json`, `pytest_result.txt`, and `run_closeout_result.json` all support that status.
 
-Do not remove diagnostics entirely if doing so weakens auditability. Prefer preserving pre-archive diagnostics in a scoped field such as `pre_archive_diagnostics`, `resolved_pre_archive_warnings`, or an equivalent structured field that is explicitly non-final.
+Do not accept `run_closeout_result.json` with `executed_steps: []` as sufficient proof of closeout.
 
-Do not accept final output if `run_closeout_result.json` has active top-level warnings, active `close_round_result.warnings`, or ambiguous warning fields that are not marked resolved and pre-archive scoped.
+Do not accept final output if the current round manifest is missing.
 
-Do not accept final output if `final_check_after_archive` is missing, not PASSED, or has a final gate status other than PASSED.
+Do not accept final output if archived report or archived pytest result differs from live files.
 
-Do not accept final output if final `report_summary_fields_match_synthesis` is WARN/FAILED.
+Do not accept final output if generated artifacts omit current round archive files.
+
+Do not accept final output if `report_summary_fields_match_synthesis` is WARN/FAILED or is listed as a blocking reason.
+
+Do not hide real closeout/final-check/report-summary failures by relabeling them as transient.
 
 Do not use `COMPLETED_WITH_LIMITATIONS` as a report status. Supported report status values remain `SUCCESS`, `PARTIAL`, `FAILED`, and `BLOCKED`.
 
@@ -235,9 +260,9 @@ Then inspect only relevant implementation and gate evidence files:
 16. `project_state/gates/run_closeout_execution_log.json`
 17. `project_state/gates/round_delta_summary.json`
 18. `project_state/gates/round_close_snapshot.json` if present
-19. `project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
-20. `project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
-21. `project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/pytest_result.txt` only as bounded prior-round diagnostic evidence
+19. `project_state/rounds/round_20260624_closeout_transient_warning_normalization_v1/round_manifest.json` only as bounded prior-round diagnostic evidence, if present
+20. `project_state/rounds/round_20260624_closeout_transient_warning_normalization_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence, if present
+21. `project_state/rounds/round_20260624_closeout_transient_warning_normalization_v1/pytest_result.txt` only as bounded prior-round diagnostic evidence, if present
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -245,20 +270,20 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 Before claiming success, `project_state/codex_execution_report.md` must answer all eight items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. What exact pre-archive warning caused the previous `ACCEPTED_WITH_LIMITATIONS`, where was it stored, and why was it transient rather than an active final-state blocker?
-2. How does `run_closeout_result.json` now represent pre-archive diagnostics separately from active final closeout warnings?
-3. How does the implementation prove that final accepted output has no active top-level closeout warnings, no active `close_round_result.warnings`, and no ambiguous resolved warning fields?
-4. How does the implementation prove `final_check_after_archive` is present, PASSED, and has final gate status PASSED?
-5. How does final-check/report-summary prove final `report_summary_fields_match_synthesis` is PASS, with no diffs/errors/warnings in the final live state?
-6. Which regression tests cover transient pre-archive warning normalization, real unresolved closeout warning blocking, final-check-after-archive enforcement, and no evidence weakening?
-7. How were `execution_log_required_commands_recorded: PASS`, `state_hygiene_inventory_scope_complete: PASS`, Required Audit completeness, and report `SUCCESS / ACCEPTED` preserved?
+1. What final-state drift caused the previous round to fail despite a `SUCCESS / ACCEPTED` report, and which live artifacts proved the drift?
+2. How does the implementation prevent `codex_execution_report.md` from claiming `SUCCESS / ACCEPTED` when live `report_summary_synthesis.json` or `final_gate_result.json` is FAILED?
+3. How does `run_closeout_result.json` now prove a real closeout sequence with non-empty `executed_steps`, instead of a minimal stub?
+4. How does final-check prove the current round manifest exists, archive status is archived, and archived report/pytest files match live files?
+5. How does report-summary prove `report_summary_fields_match_synthesis` is PASS and that status/acceptance fields match the live report?
+6. Which regression tests cover final-state drift, missing round manifest, archive mismatch, generated-artifacts archive coverage, empty closeout executed steps, and false SUCCESS reports?
+7. How were `execution_log_required_commands_recorded: PASS`, `state_hygiene_inventory_scope_complete: PASS`, Required Audit completeness, and closeout transient warning normalization preserved?
 8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no heavy artifact scan, no rename/delete/neutral live path creation, no evidence weakening, and no Phase 2 expansion?
 
 Do not write TODO, TBD, PENDING, “should pass”, “expected to pass”, `(to be filled)`, or speculative answers.
 
 ## 6. Implementation Scope
 
-Primary scope: normalize closeout result semantics so resolved pre-archive warnings are clearly diagnostic/transient and do not appear as active accepted-state warnings.
+Primary scope: repair live final-state synchronization and prevent false accepted reports when final gate artifacts disagree.
 
 Allowed source changes:
 
@@ -286,23 +311,27 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/state_hygiene_inventory.json`
-- `project_state/rounds/round_20260624_closeout_transient_warning_normalization_v1/*`
+- `project_state/rounds/round_20260624_closeout_final_state_sync_rework_v1/*`
 
 Required behavior:
 
 1. Establish a current-round baseline before modifications.
-2. Inspect run-closeout and close-round result construction.
-3. Distinguish pre-archive diagnostics from final closeout warnings in `run_closeout_result.json`.
-4. If a pre-archive `report_summary_fields_match_synthesis` drift is resolved by successful archive and post-archive final-check, move or label it as resolved pre-archive diagnostic evidence, not an active warning.
-5. Preserve active warnings for real unresolved closeout/final-check/report-summary failures.
-6. Ensure accepted output has `run_closeout_result.json.closeout_status: PASSED`, top-level `warnings: []`, `blocking_reasons: []`, and no active `close_round_result.warnings` that represent resolved pre-archive drift.
-7. Ensure `final_check_after_archive` action is present, `status: PASSED`, and `gate_status: PASSED`.
-8. Ensure live `final_gate_result.json.gate_status: PASSED` and live `report_summary_synthesis.json.synthesis_status: PASSED` with no diffs/errors/warnings.
-9. Add or harden final-check coverage so ambiguous accepted-state closeout warnings are caught.
-10. Add focused tests for: resolved pre-archive warning scoping, unresolved closeout warning blocking, missing/failing `final_check_after_archive` blocking, and no change to hard failures.
-11. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `run_closeout_result.json`, `run_closeout_execution_log.json`, and `codex_execution_report.md`.
-12. Run closeout if and only if command-plan authorizes it.
-13. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, report-summary `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, run-closeout `PASSED`, complete Required Audit, no active closeout warnings, and no blocking reasons.
+2. Preserve closeout transient warning normalization, but do not allow it to mask final-state failures.
+3. Ensure report-summary, final-check, report-auto-summary, execution-log, pytest_result, run-closeout, and round manifest are regenerated in an order that produces a coherent final live state.
+4. Ensure `run_closeout_result.json.executed_steps` is non-empty and contains the real closeout command sequence.
+5. Ensure final-check fails if `run_closeout_result.json.executed_steps` is empty in an accepted report.
+6. Ensure final-check fails if round manifest is missing after closeout.
+7. Ensure final-check fails if archived report or archived pytest result differs from live files after closeout.
+8. Ensure final-check fails if generated_artifacts omit current round archive files.
+9. Ensure report-summary fails if synthesized status/acceptance diverges from the live report summary, and prevent the live report from claiming SUCCESS while synthesis is FAILED.
+10. Ensure `report_summary_fields_match_synthesis` is PASS in final accepted output.
+11. Ensure `codex_execution_report.md` is written as `SUCCESS / ACCEPTED` only after the live final-check and report-summary are both PASSED.
+12. Preserve `execution_log_required_commands_recorded: PASS` and `state_hygiene_inventory_scope_complete: PASS`.
+13. Preserve naming-hygiene inventory-only behavior: no rename, no delete, no neutral live report path creation.
+14. Add focused tests for false SUCCESS blocking, empty closeout executed steps, missing archive manifest, archive mismatch, generated-artifacts archive coverage, report-summary/final-check divergence, and success path.
+15. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `run_closeout_result.json`, `run_closeout_execution_log.json`, `state_hygiene_inventory.json`, and `codex_execution_report.md`.
+16. Run closeout if and only if command-plan authorizes it.
+17. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, report-summary `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, run-closeout `PASSED`, non-empty closeout executed steps, current round manifest present, archive status archived, complete Required Audit, no active closeout warnings, and no blocking reasons.
 
 Do not implement actual naming migration, rename, deletion, compatibility dual-write, schema migration, Phase 2, Web, CI, database, or multi-executor adapter in this round.
 
@@ -337,8 +366,8 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate naming-hygiene --state-dir project_state
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_closeout_transient_warning_normalization_v1 --dry-run --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_closeout_transient_warning_normalization_v1 --execute
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_closeout_final_state_sync_rework_v1 --dry-run --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_closeout_final_state_sync_rework_v1 --execute
 python -m pytest tests/test_project_gate.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
@@ -347,7 +376,7 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_closeout_transient_warning_normalization_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_closeout_final_state_sync_rework_v1
 python -m reverse_agent.project_gate naming-hygiene --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
@@ -377,9 +406,10 @@ Stop immediately and report `BLOCKED` if:
 - implementation requires creating new neutral live report paths;
 - implementation requires modifying prompt/skill files;
 - implementation requires weakening command-plan authority, required-command recording, report-summary strictness, final-check strictness, closeout strictness, or Required Audit strictness;
-- implementation requires hiding real unresolved closeout warnings as transient/resolved;
+- implementation requires accepting a false SUCCESS report while report-summary/final-check is FAILED;
+- implementation requires accepting `run_closeout_result.json.executed_steps=[]` as closeout proof;
 - implementation requires accepting `COMPLETED_WITH_LIMITATIONS` as a report status;
 - implementation requires scanning full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`;
 - Required Audit remains incomplete or placeholder-like.
 
-Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, required command recording regresses, `codex_execution_report.md` is not `SUCCESS / ACCEPTED`, `pytest_result_summary.status` is not `PASSED`, Required Audit contains PENDING/placeholders, `execution_log.json.gate_status` is not `PASSED`, report-summary is not `PASSED`, final-check is not `PASSED`, run-closeout is not `PASSED`, top-level closeout warnings are non-empty, resolved pre-archive warnings remain ambiguous active warnings, `final_check_after_archive` is missing or not PASSED, final report-summary has diffs/errors/warnings, policy-lint fails, policy-impact fails, `state_hygiene_inventory_scope_complete` is missing or not PASS, `execution_log_required_commands_recorded` is missing or not PASS, any file is renamed, any file is deleted, any neutral live report path is created, any forbidden path is mutated, final-check has warnings or blocking reasons, or the final report remains non-success for reasons other than a clearly documented real blocker.
+Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, required command recording regresses, `codex_execution_report.md` is not `SUCCESS / ACCEPTED`, `pytest_result_summary.status` is not `PASSED`, Required Audit contains PENDING/placeholders, `execution_log.json.gate_status` is not `PASSED`, report-summary is not `PASSED`, final-check is not `PASSED`, run-closeout is not `PASSED`, `run_closeout_result.json.executed_steps` is empty, current round manifest is missing, archive status is not archived, archived report/pytest mismatch live files, generated artifacts omit current round archive files, `report_summary_fields_match_synthesis` is not PASS, policy-lint fails, policy-impact fails, `state_hygiene_inventory_scope_complete` is missing or not PASS, `execution_log_required_commands_recorded` is missing or not PASS, any file is renamed, any file is deleted, any neutral live report path is created, any forbidden path is mutated, final-check has warnings or blocking reasons, or the final report remains non-success for reasons other than a clearly documented real blocker.
