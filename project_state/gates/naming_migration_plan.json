@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "plan_name": "naming-migration-plan",
-  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
-  "generated_at": "2026-06-24T07:14:39.699610Z",
+  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
+  "generated_at": "2026-06-24T12:30:20.217507Z",
   "action_this_round": "inventory_only",
   "no_rename": true,
   "no_delete": true,
@@ -95,9 +95,9 @@
     {
       "name": "codex_execution_report",
       "file": "tests/test_project_gate.py",
-      "occurrence_count": "245",
+      "occurrence_count": "255",
       "classification": "must_keep_current_compat",
-      "notes": "Test reference to 'codex_execution_report' found 245 time(s). Must keep current name for compat until migration round."
+      "notes": "Test reference to 'codex_execution_report' found 255 time(s). Must keep current name for compat until migration round."
     },
     {
       "name": "codex_report_summary",

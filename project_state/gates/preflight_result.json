@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
+  "gate_status": "BLOCKED",
+  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-24T07:05:45.894037Z",
+  "generated_at": "2026-06-24T12:28:41.852609Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -53,10 +53,10 @@
     },
     {
       "name": "decision_not_consumed_by_report",
-      "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260624_command_plan_execution_log_required_command_rework_v1"
+      "status": "FAIL",
+      "detail": "decision already appears consumed by report",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260624_report_closeout_summary_consistency_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -90,7 +90,7 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/*",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/*",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -139,18 +139,20 @@
       "conflicts": []
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "decision_not_consumed_by_report: decision already appears consumed by report"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "do_not_start_consumed_or_stale_decision",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "24703bdd84c7"
+    "head_commit": "8cdff3e42be9"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

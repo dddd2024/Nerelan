@@ -553,15 +553,10 @@ def _required_audit_coverage_check(
     is_success = report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
 
     if not report_section.strip():
-        status = "FAIL" if is_success else "WARN"
-        detail = (
-            f"report is missing ## Required Audit section ({len(questions)} items unanswered)"
-            if is_success
-            else f"report is missing ## Required Audit section but report status is {report_status}"
-        )
+        detail = f"report is missing ## Required Audit section ({len(questions)} items unanswered)"
         return _check(
             "required_audit_coverage",
-            status,
+            "FAIL",
             detail,
             required_audit_items=questions,
             missing_answers=questions,
@@ -574,15 +569,10 @@ def _required_audit_coverage_check(
             missing.append(q)
 
     if missing:
-        status = "FAIL" if is_success else "WARN"
-        detail = (
-            f"report Required Audit section is missing {len(missing)} of {len(questions)} answers"
-            if is_success
-            else f"report Required Audit section is missing {len(missing)} of {len(questions)} answers but report status is {report_status}"
-        )
+        detail = f"report Required Audit section is missing {len(missing)} of {len(questions)} answers"
         return _check(
             "required_audit_coverage",
-            status,
+            "FAIL",
             detail,
             required_audit_items=questions,
             missing_answers=missing,
@@ -604,8 +594,8 @@ def _required_audit_coverage_check(
     elif placeholder_answers and not is_success:
         return _check(
             "required_audit_coverage",
-            "WARN",
-            f"report has {len(placeholder_answers)} of {len(questions)} Required Audit items with placeholder answers but report status is {report_status}",
+            "FAIL",
+            f"report has {len(placeholder_answers)} of {len(questions)} Required Audit items with placeholder answers; substantive answers required regardless of report status",
             required_audit_items=questions,
             missing_answers=[],
             placeholder_answers=placeholder_answers,
@@ -6742,12 +6732,9 @@ def final_check(
         if not el_mismatches:
             el_check_status = "PASS"
             el_check_detail = "execution_log.json is consistent with pytest_result and command_plan"
-        elif report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
+        else:
             el_check_status = "FAIL"
             el_check_detail = "execution_log.json disagrees with pytest_result or command_plan"
-        else:
-            el_check_status = "WARN"
-            el_check_detail = "execution_log.json disagrees with pytest_result or command_plan (non-SUCCESS report)"
         checks.append(
             _check(
                 "execution_log_consistency",
@@ -7990,6 +7977,9 @@ def _command_kind(command: str) -> str:
         return "pwd"
     if lowered == "set-location" or lowered.startswith("set-location "):
         return "set-location"
+    # "pytest_result_summary.status" etc. are property references, not commands.
+    if lowered.startswith("pytest") and " " not in command and "." in command:
+        return "unknown"
     if "python -m pytest" in lowered or lowered.startswith("pytest"):
         return "pytest"
     if "python -m reverse_agent.local_reverse_single_sample_static_triage" in lowered:
@@ -10459,13 +10449,19 @@ def _run_closeout_exit_code(closeout_status: object) -> int:
 
 
 def _select_closeout_pytest_command(plan_result: dict[str, Any]) -> str:
-    """Select the pytest command from command-plan, or fall back to a safe default."""
+    """Select an executable pytest command from command-plan, or fall back to a safe default.
+
+    Skips pseudo-commands (e.g. ``pytest_result_summary.status``) that are
+    property references rather than shell-executable commands.
+    """
     for item in plan_result.get("commands") or []:
         if not isinstance(item, dict):
             continue
         if str(item.get("kind") or "") == "pytest":
             command = str(item.get("command") or "")
-            if command:
+            # Skip pseudo-commands that are property references (contain
+            # dots and no spaces, e.g. "pytest_result_summary.status").
+            if command and " " in command:
                 return command
     return "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
 

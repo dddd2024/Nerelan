@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
+  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-24T07:07:15.842558Z",
+  "generated_at": "2026-06-24T12:25:09.219250Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -28,6 +28,19 @@
   "commands": [
     {
       "index": 1,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 2,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -41,7 +54,7 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 2,
+      "index": 3,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -53,20 +66,6 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 3,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
-      "phase": "gate",
-      "kind": "run-round",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "run-round diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
       "index": 4,
@@ -187,7 +186,7 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_command_plan_execution_log_required_command_rework_v1 --dry-run --json",
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_report_closeout_summary_consistency_rework_v1 --dry-run --json",
       "phase": "gate",
       "kind": "run-round",
       "required": true,
@@ -201,7 +200,7 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_command_plan_execution_log_required_command_rework_v1 --execute",
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_report_closeout_summary_consistency_rework_v1 --execute",
       "phase": "gate",
       "kind": "run-round",
       "required": true,
@@ -228,19 +227,6 @@
     },
     {
       "index": 16,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 17,
       "command": "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
       "phase": "status",
       "kind": "project-cli",
@@ -253,7 +239,7 @@
       "notes": "project-cli expected to exit 0"
     },
     {
-      "index": 18,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate policy-impact --state-dir project_state",
       "phase": "status",
       "kind": "project-cli",
@@ -266,7 +252,7 @@
       "notes": "project-cli expected to exit 0"
     },
     {
-      "index": 19,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "phase": "gate",
       "kind": "execution-log",
@@ -280,7 +266,7 @@
       "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 20,
+      "index": 19,
       "command": "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-auto-summary",
@@ -294,21 +280,20 @@
       "notes": "report-auto-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 21,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_command_plan_execution_log_required_command_rework_v1",
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_report_closeout_summary_consistency_rework_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "run-closeout diagnostic after final-check failed; exit 1 is expected"
+      "notes": "run-closeout expected exit 0 after final-check passed"
     }
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_command_plan_execution_log_required_command_rework_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_report_closeout_summary_consistency_rework_v1"
 }

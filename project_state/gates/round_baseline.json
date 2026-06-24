@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
-  "head_commit": "24703bdd84c7",
+  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
+  "head_commit": "8cdff3e42be9",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-24T06:26:53.430491Z"
+  "generated_at": "2026-06-24T08:14:15.706497Z"
 }

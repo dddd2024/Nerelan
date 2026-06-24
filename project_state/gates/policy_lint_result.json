@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "gate_name": "policy-lint",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
-  "generated_at": "2026-06-24T06:55:45.844956Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
+  "generated_at": "2026-06-24T12:28:42.571002Z",
   "scanned_files": [
     ".codex-skills/reverse-agent-iteration/SKILL.md",
     ".codex-skills/samplereverse-frontier/SKILL.md",
@@ -14,8 +14,19 @@
     "docs/prompts/project_workspace_prompt.md",
     "project_state/decision_packet.md"
   ],
-  "findings": [],
+  "findings": [
+    {
+      "kind": "unsupported_report_status",
+      "severity": "FAIL",
+      "file": "project_state/decision_packet.md",
+      "line": 392,
+      "detail": "uses COMPLETED_WITH_LIMITATIONS as a status; only allowed as human-readable conclusion",
+      "evidence": "- implementation requires accepting `COMPLETED_WITH_LIMITATIONS` as a report status;"
+    }
+  ],
   "warnings": [],
-  "blocking_reasons": [],
-  "recommended_next_action": "no_action_required"
+  "blocking_reasons": [
+    "[FAIL] unsupported_report_status in project_state/decision_packet.md:392: uses COMPLETED_WITH_LIMITATIONS as a status; only allowed as human-readable conclusion"
+  ],
+  "recommended_next_action": "fix_policy_drift_findings"
 }

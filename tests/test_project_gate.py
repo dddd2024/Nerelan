@@ -16773,8 +16773,8 @@ def test_required_audit_coverage_check_fails_for_success_report_without_section(
     assert len(result["missing_answers"]) == 3
 
 
-def test_required_audit_coverage_check_warns_for_blocked_report_without_section() -> None:
-    """Feature B: BLOCKED report without ## Required Audit warns, not fails."""
+def test_required_audit_coverage_check_fails_for_blocked_report_without_section() -> None:
+    """Feature B: BLOCKED report without ## Required Audit fails (blocking)."""
     from reverse_agent.project_gate import _required_audit_coverage_check
 
     result = _required_audit_coverage_check(
@@ -16782,7 +16782,7 @@ def test_required_audit_coverage_check_warns_for_blocked_report_without_section(
         report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nBLOCKED\n",
         report_status="BLOCKED",
     )
-    assert result["status"] == "WARN"
+    assert result["status"] == "FAIL"
 
 
 def test_required_audit_coverage_check_passes_when_all_answered() -> None:
@@ -17167,8 +17167,8 @@ def test_required_audit_fails_for_pending_status_on_success() -> None:
     assert len(result["placeholder_answers"]) > 0
 
 
-def test_required_audit_warns_for_placeholder_answers_on_partial() -> None:
-    """Feature D: PARTIAL report with placeholder answers warns, not fails."""
+def test_required_audit_fails_for_placeholder_answers_on_partial() -> None:
+    """Feature D: PARTIAL report with placeholder answers fails (blocking)."""
     from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
 
     scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
@@ -17178,12 +17178,12 @@ def test_required_audit_warns_for_placeholder_answers_on_partial() -> None:
         report_text=report_text,
         report_status="PARTIAL",
     )
-    assert result["status"] == "WARN"
+    assert result["status"] == "FAIL"
     assert len(result["placeholder_answers"]) > 0
 
 
-def test_required_audit_warns_for_placeholder_answers_on_blocked() -> None:
-    """Feature D: BLOCKED report with placeholder answers warns, not fails."""
+def test_required_audit_fails_for_placeholder_answers_on_blocked() -> None:
+    """Feature D: BLOCKED report with placeholder answers fails (blocking)."""
     from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
 
     scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
@@ -17193,7 +17193,7 @@ def test_required_audit_warns_for_placeholder_answers_on_blocked() -> None:
         report_text=report_text,
         report_status="BLOCKED",
     )
-    assert result["status"] == "WARN"
+    assert result["status"] == "FAIL"
 
 
 def test_required_audit_passes_with_concise_answers() -> None:
@@ -21020,6 +21020,315 @@ class TestReportAutoSummaryNoSynthesizeMissing:
         assert not any("final-check" in t for t in tests_ran), (
             f"final-check should not be synthesized into tests_ran, got {tests_ran}"
         )
+
+
+class TestRequiredAuditPlaceholderBlocking:
+    """Verify that required_audit_coverage FAILs (blocks) for placeholder
+    answers regardless of report status, preventing acceptance of
+    placeholder/PENDING audit answers."""
+
+    def test_placeholder_answers_fail_for_partial_report(self) -> None:
+        """PARTIAL report with placeholder Required Audit answers FAILs."""
+        from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
+
+        scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+        report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nPARTIAL\n\n{ scaffold }\n"
+        result = _required_audit_coverage_check(
+            decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+            report_text=report_text,
+            report_status="PARTIAL",
+        )
+        assert result["status"] == "FAIL"
+        assert len(result["placeholder_answers"]) > 0
+
+    def test_placeholder_answers_fail_for_failed_report(self) -> None:
+        """FAILED report with placeholder Required Audit answers FAILs."""
+        from reverse_agent.project_gate import _required_audit_coverage_check, generate_required_audit_scaffold
+
+        scaffold = generate_required_audit_scaffold(_DECISION_WITH_REQUIRED_AUDIT)
+        report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nFAILED\n\n{ scaffold }\n"
+        result = _required_audit_coverage_check(
+            decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+            report_text=report_text,
+            report_status="FAILED",
+        )
+        assert result["status"] == "FAIL"
+        assert len(result["placeholder_answers"]) > 0
+
+    def test_missing_audit_section_fails_regardless_of_status(self) -> None:
+        """Report missing Required Audit section FAILs even for non-SUCCESS status."""
+        from reverse_agent.project_gate import _required_audit_coverage_check
+
+        for status in ("PARTIAL", "FAILED", "BLOCKED"):
+            result = _required_audit_coverage_check(
+                decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+                report_text=f"# CODEX_EXECUTION_REPORT\n\n## Status\n\n{status}\n",
+                report_status=status,
+            )
+            assert result["status"] == "FAIL", f"expected FAIL for {status} report, got {result['status']}"
+
+    def test_substantive_answers_pass_regardless_of_status(self) -> None:
+        """Report with substantive Required Audit answers passes for any status."""
+        from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions
+
+        questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+        audit_lines = ["## Required Audit", ""]
+        for i, q in enumerate(questions, start=1):
+            audit_lines.append(f"### {i}. {q}")
+            audit_lines.append("")
+            audit_lines.append("- Evidence: project_gate.py _required_audit_coverage_check")
+            audit_lines.append("- Status: PASS")
+            audit_lines.append("- Answer: substantive answers now produce FAIL regardless of report status")
+            audit_lines.append("")
+        for status in ("SUCCESS", "PARTIAL", "FAILED", "BLOCKED"):
+            report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\n{status}\n\n" + "\n".join(audit_lines) + "\n"
+            result = _required_audit_coverage_check(
+                decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+                report_text=report_text,
+                report_status=status,
+            )
+            assert result["status"] == "PASS", f"expected PASS for {status} report with substantive answers, got {result['status']}"
+
+
+class TestExecutionLogConsistencyBlocking:
+    """Verify that execution_log_consistency FAILs (blocks) for exit code
+    mismatches regardless of report status, preventing acceptance of
+    inconsistent closeout evidence."""
+
+    def test_exit_code_mismatch_fails_for_partial_report(self, tmp_path: Path) -> None:
+        """execution_log_consistency FAILs when exit codes disagree for PARTIAL report."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1,
+            "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "generated_at": "2026-06-24T00:00:00Z",
+            "source": "derived_from_pytest_result_and_command_plan",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m pytest -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "expected_exit_codes": [0],
+                    "exit_code": 0,
+                    "status": "PASSED",
+                },
+            ],
+            "warnings": [],
+            "blocking_reasons": [],
+        })
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=["python -m pytest -q", "python -m reverse_agent.project_gate final-check --state-dir project_state"],
+            body="\n\n".join(_STARTUP_COMMAND_BLOCKS)
+            + "\n\n"
+            + _command_block("python -m pytest -q", "1 failed", exit_code=1)
+            + "\n\n"
+            + _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", exit_code=0)
+            + "\n",
+        )
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="PARTIAL",
+            acceptance="NEEDS_REVIEW",
+            files_changed=["reverse_agent/project_gate.py", "tests/test_project_gate.py", "project_state/codex_execution_report.md", "project_state/pytest_result.txt", "project_state/gates/round_baseline.json", "project_state/gates/round_delta_summary.json", "project_state/gates/final_gate_result.json", "project_state/gates/report_summary_synthesis.json", "project_state/gates/execution_log.json", *archive_paths],
+            tests_ran=["python -m pytest -q", "python -m reverse_agent.project_gate final-check --state-dir project_state"],
+            generated_artifacts=["project_state/codex_execution_report.md", "project_state/pytest_result.txt", "project_state/gates/command_plan.json", "project_state/gates/round_baseline.json", "project_state/gates/round_delta_summary.json", "project_state/gates/report_summary_synthesis.json", "project_state/gates/final_gate_result.json", "project_state/gates/gate_profile_plan.json", "project_state/gates/execution_log.json", *archive_paths],
+            extra_body="## Policy Impact\n\ntests reviewed.\n",
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        consistency_check = _check(result, "execution_log_consistency")
+        assert consistency_check["status"] == "FAIL"
+
+    def test_exit_code_mismatch_fails_for_failed_report(self, tmp_path: Path) -> None:
+        """execution_log_consistency FAILs when exit codes disagree for FAILED report."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path, status="FAILED", acceptance="REWORK_REQUIRED")
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1,
+            "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "generated_at": "2026-06-24T00:00:00Z",
+            "source": "derived_from_pytest_result_and_command_plan",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m pytest -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "expected_exit_codes": [0],
+                    "exit_code": 0,
+                    "status": "PASSED",
+                },
+            ],
+            "warnings": [],
+            "blocking_reasons": [],
+        })
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=["python -m pytest -q", "python -m reverse_agent.project_gate final-check --state-dir project_state"],
+            body="\n\n".join(_STARTUP_COMMAND_BLOCKS)
+            + "\n\n"
+            + _command_block("python -m pytest -q", "1 failed", exit_code=1)
+            + "\n\n"
+            + _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", exit_code=0)
+            + "\n",
+        )
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="FAILED",
+            acceptance="REWORK_REQUIRED",
+            files_changed=["reverse_agent/project_gate.py", "tests/test_project_gate.py", "project_state/codex_execution_report.md", "project_state/pytest_result.txt", "project_state/gates/round_baseline.json", "project_state/gates/round_delta_summary.json", "project_state/gates/final_gate_result.json", "project_state/gates/report_summary_synthesis.json", "project_state/gates/execution_log.json", *archive_paths],
+            tests_ran=["python -m pytest -q", "python -m reverse_agent.project_gate final-check --state-dir project_state"],
+            generated_artifacts=["project_state/codex_execution_report.md", "project_state/pytest_result.txt", "project_state/gates/command_plan.json", "project_state/gates/round_baseline.json", "project_state/gates/round_delta_summary.json", "project_state/gates/report_summary_synthesis.json", "project_state/gates/final_gate_result.json", "project_state/gates/gate_profile_plan.json", "project_state/gates/execution_log.json", *archive_paths],
+            extra_body="## Policy Impact\n\ntests reviewed.\n",
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        consistency_check = _check(result, "execution_log_consistency")
+        assert consistency_check["status"] == "FAIL"
+
+    def test_consistent_exit_codes_pass_regardless_of_status(self, tmp_path: Path) -> None:
+        """execution_log_consistency PASSes when exit codes agree, even for PARTIAL report."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        _write_json(state_dir / "gates" / "execution_log.json", {
+            "schema_version": 1,
+            "gate_name": "execution-log",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "generated_at": "2026-06-24T00:00:00Z",
+            "source": "derived_from_pytest_result_and_command_plan",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m pytest -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "expected_exit_codes": [0],
+                    "exit_code": 0,
+                    "status": "PASSED",
+                },
+            ],
+            "warnings": [],
+            "blocking_reasons": [],
+        })
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=["python -m pytest -q", "python -m reverse_agent.project_gate final-check --state-dir project_state"],
+            body="\n\n".join(_STARTUP_COMMAND_BLOCKS)
+            + "\n\n"
+            + _command_block("python -m pytest -q", "all passed", exit_code=0)
+            + "\n\n"
+            + _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED", exit_code=0)
+            + "\n",
+        )
+        archive_paths = _archive_paths("round_gate")
+        _write_report(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            status="PARTIAL",
+            acceptance="NEEDS_REVIEW",
+            files_changed=["reverse_agent/project_gate.py", "tests/test_project_gate.py", "project_state/codex_execution_report.md", "project_state/pytest_result.txt", "project_state/gates/round_baseline.json", "project_state/gates/round_delta_summary.json", "project_state/gates/final_gate_result.json", "project_state/gates/report_summary_synthesis.json", "project_state/gates/execution_log.json", *archive_paths],
+            tests_ran=["python -m pytest -q", "python -m reverse_agent.project_gate final-check --state-dir project_state"],
+            generated_artifacts=["project_state/codex_execution_report.md", "project_state/pytest_result.txt", "project_state/gates/command_plan.json", "project_state/gates/round_baseline.json", "project_state/gates/round_delta_summary.json", "project_state/gates/report_summary_synthesis.json", "project_state/gates/final_gate_result.json", "project_state/gates/gate_profile_plan.json", "project_state/gates/execution_log.json", *archive_paths],
+            extra_body="## Policy Impact\n\ntests reviewed.\n",
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        consistency_check = _check(result, "execution_log_consistency")
+        assert consistency_check["status"] == "PASS"
+
+
+class TestResultStatusWarnBlocking:
+    """Verify that _result_status does not return WARN when substantive
+    checks are resolved, and that gate_status reaches PASSED when only
+    non-blocking historical WARNs remain."""
+
+    def test_result_status_passed_with_only_status_policy_valid_warn(self) -> None:
+        """When the only WARN is status_policy_valid with historical
+        external_state_notices, _result_status returns PASSED for
+        engineering_branch."""
+        from reverse_agent.project_gate import _result_status
+
+        checks = [
+            {"name": "decision_report_match", "status": "PASS"},
+            {"name": "required_audit_coverage", "status": "PASS"},
+            {"name": "execution_log_consistency", "status": "PASS"},
+            {"name": "status_policy_valid", "status": "WARN", "external_state_notices": ["50 missing historical sample artifacts"]},
+        ]
+        result = _result_status(checks, "SUCCESS", mainline="engineering_branch")
+        assert result == "PASSED"
+
+    def test_result_status_failed_with_required_audit_fail(self) -> None:
+        """When required_audit_coverage is FAIL, _result_status returns FAILED."""
+        from reverse_agent.project_gate import _result_status
+
+        checks = [
+            {"name": "decision_report_match", "status": "PASS"},
+            {"name": "required_audit_coverage", "status": "FAIL"},
+            {"name": "execution_log_consistency", "status": "PASS"},
+        ]
+        result = _result_status(checks, "PARTIAL", mainline="engineering_branch")
+        assert result == "FAILED"
+
+    def test_result_status_failed_with_execution_log_consistency_fail(self) -> None:
+        """When execution_log_consistency is FAIL, _result_status returns FAILED."""
+        from reverse_agent.project_gate import _result_status
+
+        checks = [
+            {"name": "decision_report_match", "status": "PASS"},
+            {"name": "required_audit_coverage", "status": "PASS"},
+            {"name": "execution_log_consistency", "status": "FAIL"},
+        ]
+        result = _result_status(checks, "PARTIAL", mainline="engineering_branch")
+        assert result == "FAILED"
+
+    def test_result_status_passed_when_all_substantive_checks_pass(self) -> None:
+        """When all substantive checks PASS and only non-blocking historical
+        WARNs remain, _result_status returns PASSED for engineering_branch."""
+        from reverse_agent.project_gate import _result_status
+
+        checks = [
+            {"name": "decision_report_match", "status": "PASS"},
+            {"name": "required_audit_coverage", "status": "PASS"},
+            {"name": "execution_log_consistency", "status": "PASS"},
+            {"name": "execution_log_required_commands_recorded", "status": "PASS"},
+            {"name": "state_hygiene_inventory_scope_complete", "status": "PASS"},
+            {"name": "status_policy_valid", "status": "WARN", "external_state_notices": ["50 missing historical sample artifacts"]},
+        ]
+        result = _result_status(checks, "SUCCESS", mainline="engineering_branch")
+        assert result == "PASSED"
 
 
 class TestExecuteDecision:

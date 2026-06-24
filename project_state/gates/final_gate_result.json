@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "WARN",
-  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-  "report_id": "codex_report_20260624_command_plan_execution_log_required_command_rework_v1",
-  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
-  "generated_at": "2026-06-24T07:14:22.369778Z",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+  "report_id": "codex_report_20260624_report_closeout_summary_consistency_rework_v1",
+  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
+  "generated_at": "2026-06-24T12:27:28.057948Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260624_command_plan_execution_log_required_command_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260624_report_closeout_summary_consistency_rework_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -62,9 +62,6 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/naming_migration_plan.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -73,12 +70,11 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
-        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -89,9 +85,6 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/naming_migration_plan.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -100,12 +93,11 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
-        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -128,9 +120,6 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/naming_migration_plan.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -139,12 +128,11 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
-        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -155,9 +143,6 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/naming_migration_plan.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -166,12 +151,11 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
-        "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -342,27 +326,23 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-      "closeout_log_round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
-      "expected_decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-      "expected_round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1"
+      "closeout_log_decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+      "closeout_log_round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
+      "expected_decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+      "expected_round_id": "round_20260624_report_closeout_summary_consistency_rework_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260624_command_plan_execution_log_required_command_rework_v1",
-      "expected_report_id": "codex_report_20260624_command_plan_execution_log_required_command_rework_v1"
+      "execution_log_report_id": "codex_report_20260624_report_closeout_summary_consistency_rework_v1",
+      "expected_report_id": "codex_report_20260624_report_closeout_summary_consistency_rework_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
       "status": "PASS",
-      "detail": "required closeout artifacts covered by referenced or generated artifacts",
-      "required_closeout_artifacts": [
-        "project_state/rounds/round_20260623_naming_hygiene_inventory_v1",
-        "project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1",
-        "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1"
-      ],
+      "detail": "no required closeout artifacts declared in decision",
+      "required_closeout_artifacts": [],
       "referenced_artifacts": [],
       "uncovered_artifacts": []
     },
@@ -378,8 +358,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-      "command_plan_round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1"
+      "command_plan_decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+      "command_plan_round_id": "round_20260624_report_closeout_summary_consistency_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -435,12 +415,8 @@
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [
-        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
-      ],
-      "non_blocking_warnings": [
-        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
-      ]
+      "warnings": [],
+      "non_blocking_warnings": []
     },
     {
       "name": "preflight_failure_handoff",
@@ -472,8 +448,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-      "gate_profile_round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1"
+      "gate_profile_decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+      "gate_profile_round_id": "round_20260624_report_closeout_summary_consistency_rework_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -505,29 +481,20 @@
     },
     {
       "name": "required_audit_coverage",
-      "status": "WARN",
-      "detail": "report has 8 of 8 Required Audit items with placeholder answers but report status is PARTIAL",
+      "status": "PASS",
+      "detail": "report covers all 8 Required Audit items with substantive answers",
       "required_audit_items": [
-        "Which required command was missing in the previous round, and how does the new logic detect required command absence from actual `pytest_result.txt` command blocks?",
-        "How does `execution_log.json` now treat command-plan required commands missing from actual command blocks: `PASSED`, `WARN`, or `FAILED`? Why is that status acceptable?",
-        "How does final-check now block `execution_log.gate_status == WARN` or `FAILED` when warnings/errors involve missing required command coverage?",
-        "How does report-auto-summary ensure it does not synthesize a command into `tests_ran` if that command is absent from `execution_log.commands` or actual `pytest_result.txt` command blocks?",
-        "How do `codex_execution_report.md`, `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, and `report_summary_synthesis.json` now agree on `tests_ran`?",
-        "Which regression tests prove missing required commands fail execution-log/final-check/report-summary, and that truly recorded `run-round --execute` passes?",
-        "How was `state_hygiene_inventory_scope_complete` preserved as PASS while fixing the execution-log/report-summary issue?",
+        "How were all eight Required Audit placeholder/PENDING answers replaced with substantive evidence-backed answers, and which check now prevents placeholder acceptance?",
+        "How was `pytest_result_summary.status` made consistent with the actual command outcomes and final report status?",
+        "How was the `run-closeout` exit code mismatch between `execution_log.json` and `pytest_result.txt` resolved or correctly scoped as nested closeout evidence?",
+        "How does final-check now reach `PASSED` instead of `WARN`, and which previous WARN checks are gone or intentionally resolved?",
+        "How do `codex_execution_report.md`, `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, and `run_closeout_result.json` now agree on status, tests_ran, generated_artifacts, report_id, decision_id, and round_id?",
+        "Which regression tests prove report status, pytest summary, Required Audit coverage, final-check status, report-summary status, and closeout exit-code consistency?",
+        "How were `execution_log_required_commands_recorded: PASS` and `state_hygiene_inventory_scope_complete: PASS` preserved?",
         "How does this round preserve no sample-solving behavior, no prompt/skill mutation, no heavy artifact scan, no rename/delete/neutral live path creation, no evidence weakening, and no Phase 2 expansion?"
       ],
       "missing_answers": [],
-      "placeholder_answers": [
-        "Which required command was missing in the previous round, and how does the new logic detect required command absence from actual `pytest_result.txt` command blocks?",
-        "How does `execution_log.json` now treat command-plan required commands missing from actual command blocks: `PASSED`, `WARN`, or `FAILED`? Why is that status acceptable?",
-        "How does final-check now block `execution_log.gate_status == WARN` or `FAILED` when warnings/errors involve missing required command coverage?",
-        "How does report-auto-summary ensure it does not synthesize a command into `tests_ran` if that command is absent from `execution_log.commands` or actual `pytest_result.txt` command blocks?",
-        "How do `codex_execution_report.md`, `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, and `report_summary_synthesis.json` now agree on `tests_ran`?",
-        "Which regression tests prove missing required commands fail execution-log/final-check/report-summary, and that truly recorded `run-round --execute` passes?",
-        "How was `state_hygiene_inventory_scope_complete` preserved as PASS while fixing the execution-log/report-summary issue?",
-        "How does this round preserve no sample-solving behavior, no prompt/skill mutation, no heavy artifact scan, no rename/delete/neutral live path creation, no evidence weakening, and no Phase 2 expansion?"
-      ]
+      "placeholder_answers": []
     },
     {
       "name": "policy_impact_coverage",
@@ -554,16 +521,12 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "WARN",
-      "detail": "current-round artifacts complete; historical/backlog artifacts non-blocking",
+      "status": "PASS",
+      "detail": "SUCCESS report passes lint and doctor",
       "lint_errors": [],
-      "warnings": [
-        "pytest_result header status is FAILED but body contains no failure markers",
-        "report_status is PARTIAL",
-        "doctor status is WARN (historical/backlog artifacts non-blocking)"
-      ],
-      "doctor_status": "WARN",
-      "report_status": "PARTIAL",
+      "warnings": [],
+      "doctor_status": "PASS",
+      "report_status": "SUCCESS",
       "limitations": null,
       "artifact_freshness_policy": "claim_aware",
       "required_current_artifacts": [],
@@ -582,22 +545,16 @@
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
       "detail": "recorded final-check stdout matches gate_status",
-      "expected_gate_status": "WARN",
-      "recorded_stdout_status": "WARN",
+      "expected_gate_status": "PASSED",
+      "recorded_stdout_status": "PASSED",
       "conservative_warn_accepted": false
     },
     {
       "name": "execution_log_consistency",
-      "status": "WARN",
-      "detail": "execution_log.json disagrees with pytest_result or command_plan (non-SUCCESS report)",
-      "mismatches": [
-        {
-          "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_command_plan_execution_log_required_command_rework_v1",
-          "execution_log_exit_code": 1,
-          "pytest_result_exit_code": 0
-        }
-      ],
-      "required": true
+      "status": "PASS",
+      "detail": "execution_log.json is consistent with pytest_result and command_plan",
+      "mismatches": [],
+      "required": false
     },
     {
       "name": "execution_log_required_commands_recorded",
@@ -630,18 +587,14 @@
     }
   ],
   "blocking_reasons": [],
-  "warnings": [
-    "required_audit_coverage: report has 8 of 8 Required Audit items with placeholder answers but report status is PARTIAL",
-    "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking",
-    "execution_log_consistency: execution_log.json disagrees with pytest_result or command_plan (non-SUCCESS report)"
-  ],
-  "recommended_next_action": "review_warnings_before_closeout",
+  "warnings": [],
+  "recommended_next_action": "no_action_required",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "archive_status": "archived",
-    "report_status": "PARTIAL",
-    "report_acceptance_recommendation": "NEEDS_REVIEW"
+    "report_status": "SUCCESS",
+    "report_acceptance_recommendation": "ACCEPTED"
   }
 }
