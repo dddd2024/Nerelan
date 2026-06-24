@@ -21146,4 +21146,137 @@ class TestNamingHygiene:
         )
         assert result.returncode == 0
 
+    def test_archive_dirs_included_in_inventory(self, tmp_path: Path) -> None:
+        """Bounded archive directories from decision_contract are included in state_hygiene_inventory.json."""
+        from reverse_agent.project_gate import naming_hygiene
+        import json
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # Create bounded archive directory with files
+        archive_dir = tmp_path / "project_state" / "rounds" / "round_test_archive"
+        archive_dir.mkdir(parents=True)
+        (archive_dir / "round_manifest.json").write_text('{}', encoding="utf-8")
+        (archive_dir / "codex_execution_report.md").write_text("# Report\n", encoding="utf-8")
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n'
+            '```json decision_contract\n{"bounded_archive_dirs_to_inventory":["project_state/rounds/round_test_archive"]}\n```\n',
+            encoding="utf-8",
+        )
+        naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        inv = json.loads((gates_dir / "state_hygiene_inventory.json").read_text(encoding="utf-8"))
+        archive_entries = [e for e in inv["entries"] if e.get("category") == "round_archive_artifact"]
+        assert len(archive_entries) >= 2, f"expected at least 2 archive entries, got {len(archive_entries)}"
+        archive_paths = {e["path"] for e in archive_entries}
+        assert "project_state/rounds/round_test_archive/round_manifest.json" in archive_paths
+        assert "project_state/rounds/round_test_archive/codex_execution_report.md" in archive_paths
+
+    def test_archive_entries_classified_and_safe_to_delete_false(self, tmp_path: Path) -> None:
+        """Archive entries are classified as round_archive_artifact with safe_to_delete=False."""
+        from reverse_agent.project_gate import naming_hygiene
+        import json
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        archive_dir = tmp_path / "project_state" / "rounds" / "round_prev"
+        archive_dir.mkdir(parents=True)
+        (archive_dir / "round_manifest.json").write_text('{}', encoding="utf-8")
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n'
+            '```json decision_contract\n{"bounded_archive_dirs_to_inventory":["project_state/rounds/round_prev"]}\n```\n',
+            encoding="utf-8",
+        )
+        naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        inv = json.loads((gates_dir / "state_hygiene_inventory.json").read_text(encoding="utf-8"))
+        archive_entries = [e for e in inv["entries"] if "/rounds/" in e["path"]]
+        for entry in archive_entries:
+            assert entry["category"] == "round_archive_artifact", f"{entry['path']} has category {entry['category']}"
+            assert entry["safe_to_delete"] is False, f"{entry['path']} has safe_to_delete=True"
+            assert "round_archive" in entry.get("referenced_by", []), f"{entry['path']} missing round_archive in referenced_by"
+            assert entry["freshness_basis"] == "round_archive", f"{entry['path']} has freshness_basis {entry['freshness_basis']}"
+
+    def test_no_full_rounds_scan(self, tmp_path: Path) -> None:
+        """Only bounded archive dirs are scanned, not the full project_state/rounds/ tree."""
+        from reverse_agent.project_gate import naming_hygiene
+        import json
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # Create two archive dirs, but only one is bounded
+        bounded_dir = tmp_path / "project_state" / "rounds" / "round_bounded"
+        bounded_dir.mkdir(parents=True)
+        (bounded_dir / "round_manifest.json").write_text('{}', encoding="utf-8")
+        unbounded_dir = tmp_path / "project_state" / "rounds" / "round_unbounded"
+        unbounded_dir.mkdir(parents=True)
+        (unbounded_dir / "round_manifest.json").write_text('{}', encoding="utf-8")
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n'
+            '```json decision_contract\n{"bounded_archive_dirs_to_inventory":["project_state/rounds/round_bounded"]}\n```\n',
+            encoding="utf-8",
+        )
+        naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        inv = json.loads((gates_dir / "state_hygiene_inventory.json").read_text(encoding="utf-8"))
+        paths = {e["path"] for e in inv["entries"]}
+        assert "project_state/rounds/round_bounded/round_manifest.json" in paths
+        assert "project_state/rounds/round_unbounded/round_manifest.json" not in paths
+
+    def test_inventory_scope_complete_check(self, tmp_path: Path) -> None:
+        """state_hygiene_inventory_scope_complete final-check verifies archive coverage."""
+        from reverse_agent.project_gate import naming_hygiene, final_check
+        import json
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # Create bounded archive directory
+        archive_dir = tmp_path / "project_state" / "rounds" / "round_test"
+        archive_dir.mkdir(parents=True)
+        (archive_dir / "round_manifest.json").write_text('{}', encoding="utf-8")
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n'
+            '```json decision_contract\n{"bounded_archive_dirs_to_inventory":["project_state/rounds/round_test"]}\n```\n',
+            encoding="utf-8",
+        )
+        naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        scope_check = next(
+            (c for c in result.get("checks", []) if c.get("name") == "state_hygiene_inventory_scope_complete"),
+            None,
+        )
+        assert scope_check is not None, "state_hygiene_inventory_scope_complete check not found"
+        assert scope_check["status"] == "PASS", f"Expected PASS, got {scope_check['status']}: {scope_check.get('detail')}"
+
+    def test_inventory_scope_complete_fails_on_missing_archive(self, tmp_path: Path) -> None:
+        """state_hygiene_inventory_scope_complete fails if archive files are missing from inventory."""
+        from reverse_agent.project_gate import final_check
+        import json
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # Create archive dir but don't include its files in the inventory
+        archive_dir = tmp_path / "project_state" / "rounds" / "round_missing"
+        archive_dir.mkdir(parents=True)
+        (archive_dir / "round_manifest.json").write_text('{}', encoding="utf-8")
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id":"d1","round_id":"r1","status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n```\n'
+            '```json decision_contract\n{"bounded_archive_dirs_to_inventory":["project_state/rounds/round_missing"]}\n```\n',
+            encoding="utf-8",
+        )
+        # Write an empty inventory (no archive entries)
+        (gates_dir / "state_hygiene_inventory.json").write_text(
+            json.dumps({"schema_version": 1, "entries": []}) + "\n",
+            encoding="utf-8",
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        scope_check = next(
+            (c for c in result.get("checks", []) if c.get("name") == "state_hygiene_inventory_scope_complete"),
+            None,
+        )
+        assert scope_check is not None
+        assert scope_check["status"] == "FAIL", f"Expected FAIL, got {scope_check['status']}"
+
 
