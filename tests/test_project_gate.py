@@ -3704,18 +3704,29 @@ def test_run_round_execute_skips_self_invocation(tmp_path: Path) -> None:
         tmp_path,
         tests_block="python -m reverse_agent.project_gate run-round --state-dir project_state --execute",
     )
+    pytest_result_path = state_dir / "pytest_result.txt"
     seen: list[str] = []
 
     def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
         seen.append(command)
         return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
 
-    result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+    result = run_round(
+        state_dir=state_dir,
+        dry_run=False,
+        repo_root=tmp_path,
+        command_runner=fake_runner,
+        pytest_result_path=pytest_result_path,
+    )
 
     # run-round commands should be in skipped_commands, not executed
     skipped_commands = result.get("skipped_commands") or []
     skipped_reasons = [s.get("reason", "") for s in skipped_commands]
     assert any("self-invocation" in r for r in skipped_reasons)
+    content = pytest_result_path.read_text(encoding="utf-8")
+    assert "===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --execute =====" in content
+    assert "reason: self-invocation guard: run-round must not invoke itself recursively" in content
+    assert "===== EXIT: 0 =====" in content
 
 
 def test_run_round_execute_runs_closeout(tmp_path: Path) -> None:
@@ -4212,7 +4223,7 @@ class TestRunRoundCommandBlockRecording:
             pytest_result_path=pytest_path,
         )
 
-        assert result["recorded_command_blocks"] == ["python -m pytest tests/test_project_gate.py -q"]
+        assert "python -m pytest tests/test_project_gate.py -q" in result["recorded_command_blocks"]
         assert pytest_path.exists()
         content = pytest_path.read_text(encoding="utf-8")
         assert "===== COMMAND: python -m pytest tests/test_project_gate.py -q =====" in content
@@ -4283,7 +4294,7 @@ class TestRunRoundCommandBlockRecording:
 
         assert result["recorded_command_blocks"] == []
 
-    def test_execute_skipped_commands_not_recorded_in_command_blocks(self, tmp_path: Path) -> None:
+    def test_execute_self_invocation_skip_records_guard_block(self, tmp_path: Path) -> None:
         state_dir = _make_command_plan_state(
             tmp_path,
             tests_block="""python -m pytest tests/test_project_gate.py -q
@@ -4303,9 +4314,51 @@ python -m reverse_agent.project_gate run-round --state-dir project_state --execu
             pytest_result_path=pytest_path,
         )
 
-        assert result["recorded_command_blocks"] == ["python -m pytest tests/test_project_gate.py -q"]
+        assert "python -m pytest tests/test_project_gate.py -q" in result["recorded_command_blocks"]
+        assert (
+            "python -m reverse_agent.project_gate run-round --state-dir project_state --execute"
+            in result["recorded_command_blocks"]
+        )
         content = pytest_path.read_text(encoding="utf-8")
-        assert "run-round" not in content
+        assert "===== COMMAND: python -m pytest tests/test_project_gate.py -q =====" in content
+        assert (
+            "===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --execute ====="
+            in content
+        )
+        assert "reason: self-invocation guard: run-round must not invoke itself recursively" in content
+
+    def test_execute_reinitializes_stale_pytest_result(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        pytest_path = state_dir / "pytest_result.txt"
+        pytest_path.write_text(
+            "```json pytest_result_summary\n"
+            '{"decision_id":"old_decision","round_id":"old_round","status":"PASSED","tests_ran":[]}'
+            "\n```\n\n"
+            "===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id old_round =====\n"
+            "old failure\n"
+            "===== EXIT: 1 =====\n",
+            encoding="utf-8",
+        )
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        run_round(
+            state_dir=state_dir,
+            dry_run=False,
+            repo_root=tmp_path,
+            command_runner=fake_runner,
+            pytest_result_path=pytest_path,
+        )
+
+        content = pytest_path.read_text(encoding="utf-8")
+        assert "old_decision" not in content
+        assert "old failure" not in content
+        assert "old_round" not in content
+        assert "===== COMMAND: python -m pytest tests/test_project_gate.py -q =====" in content
 
 
 class TestRunRoundDryRunPreservation:
@@ -4400,7 +4453,7 @@ python -c "print('not reached')"
 
         content = pytest_path.read_text(encoding="utf-8")
         assert "===== EXIT: 7 =====" in content
-        assert "not reached" not in content
+        assert "===== COMMAND: python -c \"print('not reached')\" =====" not in content
 
 
 # ---------------------------------------------------------------------------

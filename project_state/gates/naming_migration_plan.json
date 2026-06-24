@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "plan_name": "naming-migration-plan",
-  "decision_id": "decision_20260624_closeout_transient_warning_normalization_v1",
-  "round_id": "round_20260624_closeout_transient_warning_normalization_v1",
-  "generated_at": "2026-06-24T13:23:24.451974Z",
+  "decision_id": "decision_20260624_closeout_final_state_sync_rework_v1",
+  "round_id": "round_20260624_closeout_final_state_sync_rework_v1",
+  "generated_at": "2026-06-24T16:02:11.029039Z",
   "action_this_round": "inventory_only",
   "no_rename": true,
   "no_delete": true,
@@ -74,9 +74,9 @@
     {
       "name": "codex_execution_report",
       "file": "reverse_agent/project_gate.py",
-      "occurrence_count": "37",
+      "occurrence_count": "38",
       "classification": "must_keep_current_compat",
-      "notes": "Code reference to 'codex_execution_report' found 37 time(s). Must keep current name for compat until migration round."
+      "notes": "Code reference to 'codex_execution_report' found 38 time(s). Must keep current name for compat until migration round."
     },
     {
       "name": "codex_report_summary",
