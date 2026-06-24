@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "plan_name": "state-hygiene-inventory",
-  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
-  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
-  "generated_at": "2026-06-24T12:30:20.223244Z",
+  "decision_id": "decision_20260624_closeout_transient_warning_normalization_v1",
+  "round_id": "round_20260624_closeout_transient_warning_normalization_v1",
+  "generated_at": "2026-06-24T13:23:24.457560Z",
   "no_rename": true,
   "no_delete": true,
   "no_neutral_live_path_created": true,
@@ -1659,17 +1659,6 @@
     },
     {
       "path": "project_state/gates/run_closeout_execution_log.json",
-      "category": "current_live_artifact",
-      "referenced_by": [
-        "gate_pipeline"
-      ],
-      "freshness_basis": "current_round",
-      "safe_to_delete": false,
-      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
-      "notes": ""
-    },
-    {
-      "path": "project_state/gates/run_closeout_result.json",
       "category": "current_live_artifact",
       "referenced_by": [
         "gate_pipeline"

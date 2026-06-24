@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "BLOCKED",
-  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
-  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
+  "decision_id": "decision_20260624_closeout_transient_warning_normalization_v1",
+  "round_id": "round_20260624_closeout_transient_warning_normalization_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-24T12:28:41.852609Z",
+  "generated_at": "2026-06-24T13:50:22.608648Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "FAIL",
       "detail": "decision already appears consumed by report",
       "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "report_id": "codex_report_20260624_report_closeout_summary_consistency_rework_v1"
+      "report_id": "codex_report_20260624_closeout_transient_warning_normalization_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -90,7 +90,7 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/*",
+        "project_state/rounds/round_20260624_closeout_transient_warning_normalization_v1/*",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -147,7 +147,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "8cdff3e42be9"
+    "head_commit": "6fbbefcad6d6"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",

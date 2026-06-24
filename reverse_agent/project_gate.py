@@ -6932,6 +6932,80 @@ def final_check(
         except (json.JSONDecodeError, OSError):
             checks.append({"name": "phase1_completion_status", "status": "FAIL", "detail": "Phase 1 completion artifact is not valid JSON"})
 
+    # Closeout active warnings clean check: when run_closeout_result.json
+    # exists and the report is SUCCESS/ACCEPTED, verify that the closeout
+    # result has no active top-level warnings and no active
+    # close_round_result warnings that are not scoped as resolved
+    # pre-archive diagnostics.  This catches ambiguous accepted-state
+    # closeout warnings that should have been normalized to
+    # resolved_pre_archive_warnings.
+    closeout_result_path = state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME
+    if closeout_result_path.exists():
+        try:
+            closeout_data = json.loads(closeout_result_path.read_text(encoding="utf-8"))
+            closeout_warnings = list(closeout_data.get("warnings") or [])
+            close_round_result = closeout_data.get("close_round_result") or {}
+            cr_warnings = list(close_round_result.get("warnings") or [])
+            cr_resolved = list(close_round_result.get("resolved_pre_archive_warnings") or [])
+            cr_close_status = str(close_round_result.get("close_status") or "")
+            cr_actions = list(close_round_result.get("actions") or [])
+            _fcaa = any(
+                a.get("name") == "final_check_after_archive"
+                and a.get("status") == "PASSED"
+                and a.get("gate_status") == "PASSED"
+                for a in cr_actions
+            )
+            _active_cr_warnings = [
+                w for w in cr_warnings
+                if w not in cr_resolved
+            ]
+            if not closeout_warnings and not _active_cr_warnings:
+                _caw_status = "PASS"
+                _caw_detail = "closeout result has no active warnings"
+            elif _fcaa and not closeout_warnings and _active_cr_warnings:
+                # final_check_after_archive passed but close_round_result
+                # still has warnings that are not in resolved_pre_archive_warnings.
+                # These are ambiguous: they may be pre-archive transients
+                # that were not properly normalized.
+                _caw_status = "FAIL"
+                _caw_detail = (
+                    "close_round_result has active warnings despite "
+                    "final_check_after_archive PASSED; these should be "
+                    "normalized to resolved_pre_archive_warnings"
+                )
+            else:
+                _caw_status = "WARN"
+                _caw_detail = "closeout result has active warnings"
+            checks.append(
+                _check(
+                    "closeout_active_warnings_clean",
+                    _caw_status,
+                    _caw_detail,
+                    closeout_warnings=closeout_warnings,
+                    close_round_result_warnings=cr_warnings,
+                    resolved_pre_archive_warnings=cr_resolved,
+                    active_close_round_result_warnings=_active_cr_warnings,
+                    final_check_after_archive_passed=_fcaa,
+                    close_round_close_status=cr_close_status,
+                )
+            )
+        except (json.JSONDecodeError, OSError):
+            checks.append(
+                _check(
+                    "closeout_active_warnings_clean",
+                    "PASS",
+                    "run_closeout_result.json not parseable; backward-compatible",
+                )
+            )
+    else:
+        checks.append(
+            _check(
+                "closeout_active_warnings_clean",
+                "PASS",
+                "run_closeout_result.json not present; backward-compatible",
+            )
+        )
+
     gate_status = _result_status(checks, report_status, mainline=str(decision.get("mainline") or ""))
     warnings = [
         f"{check['name']}: {check['detail']}"
@@ -7912,7 +7986,66 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             round_id=requested_round_id,
         )
 
-    warnings = [f"{check['name']}: {check['detail']}" for check in checks if check.get("status") == "WARN"]
+    # Separate resolved pre-archive warnings from active warnings.
+    # When close_status is CLOSED and final_check_after_archive passed,
+    # any WARN check that was archive-pending (i.e., expected to resolve
+    # after archive creation) is a resolved pre-archive transient, not
+    # an active closeout warning.  Move those to resolved_pre_archive_warnings
+    # so the top-level warnings list reflects only truly active issues.
+    _all_warn_checks = [check for check in checks if check.get("status") == "WARN"]
+    _final_check_after_archive_passed = (
+        close_status == "CLOSED"
+        and any(
+            action.get("name") == "final_check_after_archive"
+            and action.get("status") == "PASSED"
+            and action.get("gate_status") == "PASSED"
+            for action in actions
+        )
+    )
+    _resolved_pre_archive_check_names: set[str] = set()
+    if _final_check_after_archive_passed:
+        # Identify which WARN checks were archive-pending transients.
+        # These are checks in ARCHIVE_PENDING_CHECKS, plus
+        # report_summary_fields_match_synthesis when its failure was
+        # solely due to archive path diffs, and
+        # pytest_result_exit_codes_match_command_plan when its failure
+        # was solely due to missing closeout-related command blocks.
+        for check in _all_warn_checks:
+            check_name = check.get("name") or ""
+            if check_name in ARCHIVE_PENDING_CHECKS:
+                _resolved_pre_archive_check_names.add(check_name)
+            elif check_name == "report_summary_fields_match_synthesis":
+                if _report_summary_failure_is_archive_only(
+                    check, report_status=report_status
+                ):
+                    _resolved_pre_archive_check_names.add(check_name)
+            elif check_name == "pytest_result_exit_codes_match_command_plan":
+                if _pytest_result_missing_only_closeout_related(check):
+                    _resolved_pre_archive_check_names.add(check_name)
+
+    resolved_pre_archive_warnings = [
+        f"{check['name']}: {check['detail']}"
+        for check in _all_warn_checks
+        if check.get("name") in _resolved_pre_archive_check_names
+    ]
+    warnings = [
+        f"{check['name']}: {check['detail']}"
+        for check in _all_warn_checks
+        if check.get("name") not in _resolved_pre_archive_check_names
+    ]
+    # Build structured pre-archive diagnostics for auditability.
+    # This preserves the diagnostic history without treating it as
+    # an active closeout warning.
+    pre_archive_diagnostics = [
+        {
+            "check_name": check.get("name"),
+            "detail": check.get("detail"),
+            "resolution": "resolved_by_final_check_after_archive",
+            "scope": "pre_archive_transient",
+        }
+        for check in _all_warn_checks
+        if check.get("name") in _resolved_pre_archive_check_names
+    ]
     blocking_reasons = [f"{check['name']}: {check['detail']}" for check in checks if check.get("status") == "FAIL"]
     for action in actions:
         if action.get("status") == "FAILED":
@@ -7933,6 +8066,8 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         "archive": archive_payload,
         "blocking_reasons": blocking_reasons,
         "warnings": warnings,
+        "resolved_pre_archive_warnings": resolved_pre_archive_warnings,
+        "pre_archive_diagnostics": pre_archive_diagnostics,
         "recommended_next_action": _close_round_recommended_next_action(close_status),
         "status_summary": {
             "decision_execution_state": status.get("decision_execution_state"),
@@ -8852,7 +8987,7 @@ def _policy_lint_scan_file(path: Path, *, is_long_lived_text: bool) -> list[dict
         if re.search(r"COMPLETED_WITH_LIMITATIONS", line):
             # Check if it's used as a status value (not in a "do not use" context)
             # and not listed as a valid conclusion value
-            if not re.search(r"do not use|not.*valid|forbidden|unsupported|conclusion", lowered):
+            if not re.search(r"do not use|do not accept|not.*valid|forbidden|unsupported|conclusion|not.*accept|requires.*accept|stop.*if", lowered):
                 findings.append({
                     "kind": "unsupported_report_status",
                     "severity": "FAIL",

@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "policy-impact",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
-  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
-  "generated_at": "2026-06-24T12:28:43.345212Z",
+  "decision_id": "decision_20260624_closeout_transient_warning_normalization_v1",
+  "round_id": "round_20260624_closeout_transient_warning_normalization_v1",
+  "generated_at": "2026-06-24T13:05:19.693578Z",
   "policy_sensitive_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"

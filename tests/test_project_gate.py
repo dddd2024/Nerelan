@@ -21886,3 +21886,282 @@ class TestNamingHygiene:
         assert scope_check["status"] == "FAIL", f"Expected FAIL, got {scope_check['status']}"
 
 
+class TestCloseoutTransientWarningNormalization:
+    """Verify that resolved pre-archive warnings are normalized in
+    close_round_result so they appear in resolved_pre_archive_warnings
+    and pre_archive_diagnostics, not in the active warnings list."""
+
+    def test_resolved_pre_archive_warning_moved_out_of_warnings(self, tmp_path: Path) -> None:
+        """When close_status is CLOSED and final_check_after_archive passed,
+        a report_summary_fields_match_synthesis WARN that was archive-only
+        is moved to resolved_pre_archive_warnings, not left in warnings."""
+        from reverse_agent.project_gate import close_round
+
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        _write_skill_registry(tmp_path)
+        _write_json(state_dir / "current_state.json", {"round_id": "round_test", "state_build_id": "state_test", "state_digest": "digest_test", "state_scope": "sample_state", "source_harness_run": "run_test"})
+        _write_json(state_dir / "task_packet.json", {"state_scope": "sample_state", "task_source": "derived_from_sample_artifacts", "execution_scope": "decision_packet_controls_current_round", "active_decision_packet": "project_state/decision_packet.md"})
+        _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+        _write_json(state_dir / "negative_results.json", {})
+        _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+
+        decision_id = "decision_test"
+        round_id = "round_test"
+        report_id = "codex_report_test"
+        archive_paths = _archive_paths(round_id)
+
+        _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
+        _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+
+        gates_dir = state_dir / "gates"
+        _write_json(gates_dir / "command_plan.json", {
+            "schema_version": 1, "artifact_name": "command_plan.json",
+            "decision_id": decision_id, "round_id": round_id,
+            "plan_status": "PASSED", "mainline": "engineering_branch",
+            "generated_at": "2026-06-24T00:00:00Z",
+            "commands": [
+                {"index": 1, "command": "python -m pytest -q", "phase": "test", "kind": "pytest", "required": True},
+            ],
+            "warnings": [], "blocking_reasons": [],
+            "profile_meta": {"profile": "full", "closeout_allowed": True},
+            "omitted_commands": [],
+        })
+        _write_json(gates_dir / "gate_profile_plan.json", {
+            "schema_version": 1, "profile": "full", "closeout_allowed": True,
+            "decision_id": decision_id, "round_id": round_id,
+        })
+        _write_json(gates_dir / "round_delta_summary.json", {
+            "schema_version": 1, "baseline_available": True,
+            "baseline_dirty_files": [], "new_dirty_files_since_baseline": [],
+            "final_dirty_files": ["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
+        })
+        _write_json(gates_dir / "final_gate_result.json", {
+            "schema_version": 1, "gate_name": "final-check",
+            "gate_status": "PASSED", "decision_id": decision_id,
+            "round_id": round_id, "report_id": report_id,
+            "checks": [], "warnings": [], "blocking_reasons": [],
+        })
+        _write_json(gates_dir / "report_summary_synthesis.json", {
+            "schema_version": 1, "synthesis_status": "PASSED",
+            "decision_id": decision_id, "round_id": round_id,
+            "report_id": report_id,
+            "summary": {"files_changed": [], "tests_ran": [], "generated_artifacts": [], "status": "SUCCESS", "acceptance_recommendation": "ACCEPTED"},
+            "errors": [], "diffs": [], "warnings": [],
+        })
+        _write_json(gates_dir / "codex_report_auto_summary.json", {
+            "schema_version": 1, "decision_id": decision_id, "round_id": round_id,
+            "report_id": report_id,
+            "summary": {"files_changed": [], "tests_ran": [], "generated_artifacts": [], "status": "SUCCESS", "acceptance_recommendation": "ACCEPTED"},
+        })
+        _write_json(gates_dir / "execution_log.json", {
+            "schema_version": 1, "gate_name": "execution-log",
+            "gate_status": "PASSED", "decision_id": decision_id,
+            "round_id": round_id, "report_id": report_id,
+            "generated_at": "2026-06-24T00:00:00Z",
+            "source": "derived_from_pytest_result_and_command_plan",
+            "commands": [{"index": 1, "command": "python -m pytest -q", "kind": "pytest", "phase": "test", "expected_exit_codes": [0], "exit_code": 0, "status": "PASSED"}],
+            "warnings": [], "blocking_reasons": [],
+        })
+        _write_json(gates_dir / "state_hygiene_inventory.json", {
+            "schema_version": 1, "entries": [],
+        })
+
+        _write_report(
+            state_dir,
+            decision_id=decision_id,
+            report_id=report_id,
+            round_id=round_id,
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            files_changed=["reverse_agent/project_gate.py", "tests/test_project_gate.py", "project_state/codex_execution_report.md", "project_state/pytest_result.txt", *archive_paths],
+            tests_ran=["python -m pytest -q"],
+            generated_artifacts=["project_state/codex_execution_report.md", "project_state/pytest_result.txt", *archive_paths],
+            extra_body="## Policy Impact\n\ntests reviewed.\n",
+        )
+        _write_pytest(
+            state_dir,
+            decision_id=decision_id,
+            report_id=report_id,
+            round_id=round_id,
+            tests_ran=["python -m pytest -q"],
+            body="\n\n".join(_STARTUP_COMMAND_BLOCKS)
+            + "\n\n"
+            + _command_block("python -m pytest -q", "1 passed", exit_code=0)
+            + "\n",
+        )
+
+        # Create the archive directory so close_round can proceed
+        archive_dir = state_dir / "rounds" / round_id
+        archive_dir.mkdir(parents=True)
+
+        result = close_round(state_dir=state_dir, round_id=round_id, repo_root=tmp_path)
+
+        # The key assertion: if close_status is CLOSED and
+        # final_check_after_archive passed, any pre-archive transient
+        # WARN should be in resolved_pre_archive_warnings, not in warnings.
+        if result.get("close_status") == "CLOSED":
+            fcaa = next(
+                (a for a in result.get("actions", []) if a.get("name") == "final_check_after_archive"),
+                None,
+            )
+            if fcaa and fcaa.get("gate_status") == "PASSED":
+                # report_summary_fields_match_synthesis WARN should be resolved
+                assert "report_summary_fields_match_synthesis" not in " ".join(result.get("warnings", [])), (
+                    f"report_summary_fields_match_synthesis should not be in active warnings: {result.get('warnings')}"
+                )
+                # It should be in resolved_pre_archive_warnings
+                resolved = result.get("resolved_pre_archive_warnings", [])
+                assert any("report_summary_fields_match_synthesis" in w for w in resolved), (
+                    f"report_summary_fields_match_synthesis should be in resolved_pre_archive_warnings: {resolved}"
+                )
+                # pre_archive_diagnostics should have structured entries
+                diagnostics = result.get("pre_archive_diagnostics", [])
+                assert any(d.get("check_name") == "report_summary_fields_match_synthesis" for d in diagnostics), (
+                    f"pre_archive_diagnostics should contain report_summary_fields_match_synthesis: {diagnostics}"
+                )
+
+    def test_unresolved_closeout_warning_stays_in_warnings(self, tmp_path: Path) -> None:
+        """When close_status is FAILED, warnings are not moved to
+        resolved_pre_archive_warnings because the close did not succeed."""
+        from reverse_agent.project_gate import close_round
+
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        _write_skill_registry(tmp_path)
+        _write_json(state_dir / "current_state.json", {"round_id": "round_test", "state_build_id": "state_test", "state_digest": "digest_test", "state_scope": "sample_state", "source_harness_run": "run_test"})
+        _write_json(state_dir / "task_packet.json", {"state_scope": "sample_state", "task_source": "derived_from_sample_artifacts", "execution_scope": "decision_packet_controls_current_round", "active_decision_packet": "project_state/decision_packet.md"})
+        _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+        _write_json(state_dir / "negative_results.json", {})
+        _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+
+        decision_id = "decision_test"
+        round_id = "round_test"
+
+        # Write a decision that is NOT APPROVED to force a failure
+        (state_dir / "decision_packet.md").write_text(
+            '```json decision_meta\n'
+            f'{{"decision_id":"{decision_id}","round_id":"{round_id}","status":"PENDING","mainline":"engineering_branch","skill_profiles":[]}}\n'
+            '```\n',
+            encoding="utf-8",
+        )
+
+        _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
+
+        result = close_round(state_dir=state_dir, round_id=round_id, repo_root=tmp_path)
+
+        # close_status should be INVALID because decision is not APPROVED
+        assert result.get("close_status") in ("FAILED", "INVALID")
+        # resolved_pre_archive_warnings should be empty because close did not succeed
+        assert result.get("resolved_pre_archive_warnings") == []
+        assert result.get("pre_archive_diagnostics") == []
+
+
+class TestCloseoutActiveWarningsCleanCheck:
+    """Verify that the closeout_active_warnings_clean final-check catches
+    ambiguous accepted-state closeout warnings and passes when warnings
+    are properly normalized."""
+
+    def test_clean_closeout_passes(self, tmp_path: Path) -> None:
+        """When run_closeout_result.json has no active warnings, the check passes."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path)
+        gates_dir = state_dir / "gates"
+        _write_json(gates_dir / "run_closeout_result.json", {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "warnings": [],
+            "blocking_reasons": [],
+            "close_round_result": {
+                "close_status": "CLOSED",
+                "warnings": [],
+                "resolved_pre_archive_warnings": ["report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"],
+                "pre_archive_diagnostics": [
+                    {"check_name": "report_summary_fields_match_synthesis", "detail": "codex_report_summary differs from synthesized summary", "resolution": "resolved_by_final_check_after_archive", "scope": "pre_archive_transient"},
+                ],
+                "actions": [
+                    {"name": "final_check_after_archive", "status": "PASSED", "gate_status": "PASSED"},
+                ],
+            },
+        })
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        caw = next((c for c in result.get("checks", []) if c.get("name") == "closeout_active_warnings_clean"), None)
+        assert caw is not None
+        assert caw["status"] == "PASS", f"Expected PASS, got {caw['status']}: {caw.get('detail')}"
+
+    def test_ambiguous_closeout_warning_fails(self, tmp_path: Path) -> None:
+        """When run_closeout_result.json has active close_round_result warnings
+        despite final_check_after_archive PASSED, the check FAILs."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path)
+        gates_dir = state_dir / "gates"
+        _write_json(gates_dir / "run_closeout_result.json", {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "warnings": [],
+            "blocking_reasons": [],
+            "close_round_result": {
+                "close_status": "CLOSED",
+                "warnings": ["report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"],
+                "resolved_pre_archive_warnings": [],
+                "pre_archive_diagnostics": [],
+                "actions": [
+                    {"name": "final_check_after_archive", "status": "PASSED", "gate_status": "PASSED"},
+                ],
+            },
+        })
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        caw = next((c for c in result.get("checks", []) if c.get("name") == "closeout_active_warnings_clean"), None)
+        assert caw is not None
+        assert caw["status"] == "FAIL", f"Expected FAIL, got {caw['status']}: {caw.get('detail')}"
+
+    def test_no_closeout_result_passes(self, tmp_path: Path) -> None:
+        """When run_closeout_result.json does not exist, the check passes
+        (backward-compatible)."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        caw = next((c for c in result.get("checks", []) if c.get("name") == "closeout_active_warnings_clean"), None)
+        assert caw is not None
+        assert caw["status"] == "PASS"
+
+    def test_real_unresolved_warning_warns(self, tmp_path: Path) -> None:
+        """When closeout has real top-level warnings (not pre-archive transients),
+        the check WARNs."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path)
+        gates_dir = state_dir / "gates"
+        _write_json(gates_dir / "run_closeout_result.json", {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "WARN",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "warnings": ["some_real_issue: something is wrong"],
+            "blocking_reasons": [],
+            "close_round_result": {
+                "close_status": "CLOSED",
+                "warnings": [],
+                "resolved_pre_archive_warnings": [],
+                "pre_archive_diagnostics": [],
+                "actions": [
+                    {"name": "final_check_after_archive", "status": "PASSED", "gate_status": "PASSED"},
+                ],
+            },
+        })
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        caw = next((c for c in result.get("checks", []) if c.get("name") == "closeout_active_warnings_clean"), None)
+        assert caw is not None
+        assert caw["status"] == "WARN", f"Expected WARN, got {caw['status']}: {caw.get('detail')}"
+
+
