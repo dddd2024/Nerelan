@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
-  "round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
+  "decision_id": "decision_20260624_report_closeout_summary_consistency_rework_v1",
+  "round_id": "round_20260624_report_closeout_summary_consistency_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,26 +13,27 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260624_state_hygiene_archive_scope_rework_v1",
-  "previous_round_id": "round_20260624_state_hygiene_archive_scope_rework_v1",
+  "previous_decision_id": "decision_20260624_command_plan_execution_log_required_command_rework_v1",
+  "previous_round_id": "round_20260624_command_plan_execution_log_required_command_rework_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
   "phase_label": "phase_1_5_pre_phase_2",
-  "primary_goal": "Repair command-plan, pytest_result, execution_log, report-auto-summary, report-summary, and final-check consistency so a required command missing from the actual execution log cannot be accepted as SUCCESS.",
+  "primary_goal": "Close the report/pytest/final-check/closeout consistency gap after required command coverage was implemented, so the current round can only pass with SUCCESS/ACCEPTED, completed Required Audit, PASSED final-check, PASSED report-summary, and consistent closeout execution evidence.",
   "command_plan_authority_required": true,
-  "accepted_requires_required_commands_recorded": true,
+  "accepted_requires_report_status_success": true,
+  "accepted_requires_report_acceptance_accepted": true,
+  "accepted_requires_required_audit_complete": true,
+  "accepted_requires_no_required_audit_placeholder": true,
+  "accepted_requires_pytest_result_passed": true,
   "accepted_requires_execution_log_passed": true,
-  "accepted_requires_no_execution_log_warnings": true,
-  "accepted_requires_report_tests_match_execution_log": true,
-  "accepted_requires_report_auto_summary_no_synthetic_missing_commands": true,
-  "accepted_requires_final_check_blocks_execution_log_warn": true,
+  "accepted_requires_report_summary_passed": true,
+  "accepted_requires_final_check_passed": true,
+  "accepted_requires_run_closeout_passed": true,
+  "accepted_requires_closeout_exit_code_consistency": true,
+  "accepted_requires_required_commands_recorded": true,
   "accepted_requires_state_hygiene_inventory_scope_complete": true,
   "accepted_requires_no_rename": true,
   "accepted_requires_no_delete": true,
   "accepted_requires_no_phase2_scope": true,
-  "accepted_requires_final_check_passed": true,
-  "accepted_requires_report_summary_passed": true,
-  "accepted_requires_report_status_success": true,
-  "accepted_requires_report_acceptance_accepted": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
@@ -57,7 +58,7 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/gates/state_hygiene_inventory.json",
-    "project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/*"
+    "project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -78,15 +79,20 @@
 
 ## 1. Goal
 
-Implement Command-Plan Execution-Log Required Command Rework v1.
+Implement Report Closeout Summary Consistency Rework v1.
 
-The previous round fixed the original archive-scope blocker: `state_hygiene_inventory.json` now includes bounded archive entries for the current round, the previous naming-hygiene round, and the previous Phase 1 evidence-hardening round; those entries are classified as `round_archive_artifact` and have `safe_to_delete: false`. It also added a final-check rule named `state_hygiene_inventory_scope_complete`.
+The previous rework substantially repaired the required-command recording problem: the required `run-round --execute` command was present in the actual command blocks and in `execution_log.json`, and `execution_log_required_commands_recorded` reached PASS. However, the round still failed audit because the current live state remained internally inconsistent:
 
-However, audit found a new blocker in the execution-record chain. `command_plan.json` required `python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_state_hygiene_archive_scope_rework_v1 --execute`, and `codex_execution_report.md` / `pytest_result.txt` summary claimed it was run. But the actual `pytest_result.txt` command blocks skipped from `run-round --dry-run --json` directly to pytest, and `execution_log.json` reported `gate_status: WARN` with a warning that this required command was not recorded. Despite that, final-check and report-summary accepted the report as `SUCCESS / ACCEPTED`.
+- `codex_execution_report.md` was `PARTIAL / NEEDS_REVIEW`, not `SUCCESS / ACCEPTED`.
+- all eight Required Audit answers were still placeholder-like: `Evidence: (to be filled)`, `Status: PENDING`, `Answer: (to be filled)`.
+- `pytest_result_summary.status` was `FAILED` even though the core pytest commands passed.
+- final-check remained `WARN`.
+- `execution_log_consistency` remained `WARN` because `run-closeout` exit code differed between `execution_log.json` and `pytest_result.txt`.
+- run-closeout was archived, but the live report was not consumed by a success report.
 
-This round must repair that consistency failure. A required command from command-plan that is absent from the actual command blocks or execution log must not be accepted as SUCCESS. `execution_log.json` must become a hard evidence gate for required command coverage. `report-auto-summary` must not synthesize a missing command into `tests_ran`. `final-check` must block `execution_log.gate_status == WARN` or non-empty execution-log warnings when those warnings indicate missing required commands.
+This round must close only those report/summary/closeout consistency gaps. It must produce a coherent accepted state where the current decision is consumed by a `SUCCESS / ACCEPTED` report, Required Audit is complete, `pytest_result.txt` summary and command blocks agree, `execution_log.json` is `PASSED`, `report_summary_synthesis.json` is `PASSED`, `final_gate_result.json` is `PASSED`, and run-closeout evidence is internally consistent.
 
-This is still Phase 1.5 engineering hardening. Preserve the archive-scope fix and do not start naming migration, deletion, Phase 2 CI, Web UI, AgentRunner, database, queue, scheduler, or multi-executor implementation.
+This is still Phase 1.5 engineering hardening. Do not start naming migration, deletion, Phase 2 CI, Web UI, AgentRunner, database, queue, scheduler, or multi-executor implementation.
 
 ## 2. Current Evidence
 
@@ -94,43 +100,41 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` remains background-only `samplereverse` sample state and is not authoritative. The current task is controlled by this `decision_packet.md`.
 
-Previous audit outcome: `REWORK_REQUIRED` for `decision_20260624_state_hygiene_archive_scope_rework_v1`.
+Previous audit outcome: `REWORK_REQUIRED` for `decision_20260624_command_plan_execution_log_required_command_rework_v1`.
 
 Accepted prior-round facts:
 
-- `state_hygiene_inventory.json` contained `bounded_archive_dirs` for:
-  - `project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1`
-  - `project_state/rounds/round_20260623_naming_hygiene_inventory_v1`
-  - `project_state/rounds/round_20260623_phase1_completion_evidence_path_hardening_v1`
-- Current-round archive entries were present for `codex_execution_report.md`, `decision_packet.md`, `pytest_result.txt`, and `round_manifest.json`.
-- Previous naming-hygiene archive entries were present for `codex_execution_report.md`, `decision_packet.md`, `pytest_result.txt`, and `round_manifest.json`.
-- Previous Phase 1 evidence-hardening archive entries were present for `codex_execution_report.md`, `decision_packet.md`, `pytest_result.txt`, and `round_manifest.json`.
-- Archive entries were classified as `round_archive_artifact` and had `safe_to_delete: false`.
-- final-check included `state_hygiene_inventory_scope_complete: PASS`.
+- `run-round --execute` was present in actual `pytest_result.txt` command blocks and returned exit code 0.
+- `execution_log.json` recorded `run-round --execute` with exit code 0 and status `PASSED`.
+- `execution_log_required_commands_recorded` reached PASS.
+- core pytest suites passed: `tests/test_project_gate.py` and `tests/test_project_gate.py tests/test_project_state.py`.
+- `state_hygiene_inventory_scope_complete` remained part of final-check coverage and should be preserved.
+- naming-hygiene remained inventory-only; no rename/delete/neutral live path creation was accepted.
 
 Blocking prior-round facts:
 
-- `command_plan.json` included required command `python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_state_hygiene_archive_scope_rework_v1 --execute`.
-- `codex_execution_report.md.tests_ran` claimed that command was run.
-- `pytest_result_summary.tests_ran` claimed that command was run.
-- The actual `pytest_result.txt` command blocks did not contain that command.
-- `execution_log.json` had `gate_status: WARN` and warning text that command-plan had one command not recorded in execution_log: the required `run-round --execute` command.
-- final-check still reported `execution_log_consistency: PASS` and accepted the report as `SUCCESS / ACCEPTED`.
-- `codex_report_auto_summary.json` listed `tests_ran_source: execution_log.json` while its `tests_ran` included the missing command, creating a provenance mismatch.
+- `codex_execution_report.md` had `status: PARTIAL` and `acceptance_recommendation: NEEDS_REVIEW`.
+- Required Audit items 1 through 8 were placeholders and PENDING.
+- `pytest_result_summary.status` was `FAILED`, while the command body showed key tests and project-gate commands mostly passed.
+- `final_gate_result.json` had `gate_status: WARN`.
+- final-check reported `required_audit_coverage: WARN` due to placeholder answers.
+- final-check reported `status_policy_valid: WARN` because report status was PARTIAL and pytest_result header status was FAILED.
+- final-check reported `execution_log_consistency: WARN` because `run-closeout` had `execution_log_exit_code: 1` and `pytest_result_exit_code: 0`.
+- `run_closeout_result.json` existed but did not produce a fully accepted live state.
 
 Artifact freshness:
 
-- All proof for this rework must be regenerated under `decision_20260624_command_plan_execution_log_required_command_rework_v1` and `round_20260624_command_plan_execution_log_required_command_rework_v1`.
+- All proof for this rework must be regenerated under `decision_20260624_report_closeout_summary_consistency_rework_v1` and `round_20260624_report_closeout_summary_consistency_rework_v1`.
 - Prior-round artifacts are diagnostic context only.
 - Historical/backlog `samplereverse` artifacts remain external notices only and must not be claimed as current evidence.
 
 Existing capabilities to preserve:
 
 - command-plan authority and omitted-command enforcement.
-- startup command coverage checks.
-- `command_plan_json_stdout_full`.
-- report-summary synthesis.
-- final-check status hardening.
+- required-command recording enforcement.
+- `execution_log_required_commands_recorded`.
+- report-auto-summary no synthetic missing command insertion.
+- report-summary synthesis and final-check status hardening.
 - Phase 1 completion evidence-path checks.
 - `state_hygiene_inventory_scope_complete` archive-scope check.
 - naming-hygiene inventory-only behavior with no rename/delete/neutral live path creation.
@@ -138,7 +142,7 @@ Existing capabilities to preserve:
 Gate/command-plan strategy:
 
 - Use only valid profiles: `fast`, `standard`, `full`.
-- Because this round changes command logging, report-summary, and final-check semantics, command-plan should select or require `full` validation.
+- Because this round touches report, pytest summary, execution-log, final-check, and closeout semantics, command-plan should select or require `full` validation.
 - Tests are subordinate to command-plan. If this Tests section conflicts with command-plan, command-plan is authoritative.
 - Closeout may run only if command-plan authorizes it and the selected profile allows closeout.
 
@@ -164,15 +168,19 @@ Do not modify `project_state/artifact_index.json` in this round.
 
 Do not write dynamic findings into `.codex-skills/`.
 
-Do not weaken command-plan authority by treating required commands as optional.
+Do not use `COMPLETED_WITH_LIMITATIONS` as a report status. Supported status values remain `SUCCESS`, `PARTIAL`, `FAILED`, and `BLOCKED`.
 
-Do not let `codex_execution_report.md.tests_ran`, `pytest_result_summary.tests_ran`, `codex_report_auto_summary.json.summary.tests_ran`, or `report_summary_synthesis.json.synthesized_summary.tests_ran` contain commands that are absent from the actual top-level `pytest_result.txt` command blocks unless there is an explicit, current, structured nested-evidence field and final-check understands the distinction.
+Do not mark the round accepted if `codex_execution_report.md` remains `PARTIAL / NEEDS_REVIEW`.
 
-Do not let `execution_log.json` remain `WARN` for missing required command coverage while final-check passes.
+Do not mark the round accepted if any Required Audit answer remains PENDING, placeholder-like, or `(to be filled)`.
 
-Do not hide missing required commands by inserting them into report-summary without actual command-block evidence.
+Do not mark the round accepted if `pytest_result_summary.status` remains `FAILED` while the claimed report is SUCCESS.
 
-Do not inject closeout-internal commands into the top-level command stream. Nested closeout commands must remain scoped in `run_closeout_execution_log.json` or equivalent closeout evidence.
+Do not mark the round accepted if `final_gate_result.json.gate_status` is `WARN` or `FAILED`.
+
+Do not mark the round accepted if `execution_log_consistency` is WARN/FAILED or if closeout exit codes disagree between `execution_log.json`, `pytest_result.txt`, and closeout artifacts.
+
+Do not hide closeout-internal commands by injecting them into the top-level command stream. Nested closeout commands must remain scoped in `run_closeout_execution_log.json` or equivalent closeout evidence.
 
 Do not broaden this round into naming migration, compatibility dual-write, Phase 2 GitHub CI, `ci.yml`, `state-gate.yml`, PR automation, branch protection, Web UI, AgentRunner, Codex adapter, Trae adapter, Job Manager, database, queue, scheduler, daemon, API Planner, API Auditor, self-hosted runner, or background worker work.
 
@@ -232,9 +240,9 @@ Then inspect only relevant implementation and gate evidence files:
 16. `project_state/gates/run_closeout_execution_log.json`
 17. `project_state/gates/round_delta_summary.json`
 18. `project_state/gates/round_close_snapshot.json` if present
-19. `project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
-20. `project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
-21. `project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/pytest_result.txt` only as bounded prior-round diagnostic evidence
+19. `project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/round_manifest.json` only as bounded prior-round diagnostic evidence
+20. `project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/codex_execution_report.md` only as bounded prior-round diagnostic evidence
+21. `project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/pytest_result.txt` only as bounded prior-round diagnostic evidence
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -242,20 +250,20 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 Before claiming success, `project_state/codex_execution_report.md` must answer all eight items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Which required command was missing in the previous round, and how does the new logic detect required command absence from actual `pytest_result.txt` command blocks?
-2. How does `execution_log.json` now treat command-plan required commands missing from actual command blocks: `PASSED`, `WARN`, or `FAILED`? Why is that status acceptable?
-3. How does final-check now block `execution_log.gate_status == WARN` or `FAILED` when warnings/errors involve missing required command coverage?
-4. How does report-auto-summary ensure it does not synthesize a command into `tests_ran` if that command is absent from `execution_log.commands` or actual `pytest_result.txt` command blocks?
-5. How do `codex_execution_report.md`, `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, and `report_summary_synthesis.json` now agree on `tests_ran`?
-6. Which regression tests prove missing required commands fail execution-log/final-check/report-summary, and that truly recorded `run-round --execute` passes?
-7. How was `state_hygiene_inventory_scope_complete` preserved as PASS while fixing the execution-log/report-summary issue?
+1. How were all eight Required Audit placeholder/PENDING answers replaced with substantive evidence-backed answers, and which check now prevents placeholder acceptance?
+2. How was `pytest_result_summary.status` made consistent with the actual command outcomes and final report status?
+3. How was the `run-closeout` exit code mismatch between `execution_log.json` and `pytest_result.txt` resolved or correctly scoped as nested closeout evidence?
+4. How does final-check now reach `PASSED` instead of `WARN`, and which previous WARN checks are gone or intentionally resolved?
+5. How do `codex_execution_report.md`, `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, and `run_closeout_result.json` now agree on status, tests_ran, generated_artifacts, report_id, decision_id, and round_id?
+6. Which regression tests prove report status, pytest summary, Required Audit coverage, final-check status, report-summary status, and closeout exit-code consistency?
+7. How were `execution_log_required_commands_recorded: PASS` and `state_hygiene_inventory_scope_complete: PASS` preserved?
 8. How does this round preserve no sample-solving behavior, no prompt/skill mutation, no heavy artifact scan, no rename/delete/neutral live path creation, no evidence weakening, and no Phase 2 expansion?
 
-Do not write TODO, TBD, PENDING, “should pass”, “expected to pass”, or speculative answers.
+Do not write TODO, TBD, PENDING, “should pass”, “expected to pass”, `(to be filled)`, or speculative answers.
 
 ## 6. Implementation Scope
 
-Primary scope: enforce required command coverage from command-plan through pytest_result, execution_log, report-auto-summary, report-summary, and final-check.
+Primary scope: close report/pytest/final-check/closeout consistency gaps left after required command recording was implemented.
 
 Allowed source changes:
 
@@ -283,25 +291,28 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/state_hygiene_inventory.json`
-- `project_state/rounds/round_20260624_command_plan_execution_log_required_command_rework_v1/*`
+- `project_state/rounds/round_20260624_report_closeout_summary_consistency_rework_v1/*`
 
 Required behavior:
 
 1. Establish a current-round baseline before modifications.
-2. Inspect how `pytest_result.txt` command blocks are parsed and how `tests_ran` summary is derived.
-3. Inspect how `execution_log.json` compares command-plan commands against actual command blocks.
-4. Treat any command-plan command with `required: true` and not recorded in actual top-level command blocks as a blocking execution-log failure, unless it is explicitly a nested closeout-internal command represented by a scoped closeout artifact.
-5. Do not allow a missing required top-level command to remain a mere warning if the report claims `SUCCESS / ACCEPTED`.
-6. Ensure `report-auto-summary` derives `tests_ran` from actual recorded command evidence, not from command-plan alone.
-7. Ensure `report-summary` detects mismatches among live report summary, auto-summary, pytest_result summary, and execution_log command records.
-8. Ensure final-check fails if `execution_log.json.gate_status` is `WARN` or `FAILED` for missing required command coverage, or if `execution_log.json.warnings` includes missing required commands.
-9. Ensure a correctly recorded `run-round --execute` command appears in actual command blocks, execution_log, report-auto-summary, report-summary, and live report `tests_ran`.
-10. Preserve `state_hygiene_inventory_scope_complete: PASS` and archive entries as `round_archive_artifact` with `safe_to_delete: false`.
-11. Preserve naming-hygiene inventory-only behavior: no rename, no delete, no neutral live report path creation.
-12. Add focused regression tests for missing required command failure, execution-log WARN blocking, report-auto-summary no synthetic command insertion, report-summary tests_ran consistency, and success when `run-round --execute` is truly recorded.
-13. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `state_hygiene_inventory.json`, and `codex_execution_report.md`.
-14. Run closeout if and only if command-plan authorizes it.
-15. Final accepted report must be `SUCCESS / ACCEPTED` with `execution_log.json.gate_status: PASSED`, no execution-log warnings, final-check `PASSED`, report-summary `PASSED`, report-auto-summary `PASSED`, `state_hygiene_inventory_scope_complete: PASS`, run-closeout `PASSED`, and no blocking reasons.
+2. Keep required command coverage strict: command-plan required commands must be reflected in actual command evidence, execution-log, and report-summary.
+3. Fill all eight Required Audit answers with concrete evidence and PASS/FAIL/BLOCKED/NOT_APPLICABLE statuses.
+4. Remove all placeholder/PENDING/to-be-filled Required Audit content from the final report.
+5. Ensure `pytest_result_summary.status` is derived from actual command outcomes according to project policy and is consistent with the final report.
+6. Resolve `run-closeout` exit-code mismatch. If `run-closeout` is a top-level command, its exit code must match between `pytest_result.txt` and `execution_log.json`. If nested closeout steps differ, they must be scoped in `run_closeout_execution_log.json` and not presented as top-level contradictions.
+7. Ensure `execution_log.json.gate_status` is `PASSED` and has no warnings or blocking reasons for accepted output.
+8. Ensure `report_summary_synthesis.json` is `PASSED` with no diffs/errors and no blocking warnings.
+9. Ensure `final_gate_result.json.gate_status` is `PASSED`, not `WARN`, for accepted output.
+10. Ensure `run_closeout_result.json.closeout_status` is `PASSED`, with current decision/round IDs and no invalid close-round state.
+11. Ensure `codex_execution_report.md` top summary is `SUCCESS / ACCEPTED` only after the above conditions are true.
+12. Preserve `execution_log_required_commands_recorded: PASS`.
+13. Preserve `state_hygiene_inventory_scope_complete: PASS`.
+14. Preserve naming-hygiene inventory-only behavior: no rename, no delete, no neutral live report path creation.
+15. Add focused regression tests for Required Audit placeholder blocking, report status derivation, pytest summary consistency, closeout exit-code consistency, final-check WARN blocking, and full success path.
+16. Regenerate current-round `pytest_result.txt`, `execution_log.json`, `codex_report_auto_summary.json`, `report_summary_synthesis.json`, `final_gate_result.json`, `run_closeout_result.json`, `run_closeout_execution_log.json`, `state_hygiene_inventory.json`, and `codex_execution_report.md`.
+17. Run closeout if and only if command-plan authorizes it.
+18. Final accepted report must be `SUCCESS / ACCEPTED` with final-check `PASSED`, report-summary `PASSED`, execution-log `PASSED`, report-auto-summary `PASSED`, run-closeout `PASSED`, `execution_log_required_commands_recorded: PASS`, `state_hygiene_inventory_scope_complete: PASS`, complete Required Audit, and no blocking reasons.
 
 Do not implement actual naming migration, rename, deletion, compatibility dual-write, schema migration, Phase 2, Web, CI, database, or multi-executor adapter in this round.
 
@@ -336,8 +347,8 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate naming-hygiene --state-dir project_state
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_command_plan_execution_log_required_command_rework_v1 --dry-run --json
-python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_command_plan_execution_log_required_command_rework_v1 --execute
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_report_closeout_summary_consistency_rework_v1 --dry-run --json
+python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_report_closeout_summary_consistency_rework_v1 --execute
 python -m pytest tests/test_project_gate.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate policy-lint --state-dir project_state
@@ -346,7 +357,7 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_command_plan_execution_log_required_command_rework_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_report_closeout_summary_consistency_rework_v1
 python -m reverse_agent.project_gate naming-hygiene --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-auto-summary --state-dir project_state
@@ -375,9 +386,11 @@ Stop immediately and report `BLOCKED` if:
 - implementation requires deleting files;
 - implementation requires creating new neutral live report paths;
 - implementation requires modifying prompt/skill files;
-- implementation requires weakening command-plan authority;
-- implementation requires accepting missing required commands as warnings in a SUCCESS report;
+- implementation requires weakening command-plan authority or required-command recording;
+- implementation requires accepting placeholder Required Audit answers;
+- implementation requires accepting final-check WARN as success;
+- implementation requires accepting `COMPLETED_WITH_LIMITATIONS` as a report status;
 - implementation requires scanning full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`;
 - Required Audit remains incomplete or placeholder-like.
 
-Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, any required command is missing from actual command blocks without scoped nested evidence, `execution_log.json.gate_status` is `WARN` or `FAILED`, execution-log warnings are non-empty for required command coverage, report-auto-summary invents missing commands, report-summary tolerates tests_ran divergence, final-check does not block execution-log warnings, policy-lint fails, policy-impact fails, `state_hygiene_inventory_scope_complete` is missing or not PASS, inventory artifacts are absent from generated_artifacts, any file is renamed, any file is deleted, any neutral live report path is created, any forbidden path is mutated, run-closeout fails, final-check has warnings or blocking reasons, or the final report remains `PARTIAL / NEEDS_REVIEW` for reasons other than a clearly documented real blocker.
+Stop with `REWORK_REQUIRED` if tests fail, command-plan authority regresses, required command recording regresses, `codex_execution_report.md` remains `PARTIAL / NEEDS_REVIEW`, `pytest_result_summary.status` remains `FAILED` while report claims success, Required Audit contains PENDING/placeholders, `execution_log.json.gate_status` is not `PASSED`, execution-log warnings are non-empty for accepted output, report-auto-summary invents missing commands, report-summary tolerates status/tests divergence, final-check is WARN/FAILED, closeout exit codes disagree, run-closeout fails, policy-lint fails, policy-impact fails, `state_hygiene_inventory_scope_complete` is missing or not PASS, `execution_log_required_commands_recorded` is missing or not PASS, any file is renamed, any file is deleted, any neutral live report path is created, any forbidden path is mutated, final-check has warnings or blocking reasons, or the final report remains non-success for reasons other than a clearly documented real blocker.
