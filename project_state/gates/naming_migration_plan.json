@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "plan_name": "naming-migration-plan",
-  "decision_id": "decision_20260624_closeout_final_state_sync_rework_v1",
-  "round_id": "round_20260624_closeout_final_state_sync_rework_v1",
-  "generated_at": "2026-06-24T16:02:11.029039Z",
+  "decision_id": "decision_20260625_executor_neutral_report_alias_compat_v1",
+  "round_id": "round_20260625_executor_neutral_report_alias_compat_v1",
+  "generated_at": "2026-06-24T16:31:28.178420Z",
   "action_this_round": "inventory_only",
   "no_rename": true,
   "no_delete": true,
@@ -74,23 +74,23 @@
     {
       "name": "codex_execution_report",
       "file": "reverse_agent/project_gate.py",
-      "occurrence_count": "38",
+      "occurrence_count": "32",
       "classification": "must_keep_current_compat",
-      "notes": "Code reference to 'codex_execution_report' found 38 time(s). Must keep current name for compat until migration round."
+      "notes": "Code reference to 'codex_execution_report' found 32 time(s). Must keep current name for compat until migration round."
     },
     {
       "name": "codex_report_summary",
       "file": "reverse_agent/project_gate.py",
-      "occurrence_count": "43",
+      "occurrence_count": "39",
       "classification": "must_keep_current_compat",
-      "notes": "Code reference to 'codex_report_summary' found 43 time(s). Must keep current name for compat until migration round."
+      "notes": "Code reference to 'codex_report_summary' found 39 time(s). Must keep current name for compat until migration round."
     },
     {
       "name": "codex_report_auto_summary",
       "file": "reverse_agent/project_gate.py",
-      "occurrence_count": "21",
+      "occurrence_count": "22",
       "classification": "must_keep_current_compat",
-      "notes": "Code reference to 'codex_report_auto_summary' found 21 time(s). Must keep current name for compat until migration round."
+      "notes": "Code reference to 'codex_report_auto_summary' found 22 time(s). Must keep current name for compat until migration round."
     },
     {
       "name": "codex_execution_report",
@@ -102,16 +102,16 @@
     {
       "name": "codex_report_summary",
       "file": "tests/test_project_gate.py",
-      "occurrence_count": "61",
+      "occurrence_count": "63",
       "classification": "must_keep_current_compat",
-      "notes": "Test reference to 'codex_report_summary' found 61 time(s). Must keep current name for compat until migration round."
+      "notes": "Test reference to 'codex_report_summary' found 63 time(s). Must keep current name for compat until migration round."
     },
     {
       "name": "codex_report_auto_summary",
       "file": "tests/test_project_gate.py",
-      "occurrence_count": "23",
+      "occurrence_count": "26",
       "classification": "must_keep_current_compat",
-      "notes": "Test reference to 'codex_report_auto_summary' found 23 time(s). Must keep current name for compat until migration round."
+      "notes": "Test reference to 'codex_report_auto_summary' found 26 time(s). Must keep current name for compat until migration round."
     }
   ],
   "migration_strategy": "Inventory-only round. No files renamed, deleted, or created. Migration to neutral names deferred to a later round. Proposed strategy: dual-write both old and new names for one round, then rename in the following round after all references are updated."

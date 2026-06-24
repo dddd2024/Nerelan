@@ -3,10 +3,10 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260624_closeout_final_state_sync_rework_v1",
-  "round_id": "round_20260624_closeout_final_state_sync_rework_v1",
-  "report_id": "codex_report_20260624_closeout_final_state_sync_rework_v1",
-  "generated_at": "2026-06-24T16:06:51.734500Z",
+  "decision_id": "decision_20260625_executor_neutral_report_alias_compat_v1",
+  "round_id": "round_20260625_executor_neutral_report_alias_compat_v1",
+  "report_id": "codex_report_20260625_executor_neutral_report_alias_compat_v1",
+  "generated_at": "2026-06-24T16:39:58.134531Z",
   "source": "derived_from_pytest_result_and_command_plan",
   "commands": [
     {
@@ -44,8 +44,8 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
       "phase": "gate",
       "expected_exit_codes": [
         0,
@@ -56,8 +56,8 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
       "phase": "gate",
       "expected_exit_codes": [
         0,
@@ -134,7 +134,7 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_closeout_final_state_sync_rework_v1 --dry-run --json",
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260625_executor_neutral_report_alias_compat_v1 --dry-run --json",
       "kind": "run-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -146,7 +146,7 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260624_closeout_final_state_sync_rework_v1 --execute",
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --round-id round_20260625_executor_neutral_report_alias_compat_v1 --execute",
       "kind": "run-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -226,7 +226,7 @@
     },
     {
       "index": 20,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260624_closeout_final_state_sync_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260625_executor_neutral_report_alias_compat_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

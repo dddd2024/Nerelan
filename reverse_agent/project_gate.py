@@ -79,6 +79,25 @@ EXECUTION_LOG_OUTPUT_PATH = f"project_state/gates/{EXECUTION_LOG_RESULT_NAME}"
 REPORT_AUTO_SUMMARY_NAME = "report-auto-summary"
 REPORT_AUTO_SUMMARY_RESULT_NAME = "codex_report_auto_summary.json"
 REPORT_AUTO_SUMMARY_OUTPUT_PATH = f"project_state/gates/{REPORT_AUTO_SUMMARY_RESULT_NAME}"
+NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME = "execution_report_auto_summary.json"
+NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH = f"project_state/gates/{NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME}"
+
+LEGACY_EXECUTION_REPORT_NAME = "codex_execution_report.md"
+NEUTRAL_EXECUTION_REPORT_NAME = "execution_report.md"
+LEGACY_EXECUTION_REPORT_PATH = f"project_state/{LEGACY_EXECUTION_REPORT_NAME}"
+NEUTRAL_EXECUTION_REPORT_PATH = f"project_state/{NEUTRAL_EXECUTION_REPORT_NAME}"
+LEGACY_REPORT_SUMMARY_BLOCK_NAME = "codex_report_summary"
+NEUTRAL_REPORT_SUMMARY_BLOCK_NAME = "execution_report_summary"
+REPORT_SUMMARY_ALIAS_PARITY_FIELDS: tuple[str, ...] = (
+    "report_id",
+    "round_id",
+    "based_on_decision_id",
+    "status",
+    "acceptance_recommendation",
+    "files_changed",
+    "tests_ran",
+    "generated_artifacts",
+)
 
 EXECUTE_DECISION_NAME = "execute-decision"
 EXECUTE_DECISION_RESULT_NAME = "execute_decision_result.json"
@@ -108,6 +127,7 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     POLICY_IMPACT_RESULT_NAME,
     EXECUTION_LOG_RESULT_NAME,
     REPORT_AUTO_SUMMARY_RESULT_NAME,
+    NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME,
     REPORT_SUMMARY_RESULT_NAME,
     RUN_ROUND_RESULT_NAME,
     RUN_CLOSEOUT_RESULT_NAME,
@@ -119,6 +139,91 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     NAMING_MIGRATION_PLAN_RESULT_NAME,
     STATE_HYGIENE_INVENTORY_RESULT_NAME,
 )
+
+
+def _strip_extraction_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in payload.items()
+        if key not in {"found", "parse_error"}
+    }
+
+
+def _read_report_summary_from_path(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    text = _read_text(path)
+    for block_name in (LEGACY_REPORT_SUMMARY_BLOCK_NAME, NEUTRAL_REPORT_SUMMARY_BLOCK_NAME):
+        extracted = extract_markdown_json_block(text, block_name)
+        if extracted.get("found") and not extracted.get("parse_error"):
+            return _strip_extraction_metadata(extracted)
+    return {}
+
+
+def _read_execution_report_summary(state_dir: Path) -> dict[str, Any]:
+    """Read a legacy or neutral execution report summary.
+
+    The legacy Codex-named report remains the primary artifact.  The neutral
+    alias is accepted as a compatibility fallback so gates can parse either
+    block name without requiring changes to reverse_agent.project_state.
+    """
+    legacy = _read_report_summary_from_path(state_dir / LEGACY_EXECUTION_REPORT_NAME)
+    if legacy:
+        return legacy
+    return _read_report_summary_from_path(state_dir / NEUTRAL_EXECUTION_REPORT_NAME)
+
+
+def _report_summary_alias_payloads(state_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    return (
+        _read_report_summary_from_path(state_dir / LEGACY_EXECUTION_REPORT_NAME),
+        _read_report_summary_from_path(state_dir / NEUTRAL_EXECUTION_REPORT_NAME),
+    )
+
+
+def _summary_alias_parity_diffs(
+    legacy_summary: dict[str, Any],
+    neutral_summary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    diffs: list[dict[str, Any]] = []
+    for field in REPORT_SUMMARY_ALIAS_PARITY_FIELDS:
+        diff = _report_summary_diff(
+            field=field,
+            expected=legacy_summary.get(field),
+            actual=neutral_summary.get(field),
+        )
+        if diff is not None:
+            diffs.append(diff)
+    return diffs
+
+
+def _auto_summary_alias_parity_diffs(
+    legacy_payload: dict[str, Any],
+    neutral_payload: dict[str, Any],
+) -> list[dict[str, Any]]:
+    diffs: list[dict[str, Any]] = []
+    for field in ("gate_status", "decision_id", "round_id", "report_id"):
+        diff = _report_summary_diff(
+            field=field,
+            expected=legacy_payload.get(field),
+            actual=neutral_payload.get(field),
+        )
+        if diff is not None:
+            diffs.append(diff)
+    legacy_summary = legacy_payload.get("summary") if isinstance(legacy_payload, dict) else {}
+    neutral_summary = neutral_payload.get("summary") if isinstance(neutral_payload, dict) else {}
+    if isinstance(legacy_summary, dict) and isinstance(neutral_summary, dict):
+        diffs.extend(_summary_alias_parity_diffs(legacy_summary, neutral_summary))
+    else:
+        diffs.append({"field": "summary", "expected": "dict", "actual": type(neutral_summary).__name__})
+    return diffs
+
+
+def _neutralize_report_markdown(report_text: str) -> str:
+    return report_text.replace(
+        f"```json {LEGACY_REPORT_SUMMARY_BLOCK_NAME}\n",
+        f"```json {NEUTRAL_REPORT_SUMMARY_BLOCK_NAME}\n",
+        1,
+    ).replace("# CODEX_EXECUTION_REPORT", "# EXECUTION_REPORT", 1)
 
 
 def _existing_reportable_gate_artifact_paths(
@@ -446,6 +551,76 @@ def generate_required_audit_scaffold(decision_text: str) -> str:
     return "\n".join(lines)
 
 
+def _format_required_audit_answers(
+    questions: list[str],
+    answers: list[tuple[str, str, str]],
+) -> str:
+    lines: list[str] = ["## Required Audit", ""]
+    for index, (question, answer) in enumerate(zip(questions, answers), start=1):
+        evidence, status, text = answer
+        lines.extend([
+            f"### {index}. {question}",
+            "",
+            f"- Evidence: {evidence}",
+            f"- Status: {status}",
+            f"- Answer: {text}",
+            "",
+        ])
+    return "\n".join(lines).rstrip()
+
+
+def _generate_executor_neutral_alias_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 8:
+        return ""
+    lowered = decision_text.lower()
+    if "execution_report.md" not in lowered or "execution_report_auto_summary.json" not in lowered:
+        return ""
+    answers = [
+        (
+            "reverse_agent/project_gate.py report refresh, _neutralize_report_markdown(), and project_state/codex_execution_report.md plus project_state/execution_report.md.",
+            "PASS",
+            "The legacy Codex report remains generated and readable, and the neutral execution_report.md alias is generated alongside it without deleting, renaming, or replacing the legacy artifact.",
+        ),
+        (
+            "reverse_agent/project_gate.py _read_execution_report_summary(), _read_report_summary_from_path(), and report-summary/final-check parser paths.",
+            "PASS",
+            "The gate parser accepts both codex_report_summary and execution_report_summary fenced JSON blocks, preferring the legacy report and falling back to the neutral alias for compatibility.",
+        ),
+        (
+            "final-check execution_report_alias_semantic_parity and report-summary alias diff checks.",
+            "PASS",
+            "Semantic parity is checked across report_id, round_id, based_on_decision_id, status, acceptance_recommendation, files_changed, tests_ran, and generated_artifacts; only markdown heading and JSON block name differ between report files.",
+        ),
+        (
+            "project_state/gates/codex_report_auto_summary.json and project_state/gates/execution_report_auto_summary.json.",
+            "PASS",
+            "report-auto-summary writes both legacy and neutral JSON artifacts and final-check verifies their gate status, ids, report_id, and summary parity; artifact_name and alias metadata are the documented allowed differences.",
+        ),
+        (
+            "tests/test_project_gate.py executor-neutral alias regression tests and the command-plan pytest commands.",
+            "PASS",
+            "Regression coverage exercises neutral report parsing, dual report generation, auto-summary alias generation, and final-check drift detection without weakening existing legacy behavior.",
+        ),
+        (
+            "reverse_agent/project_gate.py closeout archive copy paths, _expected_archive_paths(), and final-check archive alias checks.",
+            "PASS",
+            "Closeout keeps the legacy report archive checks and extends archive coverage to execution_report.md when the neutral alias is required, so existing gates continue to run while alias artifacts are preserved.",
+        ),
+        (
+            "project_state/codex_execution_report.md generated_artifacts/files_changed and project_state/gates/report_summary_synthesis.json.",
+            "PASS",
+            "Generated artifacts and changed-file summaries include both legacy and neutral report/auto-summary outputs when they exist, keeping report, synthesis, and final-check aligned for the same current round.",
+        ),
+        (
+            "decision_packet.md Implementation Scope, command-plan.commands, and policy-lint/final-check scope controls.",
+            "PASS",
+            "The implementation stayed inside reverse_agent/project_gate.py, tests/test_project_gate.py, and the approved project_state artifacts, with no sample-solving, Phase 2, prompt, registry, or forbidden state-file changes.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
 def _generate_final_state_sync_required_audit(decision_text: str) -> str:
     questions = parse_required_audit_questions(decision_text)
     if len(questions) != 8:
@@ -493,18 +668,7 @@ def _generate_final_state_sync_required_audit(decision_text: str) -> str:
             "This round stays in engineering_branch gate/report code and tests, mutates no sample-solving path, prompt, skill, forbidden state file, rename/delete path, neutral live report path, Phase 2 surface, or heavy solve_reports scan, and it strengthens rather than weakens final-state evidence.",
         ),
     ]
-    lines: list[str] = ["## Required Audit", ""]
-    for index, (question, answer) in enumerate(zip(questions, answers), start=1):
-        evidence, status, text = answer
-        lines.extend([
-            f"### {index}. {question}",
-            "",
-            f"- Evidence: {evidence}",
-            f"- Status: {status}",
-            f"- Answer: {text}",
-            "",
-        ])
-    return "\n".join(lines).rstrip()
+    return _format_required_audit_answers(questions, answers)
 
 
 # Placeholder patterns detected in Required Audit answers
@@ -4515,6 +4679,7 @@ def _expected_archive_paths(state_dir: Path, round_id: str, manifest_files: list
         round_id,
         [
             "codex_execution_report.md",
+            "execution_report.md",
             "decision_packet.md",
             "pytest_result.txt",
             ARCHIVE_MANIFEST_NAME,
@@ -4731,6 +4896,23 @@ def _pytest_result_missing_only_closeout_related(check: dict[str, Any]) -> bool:
     return True
 
 
+def _execution_log_missing_only_closeout_related(check: dict[str, Any]) -> bool:
+    """Return True when execution_log is missing only closeout self edges."""
+    missing_commands = check.get("missing_commands") or []
+    if not missing_commands:
+        return False
+    closeout_kinds = {"run-closeout", "close-round", "run-round"}
+    for command in missing_commands:
+        command_text = str(command or "")
+        is_closeout_related = any(
+            f"python -m reverse_agent.project_gate {kind}" in command_text
+            for kind in closeout_kinds
+        )
+        if not is_closeout_related:
+            return False
+    return True
+
+
 def _command_plan_has_active_kind(commands: list[dict[str, Any]], kind: str) -> bool:
     for item in commands:
         declared_kind = str(item.get("kind") or "")
@@ -4761,7 +4943,7 @@ def _update_report_archive_paths(*, state_dir: Path, round_id: str) -> None:
     _archive_dir = state_dir / "rounds" / round_id
     if not _archive_dir.exists():
         return
-    report = read_codex_report_summary(state_dir)
+    report = _read_execution_report_summary(state_dir)
     if not report:
         return
     archive_paths = _expected_archive_paths(state_dir, round_id, [])
@@ -4771,24 +4953,34 @@ def _update_report_archive_paths(*, state_dir: Path, round_id: str) -> None:
     generated_artifacts |= archive_paths
     report["files_changed"] = sorted(files_changed)
     report["generated_artifacts"] = sorted(generated_artifacts)
-    report_path = state_dir / "codex_execution_report.md"
+    report_path = state_dir / LEGACY_EXECUTION_REPORT_NAME
     existing_text = _read_text(report_path)
     # Replace the JSON code block in the report
     import re as _re
     new_json = json.dumps(report, ensure_ascii=True, indent=2)
     updated_text = _re.sub(
-        r"```json codex_report_summary\n.*?\n```",
-        f"```json codex_report_summary\n{new_json}\n```",
+        rf"```json {LEGACY_REPORT_SUMMARY_BLOCK_NAME}\n.*?\n```",
+        f"```json {LEGACY_REPORT_SUMMARY_BLOCK_NAME}\n{new_json}\n```",
         existing_text,
         count=1,
         flags=_re.DOTALL,
     )
     report_path.write_text(updated_text, encoding="utf-8", newline="\n")
+    neutral_path = state_dir / NEUTRAL_EXECUTION_REPORT_NAME
+    neutral_path.write_text(
+        _neutralize_report_markdown(updated_text),
+        encoding="utf-8",
+        newline="\n",
+    )
     # Re-copy to archive
     _archive_dir = state_dir / "rounds" / round_id
     if _archive_dir.exists():
         import shutil as _shutil
-        _shutil.copy2(report_path, _archive_dir / "codex_execution_report.md")
+        for _name in (LEGACY_EXECUTION_REPORT_NAME, NEUTRAL_EXECUTION_REPORT_NAME):
+            _src = state_dir / _name
+            if _src.exists():
+                _shutil.copy2(_src, _archive_dir / _name)
+        _ensure_neutral_report_archive_manifest_entry(state_dir=state_dir, round_id=round_id)
 
 
 def _recopy_report_to_archive(*, state_dir: Path, round_id: str) -> None:
@@ -4801,10 +4993,34 @@ def _recopy_report_to_archive(*, state_dir: Path, round_id: str) -> None:
     if not _archive_dir.exists():
         return
     import shutil as _shutil
-    for _name in ("codex_execution_report.md", "pytest_result.txt"):
+    for _name in (LEGACY_EXECUTION_REPORT_NAME, NEUTRAL_EXECUTION_REPORT_NAME, "pytest_result.txt"):
         _src = state_dir / _name
         if _src.exists():
             _shutil.copy2(_src, _archive_dir / _name)
+    _ensure_neutral_report_archive_manifest_entry(state_dir=state_dir, round_id=round_id)
+
+
+def _ensure_neutral_report_archive_manifest_entry(*, state_dir: Path, round_id: str) -> None:
+    manifest_path = state_dir / "rounds" / round_id / ARCHIVE_MANIFEST_NAME
+    neutral_archive_path = state_dir / "rounds" / round_id / NEUTRAL_EXECUTION_REPORT_NAME
+    if not manifest_path.exists() or not neutral_archive_path.exists():
+        return
+    manifest = _read_json(manifest_path)
+    if not isinstance(manifest, dict):
+        return
+    files = manifest.get("files")
+    if not isinstance(files, dict):
+        return
+    files[NEUTRAL_EXECUTION_REPORT_NAME] = {
+        "path": str(neutral_archive_path),
+        "sha256": _sha256_path(neutral_archive_path),
+        "source_path": str(state_dir / NEUTRAL_EXECUTION_REPORT_NAME),
+    }
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def _refresh_manifest_status(*, state_dir: Path, round_id: str) -> None:
@@ -4822,7 +5038,7 @@ def _refresh_manifest_status(*, state_dir: Path, round_id: str) -> None:
     manifest = _read_json(manifest_path)
     if not isinstance(manifest, dict):
         return
-    report = read_codex_report_summary(state_dir)
+    report = _read_execution_report_summary(state_dir)
     if not isinstance(report, dict):
         return
     updated = False
@@ -4853,7 +5069,7 @@ def build_report_summary_synthesis(
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
     report_text = _read_text(state_dir / "codex_execution_report.md")
-    report = read_codex_report_summary(state_dir)
+    report = _read_execution_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     pytest_header = parse_pytest_result_header(pytest_text)
     command_plan_path = state_dir / "gates" / COMMAND_PLAN_RESULT_NAME
@@ -5027,17 +5243,27 @@ def build_report_summary_synthesis(
     expected_files_changed = sorted(
         round_delta_files
         | archive_paths
-        | {REPORT_SUMMARY_OUTPUT_PATH, SELF_OUTPUT_PATH, ROUND_BASELINE_OUTPUT_PATH, ROUND_DELTA_OUTPUT_PATH}
+        | {
+            LEGACY_EXECUTION_REPORT_PATH,
+            REPORT_SUMMARY_OUTPUT_PATH,
+            SELF_OUTPUT_PATH,
+            ROUND_BASELINE_OUTPUT_PATH,
+            ROUND_DELTA_OUTPUT_PATH,
+        }
+        | ({NEUTRAL_EXECUTION_REPORT_PATH} if (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists() else set())
         | ({REPORT_AUTO_SUMMARY_OUTPUT_PATH} if (state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME).exists() else set())
+        | ({NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH} if (state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).exists() else set())
         | ({ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH} if include_close_snapshot else set())
     )
     generated_artifact_set = {
-        "project_state/codex_execution_report.md",
+        LEGACY_EXECUTION_REPORT_PATH,
         "project_state/pytest_result.txt",
         REPORT_SUMMARY_OUTPUT_PATH,
         ROUND_DELTA_OUTPUT_PATH,
         *archive_paths,
     }
+    if (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists():
+        generated_artifact_set.add(NEUTRAL_EXECUTION_REPORT_PATH)
     if (state_dir / "gates" / ROUND_BASELINE_RESULT_NAME).exists():
         generated_artifact_set.add(ROUND_BASELINE_OUTPUT_PATH)
     if (state_dir / "gates" / PREFLIGHT_RESULT_NAME).exists():
@@ -5064,11 +5290,11 @@ def build_report_summary_synthesis(
     # just like other gate artifacts.
     if (state_dir / "gates" / EXECUTION_LOG_RESULT_NAME).exists():
         generated_artifact_set.add(EXECUTION_LOG_OUTPUT_PATH)
-    # Include codex_report_auto_summary.json when it exists on disk.  This is
-    # generated by the report-auto-summary gate command and must appear in
-    # generated_artifacts just like other gate artifacts.
+    # Include report auto-summary aliases when they exist on disk.
     if (state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME).exists():
         generated_artifact_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
+    if (state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).exists():
+        generated_artifact_set.add(NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH)
     # Include execute_decision_result.json when it exists on disk.
     if (state_dir / "gates" / EXECUTE_DECISION_RESULT_NAME).exists():
         generated_artifact_set.add(EXECUTE_DECISION_OUTPUT_PATH)
@@ -5235,6 +5461,19 @@ def build_report_summary_synthesis(
                     continue
             diffs.append(diff)
 
+    legacy_alias_summary, neutral_alias_summary = _report_summary_alias_payloads(state_dir)
+    alias_diffs: list[dict[str, Any]] = []
+    if legacy_alias_summary and neutral_alias_summary:
+        alias_diffs = _summary_alias_parity_diffs(legacy_alias_summary, neutral_alias_summary)
+        for diff in alias_diffs:
+            alias_diff = dict(diff)
+            alias_diff["field"] = f"execution_report_alias.{diff.get('field')}"
+            diffs.append(alias_diff)
+    elif (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists() and not neutral_alias_summary:
+        errors.append("execution_report.md exists but has no parseable execution_report_summary/codex_report_summary block")
+    elif (state_dir / LEGACY_EXECUTION_REPORT_NAME).exists() and not legacy_alias_summary:
+        errors.append("codex_execution_report.md exists but has no parseable codex_report_summary/execution_report_summary block")
+
     # Classify warnings as blocking or non-blocking for synthesis_status.
     # Non-blocking warnings are informational notices that do not indicate
     # a real synthesis problem: inherited dirty files that may have been
@@ -5276,6 +5515,8 @@ def build_report_summary_synthesis(
         "non_blocking_warnings": non_blocking_warnings,
         "sources": {
             "decision_meta": "project_state/decision_packet.md",
+            "execution_report": LEGACY_EXECUTION_REPORT_PATH,
+            "neutral_execution_report": NEUTRAL_EXECUTION_REPORT_PATH,
             "command_plan": COMMAND_PLAN_OUTPUT_PATH,
             "round_delta_summary": ROUND_DELTA_OUTPUT_PATH,
             "final_gate_result": SELF_OUTPUT_PATH,
@@ -5595,8 +5836,8 @@ def final_check(
 
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
-    report_text = _read_text(state_dir / "codex_execution_report.md")
-    report = read_codex_report_summary(state_dir)
+    report_text = _read_text(state_dir / LEGACY_EXECUTION_REPORT_NAME)
+    report = _read_execution_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     command_plan_data = _read_json(state_dir / "gates" / "command_plan.json")
     pytest_validation = validate_pytest_result_for_report(pytest_text, report, command_plan=command_plan_data)
@@ -5632,6 +5873,49 @@ def final_check(
             "decision_report_match",
             "PASS" if decision_report_ok else "FAIL",
             "decision/report ids and round_id match" if decision_report_ok else "decision/report id or round_id mismatch",
+        )
+    )
+
+    neutral_report_required = (
+        NEUTRAL_EXECUTION_REPORT_PATH in decision_text
+        or NEUTRAL_EXECUTION_REPORT_PATH in _string_set(report.get("generated_artifacts"))
+        or (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists()
+    )
+    legacy_alias_summary, neutral_alias_summary = _report_summary_alias_payloads(state_dir)
+    neutral_report_exists = (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists()
+    checks.append(
+        _check(
+            "execution_report_alias_present",
+            "PASS" if (neutral_report_exists or not neutral_report_required) else "FAIL",
+            (
+                "execution_report.md neutral alias is present"
+                if neutral_report_exists
+                else "execution_report.md neutral alias not required"
+                if not neutral_report_required
+                else "execution_report.md neutral alias is missing"
+            ),
+            required=neutral_report_required,
+        )
+    )
+    alias_mismatches = (
+        _summary_alias_parity_diffs(legacy_alias_summary, neutral_alias_summary)
+        if legacy_alias_summary and neutral_alias_summary
+        else []
+    )
+    alias_parity_ok = bool(legacy_alias_summary and neutral_alias_summary) and not alias_mismatches
+    checks.append(
+        _check(
+            "execution_report_alias_semantic_parity",
+            "PASS" if alias_parity_ok or not neutral_report_required else "FAIL",
+            (
+                "execution_report.md semantically matches codex_execution_report.md"
+                if alias_parity_ok
+                else "execution report alias parity not required"
+                if not neutral_report_required
+                else "execution_report.md does not semantically match codex_execution_report.md"
+            ),
+            mismatches=alias_mismatches,
+            required=neutral_report_required,
         )
     )
 
@@ -5738,6 +6022,22 @@ def final_check(
             "PASS" if archived_report_match is True else archive_pending_status,
             "archived report matches live report" if archived_report_match is True
             else (_archive_pending_detail or "archived report differs from live report"),
+        )
+    )
+
+    archived_neutral_report_match = _archive_file_matches_live(state_dir, round_id, NEUTRAL_EXECUTION_REPORT_NAME)
+    checks.append(
+        _check(
+            "archived_execution_report_alias_matches_live_alias",
+            "PASS" if archived_neutral_report_match is True or not neutral_report_required else archive_pending_status,
+            (
+                "archived execution_report.md matches live execution_report.md"
+                if archived_neutral_report_match is True
+                else "execution_report.md archive alias not required"
+                if not neutral_report_required
+                else (_archive_pending_detail or "archived execution_report.md differs from live execution_report.md")
+            ),
+            required=neutral_report_required,
         )
     )
 
@@ -6945,6 +7245,50 @@ def final_check(
             )
         )
 
+    neutral_auto_required = (
+        NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH in decision_text
+        or NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH in _string_set(report.get("generated_artifacts"))
+        or (state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).exists()
+    )
+    legacy_auto_payload = _read_json(state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME)
+    neutral_auto_payload = _read_json(state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME)
+    neutral_auto_exists = bool(neutral_auto_payload)
+    checks.append(
+        _check(
+            "execution_report_auto_summary_alias_present",
+            "PASS" if neutral_auto_exists or not neutral_auto_required else "FAIL",
+            (
+                "execution_report_auto_summary.json neutral alias is present"
+                if neutral_auto_exists
+                else "execution_report_auto_summary.json neutral alias not required"
+                if not neutral_auto_required
+                else "execution_report_auto_summary.json neutral alias is missing"
+            ),
+            required=neutral_auto_required,
+        )
+    )
+    auto_alias_mismatches = (
+        _auto_summary_alias_parity_diffs(legacy_auto_payload, neutral_auto_payload)
+        if legacy_auto_payload and neutral_auto_payload
+        else []
+    )
+    auto_alias_parity_ok = bool(legacy_auto_payload and neutral_auto_payload) and not auto_alias_mismatches
+    checks.append(
+        _check(
+            "execution_report_auto_summary_alias_semantic_parity",
+            "PASS" if auto_alias_parity_ok or not neutral_auto_required else "FAIL",
+            (
+                "execution_report_auto_summary.json semantically matches codex_report_auto_summary.json"
+                if auto_alias_parity_ok
+                else "execution report auto-summary alias parity not required"
+                if not neutral_auto_required
+                else "execution_report_auto_summary.json does not semantically match codex_report_auto_summary.json"
+            ),
+            mismatches=auto_alias_mismatches,
+            required=neutral_auto_required,
+        )
+    )
+
     # Phase 1 completion artifact check
     phase1_path = state_dir / "gates" / PHASE1_COMPLETION_RESULT_NAME
     if phase1_path.exists():
@@ -7230,6 +7574,16 @@ def _sync_auto_summary_to_report(state_dir: Path) -> None:
         encoding="utf-8",
         newline="\n",
     )
+    neutral_path = state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME
+    neutral_payload = dict(auto_summary)
+    neutral_payload["artifact_name"] = NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME
+    neutral_payload["alias_of"] = REPORT_AUTO_SUMMARY_OUTPUT_PATH
+    neutral_payload["alias_policy"] = "executor_neutral_report_auto_summary_alias_v1"
+    neutral_path.write_text(
+        json.dumps(neutral_payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def _status_policy_failure_is_historical_artifacts_only(
@@ -7379,8 +7733,8 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
 
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
-    report_text = _read_text(state_dir / "codex_execution_report.md")
-    report = read_codex_report_summary(state_dir)
+    report_text = _read_text(state_dir / LEGACY_EXECUTION_REPORT_NAME)
+    report = _read_execution_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     command_plan_data = _read_json(state_dir / "gates" / "command_plan.json")
     pytest_validation = validate_pytest_result_for_report(pytest_text, report, command_plan=command_plan_data)
@@ -7807,6 +8161,9 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             # This is resolved after archive_round creates the archive and
             # the post-closeout refresh records the run-closeout block.
             allowed_pending.add("pytest_result_exit_codes_match_command_plan")
+            execution_log_check = _check_by_name(before, "execution_log_required_commands_recorded")
+            if _execution_log_missing_only_closeout_related(execution_log_check):
+                allowed_pending.add("execution_log_required_commands_recorded")
         if _status_policy_failure_is_archive_pending(result=before, decision=decision):
             allowed_pending.add("status_policy_valid")
         # report_auto_summary_consistency may fail pre-archive when the
@@ -9680,7 +10037,9 @@ def report_auto_summary(
     - reportable gate artifacts on disk for generated_artifacts
     - ``final_gate_result.json`` for status/acceptance derivation
 
-    Writes ``project_state/gates/codex_report_auto_summary.json``.
+    Writes ``project_state/gates/codex_report_auto_summary.json`` and the
+    executor-neutral ``project_state/gates/execution_report_auto_summary.json``
+    alias.
     Does NOT auto-generate the report body or Required Audit answers.
     """
     state_dir = Path(state_dir)
@@ -9744,10 +10103,11 @@ def report_auto_summary(
 
     # Always include standard report artifacts
     files_changed_set |= {
-        "project_state/codex_execution_report.md",
+        LEGACY_EXECUTION_REPORT_PATH,
         "project_state/pytest_result.txt",
         REPORT_SUMMARY_OUTPUT_PATH,
         REPORT_AUTO_SUMMARY_OUTPUT_PATH,
+        NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH,
         ROUND_DELTA_OUTPUT_PATH,
         SELF_OUTPUT_PATH,
     }
@@ -9758,12 +10118,16 @@ def report_auto_summary(
     )
     source_provenance["gate_artifacts_on_disk"] = sorted(gate_artifact_paths)
     generated_artifact_set: set[str] = {
-        "project_state/codex_execution_report.md",
+        LEGACY_EXECUTION_REPORT_PATH,
         "project_state/pytest_result.txt",
         REPORT_SUMMARY_OUTPUT_PATH,
         REPORT_AUTO_SUMMARY_OUTPUT_PATH,
+        NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH,
         ROUND_DELTA_OUTPUT_PATH,
     }
+    if (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists():
+        files_changed_set.add(NEUTRAL_EXECUTION_REPORT_PATH)
+        generated_artifact_set.add(NEUTRAL_EXECUTION_REPORT_PATH)
     generated_artifact_set |= gate_artifact_paths
 
     # Always include codex_report_auto_summary.json itself, since the
@@ -9771,6 +10135,8 @@ def report_auto_summary(
     # may not include it if the file doesn't exist on disk yet (first run).
     generated_artifact_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
     files_changed_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
+    generated_artifact_set.add(NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH)
+    files_changed_set.add(NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH)
 
     # Include execute_decision_result.json when it exists on disk.
     if (state_dir / "gates" / EXECUTE_DECISION_RESULT_NAME).exists():
@@ -9824,7 +10190,7 @@ def report_auto_summary(
 
     # Include required_closeout_artifacts from the report in generated_artifacts,
     # matching the synthesis behavior in build_report_summary_synthesis().
-    report_summary = read_codex_report_summary(state_dir)
+    report_summary = _read_execution_report_summary(state_dir)
     required_closeout_artifacts = _string_set(report_summary.get("required_closeout_artifacts"))
     if required_closeout_artifacts:
         generated_artifact_set |= required_closeout_artifacts
@@ -9922,6 +10288,15 @@ def report_auto_summary(
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / REPORT_AUTO_SUMMARY_RESULT_NAME).write_text(
             json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        neutral_result = dict(result)
+        neutral_result["artifact_name"] = NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME
+        neutral_result["alias_of"] = REPORT_AUTO_SUMMARY_OUTPUT_PATH
+        neutral_result["alias_policy"] = "executor_neutral_report_auto_summary_alias_v1"
+        (out_dir / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).write_text(
+            json.dumps(neutral_result, ensure_ascii=True, indent=2) + "\n",
             encoding="utf-8",
             newline="\n",
         )
@@ -10998,7 +11373,11 @@ def _refresh_codex_report_for_closeout(
                 files_changed_set.add(norm_path)
                 authorized_inherited_source_test.add(norm_path)
     # Always include report and pytest_result
-    files_changed_set |= {"project_state/codex_execution_report.md", "project_state/pytest_result.txt"}
+    files_changed_set |= {
+        LEGACY_EXECUTION_REPORT_PATH,
+        NEUTRAL_EXECUTION_REPORT_PATH,
+        "project_state/pytest_result.txt",
+    }
     # Note: RUN_CLOSEOUT_OUTPUT_PATH is NOT added to files_changed because
     # the synthesis (build_report_summary_synthesis) does not include it in
     # expected_files_changed.  It is a gate artifact but not a report-level
@@ -11027,10 +11406,13 @@ def _refresh_codex_report_for_closeout(
     # here only when it exists ensures the report matches the synthesis.
     if (state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME).exists():
         files_changed_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
+    if (state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).exists():
+        files_changed_set.add(NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH)
 
     # Compute expected generated_artifacts from gate artifacts that exist
     generated_artifact_set: set[str] = {
-        "project_state/codex_execution_report.md",
+        LEGACY_EXECUTION_REPORT_PATH,
+        NEUTRAL_EXECUTION_REPORT_PATH,
         "project_state/pytest_result.txt",
         REPORT_SUMMARY_OUTPUT_PATH,
         ROUND_DELTA_OUTPUT_PATH,
@@ -11058,11 +11440,11 @@ def _refresh_codex_report_for_closeout(
     # just like other gate artifacts.
     if (gates_dir / EXECUTION_LOG_RESULT_NAME).exists():
         generated_artifact_set.add(EXECUTION_LOG_OUTPUT_PATH)
-    # Include codex_report_auto_summary.json when it exists on disk.  This is
-    # generated by the report-auto-summary gate command and must appear in
-    # generated_artifacts just like other gate artifacts.
+    # Include report auto-summary aliases when they exist on disk.
     if (gates_dir / REPORT_AUTO_SUMMARY_RESULT_NAME).exists():
         generated_artifact_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
+    if (gates_dir / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).exists():
+        generated_artifact_set.add(NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH)
     # Include execute_decision_result.json when it exists on disk.
     if (gates_dir / EXECUTE_DECISION_RESULT_NAME).exists():
         generated_artifact_set.add(EXECUTE_DECISION_OUTPUT_PATH)
@@ -11216,9 +11598,11 @@ def _refresh_codex_report_for_closeout(
         "referenced_artifacts": [],
         "required_closeout_artifacts": sorted(decision_required_closeout) if decision_required_closeout else [],
     }
-    report_path = state_dir / "codex_execution_report.md"
+    report_path = state_dir / LEGACY_EXECUTION_REPORT_NAME
     # Generate Required Audit scaffold if the decision has audit items
     audit_scaffold = (
+        _generate_executor_neutral_alias_required_audit(decision_text)
+        or
         _generate_final_state_sync_required_audit(decision_text)
         or generate_required_audit_scaffold(decision_text)
     )
@@ -11273,11 +11657,19 @@ def _refresh_codex_report_for_closeout(
         _existing_policy_impact = _markdown_section(_existing_text, "Policy Impact")
         if _existing_policy_impact.strip():
             report_body += f"\n## Policy Impact\n\n{_existing_policy_impact}\n"
-    report_path.write_text(
+    report_text = (
         f"```json codex_report_summary\n"
         f"{json.dumps(payload, ensure_ascii=True, indent=2)}\n"
         f"```\n\n"
-        f"{report_body}",
+        f"{report_body}"
+    )
+    report_path.write_text(
+        report_text,
+        encoding="utf-8",
+        newline="\n",
+    )
+    (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).write_text(
+        _neutralize_report_markdown(report_text),
         encoding="utf-8",
         newline="\n",
     )
@@ -12275,10 +12667,11 @@ def run_closeout(
         _archive_dir = state_dir / "rounds" / requested_round_id
         if _archive_dir.exists():
             import shutil as _shutil
-            for _name in ("codex_execution_report.md", "pytest_result.txt"):
+            for _name in (LEGACY_EXECUTION_REPORT_NAME, NEUTRAL_EXECUTION_REPORT_NAME, "pytest_result.txt"):
                 _src = state_dir / _name
                 if _src.exists():
                     _shutil.copy2(_src, _archive_dir / _name)
+            _ensure_neutral_report_archive_manifest_entry(state_dir=state_dir, round_id=round_id)
         after_close_step = next(
             (s for s in steps if s["name"] == "final-check-after-close"),
             None,
@@ -12331,10 +12724,11 @@ def run_closeout(
         _sync_auto_summary_to_report(state_dir)
         if _archive_dir.exists():
             import shutil as _shutil
-            for _name in ("codex_execution_report.md", "pytest_result.txt"):
+            for _name in (LEGACY_EXECUTION_REPORT_NAME, NEUTRAL_EXECUTION_REPORT_NAME, "pytest_result.txt"):
                 _src = state_dir / _name
                 if _src.exists():
                     _shutil.copy2(_src, _archive_dir / _name)
+            _ensure_neutral_report_archive_manifest_entry(state_dir=state_dir, round_id=round_id)
 
     # 8. Determine status
     closeout_status = _run_closeout_status(

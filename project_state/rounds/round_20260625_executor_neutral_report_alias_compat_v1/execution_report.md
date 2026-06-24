@@ -1,4 +1,4 @@
-```json codex_report_summary
+```json execution_report_summary
 {
   "schema_version": 1,
   "report_id": "codex_report_20260625_executor_neutral_report_alias_compat_v1",
@@ -87,7 +87,7 @@
 }
 ```
 
-# CODEX_EXECUTION_REPORT
+# EXECUTION_REPORT
 
 ## Status
 

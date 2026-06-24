@@ -23,6 +23,7 @@ from reverse_agent.project_gate import (
     _execution_log_derive_commands,
     _extract_bash_commands,
     _extract_unfenced_commands,
+    _execution_log_missing_only_closeout_related,
     _historical_sample_limitations_only,
     _is_close_round_command,
     _is_descriptive_backtick_line,
@@ -32,6 +33,8 @@ from reverse_agent.project_gate import (
     _is_self_invocation,
     _is_startup_command,
     _read_round_close_snapshot,
+    _read_execution_report_summary,
+    _refresh_codex_report_for_closeout,
     _report_status_from_gate,
     _report_status_from_gate_payload,
     _result_status,
@@ -1224,6 +1227,104 @@ def test_final_check_fails_when_codex_report_summary_missing(tmp_path: Path) -> 
     assert result["gate_status"] == "FAILED"
     assert _check(result, "decision_report_match")["status"] == "FAIL"
     assert _check(result, "status_policy_valid")["status"] == "FAIL"
+
+
+def test_execution_report_summary_parser_accepts_neutral_alias(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    payload = {
+        "schema_version": 1,
+        "report_id": "report_round_alias",
+        "round_id": "round_alias",
+        "based_on_decision_id": "decision_alias",
+        "status": "SUCCESS",
+        "acceptance_recommendation": "ACCEPTED",
+        "files_changed": [],
+        "tests_ran": [],
+        "generated_artifacts": [],
+    }
+    (state_dir / "execution_report.md").write_text(
+        "```json execution_report_summary\n"
+        f"{json.dumps(payload, indent=2)}\n"
+        "```\n\n# EXECUTION_REPORT\n",
+        encoding="utf-8",
+    )
+
+    parsed = _read_execution_report_summary(state_dir)
+
+    assert parsed["report_id"] == "report_round_alias"
+    assert parsed["based_on_decision_id"] == "decision_alias"
+
+
+def test_refresh_report_writes_neutral_execution_report_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    monkeypatch.setattr("reverse_agent.project_gate._git_changed_files", lambda _repo_root: [])
+
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+
+    legacy = read_codex_report_summary(state_dir)
+    neutral = _read_execution_report_summary(state_dir)
+    neutral_text = (state_dir / "execution_report.md").read_text(encoding="utf-8")
+    assert legacy["report_id"] == neutral["report_id"]
+    assert "```json execution_report_summary" in neutral_text
+    assert "# EXECUTION_REPORT" in neutral_text
+
+
+def test_report_auto_summary_writes_neutral_alias(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import report_auto_summary
+
+    state_dir = _make_gate_state(tmp_path)
+
+    result = report_auto_summary(state_dir=state_dir, write_result=True)
+    legacy_path = state_dir / "gates" / "codex_report_auto_summary.json"
+    neutral_path = state_dir / "gates" / "execution_report_auto_summary.json"
+    legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
+    neutral = json.loads(neutral_path.read_text(encoding="utf-8"))
+
+    assert result["artifact_name"] == "codex_report_auto_summary.json"
+    assert neutral["artifact_name"] == "execution_report_auto_summary.json"
+    assert neutral["summary"] == legacy["summary"]
+    assert neutral["alias_of"] == "project_state/gates/codex_report_auto_summary.json"
+
+
+def test_final_check_fails_when_execution_report_alias_drifts(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    payload = read_codex_report_summary(state_dir)
+    payload["status"] = "FAILED"
+    (state_dir / "execution_report.md").write_text(
+        "```json execution_report_summary\n"
+        f"{json.dumps(payload, indent=2)}\n"
+        "```\n\n# EXECUTION_REPORT\n",
+        encoding="utf-8",
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    parity_check = _check(result, "execution_report_alias_semantic_parity")
+
+    assert parity_check["status"] == "FAIL"
+    assert any(diff["field"] == "status" for diff in parity_check["mismatches"])
+
+
+def test_execution_log_missing_only_closeout_related_is_narrow() -> None:
+    assert _execution_log_missing_only_closeout_related({
+        "missing_commands": [
+            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id r1",
+            "python -m reverse_agent.project_gate run-round --state-dir project_state --execute",
+        ]
+    })
+    assert not _execution_log_missing_only_closeout_related({
+        "missing_commands": [
+            "python -m pytest tests/test_project_gate.py -q",
+            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id r1",
+        ]
+    })
 
 
 def test_final_check_warns_when_pytest_result_lacks_required_commands(tmp_path: Path) -> None:

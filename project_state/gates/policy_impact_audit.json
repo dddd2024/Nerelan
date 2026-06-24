@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "policy-impact",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260624_closeout_final_state_sync_rework_v1",
-  "round_id": "round_20260624_closeout_final_state_sync_rework_v1",
-  "generated_at": "2026-06-24T16:04:30.386700Z",
+  "decision_id": "decision_20260625_executor_neutral_report_alias_compat_v1",
+  "round_id": "round_20260625_executor_neutral_report_alias_compat_v1",
+  "generated_at": "2026-06-24T16:39:53.476276Z",
   "policy_sensitive_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
