@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260625_gate_closeout_audit_truth_rework_v1",
-  "round_id": "round_20260625_gate_closeout_audit_truth_rework_v1",
+  "decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
+  "round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,16 +13,16 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
-  "previous_round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+  "previous_decision_id": "decision_20260625_gate_closeout_audit_truth_rework_v1",
+  "previous_round_id": "round_20260625_gate_closeout_audit_truth_rework_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
   "phase_label": "phase_1_5_pre_phase_2",
-  "primary_goal": "Repair gate, closeout, execution-log, and Required Audit truthfulness so accepted state cannot mask internal contradictions.",
+  "primary_goal": "Repair command-plan artifact drift so live command_plan.json, pytest_result command-plan stdout, execution_log, final-check, and run-closeout all agree on accepted-state command semantics.",
   "command_plan_authority_required": true,
-  "accepted_requires_required_audit_semantic_alignment": true,
-  "accepted_requires_no_nested_closeout_failures": true,
-  "accepted_requires_execution_log_pytest_exit_code_consistency": true,
-  "accepted_requires_final_check_no_false_pass": true,
+  "accepted_requires_live_command_plan_matches_pytest_stdout": true,
+  "accepted_requires_no_accepted_diagnostic_run_closeout_note": true,
+  "accepted_requires_final_check_detects_command_plan_artifact_drift": true,
+  "accepted_requires_run_closeout_final_success_semantics": true,
   "accepted_requires_no_phase2_scope": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
@@ -45,18 +45,18 @@
 
 ## 1. Goal
 
-Implement Gate Closeout Audit Truth Rework v1.
+Implement Command Plan Artifact Drift Rework v1.
 
-The previous round cannot be accepted because its live artifacts still permit top-level success to mask internal contradictions. This round must repair those truthfulness failures without expanding scope.
+The previous round improved Required Audit alignment, nested closeout failure detection, and execution-log consistency, but it cannot be accepted because the live `project_state/gates/command_plan.json` artifact drifted from the command-plan stdout recorded in `project_state/pytest_result.txt`.
 
 Final accepted state must satisfy:
 
-1. `codex_execution_report.md` Required Audit answers answer the exact eight questions, not merely contain eight headings.
-2. `final_gate_result.json.gate_status` is not `PASSED` if any required nested artifact contains active `FAIL`, `FAILED`, mismatched exit code, or contradictory report status.
-3. `run_closeout_result.json.closeout_status` is not `PASSED` if `close_round_result.report_status` is `FAILED`, any internal check is `FAIL`, any required step failed, or any active warning/blocking reason remains.
-4. `execution_log.json` and `pytest_result.txt` agree on every top-level command exit code, especially `run-closeout`.
-5. `command-plan` distinguishes diagnostic expected-exit `[0, 1]` from final accepted success requirements.
-6. The final report does not claim `SUCCESS / ACCEPTED` until all of the above are true.
+1. `project_state/gates/command_plan.json` and the command-plan stdout recorded in `project_state/pytest_result.txt` must describe the same command list, expected exit codes, and notes for accepted-state validation.
+2. `final-check` must fail if live `command_plan.json` differs from the command-plan block recorded in `pytest_result.txt`.
+3. Accepted-state `run-closeout` must not retain the diagnostic note `run-closeout diagnostic after final-check failed; exit 1 is expected`.
+4. Accepted-state `run-closeout` must either have `expected_exit_codes: [0]`, or a clearly separated field must distinguish diagnostic allowance from final success requirements.
+5. `execution_log.json` must remain consistent with both `pytest_result.txt` and live `command_plan.json`.
+6. `codex_execution_report.md` must not claim `SUCCESS / ACCEPTED` unless these command-plan consistency checks pass.
 
 ## 2. Current Evidence
 
@@ -64,24 +64,23 @@ Mainline: `engineering_branch`.
 
 `task_packet.json` remains non-authoritative background state. This round is controlled only by `project_state/decision_packet.md`.
 
-Previous audit outcome: `REWORK_REQUIRED` for `decision_20260625_executor_neutral_gate_status_scope_rework_v1`.
+Previous audit outcome: `REWORK_REQUIRED` for `decision_20260625_gate_closeout_audit_truth_rework_v1`.
 
-Blocking evidence from that round:
+Blocking evidence from that audit:
 
-- `codex_execution_report.md` claimed `SUCCESS / ACCEPTED`, but Required Audit answers were semantically misaligned with their questions.
-- `run_closeout_result.json` had top-level `closeout_status: PASSED` while nested `close_round_result.report_status` remained `FAILED`.
-- `run_closeout_result.json` still contained an internal `FAIL` for `pytest_result_exit_codes_match_command_plan`.
-- `execution_log.json` recorded top-level `run-closeout` with `exit_code: 1`, while `pytest_result.txt` recorded the same top-level command as `EXIT: 0`.
-- `final_gate_result.json` reported top-level `PASSED`, so final-check did not catch all internal contradictions.
+- `pytest_result.txt` command-plan stdout showed `run-closeout` expected exit as `[0]` and described it as expected to exit 0 after final-check passed.
+- Live `project_state/gates/command_plan.json` showed the same `run-closeout` command with expected exit `[0, 1]` and the note `run-closeout diagnostic after final-check failed; exit 1 is expected`.
+- `final_gate_result.json` still reported top-level `PASSED`, so final-check did not detect the live command-plan artifact drift.
+- The previous decision explicitly required command-plan to distinguish diagnostic expected-exit `[0, 1]` from final accepted success requirements.
 
 Accepted facts to preserve:
 
+- command-plan remains the command execution authority;
+- Tests remain subordinate to command-plan;
 - legacy `codex_execution_report.md` remains supported;
 - neutral `execution_report.md` alias remains supported;
-- legacy and neutral report auto-summary aliases remain supported;
-- command-plan authority remains mandatory;
-- valid profiles are only `fast`, `standard`, and `full`;
-- Tests are subordinate to command-plan.
+- valid profiles remain `fast`, `standard`, and `full`;
+- no sample-solving or Phase 2 work is allowed in this round.
 
 Tool policy:
 
@@ -91,13 +90,13 @@ Tool policy:
 
 ## 3. Do Not Do
 
-Do not accept top-level `PASSED` if nested required checks contain active `FAIL` or `FAILED`.
+Do not accept a report if live `command_plan.json` differs from the command-plan block recorded in `pytest_result.txt`.
 
-Do not allow `run_closeout_result.json.closeout_status: PASSED` when `close_round_result.report_status` is `FAILED`.
+Do not keep an accepted-state `run-closeout` command with the note `run-closeout diagnostic after final-check failed; exit 1 is expected`.
 
-Do not allow `execution_log.json` and `pytest_result.txt` to disagree on top-level command exit codes.
+Do not treat diagnostic expected-exit `[0, 1]` as final accepted success for `run-closeout`.
 
-Do not treat Required Audit as complete only because eight headings exist.
+Do not allow `final-check` to pass if command-plan artifact drift exists.
 
 Do not widen the task into Phase 2, Web UI, CI, AgentRunner, database, queue, scheduler, or multi-executor work.
 
@@ -141,15 +140,14 @@ Then inspect only bounded implementation and gate evidence:
 3. `project_state/gates/command_plan.json`
 4. `project_state/gates/execution_log.json`
 5. `project_state/gates/final_gate_result.json`
-6. `project_state/gates/report_summary_synthesis.json`
-7. `project_state/gates/run_closeout_result.json`
-8. `project_state/gates/run_closeout_execution_log.json`
+6. `project_state/gates/run_closeout_result.json`
+7. `project_state/gates/run_closeout_execution_log.json`
+8. `project_state/gates/report_summary_synthesis.json`
 9. `project_state/gates/round_delta_summary.json`
 10. `project_state/gates/round_close_snapshot.json`
-11. `project_state/gates/state_hygiene_inventory.json`
-12. `project_state/gates/policy_impact_audit.json`
-13. `project_state/gates/policy_lint_result.json`
-14. current/previous round manifest only if needed as bounded diagnostic evidence
+11. `project_state/gates/policy_impact_audit.json`
+12. `project_state/gates/policy_lint_result.json`
+13. current/previous round manifest only if needed as bounded diagnostic evidence
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -157,16 +155,16 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 Before claiming success, `project_state/codex_execution_report.md` must answer all eight items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Which exact previous contradictions caused this rework, and which artifacts proved each contradiction?
-2. How does Required Audit validation now detect answer/question semantic mismatch rather than only counting headings?
-3. How does final-check now fail when `run_closeout_result.json` contains any active nested `FAIL` or `FAILED` state?
-4. How does run-closeout now prevent `closeout_status: PASSED` when `close_round_result.report_status` is `FAILED`?
-5. How do `execution_log.json` and `pytest_result.txt` now prove identical top-level command exit codes?
-6. How does command-plan distinguish diagnostic expected-exit `[0, 1]` from final accepted success requirements?
-7. Which regression tests prove these failures cannot recur?
-8. How does this rework preserve no sample-solving, no prompt/skill mutation, no forbidden state-file mutation, no legacy artifact deletion, and no Phase 2 expansion?
+1. Why did live `project_state/gates/command_plan.json` differ from the command-plan stdout recorded in `project_state/pytest_result.txt`?
+2. How does final-check now compare live `command_plan.json` against the command-plan block recorded in `pytest_result.txt`?
+3. What is the accepted-state expected exit behavior for `run-closeout`, and how is it represented?
+4. How is the diagnostic note `run-closeout diagnostic after final-check failed; exit 1 is expected` prevented from appearing in accepted-state command-plan artifacts?
+5. Which regression tests prove command-plan artifact drift is detected?
+6. How does execution-log consistency with both `pytest_result.txt` and live `command_plan.json` remain enforced?
+7. How does this rework preserve no forbidden path mutation and no legacy artifact deletion?
+8. How does this rework preserve no Phase 2, Web, CI, AgentRunner, database, queue, scheduler, reverse-solving, or heavy artifact scan expansion?
 
-Do not write TODO, TBD, PENDING, “should pass”, “expected to pass”, `(to be filled)`, or speculative answers.
+Do not write TODO, TBD, PENDING, `should pass`, `expected to pass`, `(to be filled)`, or speculative answers.
 
 ## 6. Implementation Scope
 
@@ -189,18 +187,17 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/gates/state_hygiene_inventory.json`
 - `project_state/gates/policy_impact_audit.json`
 - `project_state/gates/policy_lint_result.json`
-- `project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/*`
+- `project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/*`
 
 Required behavior:
 
-1. Add final-check validation that recursively inspects required closeout artifacts for active `FAIL` / `FAILED` states.
-2. Add run-closeout aggregation logic that fails top-level closeout if nested close-round report status is failed.
-3. Add execution-log validation that compares actual command exit codes against `pytest_result.txt` command blocks.
-4. Add Required Audit alignment hardening. At minimum, reject obviously misaligned answers that do not mention the core entities in the corresponding question.
-5. Add focused regression tests for all four failures above.
+1. Parse the command-plan JSON block recorded in `pytest_result.txt` and compare it with live `project_state/gates/command_plan.json`.
+2. Make `final-check` fail when the recorded command-plan stdout and live command-plan artifact disagree on command list, expected exit codes, or notes.
+3. Ensure accepted-state `run-closeout` command semantics are not represented as a failed-final-check diagnostic path.
+4. Keep execution-log validation aligned with both `pytest_result.txt` command blocks and live command-plan artifact.
+5. Add focused regression tests for command-plan artifact drift, especially `run-closeout` expected-exit and note drift.
 6. Regenerate current-round artifacts according to command-plan authority.
 
 ## 7. Tests
@@ -230,7 +227,7 @@ python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260625_gate_closeout_audit_truth_rework_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260625_command_plan_artifact_drift_rework_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -255,11 +252,11 @@ Stop immediately and report `BLOCKED` if:
 
 Stop with `REWORK_REQUIRED` if:
 
-- Required Audit remains semantically misaligned;
-- `run_closeout_result.json` has top-level `PASSED` with nested `FAIL` / `FAILED`;
-- `close_round_result.report_status` remains `FAILED` in accepted closeout;
-- `execution_log.json` and `pytest_result.txt` disagree on top-level command exit codes;
-- final-check top-level `PASSED` masks nested contradictions;
-- report-summary claims `ACCEPTED` while hard evidence contains unresolved internal failures;
+- live `command_plan.json` differs from the command-plan stdout recorded in `pytest_result.txt`;
+- accepted-state `run-closeout` still carries the diagnostic failed-final-check note;
+- accepted-state `run-closeout` still treats exit 1 as final accepted success without a separate diagnostic/final-success distinction;
+- final-check top-level `PASSED` masks command-plan artifact drift;
+- execution_log, pytest_result, and live command_plan disagree on top-level command exit codes;
+- report-summary claims `ACCEPTED` while command-plan/pytest_result evidence contains unresolved semantic contradictions;
 - tests fail;
 - policy-lint or policy-impact fails.
