@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
-  "round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+  "decision_id": "decision_20260625_gate_closeout_audit_truth_rework_v1",
+  "round_id": "round_20260625_gate_closeout_audit_truth_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-25T12:40:12.922073Z",
+  "generated_at": "2026-06-25T13:44:06.479485Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [
@@ -26,7 +26,7 @@
     "close-round"
   ],
   "reasons": [
-    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py, reverse_agent/project_state.py"
+    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py"
   ],
   "suggested_commands": [
     {

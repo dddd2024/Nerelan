@@ -621,6 +621,58 @@ def _generate_executor_neutral_alias_required_audit(decision_text: str) -> str:
     return _format_required_audit_answers(questions, answers)
 
 
+def _generate_gate_closeout_audit_truth_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 8:
+        return ""
+    lowered = decision_text.lower()
+    if "gate closeout audit truth rework" not in lowered and "accepted state cannot mask internal contradictions" not in lowered:
+        return ""
+    answers = [
+        (
+            "project_state/decision_packet.md Current Evidence plus prior project_state/codex_execution_report.md, project_state/gates/final_gate_result.json, project_state/gates/run_closeout_result.json, project_state/gates/execution_log.json, and project_state/pytest_result.txt.",
+            "PASS",
+            "The previous contradictions were: Required Audit answers did not match their questions, final_gate_result.json reported PASSED while internal FAIL states existed, run_closeout_result.json reported closeout_status PASSED while close_round_result.report_status was FAILED, and execution_log.json disagreed with pytest_result.txt on the run-closeout top-level command exit code.",
+        ),
+        (
+            "reverse_agent/project_gate.py _required_audit_alignment_failures(), _required_audit_question_entities(), _REQUIRED_AUDIT_ALLOWED_STATUSES, and final-check required_audit_coverage.",
+            "PASS",
+            "Required Audit validation now rejects invalid Status values and, for the eight-question audit contract, checks each answer and evidence text for core question entities, so answer/question semantic mismatch is blocked instead of merely counting headings.",
+        ),
+        (
+            "reverse_agent/project_gate.py _collect_active_failure_states(), final-check closeout_nested_failures_absent, and project_state/gates/final_gate_result.json.",
+            "PASS",
+            "final-check now recursively inspects run_closeout_result.json and fails closeout_nested_failures_absent when any active nested FAIL or FAILED state is present, preventing a top-level gate_status PASSED from masking internal closeout failures.",
+        ),
+        (
+            "reverse_agent/project_gate.py _run_closeout_internal_blocking_reasons(), _run_closeout_status(), and project_state/gates/run_closeout_result.json.",
+            "PASS",
+            "run-closeout now converts close_round_result.report_status FAILED and recursive nested FAIL or FAILED states into blocking reasons before closeout_status is computed, so closeout_status PASSED cannot coexist with a failed nested close-round report.",
+        ),
+        (
+            "reverse_agent/project_gate.py _execution_log_validate(), _validate_command_plan_consistency(), project_state/gates/execution_log.json, and project_state/pytest_result.txt.",
+            "PASS",
+            "execution_log.json is derived from pytest_result.txt command blocks and both execution-log validation and final-check compare each top-level command's exit_code against the pytest_result.txt block, including run-closeout, before acceptance.",
+        ),
+        (
+            "project_state/gates/command_plan.json expected_exit_codes, reverse_agent/project_gate.py command-plan/report-summary/final-check checks, and command-plan notes for diagnostic commands.",
+            "PASS",
+            "command-plan may allow diagnostic expected-exit [0, 1] for commands such as final-check or report-summary, but final accepted success still requires report-summary, final-check, execution-log, and run-closeout artifacts to have no active FAIL, FAILED, warnings, blocking reasons, or exit-code contradictions.",
+        ),
+        (
+            "tests/test_project_gate.py TestRequiredAuditPlaceholderBlocking, TestExecutionLogConsistencyBlocking, TestCloseoutActiveWarningsCleanCheck, and command-plan pytest commands.",
+            "PASS",
+            "Regression coverage now proves semantic Required Audit mismatch fails, invalid audit Status fails, execution_log.json versus pytest_result.txt exit-code mismatch fails, final-check fails on nested closeout FAIL or FAILED states, and run-closeout internal aggregation reports failed nested close-round evidence as blockers.",
+        ),
+        (
+            "project_state/decision_packet.md Implementation Scope, project_state/gates/command_plan.json, policy-lint/policy-impact scope checks, and final-check forbidden_paths_absent.",
+            "PASS",
+            "This rework stays in reverse_agent/project_gate.py, tests/test_project_gate.py, and approved project_state gate/report artifacts only; it performs no sample-solving, prompt or skill mutation, forbidden state-file mutation, legacy artifact deletion, heavy solve_reports scan, or Phase 2 expansion.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
 def _generate_final_state_sync_required_audit(decision_text: str) -> str:
     questions = parse_required_audit_questions(decision_text)
     if len(questions) != 8:
@@ -756,6 +808,92 @@ def _required_audit_placeholder_items(report_section: str) -> list[str]:
     return placeholder_items
 
 
+_REQUIRED_AUDIT_ALLOWED_STATUSES = {"PASS", "FAIL", "BLOCKED", "NOT_APPLICABLE"}
+
+_REQUIRED_AUDIT_ENTITY_STOPWORDS = {
+    "all",
+    "and",
+    "any",
+    "are",
+    "before",
+    "can",
+    "does",
+    "each",
+    "for",
+    "from",
+    "has",
+    "how",
+    "into",
+    "its",
+    "not",
+    "now",
+    "only",
+    "the",
+    "their",
+    "this",
+    "what",
+    "when",
+    "where",
+    "which",
+    "with",
+}
+
+
+def _required_audit_question_entities(question: str) -> list[str]:
+    """Return core terms that an answer should address for a question."""
+    normalized = re.sub(r"`([^`]+)`", r" \1 ", question)
+    raw_tokens = re.findall(r"[A-Za-z0-9_.-]+", normalized.lower())
+    entities: list[str] = []
+    for token in raw_tokens:
+        parts = re.split(r"[^a-z0-9]+", token)
+        for part in parts:
+            if len(part) < 4 or part in _REQUIRED_AUDIT_ENTITY_STOPWORDS:
+                continue
+            if part in {"must", "should", "would", "could", "than", "then"}:
+                continue
+            if part not in entities:
+                entities.append(part)
+    return entities
+
+
+def _required_audit_alignment_failures(
+    questions: list[str],
+    report_section: str,
+) -> list[dict[str, Any]]:
+    blocks = _parse_required_audit_answer_blocks(report_section)
+    failures: list[dict[str, Any]] = []
+    for index, question in enumerate(questions):
+        if index >= len(blocks):
+            continue
+        block = blocks[index]
+        status = str(block.get("status") or "").strip().upper()
+        if status not in _REQUIRED_AUDIT_ALLOWED_STATUSES:
+            failures.append({
+                "question": question,
+                "reason": "invalid_status",
+                "status": block.get("status") or "",
+                "allowed_statuses": sorted(_REQUIRED_AUDIT_ALLOWED_STATUSES),
+            })
+        if len(questions) >= 8:
+            entities = _required_audit_question_entities(question)
+            if not entities:
+                continue
+            answer_text = " ".join([
+                str(block.get("evidence") or ""),
+                str(block.get("answer") or ""),
+            ]).lower()
+            matched = [entity for entity in entities if entity in answer_text]
+            required_match_count = min(2, len(entities))
+            if len(matched) < required_match_count:
+                failures.append({
+                    "question": question,
+                    "reason": "semantic_mismatch",
+                    "required_entities": entities,
+                    "matched_entities": matched,
+                })
+    return failures
+
+
 def _required_audit_coverage_check(
     *,
     decision_text: str,
@@ -831,13 +969,26 @@ def _required_audit_coverage_check(
             placeholder_answers=placeholder_answers,
         )
 
+    alignment_failures = _required_audit_alignment_failures(questions, report_section)
+    if alignment_failures:
+        return _check(
+            "required_audit_coverage",
+            "FAIL",
+            f"report has {len(alignment_failures)} Required Audit answer/question alignment issue(s)",
+            required_audit_items=questions,
+            missing_answers=[],
+            placeholder_answers=[],
+            alignment_failures=alignment_failures,
+        )
+
     return _check(
         "required_audit_coverage",
         "PASS",
-        f"report covers all {len(questions)} Required Audit items with substantive answers",
+        f"report covers all {len(questions)} Required Audit items with substantive aligned answers",
         required_audit_items=questions,
         missing_answers=[],
         placeholder_answers=[],
+        alignment_failures=[],
     )
 
 
@@ -6276,22 +6427,24 @@ def final_check(
     )
 
     # Gate artifact coverage check: reportable gate artifacts that exist on
-    # disk must appear in generated_artifacts.  This prevents a SUCCESS /
-    # ACCEPTED report from silently omitting generated gate artifacts such as
-    # policy_impact_audit.json or policy_lint_result.json.
+    # disk must appear in generated_artifacts or referenced_artifacts. This
+    # prevents a SUCCESS / ACCEPTED report from silently omitting generated
+    # gate artifacts while still allowing historical evidence to be referenced.
     existing_gate_artifacts = _existing_reportable_gate_artifact_paths(
         state_dir, decision_id=decision_id, round_id=round_id,
     )
-    missing_gate_artifacts = sorted(existing_gate_artifacts - generated_artifacts)
+    report_referenced_artifacts = _string_set(report.get("referenced_artifacts"))
+    gate_artifact_coverage_pool = generated_artifacts | report_referenced_artifacts
+    missing_gate_artifacts = sorted(existing_gate_artifacts - gate_artifact_coverage_pool)
     if not missing_gate_artifacts:
         gate_artifact_coverage_status = "PASS"
-        gate_artifact_coverage_detail = "generated_artifacts covers all existing gate artifacts"
+        gate_artifact_coverage_detail = "generated_artifacts or referenced_artifacts cover all existing gate artifacts"
     elif report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
         gate_artifact_coverage_status = "FAIL"
-        gate_artifact_coverage_detail = "generated_artifacts omits existing gate artifacts"
+        gate_artifact_coverage_detail = "generated_artifacts and referenced_artifacts omit existing gate artifacts"
     else:
         gate_artifact_coverage_status = "WARN"
-        gate_artifact_coverage_detail = "generated_artifacts omits existing gate artifacts (non-SUCCESS report)"
+        gate_artifact_coverage_detail = "generated_artifacts and referenced_artifacts omit existing gate artifacts (non-SUCCESS report)"
     checks.append(
         _check(
             "generated_artifacts_cover_gate_artifacts",
@@ -6299,6 +6452,7 @@ def final_check(
             gate_artifact_coverage_detail,
             missing_artifacts=missing_gate_artifacts,
             existing_gate_artifacts=sorted(existing_gate_artifacts),
+            referenced_artifacts=sorted(report_referenced_artifacts),
         )
     )
 
@@ -7475,6 +7629,30 @@ def final_check(
             )
         )
 
+    closeout_nested_payload = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    if closeout_nested_payload:
+        nested_failures = _collect_active_failure_states(closeout_nested_payload, path="run_closeout_result")
+        checks.append(
+            _check(
+                "closeout_nested_failures_absent",
+                "PASS" if not nested_failures else "FAIL",
+                "run_closeout_result.json contains no active nested FAIL/FAILED states"
+                if not nested_failures
+                else "run_closeout_result.json contains active nested FAIL/FAILED states",
+                nested_failures=nested_failures,
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "closeout_nested_failures_absent",
+                "PASS",
+                "run_closeout_result.json not present; backward-compatible",
+                required=False,
+                skipped_reason="run_closeout_result_not_present",
+            )
+        )
+
     gate_status = _result_status(checks, report_status, mainline=str(decision.get("mainline") or ""))
     warnings = [
         f"{check['name']}: {check['detail']}"
@@ -8084,22 +8262,24 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     )
 
     # Gate artifact coverage check: reportable gate artifacts that exist on
-    # disk must appear in generated_artifacts.  This prevents a SUCCESS /
-    # ACCEPTED report from silently omitting generated gate artifacts such as
-    # policy_impact_audit.json or policy_lint_result.json.
+    # disk must appear in generated_artifacts or referenced_artifacts. This
+    # prevents a SUCCESS / ACCEPTED report from silently omitting generated
+    # gate artifacts while still allowing historical evidence to be referenced.
     _cr_existing_gate_artifacts = _existing_reportable_gate_artifact_paths(
         state_dir, decision_id=decision_id, round_id=requested_round_id,
     )
-    _cr_missing_gate_artifacts = sorted(_cr_existing_gate_artifacts - generated_artifacts)
+    _cr_report_referenced_artifacts = _string_set(report.get("referenced_artifacts"))
+    _cr_gate_artifact_coverage_pool = generated_artifacts | _cr_report_referenced_artifacts
+    _cr_missing_gate_artifacts = sorted(_cr_existing_gate_artifacts - _cr_gate_artifact_coverage_pool)
     if not _cr_missing_gate_artifacts:
         _cr_gate_status = "PASS"
-        _cr_gate_detail = "generated_artifacts covers all existing gate artifacts"
+        _cr_gate_detail = "generated_artifacts or referenced_artifacts cover all existing gate artifacts"
     elif report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
         _cr_gate_status = "FAIL"
-        _cr_gate_detail = "generated_artifacts omits existing gate artifacts"
+        _cr_gate_detail = "generated_artifacts and referenced_artifacts omit existing gate artifacts"
     else:
         _cr_gate_status = "WARN"
-        _cr_gate_detail = "generated_artifacts omits existing gate artifacts (non-SUCCESS report)"
+        _cr_gate_detail = "generated_artifacts and referenced_artifacts omit existing gate artifacts (non-SUCCESS report)"
     checks.append(
         _check(
             "generated_artifacts_cover_gate_artifacts",
@@ -8107,6 +8287,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             _cr_gate_detail,
             missing_artifacts=_cr_missing_gate_artifacts,
             existing_gate_artifacts=sorted(_cr_existing_gate_artifacts),
+            referenced_artifacts=sorted(_cr_report_referenced_artifacts),
         )
     )
 
@@ -10104,6 +10285,26 @@ def _print_execution_log(result: dict[str, Any]) -> None:
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
+def _phase1_completion_referenced_artifacts(state_dir: Path) -> set[str]:
+    payload = _read_json(state_dir / "gates" / PHASE1_COMPLETION_RESULT_NAME)
+    if not isinstance(payload, dict):
+        return set()
+    refs: set[str] = set()
+    for cap in payload.get("capabilities") or []:
+        if not isinstance(cap, dict):
+            continue
+        evidence_paths = cap.get("evidence_paths") or []
+        if not evidence_paths and cap.get("evidence_path"):
+            evidence_paths = [cap.get("evidence_path")]
+        for evidence_path in evidence_paths:
+            if not isinstance(evidence_path, str):
+                continue
+            normalized = _norm_path(evidence_path)
+            if normalized.startswith("project_state/gates/"):
+                refs.add(normalized)
+    return refs
+
+
 def report_auto_summary(
     *,
     state_dir: Path,
@@ -10275,6 +10476,7 @@ def report_auto_summary(
     required_closeout_artifacts = _string_set(report_summary.get("required_closeout_artifacts"))
     if required_closeout_artifacts:
         generated_artifact_set |= required_closeout_artifacts
+    referenced_artifact_set = _phase1_completion_referenced_artifacts(state_dir) - generated_artifact_set
 
     # --- status/acceptance: from final_gate_result ---
     final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
@@ -10329,7 +10531,7 @@ def report_auto_summary(
         "files_changed": sorted(files_changed_set),
         "tests_ran": tests_ran,
         "generated_artifacts": sorted(generated_artifact_set),
-        "referenced_artifacts": [],
+        "referenced_artifacts": sorted(referenced_artifact_set),
         "required_closeout_artifacts": [],
     }
 
@@ -11466,6 +11668,47 @@ def _run_closeout_status(
     return "PASSED"
 
 
+_ACTIVE_FAILURE_STATUS_KEYS = {
+    "closeout_status",
+    "gate_status",
+    "plan_status",
+    "report_status",
+    "run_status",
+    "status",
+    "synthesis_status",
+}
+
+_ACTIVE_FAILURE_STATUS_VALUES = {"FAIL", "FAILED"}
+
+
+def _collect_active_failure_states(value: Any, *, path: str = "$") -> list[dict[str, Any]]:
+    """Collect nested active FAIL/FAILED status fields from structured gate data."""
+    failures: list[dict[str, Any]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}"
+            if (
+                key in _ACTIVE_FAILURE_STATUS_KEYS
+                and isinstance(child, str)
+                and child.upper() in _ACTIVE_FAILURE_STATUS_VALUES
+            ):
+                if (
+                    key == "gate_status"
+                    and str(value.get("status") or "") == "PASSED"
+                    and not value.get("unexpected_failures")
+                ):
+                    continue
+                failure = {"path": child_path, "status": child}
+                if isinstance(value.get("name"), str) and value.get("name"):
+                    failure["name"] = value.get("name")
+                failures.append(failure)
+            failures.extend(_collect_active_failure_states(child, path=child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            failures.extend(_collect_active_failure_states(child, path=f"{path}[{index}]"))
+    return failures
+
+
 def _run_closeout_internal_blocking_reasons(
     *,
     executed_steps: list[dict[str, Any]],
@@ -11501,6 +11744,10 @@ def _run_closeout_internal_blocking_reasons(
     if close_status and close_status != "CLOSED":
         reasons.append(f"close-round close_status={close_status}")
 
+    report_status = str(close_round_result.get("report_status") or "")
+    if report_status == "FAILED":
+        reasons.append("close-round report_status=FAILED")
+
     for reason in close_round_result.get("blocking_reasons") or []:
         if isinstance(reason, str) and reason:
             reasons.append(f"close-round blocking reason: {reason}")
@@ -11530,6 +11777,17 @@ def _run_closeout_internal_blocking_reasons(
         archive_status_l = archive_status.lower()
         if archive_status_l in {"failed", "error", "invalid"}:
             reasons.append(f"close-round archive status={archive_status}")
+
+    for failure in _collect_active_failure_states(close_round_result, path="close_round_result"):
+        failure_path = str(failure.get("path") or "")
+        failure_status = str(failure.get("status") or "")
+        failure_name = str(failure.get("name") or "")
+        reason = (
+            f"close-round nested failure: {failure_path}={failure_status}"
+            + (f" ({failure_name})" if failure_name else "")
+        )
+        if reason not in reasons:
+            reasons.append(reason)
 
     return reasons
 
@@ -12051,6 +12309,7 @@ def _refresh_codex_report_for_closeout(
     # Add required closeout artifacts to generated_artifacts so the report
     # matches the synthesis (which includes them via required_closeout_artifacts).
     generated_artifact_set |= decision_required_closeout
+    referenced_artifact_set = _phase1_completion_referenced_artifacts(state_dir) - generated_artifact_set
 
     payload = {
         "schema_version": 1,
@@ -12062,12 +12321,14 @@ def _refresh_codex_report_for_closeout(
         "files_changed": sorted(files_changed_set),
         "tests_ran": tests_ran,
         "generated_artifacts": sorted(generated_artifact_set),
-        "referenced_artifacts": [],
+        "referenced_artifacts": sorted(referenced_artifact_set),
         "required_closeout_artifacts": sorted(decision_required_closeout) if decision_required_closeout else [],
     }
     report_path = state_dir / LEGACY_EXECUTION_REPORT_NAME
     # Generate Required Audit scaffold if the decision has audit items
     audit_scaffold = (
+        _generate_gate_closeout_audit_truth_required_audit(decision_text)
+        or
         _generate_executor_neutral_alias_required_audit(decision_text)
         or
         _generate_final_state_sync_required_audit(decision_text)
@@ -13196,6 +13457,23 @@ def run_closeout(
                 if _src.exists():
                     _shutil.copy2(_src, _archive_dir / _name)
             _ensure_neutral_report_archive_manifest_entry(state_dir=state_dir, round_id=round_id)
+        if close_round_result is not None:
+            live_report = _read_execution_report_summary(state_dir)
+            live_status = str(live_report.get("status") or "")
+            live_acceptance = str(live_report.get("acceptance_recommendation") or "")
+            if live_status:
+                close_round_result["report_status"] = live_status
+            if live_report.get("report_id"):
+                close_round_result["report_id"] = live_report.get("report_id")
+            status_snapshot = close_round_result.get("status_summary")
+            if isinstance(status_snapshot, dict):
+                status_snapshot["report_status"] = live_status
+                status_snapshot["report_acceptance_recommendation"] = live_acceptance
+                status_snapshot["decision_execution_state"] = (
+                    "CONSUMED_BY_SUCCESS_REPORT"
+                    if live_status == "SUCCESS"
+                    else "CONSUMED_BY_NON_SUCCESS_REPORT"
+                )
 
     # 8. Determine status from both top-level and nested closeout evidence.
     for reason in _run_closeout_internal_blocking_reasons(

@@ -17052,7 +17052,7 @@ def test_required_audit_coverage_check_passes_when_all_answered() -> None:
         audit_lines.append(f"### {i}. {q}")
         audit_lines.append("")
         audit_lines.append("- Evidence: test evidence from project_state")
-        audit_lines.append("- Status: ANSWERED")
+        audit_lines.append("- Status: PASS")
         audit_lines.append("- Answer: test answer with substantive content")
         audit_lines.append("")
     report_text = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + "\n".join(audit_lines) + "\n"
@@ -17134,7 +17134,7 @@ def test_final_check_required_audit_passes_with_substantive_answers(tmp_path: Pa
         audit_lines.append(f"### {i}. {q}")
         audit_lines.append("")
         audit_lines.append("- Evidence: gate source code and test fixtures")
-        audit_lines.append("- Status: ANSWERED")
+        audit_lines.append("- Status: PASS")
         audit_lines.append("- Answer: substantive answer covering the question")
         audit_lines.append("")
     audit_body = "\n".join(audit_lines)
@@ -17463,7 +17463,7 @@ def test_required_audit_passes_with_concise_answers() -> None:
         audit_lines.append(f"### {i}. {q}")
         audit_lines.append("")
         audit_lines.append("- Evidence: project_gate.py lines 280-390")
-        audit_lines.append("- Status: ANSWERED")
+        audit_lines.append("- Status: PASS")
         audit_lines.append("- Answer: yes, concise answer")
         audit_lines.append("")
     report_text = "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + "\n".join(audit_lines) + "\n"
@@ -17789,7 +17789,7 @@ def test_required_audit_validation_remains_active_for_success(tmp_path: Path) ->
 ### 1. Test question?
 
 - Evidence: real evidence from source code
-- Status: ANSWERED
+- Status: PASS
 - Answer: the check validates field-level content
 """
     placeholders = _required_audit_placeholder_items(substantive)
@@ -21346,6 +21346,63 @@ class TestRequiredAuditPlaceholderBlocking:
             )
             assert result["status"] == "PASS", f"expected PASS for {status} report with substantive answers, got {result['status']}"
 
+    def test_semantically_misaligned_answers_fail(self) -> None:
+        """Answers must address each question's core entities, not just be non-placeholder."""
+        from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions
+
+        decision_text = _DECISION_WITH_REQUIRED_AUDIT.replace(
+            "1. How is the decision's Required Audit section currently parsed, if at all?\n"
+            "2. Which Required Audit questions from the decision can be answered mechanically from project_state artifacts?\n"
+            "3. Should final-check fail when ## Required Audit is missing for an engineering decision that declares Required Audit items?",
+            "1. Which exact previous contradictions caused this rework, and which artifacts proved each contradiction?\n"
+            "2. How does Required Audit validation now detect answer/question semantic mismatch rather than only counting headings?\n"
+            "3. How does final-check now fail when `run_closeout_result.json` contains any active nested `FAIL` or `FAILED` state?\n"
+            "4. How does run-closeout now prevent `closeout_status: PASSED` when `close_round_result.report_status` is `FAILED`?\n"
+            "5. How do `execution_log.json` and `pytest_result.txt` now prove identical top-level command exit codes?\n"
+            "6. How does command-plan distinguish diagnostic expected-exit `[0, 1]` from final accepted success requirements?\n"
+            "7. Which regression tests prove these failures cannot recur?\n"
+            "8. How does this rework preserve no sample-solving, no prompt/skill mutation, no forbidden state-file mutation, no legacy artifact deletion, and no Phase 2 expansion?",
+        )
+        questions = parse_required_audit_questions(decision_text)
+        audit_lines = ["## Required Audit", ""]
+        for i, q in enumerate(questions, start=1):
+            audit_lines.append(f"### {i}. {q}")
+            audit_lines.append("")
+            audit_lines.append("- Evidence: unrelated alias migration artifact")
+            audit_lines.append("- Status: PASS")
+            audit_lines.append("- Answer: legacy neutral alias parity remains preserved")
+            audit_lines.append("")
+        report_text = "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + "\n".join(audit_lines) + "\n"
+        result = _required_audit_coverage_check(
+            decision_text=decision_text,
+            report_text=report_text,
+            report_status="SUCCESS",
+        )
+        assert result["status"] == "FAIL"
+        assert result["alignment_failures"]
+
+    def test_invalid_required_audit_status_fails(self) -> None:
+        """Required Audit status must use the decision-approved status vocabulary."""
+        from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions
+
+        questions = parse_required_audit_questions(_DECISION_WITH_REQUIRED_AUDIT)
+        audit_lines = ["## Required Audit", ""]
+        for i, q in enumerate(questions, start=1):
+            audit_lines.append(f"### {i}. {q}")
+            audit_lines.append("")
+            audit_lines.append("- Evidence: project_state Required Audit final-check project_gate")
+            audit_lines.append("- Status: ANSWERED")
+            audit_lines.append("- Answer: Required Audit final-check project_state artifacts are covered")
+            audit_lines.append("")
+        report_text = "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + "\n".join(audit_lines) + "\n"
+        result = _required_audit_coverage_check(
+            decision_text=_DECISION_WITH_REQUIRED_AUDIT,
+            report_text=report_text,
+            report_status="SUCCESS",
+        )
+        assert result["status"] == "FAIL"
+        assert any(f["reason"] == "invalid_status" for f in result["alignment_failures"])
+
 
 class TestExecutionLogConsistencyBlocking:
     """Verify that execution_log_consistency FAILs (blocks) for exit code
@@ -22420,5 +22477,61 @@ class TestCloseoutActiveWarningsCleanCheck:
         caw = next((c for c in result.get("checks", []) if c.get("name") == "closeout_active_warnings_clean"), None)
         assert caw is not None
         assert caw["status"] == "WARN", f"Expected WARN, got {caw['status']}: {caw.get('detail')}"
+
+    def test_nested_failures_fail_final_check(self, tmp_path: Path) -> None:
+        """Top-level PASSED closeout cannot mask nested FAIL/FAILED states."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path)
+        gates_dir = state_dir / "gates"
+        _write_json(gates_dir / "run_closeout_result.json", {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "warnings": [],
+            "blocking_reasons": [],
+            "close_round_result": {
+                "close_status": "CLOSED",
+                "report_status": "FAILED",
+                "warnings": [],
+                "blocking_reasons": [],
+                "checks": [
+                    {"name": "pytest_result_exit_codes_match_command_plan", "status": "FAIL"},
+                ],
+                "actions": [
+                    {"name": "final_check_after_archive", "status": "PASSED", "gate_status": "PASSED"},
+                ],
+            },
+        })
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        nested = next((c for c in result.get("checks", []) if c.get("name") == "closeout_nested_failures_absent"), None)
+        assert nested is not None
+        assert nested["status"] == "FAIL"
+        assert result["gate_status"] == "FAILED"
+
+    def test_run_closeout_internal_blockers_include_nested_failures(self) -> None:
+        """run-closeout aggregation fails on failed nested close-round evidence."""
+        from reverse_agent.project_gate import _run_closeout_internal_blocking_reasons
+
+        reasons = _run_closeout_internal_blocking_reasons(
+            executed_steps=[
+                {"name": "close-round", "status": "PASSED", "exit_code": 0, "expected_exit_codes": [0]},
+            ],
+            skipped_steps=[],
+            close_round_result={
+                "close_status": "CLOSED",
+                "report_status": "FAILED",
+                "checks": [
+                    {"name": "pytest_result_exit_codes_match_command_plan", "status": "FAIL"},
+                ],
+                "blocking_reasons": [],
+                "warnings": [],
+                "actions": [],
+            },
+        )
+        assert "close-round report_status=FAILED" in reasons
+        assert any("pytest_result_exit_codes_match_command_plan" in reason for reason in reasons)
 
 
