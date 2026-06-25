@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "artifact_name": "round_manifest.json",
+  "round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
+  "decision_id": "decision_decision_20260625_executor_neutral_archive_manifest_sync_rework_v1",
+  "files": [
+    "codex_execution_report.md",
+    "decision_packet.md",
+    "execution_report.md",
+    "pytest_result.txt",
+    "round_manifest.json"
+  ]
+}

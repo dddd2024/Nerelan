@@ -5262,6 +5262,11 @@ def build_report_summary_synthesis(
         ROUND_DELTA_OUTPUT_PATH,
         *archive_paths,
     }
+    # Ensure archive paths are included in generated_artifacts to match
+    # report_auto_summary behavior (_refresh_codex_report_for_closeout adds
+    # archive paths when closeout_allowed is True).
+    if archive_paths:
+        generated_artifact_set |= archive_paths
     if (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists():
         generated_artifact_set.add(NEUTRAL_EXECUTION_REPORT_PATH)
     if (state_dir / "gates" / ROUND_BASELINE_RESULT_NAME).exists():
@@ -5328,6 +5333,9 @@ def build_report_summary_synthesis(
     # so that decision-required deliverables are visible in generated_artifacts.
     required_closeout_artifacts = _string_set(report.get("required_closeout_artifacts"))
     generated_artifact_set |= required_closeout_artifacts
+    # Ensure archive paths are in generated_artifacts (matches report_auto_summary behavior).
+    if archive_paths:
+        generated_artifact_set |= archive_paths
     expected_generated_artifacts = sorted(generated_artifact_set)
 
     final_gate_status = ""
