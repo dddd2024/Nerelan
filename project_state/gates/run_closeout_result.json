@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-  "round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-  "generated_at": "2026-06-25T00:00:00.000000Z",
+  "decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
+  "round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+  "generated_at": "2026-06-25T12:40:19.812743Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -28,7 +28,7 @@
     },
     {
       "name": "pytest",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_project_gate.py -q",
       "kind": "pytest",
       "expected_exit_codes": [
         0
@@ -74,7 +74,7 @@
         0,
         1
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "status": "PASSED"
     },
     {
@@ -90,13 +90,24 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260625_executor_neutral_gate_status_scope_rework_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
       ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "name": "final-check-after-close",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
       "exit_code": 1,
-      "status": "FAILED"
+      "status": "PASSED"
     }
   ],
   "skipped_steps": [],
@@ -104,14 +115,14 @@
   "close_round_result": {
     "schema_version": 1,
     "gate_name": "close-round",
-    "close_status": "FAILED",
-    "decision_id": "decision_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-    "report_id": "codex_report_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-    "round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-    "decision_round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-    "report_round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-    "report_status": "SUCCESS",
-    "generated_at": "2026-06-25T00:00:00.000000Z",
+    "close_status": "CLOSED",
+    "decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
+    "report_id": "codex_report_20260625_executor_neutral_gate_status_scope_rework_v1",
+    "round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+    "decision_round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+    "report_round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+    "report_status": "FAILED",
+    "generated_at": "2026-06-25T12:40:18.421994Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -134,15 +145,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-        "decision_round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-        "report_round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1"
+        "requested_round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+        "decision_round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+        "report_round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260625_executor_neutral_archive_manifest_sync_rework_v1"
+        "report_based_on_decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1"
       },
       {
         "name": "pytest_result_match",
@@ -168,8 +179,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-        "command_plan_round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1"
+        "command_plan_decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
+        "command_plan_round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1"
       },
       {
         "name": "command_plan_covers_report_tests",
@@ -198,9 +209,16 @@
       },
       {
         "name": "pytest_result_exit_codes_match_command_plan",
-        "status": "PASS",
-        "detail": "recorded command exit codes match command_plan expected_exit_codes",
-        "errors": []
+        "status": "FAIL",
+        "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+        "errors": [
+          {
+            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260625_executor_neutral_gate_status_scope_rework_v1",
+            "error": "missing recorded command block",
+            "expected_count": 1,
+            "recorded_count": 0
+          }
+        ]
       },
       {
         "name": "round_delta_summary_present",
@@ -210,7 +228,6 @@
         "baseline_available": true,
         "inherited_dirty_files": [],
         "new_dirty_files_since_baseline": [
-          ".claude/settings.local.json",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
@@ -232,10 +249,10 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/state_hygiene_inventory.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_state.py"
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ],
         "final_dirty_files": [
-          ".claude/settings.local.json",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
@@ -257,7 +274,8 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/state_hygiene_inventory.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_state.py"
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ]
       },
       {
@@ -268,13 +286,10 @@
       },
       {
         "name": "files_changed_covers_git_diff",
-        "status": "FAIL",
-        "detail": "files_changed omits round delta files",
-        "missing_files": [
-          ".claude/settings.local.json"
-        ],
+        "status": "PASS",
+        "detail": "files_changed covers round delta files",
+        "missing_files": [],
         "git_changed_files": [
-          ".claude/settings.local.json",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
@@ -296,10 +311,10 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/state_hygiene_inventory.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_state.py"
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ],
         "required_round_delta_files": [
-          ".claude/settings.local.json",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
@@ -321,8 +336,9 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/state_hygiene_inventory.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/round_manifest.json",
-          "reverse_agent/project_state.py"
+          "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/round_manifest.json",
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ],
         "inherited_dirty_files": []
       },
@@ -331,7 +347,8 @@
         "status": "PASS",
         "detail": "files_changed covers substantive source/test/artifact changes",
         "substantive_dirty_files": [
-          "reverse_agent/project_state.py"
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ],
         "claimed_source_test_paths": []
       },
@@ -349,10 +366,16 @@
       {
         "name": "baseline_lifecycle_guard",
         "status": "PASS",
-        "detail": "baseline source/test dirty files are absent or explicitly allowed",
+        "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
         "source_test_baseline_dirty": [],
+        "close_source_test_dirty": [
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
+        ],
         "allowed_inherited_dirty_files": [],
-        "generated_or_archive_baseline_dirty_files": []
+        "generated_or_archive_baseline_dirty_files": [],
+        "close_worktree_clean": false,
+        "close_snapshot_available": true
       },
       {
         "name": "baseline_capture_order",
@@ -455,14 +478,13 @@
       },
       {
         "name": "report_summary_fields_match_synthesis",
-        "status": "FAIL",
+        "status": "WARN",
         "detail": "codex_report_summary differs from synthesized summary",
         "errors": [],
         "diffs": [
           {
             "field": "files_changed",
             "expected": [
-              ".claude/settings.local.json",
               "project_state/codex_execution_report.md",
               "project_state/execution_report.md",
               "project_state/gates/codex_report_auto_summary.json",
@@ -484,7 +506,8 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/state_hygiene_inventory.json",
               "project_state/pytest_result.txt",
-              "reverse_agent/project_state.py"
+              "reverse_agent/project_gate.py",
+              "tests/test_project_gate.py"
             ],
             "actual": [
               "project_state/codex_execution_report.md",
@@ -508,12 +531,13 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/state_hygiene_inventory.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/round_manifest.json",
-              "reverse_agent/project_state.py"
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/round_manifest.json",
+              "reverse_agent/project_gate.py",
+              "tests/test_project_gate.py"
             ]
           },
           {
@@ -565,11 +589,11 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/state_hygiene_inventory.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/round_manifest.json"
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/round_manifest.json"
             ]
           }
         ]
@@ -645,19 +669,21 @@
         "name": "final_check_before_archive",
         "status": "PASSED",
         "gate_status": "PASSED",
-        "allowed_archive_pending_failures": [],
+        "allowed_archive_pending_failures": [
+          "execution_log_required_commands_recorded",
+          "pytest_result_exit_codes_match_command_plan"
+        ],
         "unexpected_failures": [],
         "artifact": "project_state/gates/final_gate_result.json"
       },
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\\\rounds\\\\round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-        "manifest": "project_state\\\\rounds\\\\round_20260625_executor_neutral_archive_manifest_sync_rework_v1\\\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260625_executor_neutral_gate_status_scope_rework_v1",
+        "manifest": "project_state\\rounds\\round_20260625_executor_neutral_gate_status_scope_rework_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
-          "execution_report.md",
           "pytest_result.txt"
         ]
       },
@@ -670,12 +696,11 @@
       }
     ],
     "archive": {
-      "status": "not_attempted",
-      "round_manifest_path": "project_state/rounds/round_20260625_executor_neutral_archive_manifest_sync_rework_v1/round_manifest.json",
+      "status": "created",
+      "round_manifest_path": "project_state/rounds/round_20260625_executor_neutral_gate_status_scope_rework_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",
-        "execution_report.md",
         "pytest_result.txt",
         "round_manifest.json"
       ],
@@ -684,31 +709,33 @@
       "copied": [
         "decision_packet.md",
         "codex_execution_report.md",
-        "execution_report.md",
         "pytest_result.txt"
       ],
       "idempotent": false
     },
-    "blocking_reasons": [
-      "files_changed_covers_git_diff: files_changed omits round delta files",
-      "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
-    ],
+    "blocking_reasons": [],
     "warnings": [],
     "resolved_pre_archive_warnings": [],
     "pre_archive_diagnostics": [],
-    "recommended_next_action": "fix_close_round_failures_before_retry",
+    "recommended_next_action": "no_action_required",
     "status_summary": {
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "archive_status": "archived",
-      "report_status": "SUCCESS",
-      "report_acceptance_recommendation": "ACCEPTED"
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "archive_status": "not_archived",
+      "report_status": "FAILED",
+      "report_acceptance_recommendation": "REWORK_REQUIRED"
     }
   },
   "blocking_reasons": [],
   "warnings": [],
-  "recommended_next_action": "fix_run_closeout_failures_before_retry",
+  "recommended_next_action": "no_action_required",
   "artifacts": {
     "command_plan": "project_state/gates/command_plan.json",
     "run_closeout_result": "project_state/gates/run_closeout_result.json"
+  },
+  "post_self_record_refresh": {
+    "status": "applied",
+    "reason": "run-round recorded the top-level run-closeout command block after run-closeout returned",
+    "final_gate_failures": [],
+    "final_gate_warnings_before_refresh": []
   }
 }

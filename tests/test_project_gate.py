@@ -35,6 +35,7 @@ from reverse_agent.project_gate import (
     _read_round_close_snapshot,
     _read_execution_report_summary,
     _refresh_codex_report_for_closeout,
+    _run_closeout_internal_blocking_reasons,
     _report_status_from_gate,
     _report_status_from_gate_payload,
     _result_status,
@@ -1315,6 +1316,9 @@ def test_final_check_fails_when_execution_report_alias_drifts(tmp_path: Path) ->
 def test_execution_log_missing_only_closeout_related_is_narrow() -> None:
     assert _execution_log_missing_only_closeout_related({
         "missing_commands": [
+            "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+            "python -m reverse_agent.project_gate report-auto-summary --state-dir project_state",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
             "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id r1",
             "python -m reverse_agent.project_gate run-round --state-dir project_state --execute",
         ]
@@ -15989,6 +15993,105 @@ def test_run_closeout_exit_code():
     assert _run_closeout_exit_code("WARN") == 1
     assert _run_closeout_exit_code("FAILED") == 1
     assert _run_closeout_exit_code("INVALID") == 1
+
+
+def test_run_closeout_internal_blockers_include_failed_steps() -> None:
+    reasons = _run_closeout_internal_blocking_reasons(
+        executed_steps=[
+            {
+                "name": "report-summary",
+                "status": "FAILED",
+                "exit_code": 1,
+                "expected_exit_codes": [0],
+            }
+        ],
+        skipped_steps=[],
+        close_round_result=None,
+    )
+    assert any("executed step report-summary failed" in reason for reason in reasons)
+
+
+def test_run_closeout_internal_blockers_include_skipped_steps() -> None:
+    reasons = _run_closeout_internal_blocking_reasons(
+        executed_steps=[],
+        skipped_steps=[
+            {
+                "name": "final-check",
+                "reason": "kind 'unknown' not in run-closeout allowlist",
+            }
+        ],
+        close_round_result=None,
+    )
+    assert any("step final-check skipped" in reason for reason in reasons)
+
+
+def test_run_closeout_internal_blockers_include_failed_close_round() -> None:
+    reasons = _run_closeout_internal_blocking_reasons(
+        executed_steps=[],
+        skipped_steps=[],
+        close_round_result={
+            "close_status": "FAILED",
+            "blocking_reasons": ["archived report mismatch"],
+            "warnings": [],
+            "actions": [
+                {
+                    "name": "final_check_after_archive",
+                    "status": "FAILED",
+                    "gate_status": "FAILED",
+                }
+            ],
+            "archive": {"status": "archived"},
+        },
+    )
+    assert "close-round close_status=FAILED" in reasons
+    assert "close-round blocking reason: archived report mismatch" in reasons
+    assert any("final_check_after_archive failed" in reason for reason in reasons)
+
+
+def test_run_closeout_internal_blockers_ignore_tolerated_failed_gate_action() -> None:
+    reasons = _run_closeout_internal_blocking_reasons(
+        executed_steps=[],
+        skipped_steps=[],
+        close_round_result={
+            "close_status": "CLOSED",
+            "blocking_reasons": [],
+            "warnings": [],
+            "actions": [
+                {
+                    "name": "final_check_after_archive",
+                    "status": "PASSED",
+                    "gate_status": "FAILED",
+                    "unexpected_failures": [],
+                }
+            ],
+            "archive": {"status": "archived"},
+        },
+    )
+    assert reasons == []
+
+
+def test_run_closeout_internal_blockers_include_active_close_round_warnings() -> None:
+    reasons = _run_closeout_internal_blocking_reasons(
+        executed_steps=[],
+        skipped_steps=[],
+        close_round_result={
+            "close_status": "CLOSED",
+            "blocking_reasons": [],
+            "warnings": ["report_summary_fields_match_synthesis unresolved"],
+            "actions": [
+                {
+                    "name": "final_check_after_archive",
+                    "status": "PASSED",
+                    "gate_status": "PASSED",
+                }
+            ],
+            "archive": {"status": "archived"},
+        },
+    )
+    assert (
+        "close-round active warning: report_summary_fields_match_synthesis unresolved"
+        in reasons
+    )
 
 
 def test_run_closeout_invalid_args_missing_round_id(tmp_path: Path):

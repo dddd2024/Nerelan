@@ -1,12 +1,20 @@
 {
   "schema_version": 1,
-  "artifact_name": "policy_lint_result.json",
   "gate_name": "policy-lint",
-  "policy_lint_status": "PASSED",
-  "decision_id": "decision_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-  "round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-  "generated_at": "2026-06-25T00:00:00.000000Z",
-  "scanned_files": 7,
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
+  "round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+  "generated_at": "2026-06-25T12:38:43.378054Z",
+  "scanned_files": [
+    ".codex-skills/reverse-agent-iteration/SKILL.md",
+    ".codex-skills/samplereverse-frontier/SKILL.md",
+    "README.md",
+    "docs/prompts/README.md",
+    "docs/prompts/codex_execution_prompt.md",
+    "docs/prompts/project_workspace_prompt.md",
+    "project_state/decision_packet.md"
+  ],
+  "findings": [],
   "warnings": [],
   "blocking_reasons": [],
   "recommended_next_action": "no_action_required"

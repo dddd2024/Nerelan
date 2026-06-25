@@ -559,11 +559,23 @@ recommended_next_action: no_action_required
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260625_executor_neutral_gate_status_scope_rework_v1 =====
-run-closeout: PASSED
+run-closeout: FAILED
 decision_id: decision_20260625_executor_neutral_gate_status_scope_rework_v1
 round_id: round_20260625_executor_neutral_gate_status_scope_rework_v1
-post_self_record_refresh: applied
+  [PASSED] decision-lint: exit=0
+  [PASSED] preflight: exit=0
+  [PASSED] pytest: exit=0
+  [PASSED] gate-profile: exit=0
+  [PASSED] command-plan: exit=0
+  [PASSED] command-plan-json: exit=0
+  [PASSED] report-summary: exit=0
+  [PASSED] final-check: exit=1
+  [PASSED] close-round: exit=0
+  [PASSED] final-check-after-close: exit=1
+  [BLOCK] close-round blocking reason: pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
+  [BLOCK] close-round active warning: report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
 artifact: project_state/gates/run_closeout_result.json
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
+recommended_next_action: fix_run_closeout_failures_before_retry
+
+===== EXIT: 1 =====
 

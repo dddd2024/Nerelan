@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-  "round_id": "round_20260625_executor_neutral_archive_manifest_sync_rework_v1",
-  "head_commit": "2f22c9955f85",
+  "decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
+  "round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
+  "head_commit": "25567c2ab0d8",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-25T00:00:00.000000Z"
+  "generated_at": "2026-06-25T10:52:32.596547Z"
 }
