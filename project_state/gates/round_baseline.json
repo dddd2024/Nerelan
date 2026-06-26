@@ -1,13 +1,19 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260626_execute_decision_managed_execute_mode_v1",
-  "round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
-  "head_commit": "9336c643ba2a",
-  "baseline_git_status_short": [],
-  "baseline_git_diff_name_only": [],
-  "baseline_dirty_files": [],
+  "decision_id": "decision_20260626_execute_decision_cli_flag_transcript_rework_v1",
+  "round_id": "round_20260626_execute_decision_cli_flag_transcript_rework_v1",
+  "head_commit": "197801f00683",
+  "baseline_git_status_short": [
+    " M project_state/gates/command_plan.json"
+  ],
+  "baseline_git_diff_name_only": [
+    "project_state/gates/command_plan.json"
+  ],
+  "baseline_dirty_files": [
+    "project_state/gates/command_plan.json"
+  ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-26T04:59:44.588788Z"
+  "generated_at": "2026-06-26T07:32:07.097963Z"
 }

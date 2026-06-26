@@ -21715,6 +21715,205 @@ class TestExecuteDecision:
         assert result.get("transcript_parity_status") == "NOT_APPLICABLE_PLAN_ONLY"
         assert result.get("plan_only_limitation")
 
+    def test_execute_decision_cli_accepts_mode_plan_validation(self, tmp_path):
+        """--mode plan-validation is the explicit spelling of the default mode."""
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+
+        exit_code = main([
+            "execute-decision",
+            "--state-dir",
+            str(state_dir),
+            "--round-id",
+            "round_command_plan",
+            "--mode",
+            "plan-validation",
+        ])
+
+        assert exit_code == 0
+        artifact = json.loads((state_dir / "gates" / "execute_decision_result.json").read_text(encoding="utf-8"))
+        assert artifact["mode"] == "plan-validation"
+        assert artifact["contract_mode"] == "plan_validation_only"
+
+    def test_execute_decision_cli_accepts_mode_execute(self, tmp_path):
+        """--mode execute reaches delegated execution without requiring --execute."""
+        command = (
+            "python -m reverse_agent.project_gate execute-decision --state-dir project_state "
+            "--round-id round_command_plan --mode execute"
+        )
+        state_dir = _make_command_plan_state(tmp_path, tests_block=command)
+
+        exit_code = main([
+            "execute-decision",
+            "--state-dir",
+            str(state_dir),
+            "--round-id",
+            "round_command_plan",
+            "--mode",
+            "execute",
+        ])
+
+        assert exit_code == 0
+        artifact = json.loads((state_dir / "gates" / "execute_decision_result.json").read_text(encoding="utf-8"))
+        assert artifact["mode"] == "execute"
+        assert artifact["contract_mode"] == "delegated_execution"
+        assert command in artifact["recorded_command_blocks"]
+
+    def test_execute_decision_execute_mode_allows_current_report_retry(self, tmp_path):
+        """Execute mode may retry closeout after a current report exists."""
+        command = (
+            "python -m reverse_agent.project_gate execute-decision --state-dir project_state "
+            "--round-id round_command_plan --mode execute"
+        )
+        state_dir = _make_command_plan_state(tmp_path, tests_block=command)
+        _write_report(
+            state_dir,
+            decision_id="decision_command_plan",
+            report_id="codex_report_command_plan",
+            round_id="round_command_plan",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+            tests_ran=[command],
+        )
+
+        result = execute_decision(state_dir=state_dir, dry_run=False, repo_root=tmp_path, write_result=False)
+
+        assert result["mode"] == "execute"
+        assert result["run_status"] == "PASSED"
+        assert not any("decision already appears consumed" in reason for reason in result["blocking_reasons"])
+
+    def test_execute_decision_dry_run_blocks_current_report_retry(self, tmp_path):
+        """Plan-validation mode remains strict for already-consumed decisions."""
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        _write_report(
+            state_dir,
+            decision_id="decision_command_plan",
+            report_id="codex_report_command_plan",
+            round_id="round_command_plan",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+        )
+
+        result = execute_decision(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=False)
+
+        assert result["mode"] == "plan-validation"
+        assert result["run_status"] == "FAILED"
+        assert any("decision already appears consumed" in reason for reason in result["blocking_reasons"])
+
+    def test_command_plan_uses_single_execute_decision_mode_convention(self, tmp_path):
+        """When both spellings are documented, command-plan keeps the canonical one."""
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block=(
+                "python -m reverse_agent.project_gate execute-decision --state-dir project_state "
+                "--round-id round_command_plan --mode execute\n"
+                "python -m reverse_agent.project_gate execute-decision --state-dir project_state "
+                "--round-id round_command_plan --execute\n"
+                "python -m pytest tests/test_project_gate.py -q"
+            ),
+        )
+
+        result = command_plan(state_dir=state_dir, write_result=False)
+        commands = [item["command"] for item in result["commands"]]
+
+        assert commands.count(
+            "python -m reverse_agent.project_gate execute-decision --state-dir project_state "
+            "--round-id round_command_plan --mode execute"
+        ) == 1
+        assert not any(command.endswith("--execute") for command in commands)
+
+    def test_command_plan_adds_allow_consumed_for_current_report_retry(self, tmp_path):
+        """Consumed current-report retries should authorize the executable preflight."""
+        preflight_command = "python -m reverse_agent.project_gate preflight --state-dir project_state"
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block=f"{preflight_command}\npython -m pytest tests/test_project_gate.py -q",
+        )
+        _write_report(
+            state_dir,
+            decision_id="decision_command_plan",
+            report_id="codex_report_command_plan",
+            round_id="round_command_plan",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+        )
+
+        result = command_plan(state_dir=state_dir, write_result=False)
+        commands = [item["command"] for item in result["commands"]]
+
+        assert f"{preflight_command} --allow-consumed" in commands
+        assert preflight_command not in commands
+
+    def test_command_plan_accepted_report_uses_run_closeout_success_semantics(self, tmp_path):
+        """Accepted reports require run-closeout to be a strict success command."""
+        run_closeout_command = (
+            "python -m reverse_agent.project_gate run-closeout "
+            "--state-dir project_state --round-id round_command_plan"
+        )
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block=f"python -m pytest tests/test_project_gate.py -q\n{run_closeout_command}",
+        )
+        _write_report(
+            state_dir,
+            decision_id="decision_command_plan",
+            report_id="codex_report_command_plan",
+            round_id="round_command_plan",
+            status="SUCCESS",
+            acceptance="ACCEPTED",
+        )
+
+        result = command_plan(state_dir=state_dir, write_result=False)
+        run_closeout_entry = next(
+            item for item in result["commands"] if item["command"] == run_closeout_command
+        )
+
+        assert run_closeout_entry["expected_exit_codes"] == [0]
+        assert "expected exit 0" in run_closeout_entry["notes"]
+
+    def test_execute_decision_execute_mode_defers_final_state_diagnostics(self, tmp_path):
+        """Execute mode records final-state diagnostics after run-closeout evidence."""
+        commands_seen: list[str] = []
+        final_check_command = "python -m reverse_agent.project_gate final-check --state-dir project_state"
+        report_summary_command = "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+        run_closeout_command = (
+            "python -m reverse_agent.project_gate run-closeout "
+            "--state-dir project_state --round-id round_command_plan"
+        )
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="\n".join(
+                [
+                    final_check_command,
+                    "python -m pytest tests/test_project_gate.py -q",
+                    run_closeout_command,
+                    report_summary_command,
+                ]
+            ),
+        )
+
+        def runner(command: str) -> subprocess.CompletedProcess[str]:
+            commands_seen.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout=f"{command}: ok", stderr="")
+
+        result = execute_decision(
+            state_dir=state_dir,
+            dry_run=False,
+            repo_root=tmp_path,
+            command_runner=runner,
+            write_result=False,
+            pytest_result_path=state_dir / "pytest_result.txt",
+        )
+
+        assert result["run_status"] == "PASSED"
+        assert commands_seen.index(run_closeout_command) < commands_seen.index(final_check_command)
+        assert commands_seen.index(report_summary_command) < commands_seen.index(final_check_command)
+
     def test_execute_decision_not_a_new_executor(self, tmp_path):
         """execute_decision() must not create a scheduler or queue."""
         state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest tests/test_project_gate.py -q")
