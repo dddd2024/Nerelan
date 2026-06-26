@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
-  "round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "decision_id": "decision_20260627_clean_startup_provenance_rework_v1",
+  "round_id": "round_20260627_clean_startup_provenance_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,29 +13,30 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-  "previous_round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
-  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
-  "phase_label": "phase_2_5_clean_provenance_and_preflight_job_foundation",
-  "primary_goal": "Eliminate inherited-dirty/startup-order/execution-log provenance ambiguity while advancing the automation roadmap with decision-preflight CI and a minimal non-dispatching job schema foundation.",
+  "previous_decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "previous_round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
+  "phase_label": "phase_2_6_clean_startup_provenance_rework",
+  "primary_goal": "Fix the provenance/report mismatch from the previous round without redoing the accepted decision-preflight workflow or minimal job schema foundation.",
   "command_plan_authority_required": true,
-  "accepted_requires_startup_order_hardened": true,
-  "accepted_requires_clean_or_explicit_baseline_semantics": true,
-  "accepted_requires_execution_log_source_improved_or_explicitly_qualified": true,
-  "accepted_requires_decision_preflight_workflow": true,
-  "accepted_requires_minimal_job_schema_validation": true,
-  "accepted_requires_no_agentrunner_or_auto_push": true,
+  "accepted_requires_startup_five_command_order_first": true,
+  "accepted_requires_report_claims_match_transcript": true,
+  "accepted_requires_derived_execution_log_limitation_or_direct_capture": true,
+  "accepted_requires_baseline_warning_not_claimed_clean": true,
+  "accepted_requires_no_rewrite_of_completed_preflight_or_job_schema_work": true,
   "accepted_requires_pytest_result_status_passed": true,
   "accepted_requires_final_check_passed": true,
   "accepted_requires_run_closeout_passed": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_jobs.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_jobs.py"
+    "tests/test_project_gate.py"
   ],
-  "allowed_config_files": [
-    ".github/workflows/decision-preflight.yml"
+  "allowed_existing_files_to_preserve_only": [
+    ".github/workflows/decision-preflight.yml",
+    "reverse_agent/project_jobs.py",
+    "tests/test_project_jobs.py",
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -54,74 +55,62 @@
 
 ## 1. Goal
 
-Implement Preflight Job Foundation and Clean Execution Provenance v1.
+Implement Clean Startup Provenance Rework v1.
 
-The previous round established the first GitHub CI foundation and currentized `project_state/gates/naming_migration_plan.json`. It was accepted with limitations because workflow files were already untracked in the round baseline, startup command evidence was not recorded as a completely first-class ordered block, and `execution_log.json` was still derived from `pytest_result.txt` plus `command_plan.json` rather than being a stronger executor-side record.
+The previous round successfully added the bounded `decision-preflight.yml` workflow and a minimal non-dispatching `project_jobs.py` validator, but audit returned `REWORK_REQUIRED` because the round claimed clean provenance that the transcript did not support.
 
-This round must both address those audit limitations and continue the automation roadmap. The target is not just cleanup. It must add the next bounded automation layer: a decision-preflight GitHub workflow and a minimal job schema/validator foundation that prepares for future AgentRunner work without implementing AgentRunner yet.
+This rework must not broaden scope. It must repair the provenance/report mismatch and preserve already-valid work.
 
 Final accepted state must satisfy:
 
-1. Startup provenance is hardened: accepted rounds must show `Set-Location`, `Get-Location`, `Test-Path`, `git rev-parse --show-toplevel`, and `git status --short` before substantive pytest/gate/report-summary execution, or the report must explicitly mark the round as limited rather than full clean provenance.
-2. Baseline semantics are clearer: inherited dirty files must be distinguished from files created or changed by the current round; untracked implementation/config files in baseline must not be silently treated as newly created current-round work.
-3. `execution_log.json` must be improved beyond an unqualified derived-only log, or the gate/report must explicitly downgrade/qualify the provenance level when the log is derived from `pytest_result.txt`.
-4. Add `.github/workflows/decision-preflight.yml` for bounded remote validation of a proposed decision before execution.
-5. Add a minimal job schema/validator foundation for future orchestration: enough to validate a `project_state/jobs/*.json` job contract and status vocabulary, but not enough to dispatch an agent.
-6. Preserve the existing CI foundation: `.github/workflows/ci.yml` and `.github/workflows/state-gate.yml` must remain bounded, read-only, and non-mutating.
-7. Preserve neutral-primary report semantics: `execution_report.md` and `execution_report_summary` remain primary, while Codex-named files/blocks remain compatibility aliases.
-8. Preserve command-plan authority, execute-decision `--mode execute`, pytest_result transcript, execution-log checks, report-summary, final-check, and run-closeout convergence.
-9. Do not implement Web console, AgentRunner, automatic Codex/Trae dispatch, API Planner/Auditor, self-hosted runner automation, database, queue, scheduler, automatic push, or reverse-solving in this round.
+1. The transcript must record the full startup sequence before any substantive command: `Set-Location F:\reverse-agent`, `Get-Location`, `Test-Path F:\reverse-agent`, `git rev-parse --show-toplevel`, and `git status --short` must all appear before any `preflight`, `command-plan`, `report-summary`, `pytest`, `execution-log`, `run-closeout`, or `final-check` command block in `project_state/pytest_result.txt`.
+2. `command_plan.json` and `execution_log.json` must not imply a different command order than the transcript. If command-plan contains startup commands, they should be ordered before substantive commands; if command-plan represents logical authorization order rather than transcript order, that distinction must be explicit and tested.
+3. The live report must not claim that `git rev-parse` or `git status --short` ran before command-plan unless the recorded transcript actually proves it.
+4. If `execution_log.json` remains `derived_from_pytest_result_and_command_plan`, the report and final-check/status policy must explicitly expose that as a provenance limitation and use `ACCEPTED_WITH_LIMITATIONS` rather than pure `ACCEPTED`; alternatively, implement direct or hybrid command capture sufficient to justify pure `ACCEPTED`.
+5. If `baseline_capture_order` remains `WARN`, the round must not claim clean provenance or pure `ACCEPTED`; either remove the warning by producing clean evidence, or keep the result limited and explicit.
+6. Preserve the existing `.github/workflows/decision-preflight.yml`, `reverse_agent/project_jobs.py`, and `tests/test_project_jobs.py` behavior unless a narrow compatibility change is required by gate checks. Do not redesign them.
+7. Preserve existing CI/state-gate workflows, neutral-primary report semantics, legacy aliases, command-plan authority, execute-decision `--mode execute`, pytest_result, execution-log, final-check, report-summary, and run-closeout convergence.
+8. Do not implement Web console, AgentRunner, automatic Codex/Trae dispatch, API Planner/Auditor, self-hosted runner automation, database, queue, scheduler, automatic push, or reverse-solving in this round.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-The previous round `decision_20260626_ci_state_gate_and_naming_provenance_v1` was accepted with limitations. Current accepted capabilities to preserve:
+The current live decision was `decision_20260626_preflight_job_foundation_and_clean_provenance_v1`. It produced a report with `status=SUCCESS` and `acceptance_recommendation=ACCEPTED`, but audit returned `REWORK_REQUIRED`.
 
-- `.github/workflows/ci.yml` exists and provides baseline repository validation with read-only permissions.
-- `.github/workflows/state-gate.yml` exists and runs project_gate validation plus focused pytest on state/gate-sensitive path changes.
-- `project_state/gates/naming_migration_plan.json` carries current decision_id and round_id.
-- `report_summary_synthesis.json.sources.execution_report` points to `project_state/execution_report.md`.
-- `report_summary_synthesis.json.sources.execution_report_summary_block` is `execution_report_summary`.
-- `project_state/codex_execution_report.md` and `codex_report_summary` remain legacy compatibility aliases.
-- pytest_result, command-plan, execution-log, final-check, report-summary, and run-closeout passed.
+Accepted work to preserve from that round:
 
-Known limitations to address:
+- `.github/workflows/decision-preflight.yml` exists and runs bounded validation: install package, project_gate preflight, project_gate command-plan, and focused tests.
+- `reverse_agent/project_jobs.py` implements a minimal local, non-dispatching job contract validator.
+- `tests/test_project_jobs.py` covers valid non-dispatching contracts, missing required fields, unknown statuses, dispatch/mutation permission rejection, and JSON file loading.
+- Focused tests passed in the previous run.
+- final-check and run-closeout reported PASSED in the previous run.
 
-- `.github/workflows/ci.yml` and `.github/workflows/state-gate.yml` appeared as untracked files in the previous round baseline, so their creation provenance was not clean.
-- startup evidence was present but not fully ordered as the first top-level block before all substantive commands.
-- `execution_log.json` was derived from pytest_result and command_plan; this is acceptable for legacy/manual rounds but should be explicitly qualified or strengthened before automated execution.
-- final-check retained a non-blocking `baseline_capture_order` warning.
+Rework evidence that must be addressed:
 
-`task_packet.json` remains non-authoritative background state. It says `decision_packet_controls_current_round`; do not treat `task_packet.task` as execution authority.
+- In the previous transcript, only `Set-Location`, `Get-Location`, and `Test-Path` appeared before the first substantive `preflight` command. `git rev-parse --show-toplevel` and `git status --short` appeared later, after report-summary.
+- The previous report claimed the exact startup commands appeared before command-plan, but the transcript did not support that claim.
+- `execution_log.json` still used `source: derived_from_pytest_result_and_command_plan`.
+- `baseline_capture_order` remained a final-check WARN, and final-check still listed it in final warnings.
+- The previous report/final-check represented the result as pure `ACCEPTED` with no limitations despite the above provenance constraints.
 
-`current_state.json` remains a sample-state digest baseline, but this round is not a reverse-solving round.
+`task_packet.json` remains non-authoritative background state and explicitly says the decision packet controls the current round. Do not execute `task_packet.task` as authority.
 
-`artifact_index.json` contains many missing historical sample artifacts. They are non-blocking because this round does not claim sample-solving evidence.
+`current_state.json` and `artifact_index.json` still describe sample-state and missing historical sample artifacts. They are non-blocking for this engineering round because no sample-solving evidence is claimed.
 
 `negative_results.json` contains reverse-solving prohibitions. This round must not repeat old sample_solver blind search, beam/budget expansion, compare_semantics_agree=false primary frontier usage, full solve_reports commits, or repeated runtime evidence directions.
 
-Existing tool/interface policy:
-
-- This is not a reverse-solving round.
-- Do not inspect, execute, debug, emulate, or solve sample binaries.
-- Do not use IDA, Ghidra, OllyDbg, x64dbg, radare2, runtime probes, solver expansion, harness sample execution, or full `solve_reports/` scans.
-- Do not implement AgentRunner or any external agent dispatcher yet.
-
-Roadmap context:
-
-- The system is moving from manual GPT/Codex loops toward controlled orchestration: decision controls the task, command-plan controls execution, execution_log records facts, CI performs repeatable verification, final-check is the hard gate, and LLM audit handles semantic judgment.
-- The next bounded step after baseline CI is decision preflight and a minimal job-state foundation, not Web UI or full automatic execution.
+This is not a reverse-solving round. Do not inspect, execute, debug, emulate, or solve sample binaries. Do not use IDA, Ghidra, OllyDbg, x64dbg, radare2, runtime probes, solver expansion, harness sample execution, or full `solve_reports/` scans.
 
 ## 3. Do Not Do
 
-Do not implement Web UI, Web backend, API Planner, API Auditor, AgentRunner, self-hosted runner automation, database, queue, scheduler, or multi-agent orchestration in this round.
+Do not redo, redesign, or broaden the already accepted `decision-preflight.yml` and `project_jobs.py` foundation unless a narrow compatibility adjustment is strictly required.
 
-Do not add workflows that run LLM calls, push commits, create PRs, modify remote state, or execute sample binaries.
+Do not implement Web UI, Web backend, API Planner, API Auditor, AgentRunner, self-hosted runner automation, database, queue, scheduler, or multi-agent orchestration.
+
+Do not add workflows that run LLM calls, push commits, create PRs, modify remote state, dispatch agents, or execute sample binaries.
 
 Do not add automatic pull/push behavior for agents.
-
-Do not add a runner that dispatches Codex, Trae, Claude Code, Aider, or any other external coding agent.
 
 Do not scan full `solve_reports/` or execute reverse-solving samples.
 
@@ -168,11 +157,11 @@ Then inspect only bounded implementation and gate evidence:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `reverse_agent/project_jobs.py` if present
-4. `tests/test_project_jobs.py` if present
-5. `.github/workflows/ci.yml`
-6. `.github/workflows/state-gate.yml`
-7. `.github/workflows/decision-preflight.yml` if present
+3. `reverse_agent/project_jobs.py` only to confirm preservation
+4. `tests/test_project_jobs.py` only to confirm preservation
+5. `.github/workflows/decision-preflight.yml` only to confirm preservation
+6. `.github/workflows/ci.yml` only to confirm preservation
+7. `.github/workflows/state-gate.yml` only to confirm preservation
 8. `project_state/gates/command_plan.json`
 9. `project_state/gates/execution_log.json`
 10. `project_state/gates/final_gate_result.json`
@@ -181,24 +170,21 @@ Then inspect only bounded implementation and gate evidence:
 13. `project_state/gates/round_baseline.json`
 14. `project_state/gates/round_delta_summary.json`
 15. `project_state/gates/run_closeout_execution_log.json`
-16. `project_state/jobs/*.json` only if created by this round
-17. current round manifest only if needed as bounded diagnostic evidence
+16. current round manifest only if needed as bounded diagnostic evidence
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
-Before claiming success, the current live report must answer all nine items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
+Before claiming success, the current live report must answer all seven items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. How were previous audit limitations addressed: inherited dirty CI files, startup order ambiguity, derived-only execution_log, and baseline_capture_order warning?
-2. What exact startup commands were recorded, in what order, and before which substantive command?
-3. What is the execution-log provenance level now: direct capture, hybrid capture, or explicitly qualified derived capture?
-4. Which GitHub workflow files now exist, and what exact commands does `decision-preflight.yml` run?
-5. How does `decision-preflight.yml` avoid mutation, LLM calls, agent execution, push, PR creation, and reverse-solving?
-6. What minimal job schema/status vocabulary was added, and how is it validated without dispatching any agent?
-7. How were existing `ci.yml` and `state-gate.yml` preserved as bounded read-only validation workflows?
-8. How were neutral-primary report semantics and legacy alias parity preserved?
-9. How were command-plan authority, pytest_result transcript, execution-log, final-check, report-summary, and run-closeout convergence preserved?
+1. What exact startup command blocks appear in `project_state/pytest_result.txt`, in what order, and before which first substantive command?
+2. Does `project_state/pytest_result.txt` prove that all five startup commands ran before any `preflight`, `command-plan`, `report-summary`, `pytest`, `execution-log`, `run-closeout`, or `final-check` command?
+3. Is `execution_log.json` direct, hybrid, or derived-only? If derived-only, where is the limitation recorded and why is the acceptance recommendation not pure `ACCEPTED`?
+4. Is `baseline_capture_order` PASS, WARN, or absent? If WARN remains, where is the resulting limitation recorded?
+5. Which previous report claim was corrected regarding startup order and transcript evidence?
+6. How were `decision-preflight.yml`, `project_jobs.py`, and `tests/test_project_jobs.py` preserved without redesign or agent dispatch?
+7. How were command-plan authority, pytest_result transcript, execution-log, final-check, report-summary, and run-closeout convergence preserved?
 
 Do not write TODO, TBD, PENDING, `should pass`, `expected to pass`, `(to be filled)`, or speculative answers.
 
@@ -208,15 +194,12 @@ Allowed source changes:
 
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
-- `reverse_agent/project_jobs.py`
-- `tests/test_project_jobs.py`
 
-Allowed config / CI files:
+Allowed only if strictly necessary for compatibility, otherwise preserve unchanged:
 
 - `.github/workflows/decision-preflight.yml`
-
-Existing workflow files may be inspected and preserved, but avoid changing them unless a small compatibility adjustment is strictly necessary:
-
+- `reverse_agent/project_jobs.py`
+- `tests/test_project_jobs.py`
 - `.github/workflows/ci.yml`
 - `.github/workflows/state-gate.yml`
 
@@ -241,20 +224,18 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/state_hygiene_inventory.json`
-- `project_state/jobs/*.json` if used for a minimal non-dispatching job contract fixture or current-round job record
-- `project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/*`
+- `project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/*`
 
 Required behavior:
 
-1. Add or harden gate logic so startup command order is auditable. In accepted state, startup commands must be recorded before substantive execution, or the report/final-check must preserve an explicit limitation rather than silently claiming clean provenance.
-2. Clarify baseline semantics. Gate/report logic must distinguish inherited dirty files from current-round created/changed files and must not let baseline untracked implementation/config files masquerade as newly produced work without explicit limitation.
-3. Improve execution-log provenance. Preferred: make `execute-decision` or related gate commands write executor-side command records with exit codes and timestamps. Acceptable fallback: keep derived execution_log but add explicit provenance_level and make final-check/report downgrade claims accordingly.
-4. Add `.github/workflows/decision-preflight.yml` with read-only permissions and bounded commands. It should validate decision/preflight/command-plan and may run focused tests, but must not run closeout, mutate state, call LLMs, dispatch agents, push, create PRs, or solve samples.
-5. Add a minimal job schema/validator foundation. The schema should cover `job_id`, `round_id`, `decision_id`, `mainline`, `status`, `runner`, `required_inputs`, `required_outputs`, permission/budget fields as applicable, and a small status vocabulary such as `DRAFT`, `READY`, `RUNNING`, `DONE`, `FINAL_CHECKED`, `AUDITED`, `ACCEPTED`, `ACCEPTED_WITH_LIMITATIONS`, `REWORK_REQUIRED`, `BLOCKED`. Validation must be local and non-dispatching.
-6. Preserve existing CI/state-gate workflow behavior.
-7. Preserve neutral-primary report source semantics and legacy alias compatibility.
-8. Preserve execute-decision `--mode execute`, command-plan convergence, pytest_result, execution-log, final-check, report-summary, and run-closeout behavior.
-9. Keep implementation small and avoid broad refactors.
+1. Ensure the complete startup sequence is recorded before any substantive command in `pytest_result.txt`.
+2. Ensure command-plan, execution-log, and final-check do not contradict the transcript command order.
+3. Add or update tests that fail if `git rev-parse` or `git status --short` appear after substantive commands while the report claims clean startup provenance.
+4. Add or update tests/status-policy checks that prevent pure `ACCEPTED` when `execution_log.json` is derived-only and the report lacks an explicit limitation.
+5. Add or update tests/status-policy checks that prevent pure `ACCEPTED` when `baseline_capture_order` remains WARN and the report lacks an explicit limitation.
+6. Preserve neutral-primary report source semantics and legacy alias compatibility.
+7. Preserve execute-decision `--mode execute`, command-plan convergence, pytest_result, execution-log, final-check, report-summary, and run-closeout behavior.
+8. Keep implementation small and avoid broad refactors.
 
 ## 7. Tests
 
@@ -268,34 +249,31 @@ git rev-parse --show-toplevel
 git status --short
 ```
 
-Then use command-plan authority. Run preflight and command-plan first if needed, then execute only command-plan-authorized commands.
+Then use command-plan authority. Run preflight and command-plan only after the full five-command startup block is recorded.
 
 Preferred current-round entrypoint:
 
 ```powershell
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_preflight_job_foundation_and_clean_provenance_v1 --mode execute
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_clean_startup_provenance_rework_v1 --mode execute
 ```
 
 At minimum, validation should include command-plan-authorized equivalents of:
 
 ```powershell
-python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
-python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
-python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_clean_startup_provenance_rework_v1 --mode execute
+python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
 python -m reverse_agent.project_gate execution-log --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_preflight_job_foundation_and_clean_provenance_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_clean_startup_provenance_rework_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-If `tests/test_project_jobs.py` is not created because job validation was implemented inside existing tests, the report must justify that choice and list the exact test coverage.
-
-Also statically validate `.github/workflows/decision-preflight.yml` using a YAML parser if available, or bounded text/schema tests if not.
-
-The exact command set is whatever current command-plan authorizes. Command-plan overrides this Tests section if there is any conflict.
+The exact command set is whatever current command-plan authorizes. Command-plan overrides this Tests section if there is any conflict, but command-plan must not authorize an accepted-state transcript that violates the five-command startup-first requirement without explicit limitation.
 
 Record all top-level commands and exit codes in `project_state/pytest_result.txt`.
 
@@ -316,15 +294,12 @@ Stop immediately and report `BLOCKED` if:
 
 Stop with `REWORK_REQUIRED` if:
 
-- previous audit limitations are not addressed or explicitly preserved as limitations;
-- startup commands are not recorded in a first-class ordered way before substantive execution;
-- baseline semantics still allow inherited untracked implementation/config files to be claimed as clean current-round creation without limitation;
-- execution_log remains derived-only but the report/final-check claims full direct execution provenance;
-- `.github/workflows/decision-preflight.yml` is missing;
-- `decision-preflight.yml` runs LLM calls, dispatches agents, pushes, creates PRs, mutates repository state, runs closeout, or executes reverse-solving samples;
-- no minimal job schema/validator foundation is added;
-- job validation dispatches or implies actual agent execution;
-- existing `ci.yml` or `state-gate.yml` becomes mutating or loses bounded validation behavior;
+- full five-command startup block is not recorded before the first substantive command;
+- report claims startup order that the transcript does not prove;
+- execution_log remains derived-only while report/final-check claims pure `ACCEPTED` without limitation;
+- `baseline_capture_order` remains WARN while report/final-check claims pure `ACCEPTED` without limitation;
+- existing `decision-preflight.yml`, `project_jobs.py`, or `tests/test_project_jobs.py` is unnecessarily redesigned;
+- work enters AgentRunner, Web, database, queue, scheduler, API Planner/Auditor, automatic push, or reverse-solving scope;
 - neutral-primary report semantics regress;
 - legacy alias parity breaks;
 - execute-decision `--mode execute` regresses;
@@ -332,10 +307,9 @@ Stop with `REWORK_REQUIRED` if:
 - execution-log has missing required command-plan commands;
 - final-check fails;
 - run-closeout fails;
-- pytest_result_summary.status is not `PASSED` in accepted state;
+- pytest_result_summary.status is not `PASSED` in accepted or accepted-with-limitations state;
 - report status disagrees with pytest_result, execution-log, final-check, or run-closeout;
 - forbidden paths are modified;
 - `.codex-skills` is renamed or registry is modified;
-- work enters Web/AgentRunner/database/queue/scheduler/reverse-solving/heavy scan;
 - tests fail;
 - policy-lint or policy-impact fails.
