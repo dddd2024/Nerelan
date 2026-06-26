@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260626_neutral_primary_report_migration_v1",
-  "round_id": "round_20260626_neutral_primary_report_migration_v1",
+  "decision_id": "decision_20260626_neutral_primary_report_source_rework_v1",
+  "round_id": "round_20260626_neutral_primary_report_source_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,16 +13,17 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260626_execute_decision_cli_flag_transcript_rework_v1",
-  "previous_round_id": "round_20260626_execute_decision_cli_flag_transcript_rework_v1",
-  "previous_audit_outcome": "ACCEPTED",
+  "previous_decision_id": "decision_20260626_neutral_primary_report_migration_v1",
+  "previous_round_id": "round_20260626_neutral_primary_report_migration_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
   "phase_label": "phase_1_5_pre_phase_2",
-  "primary_goal": "Migrate live report handling to neutral execution-report primary semantics while keeping legacy Codex-named report artifacts as compatibility aliases for one or more rounds.",
+  "primary_goal": "Repair neutral-primary report migration so report-summary, final-check, and closeout treat execution_report.md / execution_report_summary as the primary source and legacy Codex-named artifacts only as compatibility aliases.",
   "command_plan_authority_required": true,
-  "accepted_requires_neutral_report_primary": true,
-  "accepted_requires_legacy_alias_parity": true,
-  "accepted_requires_dual_block_or_equivalent_compat": true,
-  "accepted_requires_no_legacy_delete": true,
+  "accepted_requires_synthesis_execution_report_source_neutral": true,
+  "accepted_requires_legacy_report_source_marked_alias": true,
+  "accepted_requires_final_check_primary_neutral_wording": true,
+  "accepted_requires_closeout_primary_neutral_wording": true,
+  "accepted_requires_required_audit_alignment": true,
   "accepted_requires_pytest_result_status_passed": true,
   "accepted_requires_final_check_passed": true,
   "accepted_requires_run_closeout_passed": true,
@@ -48,45 +49,38 @@
 
 ## 1. Goal
 
-Implement Neutral Primary Report Migration v1.
+Repair Neutral Primary Report Source Rework v1.
 
-The previous accepted round made `execute-decision --mode execute` usable and auditable. The next engineering step is to resume the earlier naming-neutralization track without breaking existing reports, gates, tests, or round archives.
-
-This round must make neutral execution-report naming the primary live contract while keeping legacy Codex-named artifacts as compatibility aliases. It must not delete or rename existing historical artifacts, and it must not remove legacy parser support in this round.
+The previous round `decision_20260626_neutral_primary_report_migration_v1` generated `execution_report.md` and `execution_report_summary`, but audit found that report-summary synthesis and closeout still described the legacy Codex report as the primary source. This round must fix the source semantics.
 
 Final accepted state must satisfy:
 
-1. `project_state/execution_report.md` is treated as the primary live report path for new current-round report parsing, synthesis, final-check, and closeout.
-2. `project_state/codex_execution_report.md` remains generated as a compatibility alias with semantic parity to `project_state/execution_report.md`.
-3. A neutral top-level summary block named `execution_report_summary` is supported and preferred for newly generated reports.
-4. Legacy `codex_report_summary` remains accepted as fallback compatibility, and if both neutral and legacy summary blocks exist they must be semantically identical.
-5. `project_state/gates/execution_report_auto_summary.json` is treated as the primary auto-summary artifact.
-6. `project_state/gates/codex_report_auto_summary.json` remains generated as a compatibility alias with semantic parity.
-7. `naming_migration_plan.json` must be updated from inventory-only status to reflect the neutral-primary / legacy-alias migration state, without claiming that legacy names were removed.
-8. Existing `execute-decision --mode execute`, command-plan authority, pytest_result transcript, execution-log, final-check, report-summary, and run-closeout behavior must not regress.
-9. No Phase 2, Web UI, CI, AgentRunner, database, queue, scheduler, reverse-solving, or heavy artifact scan work is allowed.
+1. `project_state/gates/report_summary_synthesis.json` must identify `project_state/execution_report.md` as the primary execution report source.
+2. The same synthesis artifact must identify `project_state/codex_execution_report.md` only as a legacy or compatibility alias source.
+3. `execution_report_summary` must be the preferred current-round summary block when both neutral and legacy blocks are available.
+4. `codex_report_summary` must remain a fallback compatibility block, not the primary live summary block.
+5. final-check details must no longer describe `codex_report_summary` as the primary synthesis alignment object for current-round accepted reports.
+6. closeout details must no longer report only `codex report summary parsed` when the neutral report is available and primary; it must report neutral parsing or an equivalent neutral-primary detail.
+7. dual-file and dual-block semantic parity must remain enforced.
+8. `naming_migration_plan.json` must continue to describe `neutral_primary_with_legacy_alias`, without claiming full legacy removal.
+9. Existing `execute-decision --mode execute`, command-plan authority, pytest_result transcript, execution-log, final-check, report-summary, and run-closeout behavior must not regress.
+10. No Phase 2, Web UI, CI, AgentRunner, database, queue, scheduler, reverse-solving, or heavy artifact scan work is allowed.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-The immediately previous round `decision_20260626_execute_decision_cli_flag_transcript_rework_v1` was accepted. It established:
+The previous round `decision_20260626_neutral_primary_report_migration_v1` is not accepted by audit. It produced apparently passing gates, but its primary-source semantics did not meet the decision goal.
 
-- `--mode execute` as the canonical execute-decision convention;
-- current-round pytest_result status `PASSED`;
-- `execute_decision_result.json` with `mode: execute` and `contract_mode: delegated_execution`;
-- execution-log required command coverage;
-- final-check PASSED;
-- run-closeout PASSED.
+Blocking evidence from the failed round:
 
-The current `naming_migration_plan.json` is older and still says `action_this_round: inventory_only`, `no_rename: true`, `no_delete: true`, and `no_neutral_live_path_created: true`. It identifies these Codex-bound names as migration candidates:
-
-- `project_state/codex_execution_report.md` -> `project_state/execution_report.md`;
-- `codex_report_summary` -> `execution_report_summary`;
-- `project_state/gates/codex_report_auto_summary.json` -> `project_state/gates/execution_report_auto_summary.json`;
-- internal and CLI references for `codex_report_auto_summary` and `codex_execution_report`.
-
-The same inventory reports many current code and test references to legacy Codex-bound names in `reverse_agent/project_gate.py` and `tests/test_project_gate.py`. Therefore this round must be a compatibility migration, not a hard deletion or global rename.
+- `project_state/execution_report.md` used neutral fenced block `execution_report_summary`.
+- `project_state/codex_execution_report.md` used legacy fenced block `codex_report_summary`.
+- `project_state/gates/naming_migration_plan.json` changed from inventory-only to `action_this_round: neutral_primary_with_legacy_alias`, `neutral_live_path_created: true`, and `legacy_alias_retained: true`.
+- `project_state/gates/report_summary_synthesis.json` still used `"execution_report": "project_state/codex_execution_report.md"` and `"neutral_execution_report": "project_state/execution_report.md"`, so synthesis still treated the legacy path as primary and the neutral path as secondary.
+- `project_state/gates/final_gate_result.json` still said `codex_report_summary matches synthesized summary`, which is legacy-primary wording.
+- `project_state/gates/run_closeout_result.json` still said `codex report summary parsed`, which is legacy-primary closeout wording.
+- Required Audit answers were misaligned: item 1 did not directly prove that neutral report was primary, and item 5 discussed tests instead of how `naming_migration_plan.json` was updated.
 
 `task_packet.json` remains non-authoritative background state. It describes a stale `samplereverse` evidence collection suggestion but explicitly says `decision_packet_controls_current_round`.
 
@@ -96,9 +90,10 @@ The same inventory reports many current code and test references to legacy Codex
 
 Existing implementation evidence to preserve:
 
-- `project_state/execution_report.md` and `project_state/gates/execution_report_auto_summary.json` already exist as neutral aliases in recent accepted artifacts.
-- final-check already verifies neutral alias presence and semantic parity against legacy aliases.
-- execute-decision and command-plan now provide a shorter controlled local execution path.
+- `execution_report.md` and `execution_report_summary` already exist and must remain generated.
+- `codex_execution_report.md` and `codex_report_summary` must remain compatibility aliases.
+- final-check already verifies dual-file and dual-block parity; those checks must not be weakened.
+- execute-decision `--mode execute` and command-plan authority were previously accepted and must not regress.
 
 Tool policy:
 
@@ -121,6 +116,12 @@ Do not rename `.codex-skills/` or modify `.codex-skills/registry.json` in this r
 Do not rewrite historical round archives or attempt global repository-wide Codex string removal.
 
 Do not modify docs prompt files in this round.
+
+Do not let `report_summary_synthesis.json` continue to label `project_state/codex_execution_report.md` as `execution_report` when `project_state/execution_report.md` exists.
+
+Do not let final-check or closeout use legacy-primary wording in an accepted neutral-primary round.
+
+Do not let Required Audit answers pass if they answer the wrong item.
 
 Do not weaken accepted checks for pytest_result PASSED, failed command block absence, archive parity, execution-log required command coverage, command-plan artifact parity, execute-decision contract, run-closeout final-success semantics, and nested closeout failure absence.
 
@@ -169,23 +170,22 @@ Then inspect only bounded implementation and gate evidence:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `project_state/gates/naming_migration_plan.json`
-4. `project_state/gates/codex_report_auto_summary.json` if present
-5. `project_state/gates/execution_report_auto_summary.json` if present
-6. `project_state/gates/command_plan.json`
-7. `project_state/gates/execute_decision_result.json`
-8. `project_state/gates/run_round_result.json` if present
-9. `project_state/gates/execution_log.json`
-10. `project_state/gates/final_gate_result.json`
-11. `project_state/gates/run_closeout_result.json`
+3. `project_state/gates/report_summary_synthesis.json`
+4. `project_state/gates/final_gate_result.json`
+5. `project_state/gates/run_closeout_result.json`
+6. `project_state/gates/naming_migration_plan.json`
+7. `project_state/gates/codex_report_auto_summary.json` if present
+8. `project_state/gates/execution_report_auto_summary.json` if present
+9. `project_state/gates/command_plan.json`
+10. `project_state/gates/execute_decision_result.json`
+11. `project_state/gates/execution_log.json`
 12. `project_state/gates/run_closeout_execution_log.json`
-13. `project_state/gates/report_summary_synthesis.json`
-14. `project_state/gates/round_baseline.json`
-15. `project_state/gates/round_delta_summary.json`
-16. `project_state/gates/round_close_snapshot.json` if present
-17. `project_state/gates/policy_impact_audit.json` if present
-18. `project_state/gates/policy_lint_result.json` if present
-19. current/previous round manifest only if needed as bounded diagnostic evidence
+13. `project_state/gates/round_baseline.json`
+14. `project_state/gates/round_delta_summary.json`
+15. `project_state/gates/round_close_snapshot.json` if present
+16. `project_state/gates/policy_impact_audit.json` if present
+17. `project_state/gates/policy_lint_result.json` if present
+18. current/previous round manifest only if needed as bounded diagnostic evidence
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -193,13 +193,13 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 Before claiming success, the current live report must answer all eight items below. Each answer must include concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Is `execution_report.md` now the primary live report path for current report parsing, synthesis, final-check, and closeout?
-2. How is `codex_execution_report.md` preserved as a compatibility alias, and how is semantic parity enforced?
-3. Is `execution_report_summary` supported and preferred, and how does legacy `codex_report_summary` fallback remain compatible?
-4. How are `execution_report_auto_summary.json` and `codex_report_auto_summary.json` generated and checked for semantic parity?
-5. How was `naming_migration_plan.json` updated to reflect neutral-primary / legacy-alias status without claiming full legacy removal?
-6. Which regression tests cover neutral-primary report parsing, legacy fallback parsing, dual-block parity, auto-summary alias parity, final-check alias enforcement, and closeout compatibility?
-7. How did the round preserve execute-decision `--mode execute`, command-plan authority, pytest_result transcript, execution-log, final-check, and run-closeout convergence?
+1. Does `report_summary_synthesis.json.sources.execution_report` now point to `project_state/execution_report.md`?
+2. Is `project_state/codex_execution_report.md` now identified as a legacy or compatibility alias source in synthesis/final-check/closeout evidence?
+3. Does final-check align the synthesized summary against `execution_report_summary` or neutral-primary report evidence, not legacy-primary `codex_report_summary` wording?
+4. Does closeout report neutral-primary parsing, or an equivalent detail that proves `execution_report.md` is the primary live report source?
+5. Are dual-file and dual-block semantic parity checks still enforced for neutral and legacy reports?
+6. Does `naming_migration_plan.json` accurately describe neutral-primary + legacy-alias status without claiming legacy deletion or full Codex removal?
+7. Did the round preserve execute-decision `--mode execute`, command-plan authority, pytest_result transcript, execution-log, final-check, and run-closeout convergence?
 8. How does this rework preserve no forbidden path mutation, no `.codex-skills` rename, no docs prompt mutation, no Web/CI/AgentRunner/database/queue/scheduler work, no reverse-solving, and no heavy artifact scans?
 
 Do not write TODO, TBD, PENDING, `should pass`, `expected to pass`, `(to be filled)`, or speculative answers.
@@ -219,34 +219,33 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/execution_report_auto_summary.json`
 - `project_state/gates/codex_report_auto_summary.json`
 - `project_state/gates/naming_migration_plan.json`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/run_closeout_result.json`
+- `project_state/gates/run_closeout_execution_log.json`
 - `project_state/gates/command_plan.json`
 - `project_state/gates/execute_decision_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/execution_log.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/run_closeout_result.json`
-- `project_state/gates/run_closeout_execution_log.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/policy_impact_audit.json`
 - `project_state/gates/policy_lint_result.json`
-- `project_state/rounds/round_20260626_neutral_primary_report_migration_v1/*`
+- `project_state/rounds/round_20260626_neutral_primary_report_source_rework_v1/*`
 
 Required behavior:
 
-1. Update report parsing so neutral `execution_report_summary` is preferred when present.
-2. Preserve legacy `codex_report_summary` parsing as fallback.
-3. If both neutral and legacy summary blocks are present, compare them semantically and fail final-check on divergence.
-4. Generate `execution_report.md` as the primary live report artifact for the current round.
-5. Continue generating `codex_execution_report.md` as a semantic compatibility alias.
-6. Generate or update `execution_report_auto_summary.json` as the primary auto-summary artifact.
-7. Continue generating `codex_report_auto_summary.json` as a semantic compatibility alias.
-8. Update final-check and closeout checks to treat neutral artifacts as primary and legacy Codex artifacts as compatibility aliases.
-9. Update `naming_migration_plan.json` to reflect this round's migration status: neutral-primary live report, legacy alias retained, no historical rewrite, no deletion yet.
-10. Add focused regression tests for neutral-primary behavior and legacy compatibility.
-11. Preserve execute-decision `--mode execute` behavior and accepted command-plan/final-check/run-closeout convergence.
+1. Make report-summary synthesis treat `project_state/execution_report.md` as the primary report source.
+2. Rename or add synthesis source fields so `project_state/codex_execution_report.md` is clearly marked as legacy, compatibility, or alias source.
+3. Update final-check detail text and checks so current accepted neutral-primary reports do not say only `codex_report_summary matches synthesized summary` as the primary alignment statement.
+4. Update closeout detail text and checks so current accepted neutral-primary reports do not say only `codex report summary parsed` as the report-present evidence.
+5. Preserve fallback parsing of legacy `codex_report_summary` for older reports and archives.
+6. Preserve semantic parity checks for `execution_report.md` vs `codex_execution_report.md` and `execution_report_auto_summary.json` vs `codex_report_auto_summary.json`.
+7. Strengthen Required Audit coverage to detect answer/item misalignment like the previous round's item 1 and item 5 errors.
+8. Ensure `naming_migration_plan.json` still says neutral primary with legacy alias, no rename, no delete, no historical rewrite.
+9. Add focused regression tests for synthesis source naming, final-check neutral-primary wording, closeout neutral-primary wording, Required Audit answer alignment, and legacy fallback compatibility.
+10. Preserve execute-decision `--mode execute` behavior and accepted command-plan/final-check/run-closeout convergence.
 
 ## 7. Tests
 
@@ -265,7 +264,7 @@ Then use the accepted short execution path. Run preflight and command-plan first
 The preferred current-round entrypoint is:
 
 ```powershell
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_neutral_primary_report_migration_v1 --mode execute
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_neutral_primary_report_source_rework_v1 --mode execute
 ```
 
 At minimum, validation should include command-plan-authorized equivalents of:
@@ -276,7 +275,7 @@ python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_neutral_primary_report_migration_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_neutral_primary_report_source_rework_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -301,14 +300,14 @@ Stop immediately and report `BLOCKED` if:
 
 Stop with `REWORK_REQUIRED` if:
 
-- `execution_report.md` is not primary for current-round report parsing/synthesis/final-check/closeout;
-- `codex_execution_report.md` compatibility alias is missing or semantically diverges from `execution_report.md`;
-- `execution_report_summary` is unsupported or not preferred when present;
-- `codex_report_summary` fallback breaks;
-- dual neutral/legacy summary blocks diverge without final-check failure;
-- `execution_report_auto_summary.json` and `codex_report_auto_summary.json` diverge;
-- `naming_migration_plan.json` still says inventory-only/no-neutral-live-path-created after this migration;
-- report claims full Codex naming removal while legacy compatibility names remain;
+- `report_summary_synthesis.json` still labels `project_state/codex_execution_report.md` as `execution_report` while neutral report exists;
+- `report_summary_synthesis.json.sources.execution_report` does not point to `project_state/execution_report.md`;
+- `project_state/codex_execution_report.md` is not explicitly marked as legacy/compatibility/alias source;
+- final-check still uses legacy-primary `codex_report_summary matches synthesized summary` wording as the primary accepted-state check;
+- closeout still says only `codex report summary parsed` when neutral report is available;
+- Required Audit answers are missing, placeholder, or semantically misaligned with the numbered questions;
+- dual-file or dual-block semantic parity breaks;
+- `naming_migration_plan.json` claims full legacy removal or still misrepresents migration state;
 - execute-decision `--mode execute` regresses;
 - command-plan stdout differs from live command_plan.json;
 - execution-log has missing required command-plan commands;
