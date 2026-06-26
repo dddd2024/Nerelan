@@ -16192,6 +16192,50 @@ def test_run_closeout_success_with_fake_runner(tmp_path: Path, monkeypatch: pyte
     # or they go into the closeout execution log if needed.
 
 
+def test_run_closeout_blocks_passed_status_when_pytest_transcript_has_failed_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+        ],
+    )
+    pytest_path = state_dir / "pytest_result.txt"
+    pytest_path.write_text(
+        pytest_path.read_text(encoding="utf-8")
+        + "\n\n"
+        + _command_block(
+            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_closeout",
+            "run-closeout: FAILED",
+            exit_code=1,
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    result = run_closeout(
+        state_dir=state_dir,
+        round_id="round_closeout",
+        repo_root=tmp_path,
+        command_runner=_fake_runner_factory({}),
+        write_result=True,
+    )
+
+    assert result["closeout_status"] != "PASSED"
+    assert any(
+        "pytest_result.txt contains failed command block" in reason
+        for reason in result["blocking_reasons"]
+    )
+
+
 def test_run_closeout_failure_stops_on_preflight_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     state_dir = _make_run_closeout_state(tmp_path, round_id="round_closeout")
     # Make preflight fail by monkeypatching the preflight function
@@ -22697,3 +22741,104 @@ class TestCommandPlanArtifactDrift:
 
         exit_check = self._check(result, "pytest_result_exit_codes_match_command_plan")
         assert exit_check["status"] == "PASS"
+        failed_block_check = self._check(result, "pytest_result_failed_command_blocks_absent")
+        assert failed_block_check["status"] == "FAIL"
+        assert result["gate_status"] == "FAILED"
+
+
+class TestPytestReportStatusConvergence:
+    @staticmethod
+    def _check(result: dict[str, object], name: str) -> dict[str, object]:
+        check = next((item for item in result.get("checks", []) if item.get("name") == name), None)
+        assert check is not None
+        return check
+
+    def test_final_check_fails_accepted_report_when_pytest_summary_failed(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+        header = json.loads(
+            (state_dir / "pytest_result.txt")
+            .read_text(encoding="utf-8")
+            .split("```json pytest_result_summary\n", 1)[1]
+            .split("\n```", 1)[0]
+        )
+        header["status"] = "FAILED"
+        body = (state_dir / "pytest_result.txt").read_text(encoding="utf-8").split("\n```\n\n", 1)[1]
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=header["tests_ran"],
+            status="FAILED",
+            body=body,
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        status_check = self._check(result, "pytest_result_status_supports_accepted_report")
+        assert status_check["status"] == "FAIL"
+        assert result["gate_status"] == "FAILED"
+
+    def test_final_check_fails_accepted_report_with_failed_command_block(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+        pytest_path = state_dir / "pytest_result.txt"
+        text = pytest_path.read_text(encoding="utf-8")
+        text += "\n\n" + _command_block(
+            "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+            "execution-log: FAILED",
+            exit_code=1,
+        )
+        text += "\n\n" + _command_block(
+            "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+            "execution-log: PASSED",
+            exit_code=0,
+        )
+        pytest_path.write_text(text, encoding="utf-8", newline="\n")
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        failed_block_check = self._check(result, "pytest_result_failed_command_blocks_absent")
+        assert failed_block_check["status"] == "FAIL"
+        assert "execution-log" in json.dumps(failed_block_check)
+        exit_check = self._check(result, "pytest_result_exit_codes_match_command_plan")
+        assert exit_check["status"] in {"PASS", "FAIL"}
+        assert result["gate_status"] == "FAILED"
+
+    def test_report_summary_downgrades_success_when_pytest_summary_failed(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+        pytest_path = state_dir / "pytest_result.txt"
+        text = pytest_path.read_text(encoding="utf-8")
+        header = json.loads(
+            text.split("```json pytest_result_summary\n", 1)[1].split("\n```", 1)[0]
+        )
+        body = text.split("\n```\n\n", 1)[1]
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=header["tests_ran"],
+            status="FAILED",
+            body=body,
+        )
+
+        result = build_report_summary_synthesis(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            write_result=False,
+        )
+
+        synthesized = result["synthesized_summary"]
+        assert synthesized["status"] == "FAILED"
+        assert synthesized["acceptance_recommendation"] == "REWORK_REQUIRED"
+        assert result["synthesis_status"] == "FAILED"
+        assert any("pytest_result_summary.status" in err for err in result["errors"])

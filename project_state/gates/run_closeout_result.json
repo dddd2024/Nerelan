@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
-  "round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
-  "generated_at": "2026-06-26T02:43:24.672697Z",
+  "decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
+  "round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
+  "generated_at": "2026-06-26T04:13:31.970714Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -28,7 +28,7 @@
     },
     {
       "name": "pytest",
-      "command": "python -m pytest tests/test_project_gate.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "expected_exit_codes": [
         0
@@ -90,7 +90,7 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260625_command_plan_artifact_drift_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260626_pytest_report_status_convergence_rework_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
@@ -116,13 +116,13 @@
     "schema_version": 1,
     "gate_name": "close-round",
     "close_status": "CLOSED",
-    "decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
-    "report_id": "codex_report_20260625_command_plan_artifact_drift_rework_v1",
-    "round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
-    "decision_round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
-    "report_round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
+    "decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
+    "report_id": "codex_report_20260626_pytest_report_status_convergence_rework_v1",
+    "round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
+    "decision_round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
+    "report_round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
     "report_status": "SUCCESS",
-    "generated_at": "2026-06-26T02:43:23.305967Z",
+    "generated_at": "2026-06-26T04:13:30.452415Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -145,15 +145,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
-        "decision_round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
-        "report_round_id": "round_20260625_command_plan_artifact_drift_rework_v1"
+        "requested_round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
+        "decision_round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
+        "report_round_id": "round_20260626_pytest_report_status_convergence_rework_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1"
+        "report_based_on_decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1"
       },
       {
         "name": "pytest_result_match",
@@ -179,8 +179,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
-        "command_plan_round_id": "round_20260625_command_plan_artifact_drift_rework_v1"
+        "command_plan_decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
+        "command_plan_round_id": "round_20260626_pytest_report_status_convergence_rework_v1"
       },
       {
         "name": "command_plan_covers_report_tests",
@@ -234,12 +234,13 @@
         "detail": "round delta summary is baseline-aware",
         "path": "project_state/gates/round_delta_summary.json",
         "baseline_available": true,
-        "inherited_dirty_files": [],
+        "inherited_dirty_files": [
+          "project_state/gates/command_plan.json"
+        ],
         "new_dirty_files_since_baseline": [
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
-          "project_state/gates/command_plan.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
@@ -280,7 +281,9 @@
         "name": "files_changed_excludes_inherited_dirty_files",
         "status": "PASS",
         "detail": "files_changed excludes inherited baseline dirty files",
-        "inherited_dirty_files": []
+        "inherited_dirty_files": [
+          "project_state/gates/command_plan.json"
+        ]
       },
       {
         "name": "files_changed_covers_git_diff",
@@ -311,7 +314,6 @@
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
-          "project_state/gates/command_plan.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
@@ -324,11 +326,13 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
+          "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/round_manifest.json",
           "reverse_agent/project_gate.py",
           "tests/test_project_gate.py"
         ],
-        "inherited_dirty_files": []
+        "inherited_dirty_files": [
+          "project_state/gates/command_plan.json"
+        ]
       },
       {
         "name": "files_changed_covers_substantive_changes",
@@ -361,9 +365,19 @@
           "tests/test_project_gate.py"
         ],
         "allowed_inherited_dirty_files": [],
-        "generated_or_archive_baseline_dirty_files": [],
+        "generated_or_archive_baseline_dirty_files": [
+          "project_state/gates/command_plan.json"
+        ],
         "close_worktree_clean": false,
         "close_snapshot_available": true
+      },
+      {
+        "name": "baseline_inherited_allowlist_explained",
+        "status": "PASS",
+        "detail": "no source/test inherited baseline explanation is required",
+        "inherited_dirty_files": [
+          "project_state/gates/command_plan.json"
+        ]
       },
       {
         "name": "baseline_capture_order",
@@ -451,13 +465,11 @@
       {
         "name": "startup_baseline_consistency",
         "status": "PASS",
-        "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
-        "startup_source_test_dirty": [
-          "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+        "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
+        "startup_source_test_dirty": [],
+        "baseline_dirty_files": [
+          "project_state/gates/command_plan.json"
         ],
-        "baseline_dirty_files": [],
-        "inherited_dirty_files": [],
         "missing_from_baseline": []
       },
       {
@@ -512,11 +524,11 @@
               "project_state/gates/run_closeout_execution_log.json",
               "project_state/gates/run_closeout_result.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/round_manifest.json",
               "reverse_agent/project_gate.py",
               "tests/test_project_gate.py"
             ]
@@ -568,11 +580,11 @@
               "project_state/gates/run_closeout_result.json",
               "project_state/gates/state_hygiene_inventory.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json"
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/round_manifest.json"
             ]
           }
         ]
@@ -658,8 +670,8 @@
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260625_command_plan_artifact_drift_rework_v1",
-        "manifest": "project_state\\rounds\\round_20260625_command_plan_artifact_drift_rework_v1\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260626_pytest_report_status_convergence_rework_v1",
+        "manifest": "project_state\\rounds\\round_20260626_pytest_report_status_convergence_rework_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
@@ -676,7 +688,7 @@
     ],
     "archive": {
       "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
+      "round_manifest_path": "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",

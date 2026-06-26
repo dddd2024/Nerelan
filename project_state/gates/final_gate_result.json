@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
-  "report_id": "codex_report_20260625_command_plan_artifact_drift_rework_v1",
-  "round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
-  "generated_at": "2026-06-26T02:43:30.694867Z",
+  "decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
+  "report_id": "codex_report_20260626_pytest_report_status_convergence_rework_v1",
+  "round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
+  "generated_at": "2026-06-26T04:13:32.529966Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -38,10 +38,26 @@
       "missing_report_tests": []
     },
     {
+      "name": "pytest_result_status_supports_accepted_report",
+      "status": "PASS",
+      "detail": "pytest_result_summary.status supports accepted report",
+      "report_status": "SUCCESS",
+      "acceptance_recommendation": "ACCEPTED",
+      "pytest_result_status": "PASSED",
+      "required": true
+    },
+    {
+      "name": "pytest_result_failed_command_blocks_absent",
+      "status": "PASS",
+      "detail": "accepted pytest_result has no failed command blocks",
+      "failed_command_blocks": [],
+      "required": true
+    },
+    {
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260625_command_plan_artifact_drift_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260626_pytest_report_status_convergence_rework_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -73,12 +89,13 @@
       "detail": "round delta summary is baseline-aware",
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
-      "inherited_dirty_files": [],
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/codex_report_auto_summary.json",
-        "project_state/gates/command_plan.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
@@ -91,11 +108,11 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -116,11 +133,11 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -129,7 +146,9 @@
       "name": "files_changed_excludes_inherited_dirty_files",
       "status": "PASS",
       "detail": "files_changed excludes inherited baseline dirty files",
-      "inherited_dirty_files": []
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -153,11 +172,11 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -165,7 +184,6 @@
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/codex_report_auto_summary.json",
-        "project_state/gates/command_plan.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
@@ -178,15 +196,17 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260626_pytest_report_status_convergence_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
-      "inherited_dirty_files": []
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "files_changed_covers_substantive_changes",
@@ -219,9 +239,19 @@
         "tests/test_project_gate.py"
       ],
       "allowed_inherited_dirty_files": [],
-      "generated_or_archive_baseline_dirty_files": [],
+      "generated_or_archive_baseline_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ],
       "close_worktree_clean": false,
       "close_snapshot_available": true
+    },
+    {
+      "name": "baseline_inherited_allowlist_explained",
+      "status": "PASS",
+      "detail": "no source/test inherited baseline explanation is required",
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "baseline_capture_order",
@@ -309,13 +339,11 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
-      "startup_source_test_dirty": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
+      "startup_source_test_dirty": [],
+      "baseline_dirty_files": [
+        "project_state/gates/command_plan.json"
       ],
-      "baseline_dirty_files": [],
-      "inherited_dirty_files": [],
       "missing_from_baseline": []
     },
     {
@@ -357,17 +385,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
-      "closeout_log_round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
-      "expected_decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
-      "expected_round_id": "round_20260625_command_plan_artifact_drift_rework_v1"
+      "closeout_log_decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
+      "closeout_log_round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
+      "expected_decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
+      "expected_round_id": "round_20260626_pytest_report_status_convergence_rework_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260625_command_plan_artifact_drift_rework_v1",
-      "expected_report_id": "codex_report_20260625_command_plan_artifact_drift_rework_v1"
+      "execution_log_report_id": "codex_report_20260626_pytest_report_status_convergence_rework_v1",
+      "expected_report_id": "codex_report_20260626_pytest_report_status_convergence_rework_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -391,8 +419,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
-      "command_plan_round_id": "round_20260625_command_plan_artifact_drift_rework_v1"
+      "command_plan_decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
+      "command_plan_round_id": "round_20260626_pytest_report_status_convergence_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -496,8 +524,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
-      "gate_profile_round_id": "round_20260625_command_plan_artifact_drift_rework_v1"
+      "gate_profile_decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
+      "gate_profile_round_id": "round_20260626_pytest_report_status_convergence_rework_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -532,14 +560,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive aligned answers",
       "required_audit_items": [
-        "Why did live `project_state/gates/command_plan.json` differ from the command-plan stdout recorded in `project_state/pytest_result.txt`?",
-        "How does final-check now compare live `command_plan.json` against the command-plan block recorded in `pytest_result.txt`?",
-        "What is the accepted-state expected exit behavior for `run-closeout`, and how is it represented?",
-        "How is the diagnostic note `run-closeout diagnostic after final-check failed; exit 1 is expected` prevented from appearing in accepted-state command-plan artifacts?",
-        "Which regression tests prove command-plan artifact drift is detected?",
-        "How does execution-log consistency with both `pytest_result.txt` and live `command_plan.json` remain enforced?",
-        "How does this rework preserve no forbidden path mutation and no legacy artifact deletion?",
-        "How does this rework preserve no Phase 2, Web, CI, AgentRunner, database, queue, scheduler, reverse-solving, or heavy artifact scan expansion?"
+        "Why did `pytest_result_summary.status` remain `FAILED` while the report claimed `SUCCESS / ACCEPTED`?",
+        "How does report-summary or final-check now prevent report `SUCCESS / ACCEPTED` when `pytest_result_summary.status` is `FAILED`?",
+        "How does final-check now detect failed command blocks inside `pytest_result.txt`, not only the latest live gate artifacts?",
+        "How does run-closeout now avoid leaving a live `PASSED` closeout artifact when the pytest transcript contains a failed run-closeout block?",
+        "How is archived `pytest_result.txt` kept identical to live `project_state/pytest_result.txt`?",
+        "How does execution-log guarantee all command-plan required commands are recorded before acceptance?",
+        "Which regression tests prove pytest/report/gate/closeout status convergence failures cannot recur?",
+        "How does this rework preserve no forbidden path mutation, no legacy artifact deletion, no Phase 2/Web/CI/AgentRunner/database/queue/scheduler work, no reverse-solving, and no heavy artifact scans?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
