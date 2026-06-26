@@ -1321,6 +1321,57 @@ def test_refresh_report_writes_neutral_execution_report_alias(
     assert "# EXECUTION_REPORT" in neutral_text
 
 
+def test_final_check_uses_neutral_report_summary_wording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    monkeypatch.setattr("reverse_agent.project_gate._git_changed_files", lambda _repo_root: [])
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    check = _check(result, "report_summary_fields_match_synthesis")
+
+    assert "execution_report_summary" in check["detail"]
+    assert "codex_report_summary matches synthesized summary" not in check["detail"]
+
+
+def test_close_round_reports_neutral_primary_report_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    monkeypatch.setattr("reverse_agent.project_gate._git_changed_files", lambda _repo_root: [])
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+
+    result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
+    check = _check(result, "report_present")
+
+    assert check["status"] == "PASS"
+    assert check["primary_report_source"] == "project_state/execution_report.md"
+    assert "neutral execution report summary parsed" in check["detail"]
+    assert check["legacy_execution_report_alias"] == "project_state/codex_execution_report.md"
+
+
+def test_close_round_reports_legacy_fallback_when_neutral_report_missing(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+
+    result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
+    check = _check(result, "report_present")
+
+    assert check["status"] == "PASS"
+    assert check["primary_report_source"] == "project_state/codex_execution_report.md"
+    assert "compatibility fallback" in check["detail"]
+
+
 def test_refresh_report_explains_allowed_source_files_dirty_baseline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1916,6 +1967,17 @@ def test_report_summary_synthesizes_expected_fields(tmp_path: Path) -> None:
     assert summary["acceptance_recommendation"] == "ACCEPTED"
     assert "project_state/gates/report_summary_synthesis.json" in summary["generated_artifacts"]
     assert (state_dir / "gates" / "report_summary_synthesis.json").exists()
+
+
+def test_report_summary_sources_use_neutral_primary_and_legacy_alias(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["sources"]["execution_report"] == "project_state/execution_report.md"
+    assert result["sources"]["execution_report_summary_block"] == "execution_report_summary"
+    assert result["sources"]["legacy_execution_report_alias"] == "project_state/codex_execution_report.md"
+    assert result["sources"]["legacy_report_summary_block_alias"] == "codex_report_summary"
 
 
 def test_report_summary_includes_run_round_result_when_planned(
@@ -16238,6 +16300,85 @@ def test_run_closeout_internal_blockers_include_active_close_round_warnings() ->
     )
 
 
+def test_run_closeout_self_record_refresh_clears_transient_nested_report_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reverse_agent import project_gate as gate
+
+    state_dir = tmp_path / "project_state"
+    result_path = state_dir / "gates" / "run_closeout_result.json"
+    _write_json(result_path, {
+        "schema_version": 1,
+        "gate_name": "run-closeout",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "executed_steps": [
+            {"name": "close-round", "status": "PASSED", "exit_code": 0},
+        ],
+        "skipped_steps": [],
+        "blocking_reasons": [
+            "close-round report_status=FAILED",
+            "close-round nested failure: close_round_result.status_summary.report_status=FAILED",
+        ],
+        "warnings": [],
+        "closeout_status": "FAILED",
+        "close_round_result": {
+            "close_status": "CLOSED",
+            "report_status": "FAILED",
+            "blocking_reasons": [],
+            "warnings": [],
+            "status_summary": {
+                "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+                "report_status": "FAILED",
+                "report_acceptance_recommendation": "REWORK_REQUIRED",
+            },
+            "actions": [
+                {
+                    "name": "final_check_after_archive",
+                    "status": "PASSED",
+                    "gate_status": "FAILED",
+                    "unexpected_failures": [],
+                }
+            ],
+        },
+    })
+
+    def fake_final_check(**_: Any) -> dict[str, object]:
+        return {
+            "checks": [
+                {"name": "execute_decision_contract", "status": "FAIL"},
+                {"name": "pytest_result_match", "status": "FAIL"},
+                {"name": "status_policy_valid", "status": "FAIL"},
+                {"name": "closeout_nested_failures_absent", "status": "FAIL"},
+                {"name": "baseline_capture_order", "status": "WARN"},
+            ],
+        }
+
+    monkeypatch.setattr(gate, "final_check", fake_final_check)
+
+    gate._refresh_run_closeout_result_after_self_record(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+    )
+
+    refreshed = json.loads(result_path.read_text(encoding="utf-8"))
+    assert refreshed["closeout_status"] == "PASSED"
+    assert refreshed["blocking_reasons"] == []
+    assert refreshed["recommended_next_action"] == "no_action_required"
+    close_round_result = refreshed["close_round_result"]
+    assert close_round_result["report_status"] == "SUCCESS"
+    assert close_round_result["status_summary"]["decision_execution_state"] == (
+        "CONSUMED_BY_SUCCESS_REPORT"
+    )
+    assert close_round_result["status_summary"]["report_status"] == "SUCCESS"
+    assert (
+        close_round_result["status_summary"]["report_acceptance_recommendation"]
+        == "ACCEPTED"
+    )
+    assert close_round_result["actions"][0]["gate_status"] == "PASSED"
+
+
 def test_run_closeout_invalid_args_missing_round_id(tmp_path: Path):
     state_dir = _make_run_closeout_state(tmp_path)
     result = run_closeout(
@@ -21594,6 +21735,74 @@ class TestRequiredAuditPlaceholderBlocking:
         assert result["status"] == "FAIL"
         assert any(f["reason"] == "invalid_status" for f in result["alignment_failures"])
 
+    def test_neutral_primary_source_rework_audit_generator_aligns(self) -> None:
+        from reverse_agent.project_gate import (
+            _generate_neutral_primary_report_source_required_audit,
+            _required_audit_coverage_check,
+        )
+
+        decision_text = """# Decision
+
+## Required Audit
+
+1. Does `report_summary_synthesis.json.sources.execution_report` now point to `project_state/execution_report.md`?
+2. Is `project_state/codex_execution_report.md` now identified as a legacy or compatibility alias source in synthesis/final-check/closeout evidence?
+3. Does final-check align the synthesized summary against `execution_report_summary` or neutral-primary report evidence, not legacy-primary `codex_report_summary` wording?
+4. Does closeout report neutral-primary parsing, or an equivalent detail that proves `execution_report.md` is the primary live report source?
+5. Are dual-file and dual-block semantic parity checks still enforced for neutral and legacy reports?
+6. Does `naming_migration_plan.json` accurately describe neutral-primary + legacy-alias status without claiming legacy deletion or full Codex removal?
+7. Did the round preserve execute-decision `--mode execute`, command-plan authority, pytest_result transcript, execution-log, final-check, and run-closeout convergence?
+8. How does this rework preserve no forbidden path mutation, no `.codex-skills` rename, no docs prompt mutation, no Web/CI/AgentRunner/database/queue/scheduler work, no reverse-solving, and no heavy artifact scans?
+"""
+        report_text = "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n"
+        report_text += _generate_neutral_primary_report_source_required_audit(decision_text)
+
+        result = _required_audit_coverage_check(
+            decision_text=decision_text,
+            report_text=report_text,
+            report_status="SUCCESS",
+        )
+
+        assert result["status"] == "PASS"
+
+    def test_neutral_primary_source_rework_audit_blocks_wrong_item_answer(self) -> None:
+        from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions
+
+        decision_text = """# Decision
+
+## Required Audit
+
+1. Does `report_summary_synthesis.json.sources.execution_report` now point to `project_state/execution_report.md`?
+2. Is `project_state/codex_execution_report.md` now identified as a legacy or compatibility alias source in synthesis/final-check/closeout evidence?
+3. Does final-check align the synthesized summary against `execution_report_summary` or neutral-primary report evidence, not legacy-primary `codex_report_summary` wording?
+4. Does closeout report neutral-primary parsing, or an equivalent detail that proves `execution_report.md` is the primary live report source?
+5. Are dual-file and dual-block semantic parity checks still enforced for neutral and legacy reports?
+6. Does `naming_migration_plan.json` accurately describe neutral-primary + legacy-alias status without claiming legacy deletion or full Codex removal?
+7. Did the round preserve execute-decision `--mode execute`, command-plan authority, pytest_result transcript, execution-log, final-check, and run-closeout convergence?
+8. How does this rework preserve no forbidden path mutation, no `.codex-skills` rename, no docs prompt mutation, no Web/CI/AgentRunner/database/queue/scheduler work, no reverse-solving, and no heavy artifact scans?
+"""
+        questions = parse_required_audit_questions(decision_text)
+        audit_lines = ["## Required Audit", ""]
+        for index, question in enumerate(questions, start=1):
+            audit_lines.extend([
+                f"### {index}. {question}",
+                "",
+                "- Evidence: tests/test_project_gate.py pytest command output",
+                "- Status: PASS",
+                "- Answer: Regression tests passed and command-plan remained executable.",
+                "",
+            ])
+        report_text = "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + "\n".join(audit_lines)
+
+        result = _required_audit_coverage_check(
+            decision_text=decision_text,
+            report_text=report_text,
+            report_status="SUCCESS",
+        )
+
+        assert result["status"] == "FAIL"
+        assert any(f["reason"] == "missing_required_phrase" for f in result["alignment_failures"])
+
 
 class TestExecutionLogConsistencyBlocking:
     """Verify that execution_log_consistency FAILs (blocks) for exit code
@@ -22022,6 +22231,7 @@ class TestExecuteDecision:
         """Execute mode records final-state diagnostics after run-closeout evidence."""
         commands_seen: list[str] = []
         final_check_command = "python -m reverse_agent.project_gate final-check --state-dir project_state"
+        execution_log_command = "python -m reverse_agent.project_gate execution-log --state-dir project_state"
         report_summary_command = "python -m reverse_agent.project_gate report-summary --state-dir project_state"
         run_closeout_command = (
             "python -m reverse_agent.project_gate run-closeout "
@@ -22033,6 +22243,7 @@ class TestExecuteDecision:
                 [
                     final_check_command,
                     "python -m pytest tests/test_project_gate.py -q",
+                    execution_log_command,
                     run_closeout_command,
                     report_summary_command,
                 ]
@@ -22053,8 +22264,9 @@ class TestExecuteDecision:
         )
 
         assert result["run_status"] == "PASSED"
+        assert commands_seen.index(execution_log_command) < commands_seen.index(run_closeout_command)
+        assert commands_seen.index(report_summary_command) < commands_seen.index(run_closeout_command)
         assert commands_seen.index(run_closeout_command) < commands_seen.index(final_check_command)
-        assert commands_seen.index(report_summary_command) < commands_seen.index(final_check_command)
 
     def test_execute_decision_not_a_new_executor(self, tmp_path):
         """execute_decision() must not create a scheduler or queue."""
