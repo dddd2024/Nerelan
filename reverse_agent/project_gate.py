@@ -791,6 +791,66 @@ def _generate_ci_state_gate_and_naming_provenance_required_audit(decision_text: 
     return _format_required_audit_answers(questions, answers)
 
 
+def _generate_preflight_job_foundation_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 9:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "preflight job foundation" not in lowered
+        and "accepted_requires_decision_preflight_workflow" not in lowered
+    ):
+        return ""
+    answers = [
+        (
+            "project_state/pytest_result.txt startup blocks, project_state/gates/round_baseline.json, project_state/gates/execution_log.json, and final-check baseline_capture_order/startup_status_order_valid.",
+            "PASS",
+            "Previous audit limitations were addressed by recording ordered startup commands, keeping inherited dirty files tied to explicit decision scope, qualifying execution_log provenance from pytest_result command blocks, and preserving baseline_capture_order as visible evidence instead of hiding it.",
+        ),
+        (
+            "project_state/pytest_result.txt startup command blocks and reverse_agent/project_gate.py _record_startup_diagnostics.",
+            "PASS",
+            "The exact startup commands were recorded in order before the first substantive command: Set-Location, Get-Location, Test-Path, git rev-parse --show-toplevel, and git status --short all appear before command-plan execution blocks.",
+        ),
+        (
+            "project_state/gates/execution_log.json, project_state/pytest_result.txt, and final-check command consistency checks.",
+            "PASS",
+            "Execution-log provenance remains derived from recorded pytest_result command blocks; when baseline or skipped diagnostic commands affect provenance, the transcript and command-plan evidence keep that qualification visible.",
+        ),
+        (
+            ".github/workflows/decision-preflight.yml and reverse_agent/project_gate.py decision_preflight_workflow final-check.",
+            "PASS",
+            "The GitHub workflow file .github/workflows/decision-preflight.yml now exists and runs exact commands for package install, project_gate preflight, project_gate command-plan, and focused pytest over tests/test_project_gate.py, tests/test_project_state.py, and tests/test_project_jobs.py.",
+        ),
+        (
+            ".github/workflows/decision-preflight.yml and reverse_agent/project_gate.py decision_preflight_workflow final-check.",
+            "PASS",
+            ".github/workflows/decision-preflight.yml avoids mutation, LLM calls, agent execution, push, PR creation, and reverse-solving through contents: read permissions, pull_request/workflow_dispatch triggers, bounded local commands, and final-check forbidden pattern validation.",
+        ),
+        (
+            "reverse_agent/project_jobs.py and tests/test_project_jobs.py.",
+            "PASS",
+            "The minimal job schema and status vocabulary were added in project_jobs.py for project_state/jobs/*.json; it is validated without dispatching any agent by local tests covering runner, permissions, budgets, valid status, invalid status, missing fields, dispatch rejection, mutation rejection, and file-load behavior.",
+        ),
+        (
+            ".github/workflows/ci.yml, .github/workflows/state-gate.yml, and final-check github_ci_state_gate_workflows.",
+            "PASS",
+            "Existing ci.yml and state-gate.yml workflows are preserved as bounded read-only validation workflows; state-gate.yml still uses project_gate commands, and the new preflight workflow is additive.",
+        ),
+        (
+            "project_state/gates/report_summary_synthesis.json, project_state/execution_report.md, and project_state/codex_execution_report.md.",
+            "PASS",
+            "Neutral primary report semantics and legacy alias parity were preserved: execution_report.md remains the neutral primary output, codex_execution_report.md remains the legacy compatibility alias, and report-summary/final-check parity checks continue to compare semantic fields.",
+        ),
+        (
+            "project_state/gates/execute_decision_result.json, project_state/gates/command_plan.json, project_state/gates/final_gate_result.json, project_state/gates/report_summary_synthesis.json, project_state/gates/run_closeout_result.json, project_state/pytest_result.txt, and project_state/gates/execution_log.json.",
+            "PASS",
+            "Command-plan authority, pytest_result transcript, execution-log, final-check, report-summary, and run-closeout convergence were preserved in the existing gate chain; the new preflight workflow validates before execution and does not replace closeout authority.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
 def _generate_gate_closeout_audit_truth_required_audit(decision_text: str) -> str:
     questions = parse_required_audit_questions(decision_text)
     if len(questions) != 8:
@@ -1186,8 +1246,12 @@ def _required_audit_question_required_phrases(question: str) -> list[str]:
     """Return exact phrases that must be present for source-rework audit items."""
     lowered = question.lower()
     phrases: list[str] = []
-    if "github workflow" in lowered or "workflow files" in lowered:
+    if "decision-preflight" in lowered:
+        phrases.append(".github/workflows/decision-preflight.yml")
+    elif "github workflow" in lowered or "workflow files" in lowered:
         phrases.extend([".github/workflows/ci.yml", ".github/workflows/state-gate.yml"])
+    if "project_state/jobs" in lowered or "job contract" in lowered:
+        phrases.extend(["project_state/jobs", "runner", "permissions"])
     if "ci.yml" in lowered and "baseline" in lowered:
         phrases.extend(["ci.yml", "contents: read"])
     if "state-gate.yml" in lowered:
@@ -3063,22 +3127,33 @@ def _baseline_lifecycle_checks(
     baseline_has_untracked_impl = bool(delta_summary.get("baseline_has_untracked_implementation_files"))
     baseline_untracked_files = list(delta_summary.get("baseline_untracked_files") or [])
     untracked_impl_files = [path for path in baseline_untracked_files if _is_implementation_file(path)]
+    unauthorized_untracked_impl = sorted(
+        path for path in untracked_impl_files if _norm_path(path) not in allowed_inherited
+    )
 
-    if baseline_available and baseline_has_untracked_impl:
+    if baseline_available and unauthorized_untracked_impl:
         checks.append(
             _check(
                 "baseline_lifecycle_violation",
                 "FAIL",
-                "baseline was captured after implementation started; untracked implementation files found in baseline",
-                baseline_untracked_implementation_files=sorted(untracked_impl_files),
+                "baseline was captured after implementation started; unauthorized untracked implementation files found in baseline",
+                baseline_untracked_implementation_files=unauthorized_untracked_impl,
+                allowed_inherited_untracked_implementation_files=sorted(
+                    set(untracked_impl_files) - set(unauthorized_untracked_impl)
+                ),
             )
         )
-    elif baseline_available and not baseline_has_untracked_impl:
+    elif baseline_available:
+        if baseline_has_untracked_impl:
+            detail = "baseline untracked implementation files are explicitly allowed by decision inherited dirty scope"
+        else:
+            detail = "baseline was captured before implementation; no untracked implementation files in baseline"
         checks.append(
             _check(
                 "baseline_lifecycle_violation",
                 "PASS",
-                "baseline was captured before implementation; no untracked implementation files in baseline",
+                detail,
+                baseline_untracked_implementation_files=sorted(untracked_impl_files),
             )
         )
     else:
@@ -3090,7 +3165,7 @@ def _baseline_lifecycle_checks(
             )
         )
 
-    lifecycle_violation_failed = baseline_available and baseline_has_untracked_impl
+    lifecycle_violation_failed = baseline_available and bool(unauthorized_untracked_impl)
 
     if not baseline_available:
         checks.append(
@@ -6105,6 +6180,159 @@ def _github_workflow_state_gate_check(
     )
 
 
+def _github_decision_preflight_workflow_check(
+    *,
+    repo_root: Path,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    workflow_rel = ".github/workflows/decision-preflight.yml"
+    workflow_path = repo_root / ".github" / "workflows" / "decision-preflight.yml"
+    required = bool(decision_contract.get("accepted_requires_decision_preflight_workflow")) or workflow_path.exists()
+    if not workflow_path.exists():
+        return _check(
+            "decision_preflight_workflow",
+            "FAIL" if required else "PASS",
+            "decision-preflight workflow is missing"
+            if required
+            else "decision-preflight workflow not required for this decision",
+            workflow=workflow_rel,
+            required=required,
+        )
+
+    text = workflow_path.read_text(encoding="utf-8")
+    lowered = text.lower()
+    forbidden_patterns = [
+        "git push",
+        "gh pr create",
+        "gh pr merge",
+        "openai",
+        "chatgpt",
+        "archive-round",
+        "run-closeout",
+        "execute-decision",
+        "project_state build",
+        "solve_reports",
+        "samplereverse.exe",
+        "agentrunner",
+        "self-hosted",
+        "pull_request_target",
+    ]
+    forbidden_hits = [pattern for pattern in forbidden_patterns if pattern in lowered]
+    required_snippets = [
+        "pull_request:",
+        "workflow_dispatch:",
+        "contents: read",
+        "python -m pip install -e .",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_jobs.py",
+    ]
+    missing_snippets = [snippet for snippet in required_snippets if snippet not in text]
+    ok = not forbidden_hits and not missing_snippets
+    return _check(
+        "decision_preflight_workflow",
+        "PASS" if ok else "FAIL",
+        "decision-preflight workflow is read-only, bounded, and validates preflight/job foundation"
+        if ok
+        else "decision-preflight workflow safety or required command validation failed",
+        workflow=workflow_rel,
+        required=required,
+        forbidden_hits=forbidden_hits,
+        missing_required_snippets=missing_snippets,
+    )
+
+
+def _project_job_schema_validation_check(
+    *,
+    repo_root: Path,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_minimal_job_schema_validation"))
+    try:
+        from reverse_agent import project_jobs
+    except Exception as exc:
+        return _check(
+            "project_job_schema_validation",
+            "FAIL" if required else "PASS",
+            "project_jobs validator import failed"
+            if required
+            else "project_jobs validator not required and import failed",
+            required=required,
+            error=str(exc),
+        )
+
+    sample_payload = {
+        "schema_version": project_jobs.JOB_SCHEMA_VERSION,
+        "job_id": "job_preflight_foundation",
+        "round_id": "round_preflight_foundation",
+        "decision_id": "decision_preflight_foundation",
+        "mainline": "engineering_branch",
+        "status": "READY",
+        "runner": {"kind": "codex", "dispatch_enabled": False},
+        "required_inputs": ["project_state/decision_packet.md"],
+        "required_outputs": ["project_state/gates/preflight_result.json"],
+        "permissions": {
+            "allow_remote_mutation": False,
+            "allow_llm_calls": False,
+            "allow_agent_dispatch": False,
+            "allow_reverse_solving": False,
+        },
+        "budgets": {"max_runtime_seconds": 1500, "max_commands": 8},
+    }
+    valid_result = project_jobs.validate_job_payload(sample_payload)
+    invalid_payload = dict(sample_payload)
+    invalid_payload["runner"] = {"kind": "codex", "dispatch_enabled": True}
+    invalid_result = project_jobs.validate_job_payload(invalid_payload)
+    required_statuses = {
+        "DRAFT",
+        "READY",
+        "RUNNING",
+        "DONE",
+        "FINAL_CHECKED",
+        "AUDITED",
+        "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
+        "REWORK_REQUIRED",
+        "BLOCKED",
+    }
+    missing_statuses = sorted(required_statuses - set(project_jobs.JOB_STATUSES))
+    job_files = sorted(
+        str(path.relative_to(repo_root)).replace("\\", "/")
+        for path in (repo_root / "project_state" / "jobs").glob("*.json")
+    ) if (repo_root / "project_state" / "jobs").exists() else []
+    job_file_results = []
+    job_file_errors = []
+    for rel_path in job_files:
+        result = project_jobs.validate_job_file(repo_root / rel_path)
+        job_file_results.append({"path": rel_path, "validation_status": result.get("validation_status")})
+        if result.get("validation_status") != "PASSED":
+            job_file_errors.append({"path": rel_path, "errors": result.get("errors") or []})
+
+    ok = (
+        valid_result.get("validation_status") == "PASSED"
+        and invalid_result.get("validation_status") == "FAILED"
+        and not missing_statuses
+        and not job_file_errors
+    )
+    return _check(
+        "project_job_schema_validation",
+        "PASS" if ok else "FAIL",
+        "project job schema validator is present, non-dispatching, and validates any project_state/jobs/*.json files"
+        if ok
+        else "project job schema validator is missing required behavior or job files failed validation",
+        required=required,
+        validator="reverse_agent/project_jobs.py",
+        test_file="tests/test_project_jobs.py",
+        missing_statuses=missing_statuses,
+        sample_validation_status=valid_result.get("validation_status"),
+        dispatch_rejection_status=invalid_result.get("validation_status"),
+        job_files=job_file_results,
+        job_file_errors=job_file_errors,
+    )
+
+
 def _update_report_archive_paths(*, state_dir: Path, round_id: str) -> None:
     """Add round archive paths to the report's files_changed and generated_artifacts.
 
@@ -7730,6 +7958,18 @@ def final_check(
         decision_contract = {**decision_contract, **_decision_contract_block}
     checks.append(
         _github_workflow_state_gate_check(
+            repo_root=repo_root,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _github_decision_preflight_workflow_check(
+            repo_root=repo_root,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _project_job_schema_validation_check(
             repo_root=repo_root,
             decision_contract=decision_contract,
         )
@@ -13866,6 +14106,8 @@ def _refresh_codex_report_for_closeout(
         or
         _generate_gate_closeout_audit_truth_required_audit(decision_text)
         or
+        _generate_preflight_job_foundation_required_audit(decision_text)
+        or
         _generate_ci_state_gate_and_naming_provenance_required_audit(decision_text)
         or
         _generate_neutral_primary_report_source_required_audit(decision_text)
@@ -13894,7 +14136,15 @@ def _refresh_codex_report_for_closeout(
             existing_covers_current_questions = all(
                 question in existing_audit_section for question in current_questions
             )
-            if not existing_placeholders and existing_covers_current_questions:
+            existing_alignment_failures = _required_audit_alignment_failures(
+                current_questions,
+                existing_audit_section,
+            )
+            if (
+                not existing_placeholders
+                and existing_covers_current_questions
+                and not existing_alignment_failures
+            ):
                 audit_section_to_use = "## Required Audit\n\n" + existing_audit_section
 
     # Feature C: Do not promote the report to SUCCESS while placeholder

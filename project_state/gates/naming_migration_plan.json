@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "plan_name": "naming-migration-plan",
-  "decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-  "round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
-  "generated_at": "2026-06-26T14:18:12.031340Z",
+  "decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "generated_at": "2026-06-26T15:35:31.826061Z",
   "action_this_round": "neutral_primary_with_legacy_alias",
   "no_rename": true,
   "no_delete": true,
@@ -22,7 +22,7 @@
       "proposed_neutral_path": "project_state/execution_report.md",
       "compat_strategy": "dual_write_then_rename",
       "action_this_round": "neutral_primary_with_legacy_alias",
-      "migration_round": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+      "migration_round": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
       "notes": "Identified as candidate_neutralization. Neutral primary execution_report.md is activated where supported. Legacy codex_execution_report.md remains a compatibility alias; no rename or deletion performed in this round."
     },
     {
@@ -34,7 +34,7 @@
       "proposed_neutral_path": "execution_report_summary (JSON block name)",
       "compat_strategy": "dual_block_then_rename",
       "action_this_round": "neutral_primary_with_legacy_alias",
-      "migration_round": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+      "migration_round": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
       "notes": "Identified as candidate_neutralization. Neutral primary execution_report_summary is activated where supported. Legacy codex_report_summary remains a compatibility alias; no rename or deletion performed in this round."
     },
     {
@@ -46,7 +46,7 @@
       "proposed_neutral_path": "project_state/gates/execution_report_auto_summary.json",
       "compat_strategy": "dual_write_then_rename",
       "action_this_round": "neutral_primary_with_legacy_alias",
-      "migration_round": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+      "migration_round": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
       "notes": "Identified as candidate_neutralization. Neutral primary execution_report_auto_summary.json is activated where supported. Legacy codex_report_auto_summary.json remains a compatibility alias; no rename or deletion performed in this round."
     },
     {
@@ -58,7 +58,7 @@
       "proposed_neutral_path": "execution_report_auto_summary (CLI subcommand and function name)",
       "compat_strategy": "alias_then_rename",
       "action_this_round": "neutral_primary_with_legacy_alias",
-      "migration_round": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+      "migration_round": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
       "notes": "Identified as candidate_neutralization. Neutral primary execution_report_auto_summary is activated where supported. Legacy codex_report_auto_summary remains a compatibility alias; no rename or deletion performed in this round."
     },
     {
@@ -70,7 +70,7 @@
       "proposed_neutral_path": "execution_report (report heading and variable name)",
       "compat_strategy": "alias_then_rename",
       "action_this_round": "neutral_primary_with_legacy_alias",
-      "migration_round": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+      "migration_round": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
       "notes": "Identified as candidate_neutralization. Neutral primary execution_report is activated where supported. Legacy codex_execution_report remains a compatibility alias; no rename or deletion performed in this round."
     }
   ],
@@ -78,9 +78,9 @@
     {
       "name": "codex_execution_report",
       "file": "reverse_agent/project_gate.py",
-      "occurrence_count": "41",
+      "occurrence_count": "43",
       "classification": "legacy_compat_reference",
-      "notes": "Code reference to 'codex_execution_report' found 41 time(s). Keep as legacy compatibility while neutral primary paths are active."
+      "notes": "Code reference to 'codex_execution_report' found 43 time(s). Keep as legacy compatibility while neutral primary paths are active."
     },
     {
       "name": "codex_report_summary",

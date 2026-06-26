@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-  "round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+  "decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-26T14:57:22.105378Z",
+  "generated_at": "2026-06-26T15:53:53.067559Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -54,9 +54,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260626_ci_state_gate_and_naming_provenance_v1"
+      "detail": "decision consumption allowed for closeout",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260626_preflight_job_foundation_and_clean_provenance_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -72,16 +72,18 @@
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
         ".github/workflows/ci.yml",
+        ".github/workflows/decision-preflight.yml",
         ".github/workflows/state-gate.yml",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/naming_migration_plan.json",
-        "project_state/gates/policy_impact_audit.json",
-        "project_state/gates/policy_lint_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
@@ -89,10 +91,14 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
+        "project_state/gates/state_hygiene_inventory.json",
+        "project_state/jobs/*.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/*",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/*",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ]
     },
     {
@@ -130,14 +136,17 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "baseline_source_test_dirty": [
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ]
     },
     {
@@ -153,17 +162,18 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      ".github/workflows/ci.yml",
-      ".github/workflows/state-gate.yml",
+      ".github/workflows/decision-preflight.yml",
       "reverse_agent/project_gate.py",
-      "tests/test_project_gate.py"
+      "reverse_agent/project_jobs.py",
+      "tests/test_project_gate.py",
+      "tests/test_project_jobs.py"
     ],
-    "head_commit": "acededc49adc"
+    "head_commit": "b3f17ccb90d6"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

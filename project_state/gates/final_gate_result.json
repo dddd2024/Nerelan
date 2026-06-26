@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-  "report_id": "codex_report_20260626_ci_state_gate_and_naming_provenance_v1",
-  "round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
-  "generated_at": "2026-06-26T15:01:14.489204Z",
+  "decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "report_id": "codex_report_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "generated_at": "2026-06-26T15:56:35.128415Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -64,7 +64,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260626_ci_state_gate_and_naming_provenance_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260626_preflight_job_foundation_and_clean_provenance_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -97,10 +97,11 @@
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
       "inherited_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
@@ -123,15 +124,14 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/decision_packet.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/execution_report.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/round_manifest.json"
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/decision_packet.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/execution_report.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/pytest_result.txt",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/round_manifest.json"
       ],
       "final_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/codex_report_auto_summary.json",
@@ -152,13 +152,15 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/decision_packet.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/execution_report.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/round_manifest.json",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/decision_packet.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/execution_report.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/pytest_result.txt",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ]
     },
     {
@@ -166,14 +168,17 @@
       "status": "PASS",
       "detail": "inherited source/test baseline dirty files in files_changed are authorized: startup evidence confirms pre-existing, decision allowlist present, and decision not modified during execution",
       "inherited_files_in_files_changed": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "source_test_inherited_in_files_changed": [
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "close_worktree_clean": false,
       "startup_evidence_trusted": true,
@@ -186,8 +191,7 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/codex_report_auto_summary.json",
@@ -208,13 +212,15 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/decision_packet.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/execution_report.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/round_manifest.json",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/decision_packet.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/execution_report.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/pytest_result.txt",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -237,17 +243,18 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/decision_packet.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/execution_report.md",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/pytest_result.txt",
-        "project_state/rounds/round_20260626_ci_state_gate_and_naming_provenance_v1/round_manifest.json"
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/decision_packet.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/execution_report.md",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/pytest_result.txt",
+        "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ]
     },
     {
@@ -266,29 +273,36 @@
     {
       "name": "baseline_lifecycle_violation",
       "status": "PASS",
-      "detail": "baseline was captured before implementation; no untracked implementation files in baseline"
+      "detail": "baseline untracked implementation files are explicitly allowed by decision inherited dirty scope",
+      "baseline_untracked_implementation_files": [
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_jobs.py"
+      ]
     },
     {
       "name": "baseline_lifecycle_guard",
       "status": "PASS",
       "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
       "source_test_baseline_dirty": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "close_source_test_dirty": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "allowed_inherited_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "generated_or_archive_baseline_dirty_files": [],
       "close_worktree_clean": false,
@@ -299,10 +313,11 @@
       "status": "PASS",
       "detail": "report explains explicitly allowed inherited baseline files",
       "allowed_inherited_source_test_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ]
     },
     {
@@ -311,28 +326,32 @@
       "detail": "source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "baseline_dirty_source_test_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "files_changed_overlap": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "confirmed_inherited_from_startup_evidence": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "startup_status_evidence_trusted": true,
       "capture_order_status": "confirmed_inherited"
@@ -414,20 +433,25 @@
       "status": "PASS",
       "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
       "startup_source_test_dirty": [
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "baseline_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "inherited_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_jobs.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_jobs.py"
       ],
       "missing_from_baseline": []
     },
@@ -471,17 +495,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-      "closeout_log_round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
-      "expected_decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-      "expected_round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1"
+      "closeout_log_decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "closeout_log_round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "expected_decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "expected_round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260626_ci_state_gate_and_naming_provenance_v1",
-      "expected_report_id": "codex_report_20260626_ci_state_gate_and_naming_provenance_v1"
+      "execution_log_report_id": "codex_report_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "expected_report_id": "codex_report_20260626_preflight_job_foundation_and_clean_provenance_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -505,8 +529,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-      "command_plan_round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1"
+      "command_plan_decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "command_plan_round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -607,16 +631,38 @@
       "forbidden_hits": [],
       "missing_required_snippets": {},
       "state_gate_uses_project_gate": true,
-      "required": true
+      "required": false
+    },
+    {
+      "name": "decision_preflight_workflow",
+      "status": "PASS",
+      "detail": "decision-preflight workflow is read-only, bounded, and validates preflight/job foundation",
+      "workflow": ".github/workflows/decision-preflight.yml",
+      "required": true,
+      "forbidden_hits": [],
+      "missing_required_snippets": []
+    },
+    {
+      "name": "project_job_schema_validation",
+      "status": "PASS",
+      "detail": "project job schema validator is present, non-dispatching, and validates any project_state/jobs/*.json files",
+      "required": true,
+      "validator": "reverse_agent/project_jobs.py",
+      "test_file": "tests/test_project_jobs.py",
+      "missing_statuses": [],
+      "sample_validation_status": "PASSED",
+      "dispatch_rejection_status": "FAILED",
+      "job_files": [],
+      "job_file_errors": []
     },
     {
       "name": "naming_migration_plan_ids_current",
       "status": "PASS",
       "detail": "naming_migration_plan.json carries current decision_id and round_id",
-      "expected_decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-      "actual_decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-      "expected_round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
-      "actual_round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+      "expected_decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "actual_decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "expected_round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "actual_round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
       "artifact": "project_state/gates/naming_migration_plan.json",
       "required": true
     },
@@ -639,14 +685,14 @@
       "errors": [],
       "mode": "execute",
       "transcript_parity_status": "PASSED",
-      "command_count": 14
+      "command_count": 15
     },
     {
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
-      "gate_profile_round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1"
+      "gate_profile_decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
+      "gate_profile_round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -679,16 +725,17 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 8 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 9 Required Audit items with substantive aligned answers",
       "required_audit_items": [
-        "Which GitHub workflow files were created or updated, and what exact commands do they run?",
-        "How does `ci.yml` provide baseline repository validation without mutating project state or remote state?",
-        "How does `state-gate.yml` validate project_state / gate-sensitive changes using project_gate and pytest?",
-        "Does `naming_migration_plan.json` now carry current decision_id and round_id, or is it explicitly marked historical rather than current evidence?",
-        "Which test or final-check logic detects stale `naming_migration_plan.json` ids when the artifact is claimed as current evidence?",
-        "How were accepted neutral-primary report semantics preserved: `execution_report.md`, `execution_report_summary`, and legacy alias parity?",
-        "How were execute-decision `--mode execute`, command-plan authority, pytest_result transcript, execution-log, final-check, report-summary, and run-closeout convergence preserved?",
-        "How does this round avoid Web/AgentRunner/DB/queue/scheduler/reverse-solving/heavy artifact scope and forbidden path mutation?"
+        "How were previous audit limitations addressed: inherited dirty CI files, startup order ambiguity, derived-only execution_log, and baseline_capture_order warning?",
+        "What exact startup commands were recorded, in what order, and before which substantive command?",
+        "What is the execution-log provenance level now: direct capture, hybrid capture, or explicitly qualified derived capture?",
+        "Which GitHub workflow files now exist, and what exact commands does `decision-preflight.yml` run?",
+        "How does `decision-preflight.yml` avoid mutation, LLM calls, agent execution, push, PR creation, and reverse-solving?",
+        "What minimal job schema/status vocabulary was added, and how is it validated without dispatching any agent?",
+        "How were existing `ci.yml` and `state-gate.yml` preserved as bounded read-only validation workflows?",
+        "How were neutral-primary report semantics and legacy alias parity preserved?",
+        "How were command-plan authority, pytest_result transcript, execution-log, final-check, report-summary, and run-closeout convergence preserved?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
@@ -794,7 +841,7 @@
       "close_round_result_warnings": [],
       "resolved_pre_archive_warnings": [
         "baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
-        "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
+        "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary"
       ],
       "active_close_round_result_warnings": [],
       "final_check_after_archive_passed": true,

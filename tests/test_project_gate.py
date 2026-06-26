@@ -22975,6 +22975,105 @@ class TestNamingHygiene:
         assert result["status"] == "FAIL"
         assert "git push" in result["forbidden_hits"]
 
+    def test_decision_preflight_workflow_check_accepts_read_only_workflow(self, tmp_path: Path) -> None:
+        from reverse_agent import project_gate as gate
+
+        workflow = tmp_path / ".github" / "workflows" / "decision-preflight.yml"
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text(
+            """name: Decision Preflight
+on:
+  pull_request:
+    paths:
+      - "reverse_agent/project_jobs.py"
+      - "tests/test_project_jobs.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  decision-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python -m pip install -e .
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
+""",
+            encoding="utf-8",
+        )
+
+        result = gate._github_decision_preflight_workflow_check(
+            repo_root=tmp_path,
+            decision_contract={"accepted_requires_decision_preflight_workflow": True},
+        )
+
+        assert result["status"] == "PASS"
+
+    def test_decision_preflight_workflow_check_blocks_closeout_commands(self, tmp_path: Path) -> None:
+        from reverse_agent import project_gate as gate
+
+        workflow = tmp_path / ".github" / "workflows" / "decision-preflight.yml"
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text(
+            """name: Decision Preflight
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  decision-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python -m pip install -e .
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_gate
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
+""",
+            encoding="utf-8",
+        )
+
+        result = gate._github_decision_preflight_workflow_check(
+            repo_root=tmp_path,
+            decision_contract={"accepted_requires_decision_preflight_workflow": True},
+        )
+
+        assert result["status"] == "FAIL"
+        assert "run-closeout" in result["forbidden_hits"]
+
+    def test_project_job_schema_validation_check_blocks_dispatching_job(self, tmp_path: Path) -> None:
+        from reverse_agent import project_gate as gate
+
+        jobs_dir = tmp_path / "project_state" / "jobs"
+        jobs_dir.mkdir(parents=True)
+        _write_json(jobs_dir / "bad.json", {
+            "schema_version": 1,
+            "job_id": "job_bad",
+            "round_id": "round_bad",
+            "decision_id": "decision_bad",
+            "mainline": "engineering_branch",
+            "status": "READY",
+            "runner": {"kind": "codex", "dispatch_enabled": True},
+            "required_inputs": ["project_state/decision_packet.md"],
+            "required_outputs": ["project_state/gates/preflight_result.json"],
+            "permissions": {
+                "allow_remote_mutation": False,
+                "allow_llm_calls": False,
+                "allow_agent_dispatch": False,
+                "allow_reverse_solving": False,
+            },
+            "budgets": {"max_runtime_seconds": 60, "max_commands": 4},
+        })
+
+        result = gate._project_job_schema_validation_check(
+            repo_root=tmp_path,
+            decision_contract={"accepted_requires_minimal_job_schema_validation": True},
+        )
+
+        assert result["status"] == "FAIL"
+        assert result["job_file_errors"]
+
     def test_state_hygiene_inventory_classifies_files(self, tmp_path: Path) -> None:
         """state_hygiene_inventory.json classifies files into approved categories."""
         from reverse_agent.project_gate import naming_hygiene

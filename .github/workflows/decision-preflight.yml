@@ -1,0 +1,40 @@
+name: Decision Preflight
+
+on:
+  pull_request:
+    paths:
+      - "project_state/decision_packet.md"
+      - "reverse_agent/project_gate.py"
+      - "reverse_agent/project_jobs.py"
+      - "tests/test_project_gate.py"
+      - "tests/test_project_jobs.py"
+      - ".github/workflows/decision-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decision-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Project gate preflight
+        run: python -m reverse_agent.project_gate preflight --state-dir project_state
+
+      - name: Project gate command plan
+        run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+
+      - name: Focused preflight tests
+        run: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
