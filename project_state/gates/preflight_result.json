@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260626_execute_decision_cli_flag_transcript_rework_v1",
-  "round_id": "round_20260626_execute_decision_cli_flag_transcript_rework_v1",
+  "decision_id": "decision_20260626_neutral_primary_report_migration_v1",
+  "round_id": "round_20260626_neutral_primary_report_migration_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-26T09:44:02.837224Z",
+  "generated_at": "2026-06-26T10:52:13.997342Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -54,9 +54,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260626_execute_decision_cli_flag_transcript_rework_v1"
+      "detail": "decision consumption allowed for closeout",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260626_neutral_primary_report_migration_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -73,10 +73,13 @@
       "allowed_paths": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
+        "project_state/gates/naming_migration_plan.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -87,7 +90,7 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/*",
+        "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/*",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -126,8 +129,14 @@
       "status": "PASS",
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
-      "allowed_inherited_dirty_baseline_files": [],
-      "baseline_source_test_dirty": []
+      "allowed_inherited_dirty_baseline_files": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
+      "baseline_source_test_dirty": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ]
     },
     {
       "name": "decision_command_plan_conflict",
@@ -142,14 +151,16 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      "project_state/gates/command_plan.json"
+      "project_state/gates/command_plan.json",
+      "reverse_agent/project_gate.py",
+      "tests/test_project_gate.py"
     ],
-    "head_commit": "197801f00683"
+    "head_commit": "d4283ba28294"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

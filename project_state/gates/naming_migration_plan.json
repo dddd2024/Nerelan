@@ -1,118 +1,117 @@
 {
   "schema_version": 1,
   "plan_name": "naming-migration-plan",
-  "decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
-  "round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
-  "generated_at": "2026-06-25T12:34:58.987153Z",
-  "action_this_round": "inventory_only",
+  "decision_id": "decision_20260626_neutral_primary_report_migration_v1",
+  "round_id": "round_20260626_neutral_primary_report_migration_v1",
+  "generated_at": "2026-06-26T10:55:00Z",
+  "action_this_round": "neutral_primary_with_legacy_alias",
   "no_rename": true,
   "no_delete": true,
-  "no_neutral_live_path_created": true,
+  "no_historical_rewrite": true,
+  "no_neutral_live_path_created": false,
+  "neutral_live_path_created": true,
+  "legacy_alias_retained": true,
+  "neutral_auto_summary_created": true,
+  "legacy_auto_summary_alias_retained": true,
   "codex_bound_names": [
     {
       "current_name": "codex_execution_report.md",
       "current_path": "project_state/codex_execution_report.md",
       "scope": "live_report_path",
-      "classification": "candidate_neutralization",
+      "classification": "legacy_compat_alias",
       "proposed_neutral_name": "execution_report.md",
       "proposed_neutral_path": "project_state/execution_report.md",
-      "compat_strategy": "dual_write_then_rename",
-      "action_this_round": "inventory_only",
-      "migration_round": "deferred",
-      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report.md. No rename or migration performed in this round."
+      "compat_strategy": "neutral_primary_dual_write",
+      "action_this_round": "neutral_primary_with_legacy_alias",
+      "migration_round": "round_20260626_neutral_primary_report_migration_v1",
+      "notes": "execution_report.md is the neutral primary live report. codex_execution_report.md remains generated as a semantic compatibility alias; no rename or deletion performed."
     },
     {
       "current_name": "codex_report_summary",
-      "current_path": "codex_report_summary (JSON block name inside codex_execution_report.md)",
+      "current_path": "codex_report_summary (JSON block name inside compatibility reports)",
       "scope": "json_block_name",
-      "classification": "candidate_neutralization",
+      "classification": "legacy_compat_alias",
       "proposed_neutral_name": "execution_report_summary",
       "proposed_neutral_path": "execution_report_summary (JSON block name)",
-      "compat_strategy": "dual_block_then_rename",
-      "action_this_round": "inventory_only",
-      "migration_round": "deferred",
-      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report_summary. No rename or migration performed in this round."
+      "compat_strategy": "neutral_block_preferred_legacy_fallback",
+      "action_this_round": "neutral_primary_with_legacy_alias",
+      "migration_round": "round_20260626_neutral_primary_report_migration_v1",
+      "notes": "execution_report_summary is preferred when present. codex_report_summary remains a fallback, and dual-block semantic divergence is checked."
     },
     {
       "current_name": "codex_report_auto_summary.json",
       "current_path": "project_state/gates/codex_report_auto_summary.json",
       "scope": "gate_artifact_name",
-      "classification": "candidate_neutralization",
+      "classification": "legacy_compat_alias",
       "proposed_neutral_name": "execution_report_auto_summary.json",
       "proposed_neutral_path": "project_state/gates/execution_report_auto_summary.json",
-      "compat_strategy": "dual_write_then_rename",
-      "action_this_round": "inventory_only",
-      "migration_round": "deferred",
-      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report_auto_summary.json. No rename or migration performed in this round."
+      "compat_strategy": "neutral_primary_dual_write",
+      "action_this_round": "neutral_primary_with_legacy_alias",
+      "migration_round": "round_20260626_neutral_primary_report_migration_v1",
+      "notes": "execution_report_auto_summary.json is the primary auto-summary artifact. codex_report_auto_summary.json remains generated as a semantic compatibility alias."
     },
     {
       "current_name": "codex_report_auto_summary",
       "current_path": "codex_report_auto_summary (CLI subcommand and internal function name)",
       "scope": "code_reference",
-      "classification": "candidate_neutralization",
+      "classification": "legacy_compat_reference",
       "proposed_neutral_name": "execution_report_auto_summary",
-      "proposed_neutral_path": "execution_report_auto_summary (CLI subcommand and function name)",
-      "compat_strategy": "alias_then_rename",
-      "action_this_round": "inventory_only",
+      "proposed_neutral_path": "execution_report_auto_summary (future CLI/function name)",
+      "compat_strategy": "keep_legacy_reference_for_compat",
+      "action_this_round": "legacy_reference_retained",
       "migration_round": "deferred",
-      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report_auto_summary. No rename or migration performed in this round."
+      "notes": "Code references remain for compatibility in this round. The artifact contract is neutral-primary, but no broad CLI/function rename was performed."
     },
     {
       "current_name": "codex_execution_report",
       "current_path": "codex_execution_report (report heading and variable name)",
       "scope": "code_reference",
-      "classification": "candidate_neutralization",
+      "classification": "legacy_compat_reference",
       "proposed_neutral_name": "execution_report",
-      "proposed_neutral_path": "execution_report (report heading and variable name)",
-      "compat_strategy": "alias_then_rename",
-      "action_this_round": "inventory_only",
+      "proposed_neutral_path": "execution_report (future code reference)",
+      "compat_strategy": "keep_legacy_reference_for_compat",
+      "action_this_round": "legacy_reference_retained",
       "migration_round": "deferred",
-      "notes": "Identified as candidate_neutralization. Neutral name proposed: execution_report. No rename or migration performed in this round."
+      "notes": "Code references remain for compatibility in this round. The live report contract is neutral-primary, but no global source rename was performed."
     }
   ],
   "code_references": [
     {
       "name": "codex_execution_report",
       "file": "reverse_agent/project_gate.py",
-      "occurrence_count": "34",
-      "classification": "must_keep_current_compat",
-      "notes": "Code reference to 'codex_execution_report' found 34 time(s). Must keep current name for compat until migration round."
+      "classification": "legacy_compat_reference",
+      "notes": "Legacy code references are intentionally retained for compatibility while execution_report.md is primary."
     },
     {
       "name": "codex_report_summary",
       "file": "reverse_agent/project_gate.py",
-      "occurrence_count": "39",
-      "classification": "must_keep_current_compat",
-      "notes": "Code reference to 'codex_report_summary' found 39 time(s). Must keep current name for compat until migration round."
+      "classification": "legacy_compat_reference",
+      "notes": "Legacy parser and report refresh references are intentionally retained as fallback compatibility."
     },
     {
       "name": "codex_report_auto_summary",
       "file": "reverse_agent/project_gate.py",
-      "occurrence_count": "23",
-      "classification": "must_keep_current_compat",
-      "notes": "Code reference to 'codex_report_auto_summary' found 23 time(s). Must keep current name for compat until migration round."
+      "classification": "legacy_compat_reference",
+      "notes": "Legacy auto-summary references are retained because codex_report_auto_summary.json remains a compatibility alias."
     },
     {
       "name": "codex_execution_report",
       "file": "tests/test_project_gate.py",
-      "occurrence_count": "257",
-      "classification": "must_keep_current_compat",
-      "notes": "Test reference to 'codex_execution_report' found 257 time(s). Must keep current name for compat until migration round."
+      "classification": "legacy_compat_reference",
+      "notes": "Tests retain legacy coverage to prevent compatibility regression."
     },
     {
       "name": "codex_report_summary",
       "file": "tests/test_project_gate.py",
-      "occurrence_count": "63",
-      "classification": "must_keep_current_compat",
-      "notes": "Test reference to 'codex_report_summary' found 63 time(s). Must keep current name for compat until migration round."
+      "classification": "legacy_compat_reference",
+      "notes": "Tests retain legacy fallback and parity coverage."
     },
     {
       "name": "codex_report_auto_summary",
       "file": "tests/test_project_gate.py",
-      "occurrence_count": "26",
-      "classification": "must_keep_current_compat",
-      "notes": "Test reference to 'codex_report_auto_summary' found 26 time(s). Must keep current name for compat until migration round."
+      "classification": "legacy_compat_reference",
+      "notes": "Tests retain legacy alias parity coverage."
     }
   ],
-  "migration_strategy": "Inventory-only round. No files renamed, deleted, or created. Migration to neutral names deferred to a later round. Proposed strategy: dual-write both old and new names for one round, then rename in the following round after all references are updated."
+  "migration_strategy": "Neutral report and auto-summary paths are primary for this round. Legacy Codex-named paths remain compatibility aliases with semantic parity. No historical artifacts were rewritten, renamed, or deleted."
 }

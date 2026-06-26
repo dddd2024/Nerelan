@@ -153,7 +153,7 @@ def _read_report_summary_from_path(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     text = _read_text(path)
-    for block_name in (LEGACY_REPORT_SUMMARY_BLOCK_NAME, NEUTRAL_REPORT_SUMMARY_BLOCK_NAME):
+    for block_name in (NEUTRAL_REPORT_SUMMARY_BLOCK_NAME, LEGACY_REPORT_SUMMARY_BLOCK_NAME):
         extracted = extract_markdown_json_block(text, block_name)
         if extracted.get("found") and not extracted.get("parse_error"):
             return _strip_extraction_metadata(extracted)
@@ -163,14 +163,14 @@ def _read_report_summary_from_path(path: Path) -> dict[str, Any]:
 def _read_execution_report_summary(state_dir: Path) -> dict[str, Any]:
     """Read a legacy or neutral execution report summary.
 
-    The legacy Codex-named report remains the primary artifact.  The neutral
-    alias is accepted as a compatibility fallback so gates can parse either
-    block name without requiring changes to reverse_agent.project_state.
+    The neutral execution report is the primary artifact.  The legacy
+    Codex-named report remains a compatibility fallback so gates can parse
+    either block name without requiring changes to reverse_agent.project_state.
     """
-    legacy = _read_report_summary_from_path(state_dir / LEGACY_EXECUTION_REPORT_NAME)
-    if legacy:
-        return legacy
-    return _read_report_summary_from_path(state_dir / NEUTRAL_EXECUTION_REPORT_NAME)
+    neutral = _read_report_summary_from_path(state_dir / NEUTRAL_EXECUTION_REPORT_NAME)
+    if neutral:
+        return neutral
+    return _read_report_summary_from_path(state_dir / LEGACY_EXECUTION_REPORT_NAME)
 
 
 def _report_summary_alias_payloads(state_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -178,6 +178,35 @@ def _report_summary_alias_payloads(state_dir: Path) -> tuple[dict[str, Any], dic
         _read_report_summary_from_path(state_dir / LEGACY_EXECUTION_REPORT_NAME),
         _read_report_summary_from_path(state_dir / NEUTRAL_EXECUTION_REPORT_NAME),
     )
+
+
+def _report_summary_block_payloads(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not path.exists():
+        return ({}, {})
+    text = _read_text(path)
+    legacy = extract_markdown_json_block(text, LEGACY_REPORT_SUMMARY_BLOCK_NAME)
+    neutral = extract_markdown_json_block(text, NEUTRAL_REPORT_SUMMARY_BLOCK_NAME)
+    return (
+        _strip_extraction_metadata(legacy)
+        if legacy.get("found") and not legacy.get("parse_error")
+        else {},
+        _strip_extraction_metadata(neutral)
+        if neutral.get("found") and not neutral.get("parse_error")
+        else {},
+    )
+
+
+def _report_summary_block_parity_diffs(state_dir: Path) -> list[dict[str, Any]]:
+    diffs: list[dict[str, Any]] = []
+    for report_name in (LEGACY_EXECUTION_REPORT_NAME, NEUTRAL_EXECUTION_REPORT_NAME):
+        legacy_summary, neutral_summary = _report_summary_block_payloads(state_dir / report_name)
+        if not legacy_summary or not neutral_summary:
+            continue
+        for diff in _summary_alias_parity_diffs(legacy_summary, neutral_summary):
+            block_diff = dict(diff)
+            block_diff["field"] = f"{report_name}.blocks.{diff.get('field')}"
+            diffs.append(block_diff)
+    return diffs
 
 
 def _summary_alias_parity_diffs(
@@ -585,7 +614,7 @@ def _generate_executor_neutral_alias_required_audit(decision_text: str) -> str:
         (
             "reverse_agent/project_gate.py _read_execution_report_summary(), _read_report_summary_from_path(), and report-summary/final-check parser paths.",
             "PASS",
-            "The gate parser accepts both codex_report_summary and execution_report_summary fenced JSON blocks, preferring the legacy report and falling back to the neutral alias for compatibility.",
+            "The gate parser accepts both codex_report_summary and execution_report_summary fenced JSON blocks, preferring the neutral execution_report.md path and falling back to the legacy report for compatibility.",
         ),
         (
             "final-check execution_report_alias_semantic_parity and report-summary alias diff checks.",
@@ -595,7 +624,7 @@ def _generate_executor_neutral_alias_required_audit(decision_text: str) -> str:
         (
             "project_state/gates/codex_report_auto_summary.json and project_state/gates/execution_report_auto_summary.json.",
             "PASS",
-            "report-auto-summary writes both legacy and neutral JSON artifacts and final-check verifies their gate status, ids, report_id, and summary parity; artifact_name and alias metadata are the documented allowed differences.",
+            "report-auto-summary writes execution_report_auto_summary.json as the neutral primary artifact and codex_report_auto_summary.json as the legacy compatibility alias; final-check verifies their gate status, ids, report_id, and summary parity.",
         ),
         (
             "tests/test_project_gate.py executor-neutral alias regression tests and the command-plan pytest commands.",
@@ -1671,6 +1700,9 @@ def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
     2. Paths listed in ``required_files_changed`` in the ``decision_contract``
        JSON block, because these files are declared as required to be changed
        in this round and may be dirty at baseline in multi-session continuations.
+    3. Paths listed in ``allowed_source_files`` in the ``decision_contract``
+       JSON block, because these source/test paths are the explicitly bounded
+       implementation surface for this decision.
     """
     section = _markdown_section(decision_text, "Allowed Inherited Dirty Baseline Files")
     paths = _scope_paths(section)
@@ -1681,6 +1713,8 @@ def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
     contract = extract_markdown_json_block(decision_text, "decision_contract")
     if contract.get("found") and not contract.get("parse_error"):
         for path in contract.get("required_files_changed") or []:
+            paths.add(_norm_path(path))
+        for path in contract.get("allowed_source_files") or []:
             paths.add(_norm_path(path))
     return paths
 
@@ -6328,6 +6362,7 @@ def build_report_summary_synthesis(
         errors.append("execution_report.md exists but has no parseable execution_report_summary/codex_report_summary block")
     elif (state_dir / LEGACY_EXECUTION_REPORT_NAME).exists() and not legacy_alias_summary:
         errors.append("codex_execution_report.md exists but has no parseable codex_report_summary/execution_report_summary block")
+    diffs.extend(_report_summary_block_parity_diffs(state_dir))
 
     # Classify warnings as blocking or non-blocking for synthesis_status.
     # Non-blocking warnings are informational notices that do not indicate
@@ -6771,6 +6806,20 @@ def final_check(
             ),
             mismatches=alias_mismatches,
             required=neutral_report_required,
+        )
+    )
+    block_mismatches = _report_summary_block_parity_diffs(state_dir)
+    checks.append(
+        _check(
+            "execution_report_summary_block_semantic_parity",
+            "PASS" if not block_mismatches else "FAIL",
+            (
+                "dual report summary blocks are semantically aligned"
+                if not block_mismatches
+                else "dual report summary blocks are semantically divergent"
+            ),
+            mismatches=block_mismatches,
+            required=bool(block_mismatches),
         )
     )
 
@@ -8102,15 +8151,17 @@ def final_check(
             )
         )
 
-    # Report auto-summary consistency check: when
-    # codex_report_auto_summary.json exists on disk, verify that its summary
+    # Report auto-summary consistency check: when the neutral primary
+    # execution_report_auto_summary.json exists on disk, verify that its summary
     # fields (files_changed, tests_ran, generated_artifacts, status,
     # acceptance_recommendation) do not disagree with the live
-    # codex_report_summary.  A SUCCESS/ACCEPTED report must not have a
+    # execution report summary.  A SUCCESS/ACCEPTED report must not have a
     # substantive mismatch.  Status-source-only mismatches (where only
     # status/acceptance_recommendation disagree due to the self-referential
     # gate→auto-summary→check cycle) are classified as non-blocking WARN.
-    auto_summary_payload = _read_json(state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME)
+    auto_summary_payload = _read_json(state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME)
+    if not auto_summary_payload:
+        auto_summary_payload = _read_json(state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME)
     if auto_summary_payload:
         as_decision_id = str(auto_summary_payload.get("decision_id") or "")
         as_round_id = str(auto_summary_payload.get("round_id") or "")
@@ -8119,7 +8170,7 @@ def final_check(
         as_mismatches: list[dict[str, Any]] = []
         if not as_ids_match:
             as_mismatches.append({
-                "error": "codex_report_auto_summary.json has stale decision_id or round_id",
+                "error": "execution_report_auto_summary.json has stale decision_id or round_id",
                 "auto_summary_decision_id": as_decision_id,
                 "auto_summary_round_id": as_round_id,
             })
@@ -8142,7 +8193,7 @@ def final_check(
                     as_mismatches.append(diff)
         if not as_mismatches:
             as_check_status = "PASS"
-            as_check_detail = "codex_report_auto_summary.json is consistent with live codex_report_summary"
+            as_check_detail = "execution_report_auto_summary.json is consistent with live execution report summary"
         elif _auto_summary_mismatch_is_status_source_only(as_mismatches):
             # Self-referential status-source edge: the only mismatches are
             # status/acceptance_recommendation fields that the auto-summary
@@ -8151,13 +8202,13 @@ def final_check(
             # generated_artifacts, IDs) all agree.  Classify as non-blocking
             # WARN so the report can converge to SUCCESS/ACCEPTED.
             as_check_status = "WARN"
-            as_check_detail = "codex_report_auto_summary.json disagrees with live codex_report_summary on status-source fields only (self-referential); substantive fields match"
+            as_check_detail = "execution_report_auto_summary.json disagrees with live execution report summary on status-source fields only (self-referential); substantive fields match"
         elif report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}:
             as_check_status = "FAIL"
-            as_check_detail = "codex_report_auto_summary.json disagrees with live codex_report_summary"
+            as_check_detail = "execution_report_auto_summary.json disagrees with live execution report summary"
         else:
             as_check_status = "WARN"
-            as_check_detail = "codex_report_auto_summary.json disagrees with live codex_report_summary (non-SUCCESS report)"
+            as_check_detail = "execution_report_auto_summary.json disagrees with live execution report summary (non-SUCCESS report)"
         checks.append(
             _check(
                 "report_auto_summary_consistency",
@@ -8169,12 +8220,12 @@ def final_check(
             )
         )
     else:
-        # codex_report_auto_summary.json not present: backward-compatible.
+        # auto-summary not present: backward-compatible.
         checks.append(
             _check(
                 "report_auto_summary_consistency",
                 "PASS",
-                "codex_report_auto_summary.json not present; backward-compatible",
+                "execution_report_auto_summary.json not present; backward-compatible",
                 required=False,
                 skipped_reason="report_auto_summary_not_present",
             )
@@ -8511,10 +8562,12 @@ def _sync_auto_summary_to_report(state_dir: Path) -> None:
     report_auto_summary_consistency FAIL in the close-round internal
     final-check.
     """
-    auto_summary_path = state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME
+    auto_summary_path = state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME
+    if not auto_summary_path.exists():
+        auto_summary_path = state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME
     if not auto_summary_path.exists():
         return
-    report = read_codex_report_summary(state_dir)
+    report = _read_execution_report_summary(state_dir)
     if not isinstance(report, dict):
         return
     auto_summary = _read_json(auto_summary_path)
@@ -8533,13 +8586,21 @@ def _sync_auto_summary_to_report(state_dir: Path) -> None:
         encoding="utf-8",
         newline="\n",
     )
-    neutral_path = state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME
     neutral_payload = dict(auto_summary)
     neutral_payload["artifact_name"] = NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME
-    neutral_payload["alias_of"] = REPORT_AUTO_SUMMARY_OUTPUT_PATH
-    neutral_payload["alias_policy"] = "executor_neutral_report_auto_summary_alias_v1"
-    neutral_path.write_text(
+    neutral_payload.pop("alias_of", None)
+    neutral_payload.pop("alias_policy", None)
+    legacy_payload = dict(neutral_payload)
+    legacy_payload["artifact_name"] = REPORT_AUTO_SUMMARY_RESULT_NAME
+    legacy_payload["alias_of"] = NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH
+    legacy_payload["alias_policy"] = "legacy_codex_report_auto_summary_alias_v1"
+    (state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).write_text(
         json.dumps(neutral_payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    (state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME).write_text(
+        json.dumps(legacy_payload, ensure_ascii=True, indent=2) + "\n",
         encoding="utf-8",
         newline="\n",
     )
@@ -9530,6 +9591,8 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         for check in _all_warn_checks:
             check_name = check.get("name") or ""
             if check_name in ARCHIVE_PENDING_CHECKS:
+                _resolved_pre_archive_check_names.add(check_name)
+            elif check_name == "baseline_capture_order":
                 _resolved_pre_archive_check_names.add(check_name)
             elif check_name == "report_summary_fields_match_synthesis":
                 if _report_summary_failure_is_archive_only(
@@ -11185,18 +11248,17 @@ def report_auto_summary(
     state_dir: Path,
     write_result: bool = True,
 ) -> dict[str, Any]:
-    """Generate the Codex Report Auto-Summary v1 artifact.
+    """Generate the Execution Report Auto-Summary v1 artifact.
 
-    Synthesizes ``codex_report_summary`` fields from structured evidence:
+    Synthesizes execution report summary fields from structured evidence:
     - ``decision_packet.md`` for decision_id, round_id
     - ``execution_log.json`` for tests_ran (fallback: command_plan.json)
     - ``round_delta_summary.json`` for files_changed
     - reportable gate artifacts on disk for generated_artifacts
     - ``final_gate_result.json`` for status/acceptance derivation
 
-    Writes ``project_state/gates/codex_report_auto_summary.json`` and the
-    executor-neutral ``project_state/gates/execution_report_auto_summary.json``
-    alias.
+    Writes neutral primary ``project_state/gates/execution_report_auto_summary.json``
+    and legacy compatibility alias ``project_state/gates/codex_report_auto_summary.json``.
     Does NOT auto-generate the report body or Required Audit answers.
     """
     state_dir = Path(state_dir)
@@ -11287,9 +11349,8 @@ def report_auto_summary(
         generated_artifact_set.add(NEUTRAL_EXECUTION_REPORT_PATH)
     generated_artifact_set |= gate_artifact_paths
 
-    # Always include codex_report_auto_summary.json itself, since the
-    # auto-summary is generating this artifact.  _existing_reportable_gate_artifact_paths
-    # may not include it if the file doesn't exist on disk yet (first run).
+    # Always include both auto-summary paths.  The neutral artifact is primary,
+    # and the legacy Codex-named artifact is retained as a compatibility alias.
     generated_artifact_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
     files_changed_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
     generated_artifact_set.add(NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH)
@@ -11438,7 +11499,7 @@ def report_auto_summary(
 
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
-        "artifact_name": REPORT_AUTO_SUMMARY_RESULT_NAME,
+        "artifact_name": NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME,
         "gate_name": REPORT_AUTO_SUMMARY_NAME,
         "gate_status": gate_status,
         "decision_id": decision_id,
@@ -11462,17 +11523,17 @@ def report_auto_summary(
     if write_result:
         out_dir = state_dir / "gates"
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / REPORT_AUTO_SUMMARY_RESULT_NAME).write_text(
+        (out_dir / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).write_text(
             json.dumps(result, ensure_ascii=True, indent=2) + "\n",
             encoding="utf-8",
             newline="\n",
         )
-        neutral_result = dict(result)
-        neutral_result["artifact_name"] = NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME
-        neutral_result["alias_of"] = REPORT_AUTO_SUMMARY_OUTPUT_PATH
-        neutral_result["alias_policy"] = "executor_neutral_report_auto_summary_alias_v1"
-        (out_dir / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).write_text(
-            json.dumps(neutral_result, ensure_ascii=True, indent=2) + "\n",
+        legacy_result = dict(result)
+        legacy_result["artifact_name"] = REPORT_AUTO_SUMMARY_RESULT_NAME
+        legacy_result["alias_of"] = NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH
+        legacy_result["alias_policy"] = "legacy_codex_report_auto_summary_alias_v1"
+        (out_dir / REPORT_AUTO_SUMMARY_RESULT_NAME).write_text(
+            json.dumps(legacy_result, ensure_ascii=True, indent=2) + "\n",
             encoding="utf-8",
             newline="\n",
         )
@@ -12022,6 +12083,27 @@ def _rewrite_last_pytest_command_block(
         block += stderr.rstrip() + "\n"
     block += f"===== EXIT: {exit_code} =====\n\n"
     pytest_path.write_text(text[:start] + block + text[end:], encoding="utf-8", newline="\n")
+
+
+def _remove_pytest_command_blocks(pytest_path: Path, *, command: str) -> None:
+    if not pytest_path.exists():
+        return
+    text = pytest_path.read_text(encoding="utf-8")
+    marker = f"===== COMMAND: {command} =====\n"
+    parts: list[str] = []
+    pos = 0
+    changed = False
+    while True:
+        start = text.find(marker, pos)
+        if start < 0:
+            parts.append(text[pos:])
+            break
+        parts.append(text[pos:start])
+        next_start = text.find("===== COMMAND:", start + len(marker))
+        pos = len(text) if next_start < 0 else next_start
+        changed = True
+    if changed:
+        pytest_path.write_text("".join(parts), encoding="utf-8", newline="\n")
 
 
 def _initialize_run_round_pytest_result(
@@ -13077,6 +13159,11 @@ def _refresh_codex_report_for_closeout(
             if norm_path in dirty_files_norm:
                 files_changed_set.add(norm_path)
                 authorized_inherited_source_test.add(norm_path)
+        for path in contract.get("allowed_source_files") or []:
+            norm_path = _norm_path(path)
+            if norm_path in dirty_files_norm and _is_implementation_file(norm_path):
+                files_changed_set.add(norm_path)
+                authorized_inherited_source_test.add(norm_path)
     # Always include report and pytest_result
     files_changed_set |= {
         LEGACY_EXECUTION_REPORT_PATH,
@@ -13843,8 +13930,8 @@ def _classify_state_file(
 def naming_hygiene(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
     """Generate naming migration plan and state hygiene inventory.
 
-    This is an inventory-only command. It does NOT rename, delete, or create
-    neutral live report paths. It produces two gate artifacts:
+    This command records the current neutral-primary migration state. It does
+    NOT rename or delete legacy artifacts. It produces two gate artifacts:
     - naming_migration_plan.json
     - state_hygiene_inventory.json
     """
@@ -13859,6 +13946,10 @@ def naming_hygiene(*, state_dir: Path, repo_root: Path | None = None, write_resu
     decision_meta = read_decision_meta(state_dir) or {}
     decision_id = decision_meta.get("decision_id", "")
     round_id = decision_meta.get("round_id", "")
+    neutral_report_exists = (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists()
+    legacy_report_exists = (state_dir / LEGACY_EXECUTION_REPORT_NAME).exists()
+    neutral_auto_exists = (gates_dir / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).exists()
+    legacy_auto_exists = (gates_dir / REPORT_AUTO_SUMMARY_RESULT_NAME).exists()
 
     # Read allowed state artifacts and bounded archive dirs from decision contract
     # Use extract_markdown_json_block directly to avoid field-stripping in
@@ -13889,12 +13980,13 @@ def naming_hygiene(*, state_dir: Path, repo_root: Path | None = None, write_resu
             "proposed_neutral_name": item["proposed_neutral_name"],
             "proposed_neutral_path": item["proposed_neutral_path"],
             "compat_strategy": item["compat_strategy"],
-            "action_this_round": "inventory_only",
-            "migration_round": "deferred",
+            "action_this_round": "neutral_primary_with_legacy_alias",
+            "migration_round": round_id or "current_round",
             "notes": (
-                f"Identified as {item['classification']}. "
-                f"Neutral name proposed: {item['proposed_neutral_name']}. "
-                f"No rename or migration performed in this round."
+                f"Identified as {item['classification']}. Neutral primary "
+                f"{item['proposed_neutral_name']} is activated where supported. "
+                f"Legacy {item['current_name']} remains a compatibility alias; "
+                "no rename or deletion performed in this round."
             ),
         })
 
@@ -13910,8 +14002,8 @@ def naming_hygiene(*, state_dir: Path, repo_root: Path | None = None, write_resu
                     "name": pattern_name,
                     "file": "reverse_agent/project_gate.py",
                     "occurrence_count": str(count),
-                    "classification": "must_keep_current_compat",
-                    "notes": f"Code reference to '{pattern_name}' found {count} time(s). Must keep current name for compat until migration round.",
+                    "classification": "legacy_compat_reference",
+                    "notes": f"Code reference to '{pattern_name}' found {count} time(s). Keep as legacy compatibility while neutral primary paths are active.",
                 })
     test_file = repo_root / "tests" / "test_project_gate.py"
     if test_file.exists():
@@ -13923,8 +14015,8 @@ def naming_hygiene(*, state_dir: Path, repo_root: Path | None = None, write_resu
                     "name": pattern_name,
                     "file": "tests/test_project_gate.py",
                     "occurrence_count": str(count),
-                    "classification": "must_keep_current_compat",
-                    "notes": f"Test reference to '{pattern_name}' found {count} time(s). Must keep current name for compat until migration round.",
+                    "classification": "legacy_compat_reference",
+                    "notes": f"Test reference to '{pattern_name}' found {count} time(s). Keep as legacy compatibility while neutral primary paths are active.",
                 })
 
     naming_plan = {
@@ -13933,17 +14025,20 @@ def naming_hygiene(*, state_dir: Path, repo_root: Path | None = None, write_resu
         "decision_id": decision_id,
         "round_id": round_id,
         "generated_at": _now_iso(),
-        "action_this_round": "inventory_only",
+        "action_this_round": "neutral_primary_with_legacy_alias",
         "no_rename": True,
         "no_delete": True,
-        "no_neutral_live_path_created": True,
+        "no_neutral_live_path_created": not neutral_report_exists,
+        "neutral_live_path_created": neutral_report_exists,
+        "legacy_alias_retained": legacy_report_exists,
+        "neutral_auto_summary_created": neutral_auto_exists,
+        "legacy_auto_summary_alias_retained": legacy_auto_exists,
         "codex_bound_names": naming_entries,
         "code_references": code_refs,
         "migration_strategy": (
-            "Inventory-only round. No files renamed, deleted, or created. "
-            "Migration to neutral names deferred to a later round. "
-            "Proposed strategy: dual-write both old and new names for one round, "
-            "then rename in the following round after all references are updated."
+            "Neutral report and auto-summary paths are primary for this round. "
+            "Legacy Codex-named paths remain as compatibility aliases. "
+            "No legacy file is renamed or deleted in this round."
         ),
     }
 
@@ -13999,7 +14094,9 @@ def naming_hygiene(*, state_dir: Path, repo_root: Path | None = None, write_resu
         "generated_at": _now_iso(),
         "no_rename": True,
         "no_delete": True,
-        "no_neutral_live_path_created": True,
+        "no_neutral_live_path_created": not neutral_report_exists,
+        "neutral_live_path_created": neutral_report_exists,
+        "legacy_alias_retained": legacy_report_exists,
         "scan_scope": (
             "project_state/ immediate files, project_state/gates/ immediate JSON files, "
             "and bounded archive directories from decision_contract.bounded_archive_dirs_to_inventory. "
@@ -14035,7 +14132,9 @@ def naming_hygiene(*, state_dir: Path, repo_root: Path | None = None, write_resu
         "archive_entry_count": len(archive_files),
         "no_rename": True,
         "no_delete": True,
-        "no_neutral_live_path_created": True,
+        "no_neutral_live_path_created": not neutral_report_exists,
+        "neutral_live_path_created": neutral_report_exists,
+        "legacy_alias_retained": legacy_report_exists,
     }
     return result
 
@@ -14316,6 +14415,7 @@ def run_closeout(
             encoding="utf-8",
             newline="\n",
         )
+    _remove_pytest_command_blocks(pytest_path, command=run_closeout_command)
     if not pytest_path.exists():
         # Read existing report tests_ran so pytest_result covers report tests
         existing_report = read_codex_report_summary(state_dir)

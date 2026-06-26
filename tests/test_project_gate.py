@@ -1259,6 +1259,47 @@ def test_execution_report_summary_parser_accepts_neutral_alias(tmp_path: Path) -
     assert parsed["based_on_decision_id"] == "decision_alias"
 
 
+def test_execution_report_summary_parser_prefers_neutral_report(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    legacy_payload = {
+        "schema_version": 1,
+        "report_id": "report_legacy",
+        "round_id": "round_legacy",
+        "based_on_decision_id": "decision_legacy",
+        "status": "FAILED",
+        "acceptance_recommendation": "REWORK_REQUIRED",
+        "files_changed": [],
+        "tests_ran": [],
+        "generated_artifacts": [],
+    }
+    neutral_payload = dict(legacy_payload)
+    neutral_payload.update({
+        "report_id": "report_neutral",
+        "round_id": "round_neutral",
+        "based_on_decision_id": "decision_neutral",
+        "status": "SUCCESS",
+        "acceptance_recommendation": "ACCEPTED",
+    })
+    (state_dir / "codex_execution_report.md").write_text(
+        "```json codex_report_summary\n"
+        f"{json.dumps(legacy_payload, indent=2)}\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    (state_dir / "execution_report.md").write_text(
+        "```json execution_report_summary\n"
+        f"{json.dumps(neutral_payload, indent=2)}\n"
+        "```\n",
+        encoding="utf-8",
+    )
+
+    parsed = _read_execution_report_summary(state_dir)
+
+    assert parsed["report_id"] == "report_neutral"
+    assert parsed["based_on_decision_id"] == "decision_neutral"
+
+
 def test_refresh_report_writes_neutral_execution_report_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1280,6 +1321,42 @@ def test_refresh_report_writes_neutral_execution_report_alias(
     assert "# EXECUTION_REPORT" in neutral_text
 
 
+def test_refresh_report_explains_allowed_source_files_dirty_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    decision_text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    contract = {
+        "allowed_source_files": [
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        ],
+    }
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_contract\n"
+        f"{json.dumps(contract, indent=2)}\n"
+        "```\n\n"
+        f"{decision_text}",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: ["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
+    )
+
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+
+    report_text = (state_dir / "codex_execution_report.md").read_text(encoding="utf-8")
+    assert "## Allowed Inherited Dirty Baseline Files" in report_text
+    assert "- reverse_agent/project_gate.py" in report_text
+    assert "- tests/test_project_gate.py" in report_text
+
+
 def test_report_auto_summary_writes_neutral_alias(tmp_path: Path) -> None:
     from reverse_agent.project_gate import report_auto_summary
 
@@ -1291,10 +1368,11 @@ def test_report_auto_summary_writes_neutral_alias(tmp_path: Path) -> None:
     legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
     neutral = json.loads(neutral_path.read_text(encoding="utf-8"))
 
-    assert result["artifact_name"] == "codex_report_auto_summary.json"
+    assert result["artifact_name"] == "execution_report_auto_summary.json"
+    assert legacy["artifact_name"] == "codex_report_auto_summary.json"
     assert neutral["artifact_name"] == "execution_report_auto_summary.json"
     assert neutral["summary"] == legacy["summary"]
-    assert neutral["alias_of"] == "project_state/gates/codex_report_auto_summary.json"
+    assert legacy["alias_of"] == "project_state/gates/execution_report_auto_summary.json"
 
 
 def test_final_check_fails_when_execution_report_alias_drifts(tmp_path: Path) -> None:
@@ -1315,6 +1393,29 @@ def test_final_check_fails_when_execution_report_alias_drifts(tmp_path: Path) ->
     assert any(diff["field"] == "status" for diff in parity_check["mismatches"])
 
 
+def test_final_check_fails_when_dual_summary_blocks_drift(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    payload = read_codex_report_summary(state_dir)
+    neutral_payload = dict(payload)
+    neutral_payload["status"] = "FAILED"
+    (state_dir / "execution_report.md").write_text(
+        "```json execution_report_summary\n"
+        f"{json.dumps(neutral_payload, indent=2)}\n"
+        "```\n\n"
+        "```json codex_report_summary\n"
+        f"{json.dumps(payload, indent=2)}\n"
+        "```\n\n"
+        "# EXECUTION_REPORT\n",
+        encoding="utf-8",
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    parity_check = _check(result, "execution_report_summary_block_semantic_parity")
+
+    assert parity_check["status"] == "FAIL"
+    assert any(diff["field"] == "execution_report.md.blocks.status" for diff in parity_check["mismatches"])
+
+
 def test_execution_log_missing_only_closeout_related_is_narrow() -> None:
     assert _execution_log_missing_only_closeout_related({
         "missing_commands": [
@@ -1331,6 +1432,27 @@ def test_execution_log_missing_only_closeout_related_is_narrow() -> None:
             "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id r1",
         ]
     })
+
+
+def test_remove_pytest_command_blocks_removes_only_matching_command(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _remove_pytest_command_blocks
+
+    pytest_path = tmp_path / "pytest_result.txt"
+    command = "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_x"
+    other = "python -m pytest tests/test_project_gate.py -q"
+    pytest_path.write_text(
+        f"===== COMMAND: {command} =====\nold failure\n===== EXIT: 1 =====\n\n"
+        f"===== COMMAND: {other} =====\n903 passed\n===== EXIT: 0 =====\n\n"
+        f"===== COMMAND: {command} =====\nolder failure\n===== EXIT: 1 =====\n\n",
+        encoding="utf-8",
+    )
+
+    _remove_pytest_command_blocks(pytest_path, command=command)
+    text = pytest_path.read_text(encoding="utf-8")
+
+    assert command not in text
+    assert other in text
+    assert "903 passed" in text
 
 
 def test_final_check_warns_when_pytest_result_lacks_required_commands(tmp_path: Path) -> None:
@@ -7860,6 +7982,25 @@ class TestBaselineLifecycleCloseSnapshotAuthorization:
         # unauthorized_solver.py is not in allowed
         assert "reverse_agent/unauthorized_solver.py" not in allowed
 
+    def test_decision_contract_allowed_source_files_authorize_baseline_dirty(self) -> None:
+        """allowed_source_files in decision_contract authorizes bounded source/test dirtiness."""
+        from reverse_agent.project_gate import _allowed_inherited_baseline_paths
+
+        decision_text = (
+            "```json decision_contract\n"
+            "{\n"
+            '  "allowed_source_files": [\n'
+            '    "reverse_agent/project_gate.py",\n'
+            '    "tests/test_project_gate.py"\n'
+            "  ]\n"
+            "}\n"
+            "```\n"
+        )
+        allowed = _allowed_inherited_baseline_paths(decision_text)
+
+        assert "reverse_agent/project_gate.py" in allowed
+        assert "tests/test_project_gate.py" in allowed
+
     def test_close_snapshot_without_report_explanation_blocks(self) -> None:
         """Close snapshot dirty source/test files without report explanation
         should remain unauthorized."""
@@ -10522,17 +10663,18 @@ class TestReportAutoSummary:
         assert codes == [0, 1]
 
     def test_auto_summary_writes_artifact_to_disk(self, tmp_path: Path) -> None:
-        """report_auto_summary() writes codex_report_auto_summary.json to
-        project_state/gates/."""
+        """report_auto_summary() writes the neutral primary and legacy alias."""
         from reverse_agent.project_gate import (
+            NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME,
             report_auto_summary,
             REPORT_AUTO_SUMMARY_RESULT_NAME,
         )
 
         state_dir = _make_gate_state(tmp_path)
         result = report_auto_summary(state_dir=state_dir, write_result=True)
+        assert (state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).exists()
         assert (state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME).exists()
-        assert result.get("artifact_name") == REPORT_AUTO_SUMMARY_RESULT_NAME
+        assert result.get("artifact_name") == NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME
         assert result.get("source") == "synthesized_from_structured_evidence"
 
     def test_synthesis_includes_auto_summary_when_exists(self, tmp_path: Path) -> None:
@@ -22330,6 +22472,7 @@ class TestNamingHygiene:
         assert result["no_rename"] is True
         assert result["no_delete"] is True
         assert result["no_neutral_live_path_created"] is True
+        assert result["neutral_live_path_created"] is False
         assert (gates_dir / "naming_migration_plan.json").exists()
         assert (gates_dir / "state_hygiene_inventory.json").exists()
 
@@ -22346,17 +22489,17 @@ class TestNamingHygiene:
         )
         naming_hygiene(state_dir=state_dir, repo_root=tmp_path)
         plan = json.loads((state_dir / "gates" / "naming_migration_plan.json").read_text(encoding="utf-8"))
-        assert plan["action_this_round"] == "inventory_only"
+        assert plan["action_this_round"] == "neutral_primary_with_legacy_alias"
         assert plan["no_rename"] is True
         assert plan["no_delete"] is True
         codex_names = [e["current_name"] for e in plan["codex_bound_names"]]
         assert "codex_execution_report.md" in codex_names
         assert "codex_report_summary" in codex_names
         assert "codex_report_auto_summary.json" in codex_names
-        # All entries should be inventory_only
+        # All entries should record the neutral-primary migration policy.
         for entry in plan["codex_bound_names"]:
-            assert entry["action_this_round"] == "inventory_only"
-            assert entry["migration_round"] == "deferred"
+            assert entry["action_this_round"] == "neutral_primary_with_legacy_alias"
+            assert entry["migration_round"] == "r1"
 
     def test_state_hygiene_inventory_classifies_files(self, tmp_path: Path) -> None:
         """state_hygiene_inventory.json classifies files into approved categories."""

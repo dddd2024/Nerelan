@@ -1,18 +1,24 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260626_execute_decision_cli_flag_transcript_rework_v1",
-  "round_id": "round_20260626_execute_decision_cli_flag_transcript_rework_v1",
-  "head_commit": "197801f00683",
+  "decision_id": "decision_20260626_neutral_primary_report_migration_v1",
+  "round_id": "round_20260626_neutral_primary_report_migration_v1",
+  "head_commit": "d4283ba28294",
   "baseline_available": true,
   "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json"
+    " M project_state/gates/command_plan.json",
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json"
+    "project_state/gates/command_plan.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
-    "project_state/gates/command_plan.json"
+    "project_state/gates/command_plan.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
@@ -26,6 +32,7 @@
     " M project_state/gates/execution_report_auto_summary.json",
     " M project_state/gates/final_gate_result.json",
     " M project_state/gates/gate_profile_plan.json",
+    " M project_state/gates/naming_migration_plan.json",
     " M project_state/gates/preflight_result.json",
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
@@ -37,11 +44,11 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/execution_report.md",
-    "?? project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260626_neutral_primary_report_migration_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260626_neutral_primary_report_migration_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260626_neutral_primary_report_migration_v1/execution_report.md",
+    "?? project_state/rounds/round_20260626_neutral_primary_report_migration_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260626_neutral_primary_report_migration_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -53,6 +60,7 @@
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/naming_migration_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
@@ -75,6 +83,7 @@
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/naming_migration_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
@@ -84,11 +93,11 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/decision_packet.md",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/execution_report.md",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/pytest_result.txt",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -101,6 +110,7 @@
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/naming_migration_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
@@ -110,17 +120,17 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260626_execute_decision_cli_flag_transcript_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/decision_packet.md",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/execution_report.md",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/pytest_result.txt",
+    "project_state/rounds/round_20260626_neutral_primary_report_migration_v1/round_manifest.json"
+  ],
+  "inherited_dirty_files": [
+    "project_state/gates/command_plan.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
-  "inherited_dirty_files": [
-    "project_state/gates/command_plan.json"
-  ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-26T09:46:01.895644Z"
+  "generated_at": "2026-06-26T10:54:36.948175Z"
 }

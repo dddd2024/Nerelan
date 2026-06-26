@@ -1,19 +1,25 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260626_execute_decision_cli_flag_transcript_rework_v1",
-  "round_id": "round_20260626_execute_decision_cli_flag_transcript_rework_v1",
-  "head_commit": "197801f00683",
+  "decision_id": "decision_20260626_neutral_primary_report_migration_v1",
+  "round_id": "round_20260626_neutral_primary_report_migration_v1",
+  "head_commit": "d4283ba28294",
   "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json"
+    " M project_state/gates/command_plan.json",
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json"
+    "project_state/gates/command_plan.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
-    "project_state/gates/command_plan.json"
+    "project_state/gates/command_plan.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-26T07:32:07.097963Z"
+  "generated_at": "2026-06-26T10:06:47.312614Z"
 }
