@@ -1,9 +1,9 @@
 {
   "gate_name": "phase1-completion",
   "gate_status": "PASS",
-  "decision_id": "decision_20260623_phase1_completion_evidence_path_hardening_v1",
-  "round_id": "round_20260623_phase1_completion_evidence_path_hardening_v1",
-  "generated_at": "2026-06-23T12:09:24.787497+00:00",
+  "decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
+  "round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
+  "generated_at": "2026-06-26T04:41:05.337161+00:00",
   "capabilities": [
     {
       "id": "command_plan_authority",

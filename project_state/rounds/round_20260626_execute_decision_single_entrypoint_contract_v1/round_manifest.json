@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-26T04:45:30Z",
+  "decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260626_execute_decision_single_entrypoint_contract_v1\\codex_execution_report.md",
+      "sha256": "57f0ca64b8ee07b82eeac45881f781d25dd955117295836d28ec5ee6a05f2bb1",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260626_execute_decision_single_entrypoint_contract_v1\\decision_packet.md",
+      "sha256": "f7dc183f45344f065f39f8994097b96e84965403ac56b3dae84deb57953d24df",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260626_execute_decision_single_entrypoint_contract_v1\\pytest_result.txt",
+      "sha256": "719cc0486764a385620f3f67b82133fbc132c133015ab6d7c4c015196bbc64a7",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260626_execute_decision_single_entrypoint_contract_v1\\execution_report.md",
+      "sha256": "edad43ec1e402af2b09ebbd9976383b4b62a960a2bcaa18093500cb3c43672fe",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260626_execute_decision_single_entrypoint_contract_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
+  "schema_version": 1,
+  "source_git_commit": "d2de75dbd706",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

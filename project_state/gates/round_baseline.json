@@ -1,19 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260626_pytest_report_status_convergence_rework_v1",
-  "round_id": "round_20260626_pytest_report_status_convergence_rework_v1",
-  "head_commit": "54b0a04b0fd0",
-  "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json"
-  ],
-  "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json"
-  ],
-  "baseline_dirty_files": [
-    "project_state/gates/command_plan.json"
-  ],
+  "decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
+  "round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
+  "head_commit": "d2de75dbd706",
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-26T03:33:14.269798Z"
+  "generated_at": "2026-06-26T04:24:19.046728Z"
 }

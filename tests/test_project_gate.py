@@ -21,6 +21,7 @@ from reverse_agent.project_gate import (
     _artifact_status_policy,
     _expected_report_id,
     _execution_log_derive_commands,
+    _execute_decision_contract_check,
     _extract_bash_commands,
     _extract_unfenced_commands,
     _execution_log_missing_only_closeout_related,
@@ -21694,7 +21695,7 @@ class TestResultStatusWarnBlocking:
 
 
 class TestExecuteDecision:
-    """Tests for the execute-decision thin wrapper."""
+    """Tests for the execute-decision single-entrypoint contract."""
 
     def test_execute_decision_delegates_to_run_round(self, tmp_path):
         """execute_decision() should delegate to run_round() and add entrypoint metadata."""
@@ -21703,24 +21704,149 @@ class TestExecuteDecision:
         assert result.get("entrypoint") == "execute-decision"
         assert result.get("delegates_to") == "run-round"
         assert result.get("run_status") == "PASSED"
+        assert result.get("command_source") == "project_state/gates/command_plan.json"
 
     def test_execute_decision_dry_run_mode(self, tmp_path):
-        """execute-decision --dry-run should delegate to run-round dry-run."""
+        """Default execute-decision mode should be strict plan validation."""
         state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest tests/test_project_gate.py -q")
         result = execute_decision(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=False)
-        assert result.get("mode") == "dry-run"
+        assert result.get("mode") == "plan-validation"
+        assert result.get("contract_mode") == "plan_validation_only"
+        assert result.get("transcript_parity_status") == "NOT_APPLICABLE_PLAN_ONLY"
+        assert result.get("plan_only_limitation")
 
     def test_execute_decision_not_a_new_executor(self, tmp_path):
-        """execute_decision() must not create a parallel execution engine."""
+        """execute_decision() must not create a scheduler or queue."""
         state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest tests/test_project_gate.py -q")
         result = execute_decision(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=False)
-        # The result should be identical to run_round's result plus entrypoint metadata
         assert "entrypoint" in result
         assert "delegates_to" in result
-        # Should NOT contain any new execution-specific keys
         assert "scheduler" not in result
         assert "queue" not in result
         assert "daemon" not in result
+
+    def test_execute_decision_writes_contract_artifact_from_command_plan(self, tmp_path):
+        state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest tests/test_project_gate.py -q")
+
+        result = execute_decision(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=True)
+        artifact = json.loads((state_dir / "gates" / "execute_decision_result.json").read_text(encoding="utf-8"))
+        plan = json.loads((state_dir / "gates" / "command_plan.json").read_text(encoding="utf-8"))
+
+        assert result["status"] == "PASSED"
+        assert artifact["artifact_name"] == "execute_decision_result.json"
+        assert artifact["command_source"] == "project_state/gates/command_plan.json"
+        assert artifact["no_unplanned_commands"] is True
+        assert artifact["unplanned_commands"] == []
+        assert [cmd["command"] for cmd in artifact["commands"]] == [
+            cmd["command"] for cmd in plan["commands"]
+        ]
+        assert "project_state/gates/execute_decision_result.json" in artifact["generated_artifacts"]
+
+    def test_execute_decision_contract_check_accepts_plan_validation_artifact(self, tmp_path):
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        decision = {"decision_id": "decision_gate", "round_id": "round_gate"}
+        command = "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_gate"
+        plan = {
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "plan_status": "PASSED",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": command,
+                    "kind": "execute-decision",
+                    "phase": "gate",
+                    "expected_exit_codes": [0],
+                }
+            ],
+        }
+        _write_json(gates_dir / "command_plan.json", plan)
+        _write_json(
+            gates_dir / "execute_decision_result.json",
+            {
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "status": "PASSED",
+                "mode": "plan-validation",
+                "command_source": "project_state/gates/command_plan.json",
+                "command_plan": {"path": "project_state/gates/command_plan.json"},
+                "commands": plan["commands"],
+                "no_unplanned_commands": True,
+                "unplanned_commands": [],
+                "transcript_parity_status": "NOT_APPLICABLE_PLAN_ONLY",
+                "plan_only_limitation": "plan validation only",
+                "generated_artifacts": ["project_state/gates/execute_decision_result.json"],
+            },
+        )
+
+        check = _execute_decision_contract_check(
+            state_dir=state_dir,
+            decision=decision,
+            contract={
+                "accepted_requires_execute_decision_artifact": True,
+                "accepted_requires_execute_decision_no_unplanned_commands": True,
+                "accepted_requires_execute_decision_transcript_parity": True,
+            },
+            report={"generated_artifacts": ["project_state/gates/execute_decision_result.json"]},
+            command_plan_payload=plan,
+        )
+
+        assert check["status"] == "PASS"
+
+    def test_execute_decision_contract_check_rejects_unplanned_commands(self, tmp_path):
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        decision = {"decision_id": "decision_gate", "round_id": "round_gate"}
+        plan = {
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "plan_status": "PASSED",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m pytest tests/test_project_gate.py -q",
+                    "kind": "pytest",
+                    "phase": "test",
+                    "expected_exit_codes": [0],
+                }
+            ],
+        }
+        _write_json(gates_dir / "command_plan.json", plan)
+        _write_json(
+            gates_dir / "execute_decision_result.json",
+            {
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "status": "PASSED",
+                "mode": "plan-validation",
+                "command_source": "project_state/gates/command_plan.json",
+                "command_plan": {"path": "project_state/gates/command_plan.json"},
+                "commands": plan["commands"],
+                "no_unplanned_commands": False,
+                "unplanned_commands": ["python -m reverse_agent.forbidden_probe"],
+                "transcript_parity_status": "NOT_APPLICABLE_PLAN_ONLY",
+                "plan_only_limitation": "plan validation only",
+                "generated_artifacts": ["project_state/gates/execute_decision_result.json"],
+            },
+        )
+
+        check = _execute_decision_contract_check(
+            state_dir=state_dir,
+            decision=decision,
+            contract={
+                "accepted_requires_execute_decision_artifact": True,
+                "accepted_requires_execute_decision_no_unplanned_commands": True,
+                "accepted_requires_execute_decision_transcript_parity": True,
+            },
+            report={"generated_artifacts": ["project_state/gates/execute_decision_result.json"]},
+            command_plan_payload=plan,
+        )
+
+        assert check["status"] == "FAIL"
+        assert any("unplanned" in error for error in check["errors"])
 
     def test_execute_decision_self_invocation_guard(self):
         """execute-decision commands should be guarded by _is_self_invocation."""
