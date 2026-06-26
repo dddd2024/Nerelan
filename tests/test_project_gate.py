@@ -34,6 +34,7 @@ from reverse_agent.project_gate import (
     _is_startup_command,
     _read_round_close_snapshot,
     _read_execution_report_summary,
+    _parse_recorded_command_blocks,
     _refresh_codex_report_for_closeout,
     _run_closeout_internal_blocking_reasons,
     _report_status_from_gate,
@@ -16176,11 +16177,14 @@ def test_run_closeout_success_with_fake_runner(tmp_path: Path, monkeypatch: pyte
     assert any("run-closeout" in c for c in closeout_commands), (
         f"run-closeout marker must be in closeout log, got: {closeout_commands}"
     )
-    # Top-level pytest_result.txt must NOT contain closeout-internal commands
+    # Top-level pytest_result.txt must NOT contain closeout-internal command
+    # blocks. The run-closeout self block may mention internal steps in stdout.
     pytest_text = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
-    # The top-level pytest_result.txt should NOT have closeout-internal
-    # command blocks like decision-lint, gate-profile, etc.
-    assert "decision-lint" not in pytest_text, (
+    parsed_top_level = _parse_recorded_command_blocks(pytest_text)
+    top_level_commands = [
+        str(block.get("command") or "") for block in parsed_top_level.get("blocks", [])
+    ]
+    assert not any("decision-lint" in command for command in top_level_commands), (
         "closeout-internal decision-lint must not pollute top-level pytest_result.txt"
     )
     # Startup diagnostics are NOT recorded by run_closeout into top-level
@@ -22535,3 +22539,161 @@ class TestCloseoutActiveWarningsCleanCheck:
         assert any("pytest_result_exit_codes_match_command_plan" in reason for reason in reasons)
 
 
+class TestCommandPlanArtifactDrift:
+    def _state_with_recorded_run_closeout_plan(
+        self,
+        tmp_path: Path,
+        *,
+        expected_exit_codes: list[int] | None = None,
+        notes: str = "run-closeout expected exit 0 after final-check passed",
+    ) -> tuple[Path, dict[str, object]]:
+        state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+        plan_path = state_dir / "gates" / "command_plan.json"
+        plan_payload = json.loads(plan_path.read_text(encoding="utf-8"))
+        run_closeout_command = (
+            "python -m reverse_agent.project_gate run-closeout --state-dir project_state "
+            "--round-id round_gate"
+        )
+        plan_payload["commands"].append(
+            {
+                "index": len(plan_payload["commands"]) + 1,
+                "command": run_closeout_command,
+                "phase": "gate",
+                "kind": "run-closeout",
+                "required": True,
+                "expected_exit_codes": expected_exit_codes or [0],
+                "records_stdout_stderr": True,
+                "notes": notes,
+            }
+        )
+        _write_json(plan_path, plan_payload)
+
+        pytest_command = "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+        command_plan_command = "python -m reverse_agent.project_gate command-plan --state-dir project_state"
+        command_plan_json_command = (
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state --json"
+        )
+        final_check_command = "python -m reverse_agent.project_gate final-check --state-dir project_state"
+        body = "\n\n".join(
+            [
+                *_STARTUP_COMMAND_BLOCKS,
+                _command_block(pytest_command, "212 passed in 1.00s"),
+                _command_block(command_plan_command, "command-plan: PASSED"),
+                _command_block(command_plan_json_command, json.dumps(plan_payload, indent=2)),
+                _command_block(final_check_command, "final-check: PASSED"),
+                _command_block(run_closeout_command, "run-closeout: PASSED"),
+            ]
+        )
+        _write_pytest(
+            state_dir,
+            decision_id="decision_gate",
+            report_id="codex_report_gate",
+            round_id="round_gate",
+            tests_ran=[
+                pytest_command,
+                command_plan_command,
+                command_plan_json_command,
+                final_check_command,
+                run_closeout_command,
+            ],
+            body=body,
+        )
+        return state_dir, plan_payload
+
+    @staticmethod
+    def _check(result: dict[str, object], name: str) -> dict[str, object]:
+        check = next((item for item in result.get("checks", []) if item.get("name") == name), None)
+        assert check is not None
+        return check
+
+    def test_final_check_fails_when_recorded_run_closeout_expected_exit_drifts(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir, recorded_plan = self._state_with_recorded_run_closeout_plan(tmp_path)
+        live_plan = json.loads(json.dumps(recorded_plan))
+        live_plan["commands"][-1]["expected_exit_codes"] = [0, 1]
+        _write_json(state_dir / "gates" / "command_plan.json", live_plan)
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        drift = self._check(result, "command_plan_json_stdout_matches_artifact")
+        assert drift["status"] == "FAIL"
+        assert "expected_exit_codes" in json.dumps(drift)
+        semantics = self._check(result, "command_plan_run_closeout_success_semantics")
+        assert semantics["status"] == "FAIL"
+
+    def test_final_check_fails_when_recorded_run_closeout_note_drifts(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir, recorded_plan = self._state_with_recorded_run_closeout_plan(tmp_path)
+        live_plan = json.loads(json.dumps(recorded_plan))
+        live_plan["commands"][-1]["notes"] = (
+            "run-closeout diagnostic after final-check failed; exit 1 is expected"
+        )
+        _write_json(state_dir / "gates" / "command_plan.json", live_plan)
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        drift = self._check(result, "command_plan_json_stdout_matches_artifact")
+        assert drift["status"] == "FAIL"
+        assert "notes" in json.dumps(drift)
+        semantics = self._check(result, "command_plan_run_closeout_success_semantics")
+        assert semantics["status"] == "FAIL"
+
+    def test_final_check_fails_accepted_run_closeout_diagnostic_semantics(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir, _ = self._state_with_recorded_run_closeout_plan(
+            tmp_path,
+            expected_exit_codes=[0, 1],
+            notes="run-closeout diagnostic after final-check failed; exit 1 is expected",
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        drift = self._check(result, "command_plan_json_stdout_matches_artifact")
+        assert drift["status"] == "PASS"
+        semantics = self._check(result, "command_plan_run_closeout_success_semantics")
+        assert semantics["status"] == "FAIL"
+        assert result["gate_status"] == "FAILED"
+
+    def test_final_check_accepts_matching_recorded_command_plan_stdout(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir, _ = self._state_with_recorded_run_closeout_plan(tmp_path)
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        drift = self._check(result, "command_plan_json_stdout_matches_artifact")
+        assert drift["status"] == "PASS"
+        semantics = self._check(result, "command_plan_run_closeout_success_semantics")
+        assert semantics["status"] == "PASS"
+
+    def test_exit_code_check_uses_latest_repeated_command_block(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir, plan_payload = self._state_with_recorded_run_closeout_plan(tmp_path)
+        run_closeout_command = plan_payload["commands"][-1]["command"]
+        pytest_path = state_dir / "pytest_result.txt"
+        text = pytest_path.read_text(encoding="utf-8")
+        first_success = _command_block(run_closeout_command, "run-closeout: PASSED")
+        text = text.replace(
+            first_success,
+            "\n\n".join(
+                [
+                    _command_block(run_closeout_command, "run-closeout: FAILED", exit_code=1),
+                    first_success,
+                ]
+            ),
+        )
+        pytest_path.write_text(text, encoding="utf-8", newline="\n")
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        exit_check = self._check(result, "pytest_result_exit_codes_match_command_plan")
+        assert exit_check["status"] == "PASS"

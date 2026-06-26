@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260625_gate_closeout_audit_truth_rework_v1",
-  "round_id": "round_20260625_gate_closeout_audit_truth_rework_v1",
-  "head_commit": "d046ffe51efc",
+  "decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
+  "round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
+  "head_commit": "3437406ad909",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -29,11 +29,11 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/execution_report.md",
-    "?? project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
+    "?? project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -72,11 +72,11 @@
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -97,15 +97,15 @@
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260625_gate_closeout_audit_truth_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/execution_report.md",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260625_command_plan_artifact_drift_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-25T13:44:18.347795Z"
+  "generated_at": "2026-06-26T02:43:30.605055Z"
 }

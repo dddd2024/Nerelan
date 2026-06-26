@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260625_gate_closeout_audit_truth_rework_v1",
-  "round_id": "round_20260625_gate_closeout_audit_truth_rework_v1",
-  "head_commit": "d046ffe51efc",
+  "decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
+  "round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
+  "head_commit": "3437406ad909",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-25T13:01:50.624691Z"
+  "generated_at": "2026-06-25T15:44:23.807620Z"
 }

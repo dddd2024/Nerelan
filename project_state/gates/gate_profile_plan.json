@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260625_gate_closeout_audit_truth_rework_v1",
-  "round_id": "round_20260625_gate_closeout_audit_truth_rework_v1",
+  "decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
+  "round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-25T13:44:06.479485Z",
+  "generated_at": "2026-06-26T02:43:17.404809Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [

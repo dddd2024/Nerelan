@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-26T02:43:20Z",
+  "decision_id": "decision_20260625_command_plan_artifact_drift_rework_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260625_command_plan_artifact_drift_rework_v1\\codex_execution_report.md",
+      "sha256": "1d6282f609db7d87e6726d8ff84bf848f259d0536911bd0c64588aa4df5afd54",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260625_command_plan_artifact_drift_rework_v1\\decision_packet.md",
+      "sha256": "cdee0c74854679a54403bfed3ccc8ee739e8ec756f766865c387b399a9e55d68",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260625_command_plan_artifact_drift_rework_v1\\pytest_result.txt",
+      "sha256": "0b63bced1fb8aa89e27420660633ba3b0217d9ce10f3cb6507e55e7a04ef9444",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260625_command_plan_artifact_drift_rework_v1\\execution_report.md",
+      "sha256": "350d71b43834c6d08edc5810698fccd4cfe14c34f6022c78d25dfa1e595c9b83",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260625_command_plan_artifact_drift_rework_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260625_command_plan_artifact_drift_rework_v1",
+  "schema_version": 1,
+  "source_git_commit": "3437406ad909",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}
