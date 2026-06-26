@@ -5,10 +5,10 @@
   "gate_status": "PASSED",
   "run_status": "PASSED",
   "status": "PASSED",
-  "decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
-  "round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
+  "decision_id": "decision_20260626_execute_decision_managed_execute_mode_v1",
+  "round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-26T04:38:02.812448Z",
+  "generated_at": "2026-06-26T04:59:44.593137Z",
   "mode": "plan-validation",
   "contract_mode": "plan_validation_only",
   "entrypoint": "execute-decision",
@@ -16,54 +16,43 @@
   "command_source": "project_state/gates/command_plan.json",
   "command_plan": {
     "path": "project_state/gates/command_plan.json",
-    "decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
-    "round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
+    "decision_id": "decision_20260626_execute_decision_managed_execute_mode_v1",
+    "round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
     "plan_status": "PASSED",
-    "generated_at": "2026-06-26T04:38:02.810078Z",
-    "command_count": 15
+    "generated_at": "2026-06-26T04:59:44.592360Z",
+    "command_count": 14
   },
   "commands": [
     {
       "index": 1,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "phase": "test",
-      "kind": "pytest",
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "phase": "gate",
+      "kind": "report-summary",
       "required": true,
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
+      "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
       "index": 2,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
-      "kind": "command-plan",
+      "kind": "final-check",
       "required": true,
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
+      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
       "index": 3,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 4,
       "command": "Set-Location F:\\reverse-agent",
       "phase": "status",
       "kind": "set-location",
@@ -76,7 +65,7 @@
       "notes": "set-location expected to exit 0"
     },
     {
-      "index": 5,
+      "index": 4,
       "command": "Get-Location",
       "phase": "status",
       "kind": "pwd",
@@ -89,7 +78,7 @@
       "notes": "pwd expected to exit 0"
     },
     {
-      "index": 6,
+      "index": 5,
       "command": "Test-Path F:\\reverse-agent",
       "phase": "status",
       "kind": "test-path",
@@ -102,7 +91,7 @@
       "notes": "test-path expected to exit 0"
     },
     {
-      "index": 7,
+      "index": 6,
       "command": "git rev-parse --show-toplevel",
       "phase": "status",
       "kind": "git rev-parse",
@@ -115,7 +104,7 @@
       "notes": "git rev-parse expected to exit 0"
     },
     {
-      "index": 8,
+      "index": 7,
       "command": "git status --short",
       "phase": "status",
       "kind": "git status",
@@ -128,7 +117,7 @@
       "notes": "git status expected to exit 0"
     },
     {
-      "index": 9,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
@@ -141,8 +130,21 @@
       "notes": "preflight expected to exit 0"
     },
     {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1 --mode execute",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -168,6 +170,19 @@
     },
     {
       "index": 12,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 13,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "phase": "gate",
       "kind": "execution-log",
@@ -181,36 +196,8 @@
       "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "phase": "gate",
-      "kind": "report-summary",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -223,58 +210,48 @@
     }
   ],
   "authorized_commands": [
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
     "Set-Location F:\\reverse-agent",
     "Get-Location",
     "Test-Path F:\\reverse-agent",
     "git rev-parse --show-toplevel",
     "git status --short",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1 --mode execute",
     "python -m pytest tests/test_project_gate.py -q",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1"
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1"
   ],
   "command_exit_codes": [
     {
       "index": 1,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
+      "phase": "gate",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "exit_code": null,
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
       "index": 2,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
       "phase": "gate",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "exit_code": null,
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
       "index": 3,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 4,
       "command": "Set-Location F:\\reverse-agent",
       "kind": "set-location",
       "phase": "status",
@@ -285,7 +262,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 5,
+      "index": 4,
       "command": "Get-Location",
       "kind": "pwd",
       "phase": "status",
@@ -296,7 +273,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 6,
+      "index": 5,
       "command": "Test-Path F:\\reverse-agent",
       "kind": "test-path",
       "phase": "status",
@@ -307,7 +284,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 7,
+      "index": 6,
       "command": "git rev-parse --show-toplevel",
       "kind": "git rev-parse",
       "phase": "status",
@@ -318,7 +295,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 8,
+      "index": 7,
       "command": "git status --short",
       "kind": "git status",
       "phase": "status",
@@ -329,7 +306,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 9,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight",
       "phase": "preflight",
@@ -340,8 +317,19 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -363,6 +351,17 @@
     },
     {
       "index": 12,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 13,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -374,32 +373,8 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
@@ -412,39 +387,30 @@
   "exit_codes": [
     {
       "index": 1,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
+      "phase": "gate",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "exit_code": null,
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
       "index": 2,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
       "phase": "gate",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "exit_code": null,
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
       "index": 3,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 4,
       "command": "Set-Location F:\\reverse-agent",
       "kind": "set-location",
       "phase": "status",
@@ -455,7 +421,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 5,
+      "index": 4,
       "command": "Get-Location",
       "kind": "pwd",
       "phase": "status",
@@ -466,7 +432,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 6,
+      "index": 5,
       "command": "Test-Path F:\\reverse-agent",
       "kind": "test-path",
       "phase": "status",
@@ -477,7 +443,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 7,
+      "index": 6,
       "command": "git rev-parse --show-toplevel",
       "kind": "git rev-parse",
       "phase": "status",
@@ -488,7 +454,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 8,
+      "index": 7,
       "command": "git status --short",
       "kind": "git status",
       "phase": "status",
@@ -499,7 +465,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 9,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight",
       "phase": "preflight",
@@ -510,8 +476,19 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -533,6 +510,17 @@
     },
     {
       "index": 12,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 13,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -544,32 +532,8 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
@@ -607,91 +571,78 @@
     "gate_name": "run-round",
     "gate_status": "PASSED",
     "run_status": "PASSED",
-    "decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
-    "round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
+    "decision_id": "decision_20260626_execute_decision_managed_execute_mode_v1",
+    "round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
     "mainline": "engineering_branch",
-    "generated_at": "2026-06-26T04:38:02.810499Z",
+    "generated_at": "2026-06-26T04:59:44.592746Z",
     "mode": "dry-run",
     "phases": [
-      "test",
       "gate",
       "status",
-      "preflight"
+      "preflight",
+      "test"
     ],
     "authorized_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "Set-Location F:\\reverse-agent",
       "Get-Location",
       "Test-Path F:\\reverse-agent",
       "git rev-parse --show-toplevel",
       "git status --short",
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1 --mode execute",
       "python -m pytest tests/test_project_gate.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1"
     ],
     "omitted_commands": [],
     "would_run_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "git rev-parse --show-toplevel",
       "git status --short",
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m pytest tests/test_project_gate.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1"
     ],
-    "command_count": 15,
+    "command_count": 14,
     "commands": [
       {
         "index": 1,
-        "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-        "phase": "test",
-        "kind": "pytest",
+        "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+        "phase": "gate",
+        "kind": "report-summary",
         "required": true,
         "expected_exit_codes": [
-          0
+          0,
+          1
         ],
         "conditional_closeout": false,
         "records_stdout_stderr": true,
-        "notes": "pytest expected to exit 0"
+        "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
       },
       {
         "index": 2,
-        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
         "phase": "gate",
-        "kind": "command-plan",
+        "kind": "final-check",
         "required": true,
         "expected_exit_codes": [
-          0
+          0,
+          1
         ],
         "conditional_closeout": false,
         "records_stdout_stderr": true,
-        "notes": "command-plan expected to exit 0"
+        "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
       },
       {
         "index": 3,
-        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-        "phase": "gate",
-        "kind": "command-plan",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "command-plan expected to exit 0"
-      },
-      {
-        "index": 4,
         "command": "Set-Location F:\\reverse-agent",
         "phase": "status",
         "kind": "set-location",
@@ -704,7 +655,7 @@
         "notes": "set-location expected to exit 0"
       },
       {
-        "index": 5,
+        "index": 4,
         "command": "Get-Location",
         "phase": "status",
         "kind": "pwd",
@@ -717,7 +668,7 @@
         "notes": "pwd expected to exit 0"
       },
       {
-        "index": 6,
+        "index": 5,
         "command": "Test-Path F:\\reverse-agent",
         "phase": "status",
         "kind": "test-path",
@@ -730,7 +681,7 @@
         "notes": "test-path expected to exit 0"
       },
       {
-        "index": 7,
+        "index": 6,
         "command": "git rev-parse --show-toplevel",
         "phase": "status",
         "kind": "git rev-parse",
@@ -743,7 +694,7 @@
         "notes": "git rev-parse expected to exit 0"
       },
       {
-        "index": 8,
+        "index": 7,
         "command": "git status --short",
         "phase": "status",
         "kind": "git status",
@@ -756,7 +707,7 @@
         "notes": "git status expected to exit 0"
       },
       {
-        "index": 9,
+        "index": 8,
         "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "phase": "preflight",
         "kind": "preflight",
@@ -769,8 +720,21 @@
         "notes": "preflight expected to exit 0"
       },
       {
+        "index": 9,
+        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "phase": "gate",
+        "kind": "command-plan",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "command-plan expected to exit 0"
+      },
+      {
         "index": 10,
-        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1 --mode execute",
         "phase": "gate",
         "kind": "execute-decision",
         "required": true,
@@ -796,6 +760,19 @@
       },
       {
         "index": 12,
+        "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "phase": "test",
+        "kind": "pytest",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "pytest expected to exit 0"
+      },
+      {
+        "index": 13,
         "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
         "phase": "gate",
         "kind": "execution-log",
@@ -809,36 +786,8 @@
         "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
       },
       {
-        "index": 13,
-        "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-        "phase": "gate",
-        "kind": "report-summary",
-        "required": true,
-        "expected_exit_codes": [
-          0,
-          1
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
-      },
-      {
         "index": 14,
-        "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "phase": "gate",
-        "kind": "final-check",
-        "required": true,
-        "expected_exit_codes": [
-          0,
-          1
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
-      },
-      {
-        "index": 15,
-        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1",
         "phase": "gate",
         "kind": "run-closeout",
         "required": true,

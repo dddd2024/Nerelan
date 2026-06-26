@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "gate_name": "run-closeout",
-  "closeout_status": "PASSED",
-  "decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
-  "round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
-  "generated_at": "2026-06-26T04:45:34.306543Z",
+  "closeout_status": "FAILED",
+  "decision_id": "decision_20260626_execute_decision_managed_execute_mode_v1",
+  "round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
+  "generated_at": "2026-06-26T05:10:45.451909Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -28,7 +28,7 @@
     },
     {
       "name": "pytest",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_project_gate.py -q",
       "kind": "pytest",
       "expected_exit_codes": [
         0
@@ -85,29 +85,18 @@
         0,
         1
       ],
-      "exit_code": 0,
+      "exit_code": 1,
       "status": "PASSED"
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "name": "final-check-after-close",
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
+      "exit_code": 1,
+      "status": "FAILED"
     }
   ],
   "skipped_steps": [],
@@ -115,14 +104,14 @@
   "close_round_result": {
     "schema_version": 1,
     "gate_name": "close-round",
-    "close_status": "CLOSED",
-    "decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
-    "report_id": "codex_report_20260626_execute_decision_single_entrypoint_contract_v1",
-    "round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
-    "decision_round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
-    "report_round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
-    "report_status": "SUCCESS",
-    "generated_at": "2026-06-26T04:45:32.732249Z",
+    "close_status": "FAILED",
+    "decision_id": "decision_20260626_execute_decision_managed_execute_mode_v1",
+    "report_id": "codex_report_20260626_execute_decision_managed_execute_mode_v1",
+    "round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
+    "decision_round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
+    "report_round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
+    "report_status": "FAILED",
+    "generated_at": "2026-06-26T05:10:45.435237Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -145,21 +134,23 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
-        "decision_round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1",
-        "report_round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1"
+        "requested_round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
+        "decision_round_id": "round_20260626_execute_decision_managed_execute_mode_v1",
+        "report_round_id": "round_20260626_execute_decision_managed_execute_mode_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1"
+        "report_based_on_decision_id": "decision_20260626_execute_decision_managed_execute_mode_v1"
       },
       {
         "name": "pytest_result_match",
-        "status": "PASS",
-        "detail": "pytest_result matches report",
-        "errors": []
+        "status": "FAIL",
+        "detail": "pytest_result does not match report",
+        "errors": [
+          "pytest_result decision_id does not match codex_report_summary.based_on_decision_id"
+        ]
       },
       {
         "name": "pytest_result_covers_report_tests",
@@ -179,8 +170,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260626_execute_decision_single_entrypoint_contract_v1",
-        "command_plan_round_id": "round_20260626_execute_decision_single_entrypoint_contract_v1"
+        "command_plan_decision_id": "decision_20260626_execute_decision_managed_execute_mode_v1",
+        "command_plan_round_id": "round_20260626_execute_decision_managed_execute_mode_v1"
       },
       {
         "name": "command_plan_covers_report_tests",
@@ -204,36 +195,52 @@
       },
       {
         "name": "command_plan_json_stdout_matches_artifact",
-        "status": "PASS",
-        "detail": "closeout-tail command-plan stdout drift is resolved by post-closeout command-plan refresh",
+        "status": "FAIL",
+        "detail": "command-plan --json recorded stdout differs from live command_plan.json",
         "errors": [
           {
             "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
             "errors": [
               {
-                "field": "expected_exit_codes",
-                "index": 15,
-                "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
-                "live": [
-                  0,
-                  1
+                "field": "commands",
+                "live_commands": [
+                  "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+                  "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                  "Set-Location F:\\reverse-agent",
+                  "Get-Location",
+                  "Test-Path F:\\reverse-agent",
+                  "git rev-parse --show-toplevel",
+                  "git status --short",
+                  "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                  "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                  "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1 --mode execute",
+                  "python -m pytest tests/test_project_gate.py -q",
+                  "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                  "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+                  "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1"
                 ],
-                "recorded": [
-                  0
+                "recorded_commands": [
+                  "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                  "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+                  "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                  "Set-Location F:\\reverse-agent",
+                  "Get-Location",
+                  "Test-Path F:\\reverse-agent",
+                  "git rev-parse --show-toplevel",
+                  "git status --short",
+                  "python -m reverse_agent.project_gate preflight --state-dir project_state",
+                  "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
+                  "python -m pytest tests/test_project_gate.py -q",
+                  "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+                  "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+                  "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                  "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1"
                 ]
-              },
-              {
-                "field": "notes",
-                "index": 15,
-                "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_single_entrypoint_contract_v1",
-                "live": "run-closeout diagnostic after final-check failed; exit 1 is expected",
-                "recorded": "run-closeout expected exit 0 after final-check passed"
               }
             ]
           }
         ],
-        "required": true,
-        "resolved_pre_archive": true
+        "required": true
       },
       {
         "name": "command_plan_run_closeout_success_semantics",
@@ -250,9 +257,22 @@
       },
       {
         "name": "pytest_result_exit_codes_match_command_plan",
-        "status": "PASS",
-        "detail": "recorded command exit codes match command_plan expected_exit_codes",
-        "errors": []
+        "status": "FAIL",
+        "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+        "errors": [
+          {
+            "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1 --mode execute",
+            "error": "missing recorded command block",
+            "expected_count": 1,
+            "recorded_count": 0
+          },
+          {
+            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_execute_decision_managed_execute_mode_v1",
+            "error": "missing recorded command block",
+            "expected_count": 1,
+            "recorded_count": 0
+          }
+        ]
       },
       {
         "name": "round_delta_summary_present",
@@ -271,7 +291,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/phase1_completion_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -279,9 +298,7 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
-          "project_state/pytest_result.txt",
-          "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "project_state/pytest_result.txt"
         ],
         "final_dirty_files": [
           "project_state/codex_execution_report.md",
@@ -293,7 +310,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/phase1_completion_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -301,9 +317,7 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
-          "project_state/pytest_result.txt",
-          "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "project_state/pytest_result.txt"
         ]
       },
       {
@@ -327,7 +341,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/phase1_completion_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -335,9 +348,7 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
-          "project_state/pytest_result.txt",
-          "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "project_state/pytest_result.txt"
         ],
         "required_round_delta_files": [
           "project_state/codex_execution_report.md",
@@ -349,7 +360,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/phase1_completion_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -358,9 +368,7 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260626_execute_decision_single_entrypoint_contract_v1/round_manifest.json",
-          "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "project_state/rounds/round_20260626_execute_decision_managed_execute_mode_v1/round_manifest.json"
         ],
         "inherited_dirty_files": []
       },
@@ -368,10 +376,7 @@
         "name": "files_changed_covers_substantive_changes",
         "status": "PASS",
         "detail": "files_changed covers substantive source/test/artifact changes",
-        "substantive_dirty_files": [
-          "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
-        ],
+        "substantive_dirty_files": [],
         "claimed_source_test_paths": []
       },
       {
@@ -478,15 +483,19 @@
       },
       {
         "name": "startup_baseline_consistency",
-        "status": "PASS",
-        "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
+        "status": "FAIL",
+        "detail": "startup git status --short shows source/test dirty files not recorded in baseline; baseline records are inconsistent with startup evidence",
         "startup_source_test_dirty": [
           "reverse_agent/project_gate.py",
           "tests/test_project_gate.py"
         ],
         "baseline_dirty_files": [],
         "inherited_dirty_files": [],
-        "missing_from_baseline": []
+        "missing_from_baseline": [
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
+        ],
+        "report_inconsistency": true
       },
       {
         "name": "report_summary_synthesis_required",
@@ -520,7 +529,7 @@
         "status": "WARN",
         "detail": "generated_artifacts omits round archive files",
         "missing_artifacts": [
-          "project_state/rounds/round_20260626_execute_decision_single_entrypoint_contract_v1/round_manifest.json"
+          "project_state/rounds/round_20260626_execute_decision_managed_execute_mode_v1/round_manifest.json"
         ]
       },
       {
@@ -573,76 +582,54 @@
         "closeout_allowed": true
       }
     ],
-    "actions": [
-      {
-        "name": "final_check_before_archive",
-        "status": "PASSED",
-        "gate_status": "WARN",
-        "allowed_archive_pending_failures": [],
-        "unexpected_failures": [],
-        "artifact": "project_state/gates/final_gate_result.json"
-      },
-      {
-        "name": "archive_round",
-        "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260626_execute_decision_single_entrypoint_contract_v1",
-        "manifest": "project_state\\rounds\\round_20260626_execute_decision_single_entrypoint_contract_v1\\round_manifest.json",
-        "copied": [
-          "decision_packet.md",
-          "codex_execution_report.md",
-          "pytest_result.txt"
-        ]
-      },
-      {
-        "name": "final_check_after_archive",
-        "status": "PASSED",
-        "gate_status": "PASSED",
-        "unexpected_failures": [],
-        "artifact": "project_state/gates/final_gate_result.json"
-      }
-    ],
+    "actions": [],
     "archive": {
-      "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260626_execute_decision_single_entrypoint_contract_v1/round_manifest.json",
-      "files": [
-        "codex_execution_report.md",
-        "decision_packet.md",
-        "pytest_result.txt",
-        "round_manifest.json"
-      ],
+      "status": "not_attempted",
+      "round_manifest_path": "project_state/rounds/round_20260626_execute_decision_managed_execute_mode_v1/round_manifest.json",
+      "files": [],
       "included_diff": false,
       "included_state_snapshot": false,
-      "copied": [
-        "decision_packet.md",
-        "codex_execution_report.md",
-        "pytest_result.txt"
-      ],
+      "copied": [],
       "idempotent": false
     },
-    "blocking_reasons": [],
-    "warnings": [],
-    "resolved_pre_archive_warnings": [
+    "blocking_reasons": [
+      "pytest_result_match: pytest_result does not match report",
+      "command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout differs from live command_plan.json",
+      "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+      "startup_baseline_consistency: startup git status --short shows source/test dirty files not recorded in baseline; baseline records are inconsistent with startup evidence"
+    ],
+    "warnings": [
       "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
     ],
-    "pre_archive_diagnostics": [
-      {
-        "check_name": "generated_artifacts_cover_round_archive",
-        "detail": "generated_artifacts omits round archive files",
-        "resolution": "resolved_by_final_check_after_archive",
-        "scope": "pre_archive_transient"
-      }
-    ],
-    "recommended_next_action": "no_action_required",
+    "resolved_pre_archive_warnings": [],
+    "pre_archive_diagnostics": [],
+    "recommended_next_action": "fix_close_round_failures_before_retry",
     "status_summary": {
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "archive_status": "archived",
-      "report_status": "SUCCESS",
-      "report_acceptance_recommendation": "ACCEPTED"
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "archive_status": "not_archived",
+      "report_status": "FAILED",
+      "report_acceptance_recommendation": "REWORK_REQUIRED"
     }
   },
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "step close-round exited 1, expected [0]: close_status=FAILED",
+    "executed step close-round failed: exit=1, expected=[0]",
+    "close-round close_status=FAILED",
+    "close-round report_status=FAILED",
+    "close-round blocking reason: pytest_result_match: pytest_result does not match report",
+    "close-round blocking reason: command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout differs from live command_plan.json",
+    "close-round blocking reason: pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+    "close-round blocking reason: startup_baseline_consistency: startup git status --short shows source/test dirty files not recorded in baseline; baseline records are inconsistent with startup evidence",
+    "close-round active warning: generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
+    "close-round nested failure: close_round_result.report_status=FAILED",
+    "close-round nested failure: close_round_result.checks[5].status=FAIL (pytest_result_match)",
+    "close-round nested failure: close_round_result.checks[12].status=FAIL (command_plan_json_stdout_matches_artifact)",
+    "close-round nested failure: close_round_result.checks[15].status=FAIL (pytest_result_exit_codes_match_command_plan)",
+    "close-round nested failure: close_round_result.checks[31].status=FAIL (startup_baseline_consistency)",
+    "close-round nested failure: close_round_result.status_summary.report_status=FAILED"
+  ],
   "warnings": [],
-  "recommended_next_action": "no_action_required",
+  "recommended_next_action": "fix_run_closeout_failures_before_retry",
   "artifacts": {
     "command_plan": "project_state/gates/command_plan.json",
     "run_closeout_result": "project_state/gates/run_closeout_result.json"
