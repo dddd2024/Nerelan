@@ -67,6 +67,65 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _write_ci_workflow_files(repo_root: Path) -> None:
+    workflows_dir = repo_root / ".github" / "workflows"
+    workflows_dir.mkdir(parents=True, exist_ok=True)
+    (workflows_dir / "ci.yml").write_text(
+        """name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -e .
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+""",
+        encoding="utf-8",
+    )
+    (workflows_dir / "state-gate.yml").write_text(
+        """name: State Gate
+
+on:
+  pull_request:
+    paths:
+      - "project_state/**"
+      - "reverse_agent/**"
+      - "tests/**"
+      - ".github/workflows/**"
+      - ".codex-skills/**"
+      - "docs/prompts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  state-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -e .
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+      - run: python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+        encoding="utf-8",
+    )
+
+
 def _write_skill_registry(tmp_path: Path) -> None:
     _write_json(
         tmp_path / ".codex-skills" / "registry.json",
@@ -4066,6 +4125,40 @@ def test_run_round_execute_records_to_pytest_result(tmp_path: Path) -> None:
     assert "===== EXIT:" in content, "pytest_result.txt should contain exit codes"
 
 
+def test_run_round_execute_replaces_stale_same_command_block(tmp_path: Path) -> None:
+    """A retried command's current outer result replaces stale same-command evidence."""
+    from reverse_agent.project_gate import _append_command_block_to_pytest_result
+
+    command = "python -c \"print('hello')\""
+    state_dir = _make_command_plan_state(tmp_path, tests_block=command)
+    pytest_result_path = tmp_path / "project_state" / "pytest_result.txt"
+
+    def fake_runner(command_text: str) -> subprocess.CompletedProcess[str]:
+        if command_text == command:
+            _append_command_block_to_pytest_result(
+                pytest_result_path,
+                command=command_text,
+                stdout="old failure\n",
+                stderr="",
+                exit_code=1,
+            )
+        return subprocess.CompletedProcess(command_text, 0, stdout="ok\n", stderr="")
+
+    run_round(
+        state_dir=state_dir,
+        dry_run=False,
+        repo_root=tmp_path,
+        command_runner=fake_runner,
+        pytest_result_path=pytest_result_path,
+    )
+
+    content = pytest_result_path.read_text(encoding="utf-8")
+    assert content.count(f"===== COMMAND: {command} =====") == 1
+    assert "old failure" not in content
+    assert "ok" in content
+    assert "===== EXIT: 0 =====" in content
+
+
 def test_run_round_execute_surfaces_real_failures(tmp_path: Path) -> None:
     """Execute mode must surface real command failures, not hide them."""
     state_dir = _make_command_plan_state(
@@ -5005,9 +5098,8 @@ None.
 
 
 class TestAllowedInheritedFiles:
-    """Verify _allowed_inherited_files returns only files explicitly listed in
-    the "Allowed Inherited Dirty Baseline Files" section, NOT files that merely
-    appear in Implementation Scope."""
+    """Verify _allowed_inherited_files returns only explicitly authorized files,
+    not files that merely appear in Implementation Scope."""
 
     def test_returns_explicit_allowlist_intersection(self) -> None:
         decision_text = """# DECISION_PACKET
@@ -5059,6 +5151,37 @@ Allowed source files:
 """
         result = _allowed_inherited_files(decision_text, set())
         assert result == set()
+
+    def test_returns_decision_contract_source_and_config_paths(self) -> None:
+        decision_text = """# DECISION_PACKET
+
+```json decision_contract
+{
+  "allowed_source_files": [
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
+  ],
+  "allowed_config_files": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml"
+  ]
+}
+```
+"""
+        inherited = {
+            ".github/workflows/ci.yml",
+            ".github/workflows/state-gate.yml",
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "reverse_agent/unrelated.py",
+        }
+        result = _allowed_inherited_files(decision_text, inherited)
+        assert result == {
+            ".github/workflows/ci.yml",
+            ".github/workflows/state-gate.yml",
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+        }
 
 
 class TestBaselineLifecycleLateBaselineCapture:
@@ -5739,6 +5862,38 @@ Allowed tests:
         assert check["status"] == "WARN"
         assert check["capture_order_status"] == "confirmed_inherited"
         assert "reverse_agent/project_gate.py" in check["confirmed_inherited_from_startup_evidence"]
+
+    def test_untracked_parent_directory_confirms_child_config_file(self) -> None:
+        """A startup ``?? .github/`` entry covers workflow files expanded later."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        decision_text = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source changes:
+- `reverse_agent/project_gate.py`
+
+Allowed config / CI files:
+- `.github/workflows/ci.yml`
+"""
+        delta = self._make_delta(baseline_dirty=[".github/workflows/ci.yml"])
+        pytest_text = (
+            self._PATH_PREFIX
+            + "===== COMMAND: git status --short =====\n"
+            "?? .github/\n"
+            "===== EXIT: 0 =====\n"
+        )
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={".github/workflows/ci.yml"},
+            decision_text=decision_text,
+            report_text=self.REPORT_TEXT,
+            pytest_text=pytest_text,
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "WARN"
+        assert check["capture_order_status"] == "confirmed_inherited"
+        assert ".github/workflows/ci.yml" in check["confirmed_inherited_from_startup_evidence"]
 
     def test_mixed_confirmed_and_suspected_fails(self) -> None:
         """Mixed: one file confirmed, one suspected → FAIL (partial)."""
@@ -22712,6 +22867,113 @@ class TestNamingHygiene:
         for entry in plan["codex_bound_names"]:
             assert entry["action_this_round"] == "neutral_primary_with_legacy_alias"
             assert entry["migration_round"] == "r1"
+
+    def test_final_check_fails_stale_current_naming_migration_plan(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir = _make_gate_state(
+            tmp_path,
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/naming_migration_plan.json",
+                *(_archive_paths("round_gate")),
+            ],
+        )
+        _write_ci_workflow_files(tmp_path)
+        _write_decision(
+            state_dir,
+            decision_id="decision_gate",
+            round_id="round_gate",
+            extra_text=(
+                "\n```json decision_contract\n"
+                '{"accepted_requires_ci_workflows_created": true, '
+                '"accepted_requires_ci_uses_project_gate": true, '
+                '"accepted_requires_naming_plan_current_ids": true}\n'
+                "```\n"
+            ),
+        )
+        _write_json(state_dir / "gates" / "naming_migration_plan.json", {
+            "schema_version": 1,
+            "decision_id": "decision_old",
+            "round_id": "round_old",
+        })
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        check = _check(result, "naming_migration_plan_ids_current")
+        assert check["status"] == "FAIL"
+        assert "stale" in check["detail"]
+
+    def test_final_check_accepts_current_naming_migration_plan(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        state_dir = _make_gate_state(
+            tmp_path,
+            generated_artifacts=[
+                "project_state/codex_execution_report.md",
+                "project_state/execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/report_summary_synthesis.json",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/naming_migration_plan.json",
+                *(_archive_paths("round_gate")),
+            ],
+        )
+        _write_ci_workflow_files(tmp_path)
+        _write_decision(
+            state_dir,
+            decision_id="decision_gate",
+            round_id="round_gate",
+            extra_text=(
+                "\n```json decision_contract\n"
+                '{"accepted_requires_ci_workflows_created": true, '
+                '"accepted_requires_ci_uses_project_gate": true, '
+                '"accepted_requires_naming_plan_current_ids": true}\n'
+                "```\n"
+            ),
+        )
+        _write_json(state_dir / "gates" / "naming_migration_plan.json", {
+            "schema_version": 1,
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+        })
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        assert _check(result, "naming_migration_plan_ids_current")["status"] == "PASS"
+        assert _check(result, "github_ci_state_gate_workflows")["status"] == "PASS"
+
+    def test_github_workflow_check_blocks_mutating_commands(self, tmp_path: Path) -> None:
+        from reverse_agent import project_gate as gate
+
+        _write_ci_workflow_files(tmp_path)
+        state_gate = tmp_path / ".github" / "workflows" / "state-gate.yml"
+        state_gate.write_text(
+            state_gate.read_text(encoding="utf-8")
+            + "\n      - run: git push origin main\n",
+            encoding="utf-8",
+        )
+
+        result = gate._github_workflow_state_gate_check(
+            repo_root=tmp_path,
+            decision_contract={
+                "accepted_requires_ci_workflows_created": True,
+                "accepted_requires_ci_uses_project_gate": True,
+            },
+        )
+
+        assert result["status"] == "FAIL"
+        assert "git push" in result["forbidden_hits"]
 
     def test_state_hygiene_inventory_classifies_files(self, tmp_path: Path) -> None:
         """state_hygiene_inventory.json classifies files into approved categories."""

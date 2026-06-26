@@ -1,0 +1,50 @@
+name: State Gate
+
+on:
+  push:
+    paths:
+      - "project_state/**"
+      - "reverse_agent/**"
+      - "tests/**"
+      - ".github/workflows/**"
+      - ".codex-skills/**"
+      - "docs/prompts/**"
+  pull_request:
+    paths:
+      - "project_state/**"
+      - "reverse_agent/**"
+      - "tests/**"
+      - ".github/workflows/**"
+      - ".codex-skills/**"
+      - "docs/prompts/**"
+
+permissions:
+  contents: read
+
+jobs:
+  state-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install package
+        run: python -m pip install -e .
+
+      - name: Project gate preflight
+        run: python -m reverse_agent.project_gate preflight --state-dir project_state
+
+      - name: Project gate command plan
+        run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+
+      - name: Focused gate tests
+        run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+
+      - name: Project gate final check
+        run: python -m reverse_agent.project_gate final-check --state-dir project_state

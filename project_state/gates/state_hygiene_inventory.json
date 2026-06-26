@@ -1,12 +1,14 @@
 {
   "schema_version": 1,
   "plan_name": "state-hygiene-inventory",
-  "decision_id": "decision_20260625_executor_neutral_gate_status_scope_rework_v1",
-  "round_id": "round_20260625_executor_neutral_gate_status_scope_rework_v1",
-  "generated_at": "2026-06-25T12:34:58.994018Z",
+  "decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
+  "round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+  "generated_at": "2026-06-26T14:18:12.053459Z",
   "no_rename": true,
   "no_delete": true,
-  "no_neutral_live_path_created": true,
+  "no_neutral_live_path_created": false,
+  "neutral_live_path_created": true,
+  "legacy_alias_retained": true,
   "scan_scope": "project_state/ immediate files, project_state/gates/ immediate JSON files, and bounded archive directories from decision_contract.bounded_archive_dirs_to_inventory. No recursive scan of project_state/rounds/ or solve_reports/.",
   "bounded_archive_dirs": [],
   "entries": [
@@ -89,11 +91,9 @@
     },
     {
       "path": "project_state/execution_report.md",
-      "category": "current_live_artifact",
-      "referenced_by": [
-        "gate_pipeline"
-      ],
-      "freshness_basis": "current_round",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
       "safe_to_delete": false,
       "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
       "notes": ""
@@ -1537,6 +1537,17 @@
       "notes": ""
     },
     {
+      "path": "project_state/gates/execute_decision_result.json",
+      "category": "current_live_artifact",
+      "referenced_by": [
+        "gate_pipeline"
+      ],
+      "freshness_basis": "current_round",
+      "safe_to_delete": false,
+      "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
+      "notes": ""
+    },
+    {
       "path": "project_state/gates/execution_log.json",
       "category": "current_live_artifact",
       "referenced_by": [
@@ -1549,11 +1560,9 @@
     },
     {
       "path": "project_state/gates/execution_report_auto_summary.json",
-      "category": "current_live_artifact",
-      "referenced_by": [
-        "gate_pipeline"
-      ],
-      "freshness_basis": "current_round",
+      "category": "unknown_requires_manual_review",
+      "referenced_by": [],
+      "freshness_basis": "unknown",
       "safe_to_delete": false,
       "delete_reason": "Deletion explicitly deferred; no file may be deleted in this round",
       "notes": ""

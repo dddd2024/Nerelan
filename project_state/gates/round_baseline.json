@@ -1,22 +1,29 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260626_neutral_primary_report_source_rework_v1",
-  "round_id": "round_20260626_neutral_primary_report_source_rework_v1",
-  "head_commit": "0025919810eb",
+  "decision_id": "decision_20260626_ci_state_gate_and_naming_provenance_v1",
+  "round_id": "round_20260626_ci_state_gate_and_naming_provenance_v1",
+  "head_commit": "acededc49adc",
   "baseline_git_status_short": [
     " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py"
+    " M tests/test_project_gate.py",
+    "?? .github/workflows/ci.yml",
+    "?? .github/workflows/state-gate.yml"
   ],
   "baseline_git_diff_name_only": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
-  "baseline_untracked_files": [],
+  "baseline_untracked_files": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml"
+  ],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-26T12:43:44.620408Z"
+  "generated_at": "2026-06-26T14:09:06.343193Z"
 }

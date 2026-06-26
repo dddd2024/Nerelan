@@ -736,6 +736,61 @@ def _generate_neutral_primary_report_source_required_audit(decision_text: str) -
     return _format_required_audit_answers(questions, answers)
 
 
+def _generate_ci_state_gate_and_naming_provenance_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 8:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "ci state gate and naming provenance" not in lowered
+        and "accepted_requires_ci_workflows_created" not in lowered
+    ):
+        return ""
+    answers = [
+        (
+            ".github/workflows/ci.yml and .github/workflows/state-gate.yml.",
+            "PASS",
+            "ci.yml runs checkout, Python 3.13 setup, python -m pip install -e ., an import check, and python -m pytest tests/test_project_gate.py tests/test_project_state.py -q; state-gate.yml runs the same setup plus project_gate preflight, command-plan, focused pytest, and final-check.",
+        ),
+        (
+            ".github/workflows/ci.yml permissions and run commands.",
+            "PASS",
+            "ci.yml uses contents: read permissions and bounded local validation commands only; it contains no git push, pull request creation, LLM invocation, project_state build, archive, or state-mutating closeout command.",
+        ),
+        (
+            ".github/workflows/state-gate.yml paths and project_gate commands.",
+            "PASS",
+            "state-gate.yml triggers on project_state, reverse_agent, tests, .github/workflows, .codex-skills, and docs/prompts changes, and validates with reverse_agent.project_gate preflight, command-plan, final-check, and focused pytest.",
+        ),
+        (
+            "project_state/gates/naming_migration_plan.json.",
+            "PASS",
+            "naming_migration_plan.json is regenerated for the current decision_id and round_id, so it is current provenance evidence rather than stale historical migration-only evidence.",
+        ),
+        (
+            "reverse_agent/project_gate.py final-check naming_migration_plan_ids_current and tests/test_project_gate.py stale naming plan regression coverage.",
+            "PASS",
+            "final-check now fails naming_migration_plan_ids_current when a claimed-current naming_migration_plan.json carries stale decision_id or round_id, and tests cover stale and current plan behavior.",
+        ),
+        (
+            "project_state/gates/report_summary_synthesis.json sources plus final-check alias parity checks.",
+            "PASS",
+            "Neutral-primary semantics remain intact: sources.execution_report points to project_state/execution_report.md, execution_report_summary remains the primary block, and legacy codex_execution_report.md / codex_report_summary aliases keep semantic parity checks.",
+        ),
+        (
+            "project_state/gates/execute_decision_result.json, command_plan.json, execution_log.json, final_gate_result.json, report_summary_synthesis.json, run_closeout_result.json, and project_state/pytest_result.txt.",
+            "PASS",
+            "The round preserves execute-decision --mode execute, command-plan authority, pytest_result transcript, execution-log, final-check, report-summary, and run-closeout convergence with current-round artifacts.",
+        ),
+        (
+            "decision_packet.md forbidden paths, workflow safety checks, policy-lint/policy-impact, final-check forbidden_paths_absent, and absence of runtime harness commands.",
+            "PASS",
+            "This CI foundation stays inside project_gate/tests/workflow and authorized gate/report artifacts, and avoids Web, AgentRunner, database, queue, scheduler, reverse-solving, heavy artifact scans, forbidden path mutation, LLM calls, pushes, and PR creation.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
 def _generate_gate_closeout_audit_truth_required_audit(decision_text: str) -> str:
     questions = parse_required_audit_questions(decision_text)
     if len(questions) != 8:
@@ -1131,6 +1186,18 @@ def _required_audit_question_required_phrases(question: str) -> list[str]:
     """Return exact phrases that must be present for source-rework audit items."""
     lowered = question.lower()
     phrases: list[str] = []
+    if "github workflow" in lowered or "workflow files" in lowered:
+        phrases.extend([".github/workflows/ci.yml", ".github/workflows/state-gate.yml"])
+    if "ci.yml" in lowered and "baseline" in lowered:
+        phrases.extend(["ci.yml", "contents: read"])
+    if "state-gate.yml" in lowered:
+        phrases.extend(["state-gate.yml", "project_gate"])
+    if "naming_migration_plan.json" in lowered and (
+        "decision_id" in lowered or "round_id" in lowered
+    ):
+        phrases.extend(["naming_migration_plan.json", "decision_id", "round_id"])
+    if "stale" in lowered and "naming_migration_plan.json" in lowered:
+        phrases.extend(["naming_migration_plan_ids_current", "stale"])
     if "report_summary_synthesis.json.sources.execution_report" in lowered:
         phrases.extend([
             "report_summary_synthesis.json.sources.execution_report",
@@ -1824,6 +1891,9 @@ def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
     3. Paths listed in ``allowed_source_files`` in the ``decision_contract``
        JSON block, because these source/test paths are the explicitly bounded
        implementation surface for this decision.
+    4. Paths listed in ``allowed_config_files`` in the ``decision_contract``
+       JSON block, because CI/config files are also part of the explicitly
+       bounded implementation surface for CI foundation decisions.
     """
     section = _markdown_section(decision_text, "Allowed Inherited Dirty Baseline Files")
     paths = _scope_paths(section)
@@ -1836,6 +1906,8 @@ def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
         for path in contract.get("required_files_changed") or []:
             paths.add(_norm_path(path))
         for path in contract.get("allowed_source_files") or []:
+            paths.add(_norm_path(path))
+        for path in contract.get("allowed_config_files") or []:
             paths.add(_norm_path(path))
     return paths
 
@@ -3243,10 +3315,10 @@ def _baseline_capture_order_checks(
     # all overlap files are treated as suspected late capture.
     if startup_evidence_trusted:
         confirmed_inherited = sorted(
-            path for path in overlap if path in startup_dirty_files
+            path for path in overlap if _startup_dirty_evidence_covers_path(path, startup_dirty_files)
         )
         suspected_late = sorted(
-            path for path in overlap if path not in startup_dirty_files
+            path for path in overlap if not _startup_dirty_evidence_covers_path(path, startup_dirty_files)
         )
     else:
         confirmed_inherited = []
@@ -3312,6 +3384,17 @@ def _baseline_capture_order_checks(
         ]
 
     return checks
+
+
+def _startup_dirty_evidence_covers_path(path: str, startup_dirty_files: set[str]) -> bool:
+    normalized = _norm_path(path)
+    if normalized in startup_dirty_files:
+        return True
+    for dirty_path in startup_dirty_files:
+        dirty = _norm_path(dirty_path).rstrip("/")
+        if dirty and normalized.startswith(f"{dirty}/"):
+            return True
+    return False
 
 
 def _extract_startup_dirty_files(pytest_text: str) -> set[str]:
@@ -5893,6 +5976,135 @@ def _artifact_matches_current_round(payload: dict[str, Any], *, decision_id: str
     )
 
 
+def _naming_migration_plan_id_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report: dict[str, Any],
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    plan_path = state_dir / "gates" / NAMING_MIGRATION_PLAN_RESULT_NAME
+    report_artifacts = _string_set(report.get("generated_artifacts")) | _string_set(
+        report.get("referenced_artifacts")
+    )
+    required = (
+        bool(decision_contract.get("accepted_requires_naming_plan_current_ids"))
+        or NAMING_MIGRATION_PLAN_OUTPUT_PATH in report_artifacts
+        or plan_path.exists()
+    )
+    if not required:
+        return _check(
+            "naming_migration_plan_ids_current",
+            "PASS",
+            "naming_migration_plan.json not required for this decision",
+            required=False,
+        )
+    payload = _read_json(plan_path)
+    if not isinstance(payload, dict) or not payload:
+        return _check(
+            "naming_migration_plan_ids_current",
+            "FAIL",
+            "naming_migration_plan.json is missing or invalid",
+            required=True,
+        )
+    actual_decision_id = str(payload.get("decision_id") or "")
+    actual_round_id = str(payload.get("round_id") or "")
+    current = actual_decision_id == decision_id and actual_round_id == round_id
+    return _check(
+        "naming_migration_plan_ids_current",
+        "PASS" if current else "FAIL",
+        "naming_migration_plan.json carries current decision_id and round_id"
+        if current
+        else "naming_migration_plan.json has stale decision_id or round_id",
+        expected_decision_id=decision_id,
+        actual_decision_id=actual_decision_id,
+        expected_round_id=round_id,
+        actual_round_id=actual_round_id,
+        artifact=NAMING_MIGRATION_PLAN_OUTPUT_PATH,
+        required=True,
+    )
+
+
+def _github_workflow_state_gate_check(
+    *,
+    repo_root: Path,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_ci_workflows_created")) or bool(
+        decision_contract.get("accepted_requires_ci_uses_project_gate")
+    )
+    workflow_paths = {
+        ".github/workflows/ci.yml": repo_root / ".github" / "workflows" / "ci.yml",
+        ".github/workflows/state-gate.yml": repo_root / ".github" / "workflows" / "state-gate.yml",
+    }
+    missing = [rel for rel, path in workflow_paths.items() if not path.exists()]
+    if missing:
+        return _check(
+            "github_ci_state_gate_workflows",
+            "FAIL" if required else "PASS",
+            "required GitHub workflow file(s) missing"
+            if required
+            else "GitHub workflow files not required for this decision",
+            missing_workflows=missing,
+            required=required,
+        )
+
+    contents = {rel: path.read_text(encoding="utf-8") for rel, path in workflow_paths.items()}
+    combined_lower = "\n".join(contents.values()).lower()
+    forbidden_patterns = [
+        "git push",
+        "gh pr create",
+        "gh pr merge",
+        "openai",
+        "chatgpt",
+        "archive-round",
+        "run-closeout",
+        "execute-decision",
+        "project_state build",
+        "solve_reports",
+        "samplereverse.exe",
+    ]
+    forbidden_hits = [pattern for pattern in forbidden_patterns if pattern in combined_lower]
+    required_snippets = {
+        ".github/workflows/ci.yml": [
+            "contents: read",
+            "python -m pip install -e .",
+            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        ],
+        ".github/workflows/state-gate.yml": [
+            "contents: read",
+            "project_state/**",
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        ],
+    }
+    missing_snippets: dict[str, list[str]] = {}
+    for rel, snippets in required_snippets.items():
+        text = contents[rel]
+        missing_for_file = [snippet for snippet in snippets if snippet not in text]
+        if missing_for_file:
+            missing_snippets[rel] = missing_for_file
+    state_gate_uses_project_gate = "reverse_agent.project_gate" in contents[
+        ".github/workflows/state-gate.yml"
+    ]
+    ok = not forbidden_hits and not missing_snippets and state_gate_uses_project_gate
+    return _check(
+        "github_ci_state_gate_workflows",
+        "PASS" if ok else "FAIL",
+        "GitHub CI workflows are bounded, read-only, and include project_gate validation"
+        if ok
+        else "GitHub CI workflow safety or required command validation failed",
+        workflows=sorted(workflow_paths),
+        forbidden_hits=forbidden_hits,
+        missing_required_snippets=missing_snippets,
+        state_gate_uses_project_gate=state_gate_uses_project_gate,
+        required=required,
+    )
+
+
 def _update_report_archive_paths(*, state_dir: Path, round_id: str) -> None:
     """Add round archive paths to the report's files_changed and generated_artifacts.
 
@@ -7516,6 +7728,21 @@ def final_check(
     _decision_contract_block = extract_markdown_json_block(decision_text, "decision_contract")
     if _decision_contract_block.get("found") and not _decision_contract_block.get("parse_error"):
         decision_contract = {**decision_contract, **_decision_contract_block}
+    checks.append(
+        _github_workflow_state_gate_check(
+            repo_root=repo_root,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _naming_migration_plan_id_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report=report,
+            decision_contract=decision_contract,
+        )
+    )
     checks.append(
         _decision_contract_artifact_placement_check(
             contract=decision_contract,
@@ -12742,6 +12969,7 @@ def run_round(
                     "reason": reason,
                 })
                 if pytest_result_path is not None:
+                    _remove_pytest_command_blocks(pytest_result_path, command=command)
                     _append_command_block_to_pytest_result(
                         pytest_result_path,
                         command=command,
@@ -12838,6 +13066,7 @@ def run_round(
 
             # Record command block to pytest_result.txt if a path is provided.
             if pytest_result_path is not None:
+                _remove_pytest_command_blocks(pytest_result_path, command=command)
                 _append_command_block_to_pytest_result(
                     pytest_result_path,
                     command=command,
@@ -13382,6 +13611,10 @@ def _refresh_codex_report_for_closeout(
             if norm_path in dirty_files_norm and _is_implementation_file(norm_path):
                 files_changed_set.add(norm_path)
                 authorized_inherited_source_test.add(norm_path)
+        for path in contract.get("allowed_config_files") or []:
+            norm_path = _norm_path(path)
+            if norm_path in dirty_files_norm:
+                files_changed_set.add(norm_path)
     # Always include report and pytest_result
     files_changed_set |= {
         LEGACY_EXECUTION_REPORT_PATH,
@@ -13632,6 +13865,8 @@ def _refresh_codex_report_for_closeout(
         _generate_execute_decision_single_entrypoint_required_audit(decision_text)
         or
         _generate_gate_closeout_audit_truth_required_audit(decision_text)
+        or
+        _generate_ci_state_gate_and_naming_provenance_required_audit(decision_text)
         or
         _generate_neutral_primary_report_source_required_audit(decision_text)
         or
