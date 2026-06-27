@@ -3,10 +3,10 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260627_clean_startup_provenance_rework_v1",
-  "round_id": "round_20260627_clean_startup_provenance_rework_v1",
-  "report_id": "codex_report_20260627_clean_startup_provenance_rework_v1",
-  "generated_at": "2026-06-27T06:45:45.442109Z",
+  "decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
+  "round_id": "round_20260627_startup_order_gate_hard_rework_v2",
+  "report_id": "codex_report_20260627_startup_order_gate_hard_rework_v2",
+  "generated_at": "2026-06-27T15:09:24.861908Z",
   "source": "derived_from_pytest_result_and_command_plan",
   "commands": [
     {
@@ -44,6 +44,28 @@
     },
     {
       "index": 4,
+      "command": "git rev-parse --show-toplevel",
+      "kind": "git rev-parse",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 5,
+      "command": "git status --short",
+      "kind": "git status",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 6,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -54,7 +76,7 @@
       "status": "PASSED"
     },
     {
-      "index": 5,
+      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -65,7 +87,18 @@
       "status": "PASSED"
     },
     {
-      "index": 6,
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 9,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -77,43 +110,10 @@
       "status": "PASSED"
     },
     {
-      "index": 7,
-      "command": "git rev-parse --show-toplevel",
-      "kind": "git rev-parse",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 8,
-      "command": "git status --short",
-      "kind": "git status",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_clean_startup_provenance_rework_v1 --mode execute",
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "phase": "preflight",
       "expected_exit_codes": [
         0
       ],
@@ -156,7 +156,7 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_clean_startup_provenance_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

@@ -6313,6 +6313,141 @@ class TestStartupCommandsPositionValid:
         assert remaining == ""
 
 
+class TestStartupCommandPositionOrderCheck:
+    """Verify _startup_command_position_order_check enforces position-based order."""
+
+    _CORRECT_FIVE = (
+        "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+        "F:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Get-Location =====\n"
+        "Path\n----\nF:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+        "True\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git rev-parse --show-toplevel =====\n"
+        "F:/reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git status --short =====\n"
+        "\n"
+        "===== EXIT: 0 =====\n"
+    )
+
+    def test_passes_with_correct_order(self) -> None:
+        from reverse_agent.project_gate import _startup_command_position_order_check
+
+        text = self._CORRECT_FIVE + "===== COMMAND: python -m pytest tests/ -q =====\n" "...\n===== EXIT: 0 =====\n"
+        result = _startup_command_position_order_check(text)
+        assert result["status"] == "PASS"
+
+    def test_passes_with_no_subsequent_commands(self) -> None:
+        from reverse_agent.project_gate import _startup_command_position_order_check
+
+        result = _startup_command_position_order_check(self._CORRECT_FIVE)
+        assert result["status"] == "PASS"
+
+    def test_fails_when_git_status_before_git_rev_parse(self) -> None:
+        from reverse_agent.project_gate import _startup_command_position_order_check
+
+        text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            "\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _startup_command_position_order_check(text)
+        assert result["status"] == "FAIL"
+
+    def test_fails_when_substantive_before_startup(self) -> None:
+        from reverse_agent.project_gate import _startup_command_position_order_check
+
+        text = (
+            "===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====\n"
+            "command-plan: PASSED\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            "\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _startup_command_position_order_check(text)
+        assert result["status"] == "FAIL"
+        # Fails because first five blocks don't contain all five startup commands
+        assert len(result.get("missing_startup", [])) > 0 or len(result.get("substantive_before_startup", [])) > 0
+
+    def test_fails_when_only_three_startup_commands(self) -> None:
+        from reverse_agent.project_gate import _startup_command_position_order_check
+
+        text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _startup_command_position_order_check(text)
+        assert result["status"] == "FAIL"
+
+    def test_fails_when_empty_text(self) -> None:
+        from reverse_agent.project_gate import _startup_command_position_order_check
+
+        result = _startup_command_position_order_check("")
+        assert result["status"] == "FAIL"
+
+    def test_fails_when_substantive_between_startup_blocks(self) -> None:
+        from reverse_agent.project_gate import _startup_command_position_order_check
+
+        text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: python -m reverse_agent.project_gate preflight =====\n"
+            "preflight: PASSED\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            "\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _startup_command_position_order_check(text)
+        assert result["status"] == "FAIL"
+
+
 class TestExtractStartupDirtyFiles:
     """Verify _extract_startup_dirty_files parses pytest_result.txt correctly."""
 
@@ -16833,7 +16968,7 @@ def test_run_closeout_blocks_passed_status_when_pytest_transcript_has_failed_blo
         pytest_path.read_text(encoding="utf-8")
         + "\n\n"
         + _command_block(
-            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_closeout",
+            "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_old",
             "run-closeout: FAILED",
             exit_code=1,
         ),
