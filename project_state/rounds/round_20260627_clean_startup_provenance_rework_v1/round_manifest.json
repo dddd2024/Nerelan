@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-27T07:01:16Z",
+  "decision_id": "decision_20260627_clean_startup_provenance_rework_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260627_clean_startup_provenance_rework_v1\\codex_execution_report.md",
+      "sha256": "c6619d03968649012fdd6a0776e00735de13869556eeb8778a4d74bcefc29852",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260627_clean_startup_provenance_rework_v1\\decision_packet.md",
+      "sha256": "45408400360ee7659c59b0c001ad4644679667d172ccda316e4e2534afaa376f",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260627_clean_startup_provenance_rework_v1\\pytest_result.txt",
+      "sha256": "d8713bf1932978c17459b18278dc9280bcc3d5df4085e91676e3329ea8d83fd5",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260627_clean_startup_provenance_rework_v1\\execution_report.md",
+      "sha256": "97feb8814c5cf44bbfe9259671b07de5e316143096d667b87dc19d69d030b43b",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260627_clean_startup_provenance_rework_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260627_clean_startup_provenance_rework_v1",
+  "schema_version": 1,
+  "source_git_commit": "c07baccf8652",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "plan_name": "state-hygiene-inventory",
-  "decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
-  "round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
-  "generated_at": "2026-06-26T15:35:31.832338Z",
+  "decision_id": "decision_20260627_clean_startup_provenance_rework_v1",
+  "round_id": "round_20260627_clean_startup_provenance_rework_v1",
+  "generated_at": "2026-06-26T17:07:57.011797Z",
   "no_rename": true,
   "no_delete": true,
   "no_neutral_live_path_created": false,

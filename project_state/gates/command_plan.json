@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
-  "round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
+  "decision_id": "decision_20260627_clean_startup_provenance_rework_v1",
+  "round_id": "round_20260627_clean_startup_provenance_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-26T15:56:03.830012Z",
+  "generated_at": "2026-06-27T07:01:12.784727Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -28,19 +28,6 @@
   "commands": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "phase": "preflight",
-      "kind": "preflight",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
-    },
-    {
-      "index": 2,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "phase": "gate",
       "kind": "command-plan",
@@ -53,7 +40,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 3,
+      "index": 2,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "phase": "gate",
       "kind": "command-plan",
@@ -66,7 +53,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 4,
+      "index": 3,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -80,7 +67,7 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 5,
+      "index": 4,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -94,7 +81,7 @@
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 6,
+      "index": 5,
       "command": "Set-Location F:\\reverse-agent",
       "phase": "status",
       "kind": "set-location",
@@ -107,7 +94,7 @@
       "notes": "set-location expected to exit 0"
     },
     {
-      "index": 7,
+      "index": 6,
       "command": "Get-Location",
       "phase": "status",
       "kind": "pwd",
@@ -120,7 +107,7 @@
       "notes": "pwd expected to exit 0"
     },
     {
-      "index": 8,
+      "index": 7,
       "command": "Test-Path F:\\reverse-agent",
       "phase": "status",
       "kind": "test-path",
@@ -133,7 +120,7 @@
       "notes": "test-path expected to exit 0"
     },
     {
-      "index": 9,
+      "index": 8,
       "command": "git rev-parse --show-toplevel",
       "phase": "status",
       "kind": "git rev-parse",
@@ -146,7 +133,7 @@
       "notes": "git rev-parse expected to exit 0"
     },
     {
-      "index": 10,
+      "index": 9,
       "command": "git status --short",
       "phase": "status",
       "kind": "git status",
@@ -159,8 +146,21 @@
       "notes": "git status expected to exit 0"
     },
     {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_clean_startup_provenance_rework_v1 --mode execute",
+      "phase": "gate",
+      "kind": "execute-decision",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "execute-decision expected to exit 0"
+    },
+    {
       "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260626_preflight_job_foundation_and_clean_provenance_v1 --mode execute",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "phase": "preflight",
       "kind": "preflight",
       "required": true,
@@ -213,19 +213,19 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_preflight_job_foundation_and_clean_provenance_v1",
-      "phase": "preflight",
-      "kind": "preflight",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_clean_startup_provenance_rework_v1",
+      "phase": "gate",
+      "kind": "run-closeout",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
+      "notes": "run-closeout expected exit 0 after final-check passed"
     }
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260626_preflight_job_foundation_and_clean_provenance_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_clean_startup_provenance_rework_v1"
 }

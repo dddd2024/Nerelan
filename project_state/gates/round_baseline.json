@@ -1,32 +1,22 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
-  "round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
-  "head_commit": "b3f17ccb90d6",
+  "decision_id": "decision_20260627_clean_startup_provenance_rework_v1",
+  "round_id": "round_20260627_clean_startup_provenance_rework_v1",
+  "head_commit": "c07baccf8652",
   "baseline_git_status_short": [
     " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py",
-    "?? .github/workflows/decision-preflight.yml",
-    "?? reverse_agent/project_jobs.py",
-    "?? tests/test_project_jobs.py"
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
-    ".github/workflows/decision-preflight.yml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_jobs.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_jobs.py"
+    "tests/test_project_gate.py"
   ],
-  "baseline_untracked_files": [
-    ".github/workflows/decision-preflight.yml",
-    "reverse_agent/project_jobs.py",
-    "tests/test_project_jobs.py"
-  ],
-  "baseline_has_untracked_implementation_files": true,
-  "generated_at": "2026-06-26T15:23:41.764030Z"
+  "baseline_untracked_files": [],
+  "baseline_has_untracked_implementation_files": false,
+  "generated_at": "2026-06-26T16:37:34.631853Z"
 }

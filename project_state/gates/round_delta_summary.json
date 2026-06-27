@@ -1,34 +1,24 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260626_preflight_job_foundation_and_clean_provenance_v1",
-  "round_id": "round_20260626_preflight_job_foundation_and_clean_provenance_v1",
-  "head_commit": "b3f17ccb90d6",
+  "decision_id": "decision_20260627_clean_startup_provenance_rework_v1",
+  "round_id": "round_20260627_clean_startup_provenance_rework_v1",
+  "head_commit": "c07baccf8652",
   "baseline_available": true,
   "baseline_git_status_short": [
     " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py",
-    "?? .github/workflows/decision-preflight.yml",
-    "?? reverse_agent/project_jobs.py",
-    "?? tests/test_project_jobs.py"
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
-    ".github/workflows/decision-preflight.yml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_jobs.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_jobs.py"
+    "tests/test_project_gate.py"
   ],
-  "baseline_untracked_files": [
-    ".github/workflows/decision-preflight.yml",
-    "reverse_agent/project_jobs.py",
-    "tests/test_project_jobs.py"
-  ],
-  "baseline_has_untracked_implementation_files": true,
+  "baseline_untracked_files": [],
+  "baseline_has_untracked_implementation_files": false,
   "final_git_status_short": [
     " M project_state/codex_execution_report.md",
     " M project_state/execution_report.md",
@@ -52,14 +42,11 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? .github/workflows/decision-preflight.yml",
-    "?? project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/execution_report.md",
-    "?? project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/round_manifest.json",
-    "?? reverse_agent/project_jobs.py",
-    "?? tests/test_project_jobs.py"
+    "?? project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/execution_report.md",
+    "?? project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -86,7 +73,6 @@
     "tests/test_project_gate.py"
   ],
   "final_dirty_files": [
-    ".github/workflows/decision-preflight.yml",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/gates/codex_report_auto_summary.json",
@@ -107,15 +93,13 @@
     "project_state/gates/run_round_result.json",
     "project_state/gates/state_hygiene_inventory.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/decision_packet.md",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/execution_report.md",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/pytest_result.txt",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/round_manifest.json",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/execution_report.md",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_jobs.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_jobs.py"
+    "tests/test_project_gate.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -138,19 +122,16 @@
     "project_state/gates/run_round_result.json",
     "project_state/gates/state_hygiene_inventory.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/decision_packet.md",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/execution_report.md",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/pytest_result.txt",
-    "project_state/rounds/round_20260626_preflight_job_foundation_and_clean_provenance_v1/round_manifest.json"
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/execution_report.md",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260627_clean_startup_provenance_rework_v1/round_manifest.json"
   ],
   "inherited_dirty_files": [
-    ".github/workflows/decision-preflight.yml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_jobs.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_jobs.py"
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-26T15:56:35.028257Z"
+  "generated_at": "2026-06-27T07:08:15.679082Z"
 }

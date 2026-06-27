@@ -6132,6 +6132,187 @@ class TestStartupStatusOrderValid:
         assert result["startup_status_block_index"] == 4
 
 
+class TestStartupCommandsPositionValid:
+    """Verify _startup_commands_position_valid detects misordered startup blocks."""
+
+    _ALL_FIVE = (
+        "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+        "F:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Get-Location =====\n"
+        "Path\n----\nF:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+        "True\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git rev-parse --show-toplevel =====\n"
+        "F:/reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git status --short =====\n"
+        "\n"
+        "===== EXIT: 0 =====\n"
+    )
+
+    def test_correct_order_before_substantive(self) -> None:
+        """All five startup commands in correct order → True."""
+        from reverse_agent.project_gate import _startup_commands_position_valid
+
+        text = self._ALL_FIVE + "===== COMMAND: python -m pytest tests/ -q =====\n" "...\n===== EXIT: 0 =====\n"
+        assert _startup_commands_position_valid(text) is True
+
+    def test_correct_order_no_subsequent_commands(self) -> None:
+        """All five startup commands with no subsequent commands → True."""
+        from reverse_agent.project_gate import _startup_commands_position_valid
+
+        assert _startup_commands_position_valid(self._ALL_FIVE) is True
+
+    def test_git_status_after_preflight_fails(self) -> None:
+        """git status appears after preflight command → False."""
+        from reverse_agent.project_gate import _startup_commands_position_valid
+
+        text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====\n"
+            "preflight: PASSED\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            "\n"
+            "===== EXIT: 0 =====\n"
+        )
+        assert _startup_commands_position_valid(text) is False
+
+    def test_git_status_before_git_rev_parse_fails(self) -> None:
+        """git status before git rev-parse → False."""
+        from reverse_agent.project_gate import _startup_commands_position_valid
+
+        text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            "\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+        )
+        assert _startup_commands_position_valid(text) is False
+
+    def test_missing_git_status_fails(self) -> None:
+        """Missing git status block → False."""
+        from reverse_agent.project_gate import _startup_commands_position_valid
+
+        text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+        )
+        assert _startup_commands_position_valid(text) is False
+
+    def test_empty_text_fails(self) -> None:
+        """Empty text → False (no startup blocks present)."""
+        from reverse_agent.project_gate import _startup_commands_position_valid
+
+        assert _startup_commands_position_valid("") is False
+
+    def test_substantive_between_startup_blocks_fails(self) -> None:
+        """A substantive command between startup blocks → False."""
+        from reverse_agent.project_gate import _startup_commands_position_valid
+
+        text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====\n"
+            "command-plan: PASSED\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            "\n"
+            "===== EXIT: 0 =====\n"
+        )
+        assert _startup_commands_position_valid(text) is False
+
+    def test_remove_startup_blocks_leaves_substantive(self, tmp_path: Path) -> None:
+        """_remove_startup_blocks_from_pytest_result removes startup blocks only."""
+        from pathlib import Path as P
+
+        from reverse_agent.project_gate import _remove_startup_blocks_from_pytest_result
+
+        pytest_file = tmp_path / "pytest_result.txt"
+        pytest_file.write_text(
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: python -m reverse_agent.project_gate preflight =====\n"
+            "preflight: PASSED\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            " M file.py\n"
+            "===== EXIT: 0 =====\n",
+            encoding="utf-8",
+        )
+        remaining = _remove_startup_blocks_from_pytest_result(pytest_file)
+        # Set-Location and git status should be removed, preflight should remain
+        assert "Set-Location" not in remaining
+        assert "git status --short" not in remaining
+        assert "preflight" in remaining
+        assert "===== COMMAND: python -m reverse_agent.project_gate preflight =====" in remaining
+
+    def test_remove_startup_blocks_empty_when_only_startup(self, tmp_path: Path) -> None:
+        """_remove_startup_blocks_from_pytest_result returns empty text when only startup blocks exist."""
+        from pathlib import Path as P
+
+        from reverse_agent.project_gate import _remove_startup_blocks_from_pytest_result
+
+        pytest_file = tmp_path / "pytest_result.txt"
+        pytest_file.write_text(
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            "\n"
+            "===== EXIT: 0 =====\n",
+            encoding="utf-8",
+        )
+        remaining = _remove_startup_blocks_from_pytest_result(pytest_file)
+        assert remaining == ""
+
+
 class TestExtractStartupDirtyFiles:
     """Verify _extract_startup_dirty_files parses pytest_result.txt correctly."""
 
