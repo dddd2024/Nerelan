@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-  "round_id": "round_20260627_startup_order_gate_hard_rework_v2",
+  "decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+  "round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,15 +13,15 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260627_clean_startup_provenance_rework_v1",
-  "previous_round_id": "round_20260627_clean_startup_provenance_rework_v1",
+  "previous_decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
+  "previous_round_id": "round_20260627_startup_order_gate_hard_rework_v2",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "phase_label": "phase_2_7_startup_order_gate_hard_rework",
-  "primary_goal": "Make startup command order and limited-provenance acceptance mechanically enforceable.",
+  "phase_label": "phase_2_8_limited_acceptance_status_policy_rework",
+  "primary_goal": "Fix acceptance recommendation and limitation policy when startup order is correct but provenance is still limited.",
   "command_plan_authority_required": true,
-  "accepted_requires_first_five_commands_exact_startup": true,
-  "accepted_requires_no_pure_accepted_for_derived_execution_log": true,
-  "accepted_requires_no_pure_accepted_for_baseline_warn": true,
+  "accepted_requires_preserve_startup_order_check": true,
+  "accepted_requires_derived_log_limited_acceptance": true,
+  "accepted_requires_baseline_warn_limited_acceptance": true,
   "allowed_source_files": ["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
   "preserve_only_files": [
     ".github/workflows/decision-preflight.yml",
@@ -47,71 +47,66 @@
 
 ## 1. Goal
 
-Implement Startup Order Gate Hard Rework v2.
+Implement Limited Acceptance Status Policy Rework v1.
 
-The previous round failed audit because it still treated startup command coverage as startup command order. The transcript showed only `Set-Location`, `Get-Location`, and `Test-Path` before `command-plan`; `git rev-parse --show-toplevel` and `git status --short` appeared later. The report nevertheless claimed all five startup commands preceded substantive work.
+The previous round fixed the startup transcript order and added a dedicated `startup_command_position_order` final-check. Audit still returned `REWORK_REQUIRED` because the report remained pure `ACCEPTED` even though `execution_log.json` was derived-only and `baseline_capture_order` remained WARN.
 
-This round must make that impossible. The project gate and tests must reject a pure accepted result when the transcript does not prove the required order.
+This round must not rework the startup-order solution. Preserve it. The target is only status-policy and report-summary consistency.
 
-A pure `ACCEPTED` result is valid only if all are true:
+Final acceptable outcome:
 
-1. The first five top-level `===== COMMAND:` blocks in `project_state/pytest_result.txt` are exactly:
-   1. `Set-Location F:\reverse-agent`
-   2. `Get-Location`
-   3. `Test-Path F:\reverse-agent`
-   4. `git rev-parse --show-toplevel`
-   5. `git status --short`
-2. No command-plan, preflight, report-summary, pytest, final-check, execution-log, run-closeout, execute-decision, decision-lint, gate-profile, or close-round command appears before those five blocks.
-3. `execution_log.json` is not merely `derived_from_pytest_result_and_command_plan`, unless the report is limited.
-4. `baseline_capture_order` is not WARN, unless the report is limited.
-5. final-check exposes this as a dedicated position/order check, not just command coverage.
-
-If `execution_log.json` remains derived-only or `baseline_capture_order` remains WARN, the report must use `acceptance_recommendation: ACCEPTED_WITH_LIMITATIONS` and must record explicit limitations. `status` may remain `SUCCESS` if tests and gates pass, but pure `ACCEPTED` is not allowed.
-
-Preserve the existing decision-preflight workflow and job schema foundation. Do not redesign them.
+1. If `execution_log.json.source == "derived_from_pytest_result_and_command_plan"`, pure `ACCEPTED` is blocked unless a direct or hybrid provenance artifact exists.
+2. If `baseline_capture_order` is WARN, pure `ACCEPTED` is blocked unless the warning is actually cleared.
+3. If either limitation remains, `codex_report_summary.acceptance_recommendation` and `execution_report_summary.acceptance_recommendation` must be `ACCEPTED_WITH_LIMITATIONS`.
+4. If either limitation remains, final-check `status_policy_valid.limitations` must be non-null and must name the limitation.
+5. `status` may remain `SUCCESS` when tests and gates pass. Do not invent unsupported status values.
+6. The report body must explicitly list limitations instead of claiming fully clean provenance.
+7. The existing correct startup order and `startup_command_position_order` check must remain intact.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-The current decision is controlled by `project_state/decision_packet.md`; `task_packet.json` is background only.
+The current task is controlled by this `decision_packet.md`; `task_packet.json` is background only.
 
-The previous round failed for three concrete reasons:
+Evidence from the previous round:
 
-- The first substantive command appeared before the complete five-command startup block.
-- `execution_log.json` was still derived from pytest_result and command_plan.
-- `baseline_capture_order` remained WARN while the report still recommended pure `ACCEPTED`.
+- `pytest_result.txt` correctly started with `Set-Location`, `Get-Location`, `Test-Path`, `git rev-parse --show-toplevel`, and `git status --short` before `command-plan`.
+- final-check contained `startup_command_position_order: PASS`.
+- tests passed.
+- `execution_log.json.source` remained `derived_from_pytest_result_and_command_plan`.
+- `baseline_capture_order` remained WARN.
+- `codex_report_summary.acceptance_recommendation` still said `ACCEPTED`.
+- final-check `status_policy_valid.limitations` was null.
 
 Previously accepted work to preserve:
 
-- `.github/workflows/decision-preflight.yml`
-- `reverse_agent/project_jobs.py`
-- `tests/test_project_jobs.py`
-- existing CI/state-gate workflows
-- neutral-primary report semantics and legacy aliases
-- command-plan, pytest_result, execution-log, report-summary, final-check, and run-closeout chain
+- startup command order in `pytest_result.txt`;
+- `startup_command_position_order` check;
+- `decision-preflight.yml`;
+- `project_jobs.py` and `tests/test_project_jobs.py`;
+- neutral-primary report semantics and legacy aliases;
+- command-plan, pytest_result, execution-log, report-summary, final-check, and run-closeout chain.
 
-Historical sample artifacts remain non-blocking for this engineering round. Do not use sample-state files as current evidence for this task.
+Historical sample artifacts remain non-blocking for this engineering round. Do not use sample-state as current evidence.
 
 ## 3. Do Not Do
 
-Do not solve this by report prose only.
+Do not redo the startup-order implementation unless a narrow compatibility fix is required.
 
-Do not mark Required Audit PASS when the transcript contradicts it.
+Do not change `decision-preflight.yml`, `project_jobs.py`, or `tests/test_project_jobs.py` except to preserve compatibility.
 
-Do not let startup command coverage substitute for startup command order.
+Do not claim pure `ACCEPTED` if execution_log is derived-only.
 
-Do not allow pure `ACCEPTED` when execution_log is derived-only without explicit limitation.
+Do not claim pure `ACCEPTED` if `baseline_capture_order` remains WARN.
 
-Do not allow pure `ACCEPTED` when baseline_capture_order remains WARN without explicit limitation.
+Do not set `limitations` to null when acceptance is limited.
 
-Do not modify forbidden paths listed in decision_contract.
+Do not modify forbidden paths listed in `decision_contract`.
 
-Do not redesign `decision-preflight.yml`, `project_jobs.py`, or `tests/test_project_jobs.py` unless a narrow compatibility change is unavoidable.
+Do not enter web UI, external runner dispatch, database, queue, scheduler, automatic remote writes, or sample-solving scope.
 
-Do not add web UI, external runner dispatch, database, queue, scheduler, automatic remote writes, or sample-solving work.
-
-Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly tells the executor to do so.
+Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly instructs the executor to do so.
 
 ## 4. Files To Inspect
 
@@ -131,14 +126,14 @@ Then inspect only:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `project_state/gates/command_plan.json`
-4. `project_state/gates/execution_log.json`
-5. `project_state/gates/final_gate_result.json`
-6. `project_state/gates/report_summary_synthesis.json`
-7. `project_state/gates/run_closeout_result.json`
-8. `project_state/gates/round_baseline.json`
-9. `project_state/gates/round_delta_summary.json`
-10. preservation-only files named in `preserve_only_files`
+3. `project_state/gates/execution_log.json`
+4. `project_state/gates/final_gate_result.json`
+5. `project_state/gates/report_summary_synthesis.json`
+6. `project_state/gates/round_baseline.json`
+7. `project_state/gates/round_delta_summary.json`
+8. `project_state/gates/run_closeout_result.json`
+9. `project_state/gates/command_plan.json`
+10. preservation-only files named in `decision_contract.preserve_only_files`
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -146,14 +141,14 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 The report must answer all items with concrete evidence and status `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`:
 
-1. What are the first five top-level command blocks in `project_state/pytest_result.txt`, exactly and in order?
-2. What is the first substantive command block, and is it after the five startup commands?
-3. Which final-check/test rule fails if `git rev-parse` or `git status --short` appears after a substantive command?
-4. Is command-plan order authorization order or transcript order, and how is that distinction represented?
-5. Is `execution_log.json` direct, hybrid, or derived-only? If derived-only, why is pure `ACCEPTED` blocked or limited?
-6. Is `baseline_capture_order` PASS, WARN, or absent? If WARN remains, why is pure `ACCEPTED` blocked or limited?
-7. What previous false PASS claim was corrected?
-8. How were decision-preflight, project_jobs, command-plan, pytest_result, execution-log, final-check, report-summary, and run-closeout preserved?
+1. Is the first-five-command startup order still correct?
+2. Does `startup_command_position_order` still pass?
+3. Is `execution_log.json` direct, hybrid, or derived-only?
+4. If execution_log is derived-only, where is the limitation recorded, and why is pure `ACCEPTED` blocked?
+5. Is `baseline_capture_order` PASS, WARN, or absent?
+6. If `baseline_capture_order` remains WARN, where is the limitation recorded, and why is pure `ACCEPTED` blocked?
+7. What are the final `status`, `acceptance_recommendation`, and `limitations` fields in both report summaries and final-check?
+8. How were preserved files and existing gate chain behavior kept unchanged?
 
 ## 6. Implementation Scope
 
@@ -183,16 +178,15 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/state_hygiene_inventory.json`
-- `project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/*`
+- `project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/*`
 
 Required behavior:
 
-1. Add or fix a position-based startup-order check.
-2. Add regression tests where `git rev-parse` or `git status --short` after command-plan causes failure for pure accepted state.
-3. Add or fix status policy so derived-only execution_log blocks pure `ACCEPTED` unless limitations are explicit.
-4. Add or fix status policy so baseline_capture_order WARN blocks pure `ACCEPTED` unless limitations are explicit.
-5. Preserve neutral-primary report semantics and legacy aliases.
-6. Preserve execute-decision, command-plan, pytest_result, execution-log, report-summary, final-check, and run-closeout behavior.
+1. Preserve startup transcript order and `startup_command_position_order` behavior.
+2. Add or fix tests so derived-only execution_log blocks pure `ACCEPTED` unless explicit limitations are present.
+3. Add or fix tests so `baseline_capture_order` WARN blocks pure `ACCEPTED` unless explicit limitations are present.
+4. Make report-summary synthesis, auto-summary aliases, final-check, and report body agree on `ACCEPTED_WITH_LIMITATIONS` when limitations remain.
+5. Keep implementation small and avoid broad refactors.
 
 ## 7. Tests
 
@@ -206,23 +200,23 @@ git rev-parse --show-toplevel
 git status --short
 ```
 
-Only after those five blocks, run command-plan-authorized validation, including:
+Then run command-plan-authorized validation. At minimum include:
 
 ```powershell
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2 --mode execute
-python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1 --mode execute
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
 python -m reverse_agent.project_gate execution-log --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-The command-plan-authorized set is authoritative, except it must not override the five-startup-commands-first requirement for accepted state.
+The command-plan-authorized set is authoritative, but it must not override the startup-first requirement or limited-acceptance policy.
 
 Write all top-level commands and exit codes to `project_state/pytest_result.txt`.
 
@@ -241,13 +235,12 @@ Stop immediately and report `BLOCKED` if:
 
 Stop with `REWORK_REQUIRED` if:
 
-- the first five top-level command blocks are not exactly the required startup sequence;
-- any substantive command appears before those five startup commands;
-- final-check lacks a dedicated position-based startup-order check;
-- report claims startup order that the transcript does not prove;
-- execution_log remains derived-only while report/final-check claims pure `ACCEPTED` without limitation;
-- baseline_capture_order remains WARN while report/final-check claims pure `ACCEPTED` without limitation;
-- command-plan order and transcript order differ but no explicit order semantics explains the distinction;
+- startup transcript order regresses;
+- `startup_command_position_order` disappears or fails;
+- execution_log remains derived-only while report/final-check claims pure `ACCEPTED`;
+- `baseline_capture_order` remains WARN while report/final-check claims pure `ACCEPTED`;
+- limitations remain but `limitations` is null;
+- report summaries, auto summaries, final-check, and report body disagree on acceptance recommendation;
 - preservation-only files are unnecessarily redesigned;
 - neutral-primary report semantics regress;
 - legacy alias parity breaks;
