@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "gate_name": "run-closeout",
-  "closeout_status": "FAILED",
-  "decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
-  "round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
-  "generated_at": "2026-06-28T03:28:55.506774Z",
+  "closeout_status": "PASSED",
+  "decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+  "round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+  "generated_at": "2026-06-28T07:30:06.104028Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -74,7 +74,7 @@
         0,
         1
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "status": "PASSED"
     },
     {
@@ -90,13 +90,24 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 1,
-      "status": "FAILED"
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "name": "final-check-after-close",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
     }
   ],
   "skipped_steps": [],
@@ -104,14 +115,14 @@
   "close_round_result": {
     "schema_version": 1,
     "gate_name": "close-round",
-    "close_status": "FAILED",
-    "decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
-    "report_id": "codex_report_20260627_limited_acceptance_status_policy_rework_v1",
-    "round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
-    "decision_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
-    "report_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
-    "report_status": "FAILED",
-    "generated_at": "2026-06-28T03:28:55.484776Z",
+    "close_status": "CLOSED",
+    "decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+    "report_id": "codex_report_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+    "round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+    "decision_round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+    "report_round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+    "report_status": "SUCCESS",
+    "generated_at": "2026-06-28T07:30:04.619816Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -138,15 +149,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
-        "decision_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
-        "report_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1"
+        "requested_round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+        "decision_round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+        "report_round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1"
+        "report_based_on_decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1"
       },
       {
         "name": "pytest_result_match",
@@ -172,8 +183,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
-        "command_plan_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1"
+        "command_plan_decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+        "command_plan_round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1"
       },
       {
         "name": "command_plan_covers_report_tests",
@@ -221,7 +232,7 @@
         "detail": "closeout-tail command recording is pending until run-closeout completes",
         "errors": [
           {
-            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1",
+            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
             "error": "missing recorded command block",
             "expected_count": 1,
             "recorded_count": 0
@@ -249,7 +260,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/naming_migration_plan.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -258,7 +268,6 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
-          "project_state/gates/state_hygiene_inventory.json",
           "reverse_agent/project_gate.py"
         ],
         "final_dirty_files": [
@@ -271,7 +280,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/naming_migration_plan.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -280,7 +288,6 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
-          "project_state/gates/state_hygiene_inventory.json",
           "project_state/pytest_result.txt",
           "reverse_agent/project_gate.py"
         ]
@@ -309,7 +316,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/naming_migration_plan.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -318,7 +324,6 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
-          "project_state/gates/state_hygiene_inventory.json",
           "project_state/pytest_result.txt",
           "reverse_agent/project_gate.py"
         ],
@@ -331,7 +336,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/naming_migration_plan.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
@@ -340,8 +344,7 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
-          "project_state/gates/state_hygiene_inventory.json",
-          "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/round_manifest.json",
+          "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/round_manifest.json",
           "reverse_agent/project_gate.py"
         ],
         "inherited_dirty_files": [
@@ -437,7 +440,6 @@
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/naming_migration_plan.json",
           "project_state/gates/phase1_completion_result.json",
           "project_state/gates/policy_impact_audit.json",
           "project_state/gates/policy_lint_result.json",
@@ -527,20 +529,10 @@
       },
       {
         "name": "report_summary_fields_match_synthesis",
-        "status": "FAIL",
+        "status": "WARN",
         "detail": "execution_report_summary differs from synthesized summary",
         "errors": [],
         "diffs": [
-          {
-            "field": "status",
-            "expected": "SUCCESS",
-            "actual": "FAILED"
-          },
-          {
-            "field": "acceptance_recommendation",
-            "expected": "ACCEPTED_WITH_LIMITATIONS",
-            "actual": "REWORK_REQUIRED"
-          },
           {
             "field": "files_changed",
             "expected": [
@@ -553,7 +545,6 @@
               "project_state/gates/execution_report_auto_summary.json",
               "project_state/gates/final_gate_result.json",
               "project_state/gates/gate_profile_plan.json",
-              "project_state/gates/naming_migration_plan.json",
               "project_state/gates/preflight_result.json",
               "project_state/gates/report_summary_synthesis.json",
               "project_state/gates/round_baseline.json",
@@ -562,7 +553,6 @@
               "project_state/gates/run_closeout_execution_log.json",
               "project_state/gates/run_closeout_result.json",
               "project_state/gates/run_round_result.json",
-              "project_state/gates/state_hygiene_inventory.json",
               "project_state/pytest_result.txt",
               "reverse_agent/project_gate.py"
             ],
@@ -576,7 +566,6 @@
               "project_state/gates/execution_report_auto_summary.json",
               "project_state/gates/final_gate_result.json",
               "project_state/gates/gate_profile_plan.json",
-              "project_state/gates/naming_migration_plan.json",
               "project_state/gates/preflight_result.json",
               "project_state/gates/report_summary_synthesis.json",
               "project_state/gates/round_baseline.json",
@@ -585,13 +574,12 @@
               "project_state/gates/run_closeout_execution_log.json",
               "project_state/gates/run_closeout_result.json",
               "project_state/gates/run_round_result.json",
-              "project_state/gates/state_hygiene_inventory.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/round_manifest.json",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/round_manifest.json",
               "reverse_agent/project_gate.py"
             ]
           },
@@ -607,7 +595,6 @@
               "project_state/gates/execution_report_auto_summary.json",
               "project_state/gates/final_gate_result.json",
               "project_state/gates/gate_profile_plan.json",
-              "project_state/gates/naming_migration_plan.json",
               "project_state/gates/phase1_completion_result.json",
               "project_state/gates/policy_impact_audit.json",
               "project_state/gates/policy_lint_result.json",
@@ -631,7 +618,6 @@
               "project_state/gates/execution_report_auto_summary.json",
               "project_state/gates/final_gate_result.json",
               "project_state/gates/gate_profile_plan.json",
-              "project_state/gates/naming_migration_plan.json",
               "project_state/gates/phase1_completion_result.json",
               "project_state/gates/policy_impact_audit.json",
               "project_state/gates/policy_lint_result.json",
@@ -644,11 +630,11 @@
               "project_state/gates/run_closeout_result.json",
               "project_state/gates/state_hygiene_inventory.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/round_manifest.json"
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/round_manifest.json"
             ]
           }
         ]
@@ -685,7 +671,6 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/naming_migration_plan.json",
           "project_state/gates/phase1_completion_result.json",
           "project_state/gates/policy_impact_audit.json",
           "project_state/gates/policy_lint_result.json",
@@ -723,42 +708,71 @@
         "closeout_allowed": true
       }
     ],
-    "actions": [],
+    "actions": [
+      {
+        "name": "final_check_before_archive",
+        "status": "PASSED",
+        "gate_status": "WARN",
+        "allowed_archive_pending_failures": [],
+        "unexpected_failures": [],
+        "closeout_tail_failed_blocks_related": false,
+        "closeout_tail_failed_blocks": [],
+        "artifact": "project_state/gates/final_gate_result.json"
+      },
+      {
+        "name": "archive_round",
+        "status": "created",
+        "round_dir": "project_state\\rounds\\round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+        "manifest": "project_state\\rounds\\round_20260628_pytest_summary_and_closeout_consistency_rework_v1\\round_manifest.json",
+        "copied": [
+          "decision_packet.md",
+          "codex_execution_report.md",
+          "pytest_result.txt"
+        ]
+      },
+      {
+        "name": "final_check_after_archive",
+        "status": "PASSED",
+        "gate_status": "PASSED_WITH_LIMITATIONS",
+        "unexpected_failures": [],
+        "artifact": "project_state/gates/final_gate_result.json"
+      }
+    ],
     "archive": {
-      "status": "not_attempted",
-      "round_manifest_path": "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/round_manifest.json",
-      "files": [],
+      "status": "created",
+      "round_manifest_path": "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/round_manifest.json",
+      "files": [
+        "codex_execution_report.md",
+        "decision_packet.md",
+        "pytest_result.txt",
+        "round_manifest.json"
+      ],
       "included_diff": false,
       "included_state_snapshot": false,
-      "copied": [],
+      "copied": [
+        "decision_packet.md",
+        "codex_execution_report.md",
+        "pytest_result.txt"
+      ],
       "idempotent": false
     },
-    "blocking_reasons": [
+    "blocking_reasons": [],
+    "warnings": [
       "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary"
     ],
-    "warnings": [],
     "resolved_pre_archive_warnings": [],
     "pre_archive_diagnostics": [],
-    "recommended_next_action": "fix_close_round_failures_before_retry",
+    "recommended_next_action": "no_action_required",
     "status_summary": {
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "archive_status": "not_archived",
-      "report_status": "FAILED",
-      "report_acceptance_recommendation": "REWORK_REQUIRED"
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "archive_status": "archived",
+      "report_status": "SUCCESS",
+      "report_acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS"
     }
   },
-  "blocking_reasons": [
-    "step close-round exited 1, expected [0]: close_status=FAILED",
-    "executed step close-round failed: exit=1, expected=[0]",
-    "close-round close_status=FAILED",
-    "close-round report_status=FAILED",
-    "close-round blocking reason: report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
-    "close-round nested failure: close_round_result.report_status=FAILED",
-    "close-round nested failure: close_round_result.checks[35].status=FAIL (report_summary_fields_match_synthesis)",
-    "close-round nested failure: close_round_result.status_summary.report_status=FAILED"
-  ],
+  "blocking_reasons": [],
   "warnings": [],
-  "recommended_next_action": "fix_run_closeout_failures_before_retry",
+  "recommended_next_action": "no_action_required",
   "artifacts": {
     "command_plan": "project_state/gates/command_plan.json",
     "run_closeout_result": "project_state/gates/run_closeout_result.json"
