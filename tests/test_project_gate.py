@@ -1558,6 +1558,84 @@ def test_refresh_report_includes_dirty_preflight_and_round_baseline(
     assert "project_state/gates/round_baseline.json" in summary["files_changed"]
 
 
+def test_refresh_report_and_synthesis_include_execute_delegated_run_round(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    command = (
+        "python -m reverse_agent.project_gate execute-decision "
+        "--state-dir project_state --round-id round_gate --mode execute"
+    )
+    _write_json(state_dir / "gates" / "command_plan.json", {
+        "schema_version": 1,
+        "plan_status": "PASSED",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "commands": [
+            {
+                "index": 1,
+                "command": command,
+                "kind": "execute-decision",
+                "phase": "gate",
+                "expected_exit_codes": [0],
+            }
+        ],
+    })
+    _write_json(state_dir / "gates" / "gate_profile_plan.json", {
+        "schema_version": 1,
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "plan_status": "PASSED",
+        "closeout_allowed": False,
+    })
+    _write_json(state_dir / "gates" / "execute_decision_result.json", {
+        "schema_version": 1,
+        "artifact_name": "execute_decision_result.json",
+        "gate_status": "PASSED",
+        "status": "PASSED",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "generated_artifacts": [
+            "project_state/gates/execute_decision_result.json",
+            "project_state/gates/run_round_result.json",
+        ],
+    })
+    _write_json(state_dir / "gates" / "run_round_result.json", {
+        "schema_version": 1,
+        "artifact_name": "run_round_result.json",
+        "gate_status": "PASSED",
+        "run_status": "PASSED",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+    })
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "project_state/gates/execute_decision_result.json",
+            "project_state/gates/run_round_result.json",
+        ],
+    )
+
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+
+    summary = _read_execution_report_summary(state_dir)
+    assert "project_state/gates/execute_decision_result.json" in summary["files_changed"]
+    assert "project_state/gates/run_round_result.json" in summary["generated_artifacts"]
+    synthesized = synthesis["synthesized_summary"]
+    assert "project_state/gates/execute_decision_result.json" in synthesized["files_changed"]
+    assert "project_state/gates/run_round_result.json" in synthesized["generated_artifacts"]
+
+
 def test_report_auto_summary_writes_neutral_alias(tmp_path: Path) -> None:
     from reverse_agent.project_gate import report_auto_summary
 
@@ -22489,6 +22567,51 @@ class TestRequiredAuditPlaceholderBlocking:
         )
 
         assert result["status"] == "PASS"
+
+    def test_job_inventory_closeout_convergence_audit_generator_aligns(self) -> None:
+        from reverse_agent.project_gate import (
+            _generate_job_inventory_closeout_convergence_required_audit,
+            _required_audit_coverage_check,
+        )
+
+        questions = [
+            "Was startup source/test baseline clean before implementation?",
+            "Was the existing job inventory implementation preserved rather than rewritten?",
+            "Does the generated DRAFT job contract still validate as DRAFT, non-dispatching, and safe?",
+            "Did dispatch and forbidden permission flags remain blocked?",
+            "What caused the previous `report_summary_fields_match_synthesis` failure, and what exact behavior now prevents the mismatch?",
+            "Do live report summaries, auto summaries, and `report_summary_synthesis.json` agree on `status`, `acceptance_recommendation`, `files_changed`, `generated_artifacts`, `tests_ran`, and `limitations`?",
+            "What caused the previous `execute_decision_contract` failure, and why is `execute_decision_result.status` now `PASSED`?",
+            "If execute-decision self-invocation guard is used, how is it represented without failing the execute-decision contract?",
+            "Does `pytest_result_summary.status` match all required recorded command-block exit codes?",
+            "Did both required pytest commands exit 0, and what are their pass counts?",
+            "Did `final-check` pass before closeout or produce only allowed diagnostic states?",
+            "Did `run-closeout` exit 0?",
+            "Is `run_closeout_result.closeout_status` `PASSED`, and is `close_round_result.close_status` `CLOSED`?",
+            "Does `closeout_nested_failures_absent` pass with no active nested FAILED/FAIL states?",
+            "Did hybrid execution-log provenance remain valid and non-derived-only?",
+            "Were forbidden paths, full solve_reports scans, reverse-solving, Web/AgentRunner/DB/queue/scheduler scope, and remote mutation avoided?",
+        ]
+        decision_text = (
+            "# Job Inventory Closeout Convergence Rework\n\n"
+            "## Required Audit\n\n"
+            + "\n".join(f"{index}. {question}" for index, question in enumerate(questions, start=1))
+            + "\n"
+        )
+        report_text = (
+            "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n"
+            + _generate_job_inventory_closeout_convergence_required_audit(decision_text)
+        )
+
+        result = _required_audit_coverage_check(
+            decision_text=decision_text,
+            report_text=report_text,
+            report_status="SUCCESS",
+        )
+
+        assert result["status"] == "PASS"
+        assert "(to be filled)" not in report_text
+        assert "Status: PENDING" not in report_text
 
     def test_neutral_primary_source_rework_audit_blocks_wrong_item_answer(self) -> None:
         from reverse_agent.project_gate import _required_audit_coverage_check, parse_required_audit_questions

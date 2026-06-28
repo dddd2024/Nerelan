@@ -1,37 +1,25 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260628_clean_baseline_job_inventory_v1",
-  "round_id": "round_20260628_clean_baseline_job_inventory_v1",
-  "head_commit": "3658a7dbb56e",
+  "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
+  "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
+  "head_commit": "1d49e5c177a6",
   "baseline_git_status_short": [
     " M project_state/gates/command_plan.json",
-    " M project_state/gates/execute_decision_result.json",
-    " M project_state/gates/preflight_result.json",
-    " M project_state/gates/report_summary_synthesis.json",
-    " D project_state/gates/round_baseline.json",
-    " M project_state/gates/round_delta_summary.json",
-    " M project_state/gates/run_round_result.json"
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "project_state/gates/command_plan.json",
-    "project_state/gates/execute_decision_result.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_round_result.json"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
     "project_state/gates/command_plan.json",
-    "project_state/gates/execute_decision_result.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_round_result.json"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-28T13:13:26.492668Z"
+  "generated_at": "2026-06-28T14:37:45.722459Z"
 }

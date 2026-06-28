@@ -2,17 +2,17 @@
   "schema_version": 1,
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
-  "gate_status": "WARN",
-  "decision_id": "decision_20260628_clean_baseline_job_inventory_v1",
-  "round_id": "round_20260628_clean_baseline_job_inventory_v1",
-  "report_id": "codex_report_20260628_clean_baseline_job_inventory_v1",
-  "generated_at": "2026-06-28T14:13:16.732373Z",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
+  "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
+  "report_id": "codex_report_20260628_job_inventory_closeout_convergence_rework_v1",
+  "generated_at": "2026-06-28T15:17:49.351364Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260628_clean_baseline_job_inventory_v1",
-    "round_id": "round_20260628_clean_baseline_job_inventory_v1",
-    "report_id": "codex_report_20260628_clean_baseline_job_inventory_v1",
+    "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
+    "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
+    "report_id": "codex_report_20260628_job_inventory_closeout_convergence_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "1bce0aa92976c30742d91b9e535904f5c94ec057640638a360972d32149ae630",
-        "size_bytes": 17101,
-        "command_block_count": 15
+        "sha256": "57b50cabcfd223a9fcef8307dce475f2401c04a6803dff86035d6995e8af342a",
+        "size_bytes": 16671,
+        "command_block_count": 16
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "c29155609fe5a9c6f518682d1497c5aee493fa78a775e05c1c8333b87d46a644",
-        "size_bytes": 7105,
-        "decision_id": "decision_20260628_clean_baseline_job_inventory_v1",
-        "round_id": "round_20260628_clean_baseline_job_inventory_v1",
+        "sha256": "83376fa003b2ff4cd26f78c6990a690b0b8aafed0151ca7124637164305c6969",
+        "size_bytes": 7170,
+        "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
+        "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
         "plan_status": "PASSED",
         "command_count": 16
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "caf6b0abeb2663c78574726025778b37c8bd865c97e05274ac9d4d84353bb2b9",
-        "size_bytes": 4547576,
-        "decision_id": "decision_20260628_clean_baseline_job_inventory_v1",
-        "round_id": "round_20260628_clean_baseline_job_inventory_v1",
-        "command_block_count": 1832
+        "sha256": "2de13a231047d5c0091b5d2236ae0171c64fc91657e5442945bb3d685784e6cd",
+        "size_bytes": 4602315,
+        "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
+        "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
+        "command_block_count": 1853
       }
     },
-    "command_count": 15,
-    "command_digest": "ddad46f9b40d23accc7f2cf73565802acbfcddc40e6a23191342e7c2aa85d842"
+    "command_count": 16,
+    "command_digest": "f889ea4acad4d977c64679fe7c76c3713a24db1b840ecbfb8c4da34fa6a82f42"
   },
   "commands": [
     {
@@ -158,12 +158,12 @@
         0,
         1
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "status": "PASSED"
     },
     {
       "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_job_inventory_v1 --mode execute",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_job_inventory_closeout_convergence_rework_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -208,19 +208,29 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_job_inventory_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_job_inventory_closeout_convergence_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 1,
-      "status": "FAILED"
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
     }
   ],
-  "warnings": [
-    "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-check --state-dir project_state"
-  ],
+  "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "review_execution_log_warnings"
+  "recommended_next_action": "no_action_required"
 }
