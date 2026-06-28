@@ -1,10 +1,10 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-  "report_id": "codex_report_20260627_startup_order_gate_hard_rework_v2",
-  "round_id": "round_20260627_startup_order_gate_hard_rework_v2",
-  "generated_at": "2026-06-27T15:00:40.055980Z",
+  "decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+  "report_id": "codex_report_20260627_limited_acceptance_status_policy_rework_v1",
+  "round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
+  "generated_at": "2026-06-28T03:41:20.847800Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
@@ -12,11 +12,11 @@
     "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2 --mode execute",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1 --mode execute",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2"
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1"
   ]
 }
 ```
@@ -43,19 +43,15 @@ F:/reverse-agent
 
 ===== COMMAND: git status --short =====
  M project_state/gates/command_plan.json
- M project_state/gates/report_summary_synthesis.json
- M project_state/gates/round_delta_summary.json
  M project_state/pytest_result.txt
- M reverse_agent/project_gate.py
- M tests/test_project_gate.py
 
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
-decision_id: decision_20260627_startup_order_gate_hard_rework_v2
-round_id: round_20260627_startup_order_gate_hard_rework_v2
-recommended_next_action: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2
+decision_id: decision_20260627_limited_acceptance_status_policy_rework_v1
+round_id: round_20260627_limited_acceptance_status_policy_rework_v1
+recommended_next_action: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1
 
 ===== EXIT: 0 =====
 
@@ -64,10 +60,10 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-  "round_id": "round_20260627_startup_order_gate_hard_rework_v2",
+  "decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+  "round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-27T15:00:40.128338Z",
+  "generated_at": "2026-06-28T03:41:20.891053Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -90,6 +86,71 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
   "commands": [
     {
       "index": 1,
+      "command": "Set-Location F:\\reverse-agent",
+      "phase": "status",
+      "kind": "set-location",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "set-location expected to exit 0"
+    },
+    {
+      "index": 2,
+      "command": "Get-Location",
+      "phase": "status",
+      "kind": "pwd",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pwd expected to exit 0"
+    },
+    {
+      "index": 3,
+      "command": "Test-Path F:\\reverse-agent",
+      "phase": "status",
+      "kind": "test-path",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "test-path expected to exit 0"
+    },
+    {
+      "index": 4,
+      "command": "git rev-parse --show-toplevel",
+      "phase": "status",
+      "kind": "git rev-parse",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "git rev-parse expected to exit 0"
+    },
+    {
+      "index": 5,
+      "command": "git status --short",
+      "phase": "status",
+      "kind": "git status",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "git status expected to exit 0"
+    },
+    {
+      "index": 6,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "phase": "gate",
       "kind": "command-plan",
@@ -102,7 +163,7 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 2,
+      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "phase": "gate",
       "kind": "command-plan",
@@ -115,7 +176,7 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 3,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "phase": "preflight",
       "kind": "preflight",
@@ -128,7 +189,7 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
       "notes": "preflight expected to exit 0"
     },
     {
-      "index": 4,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -142,7 +203,7 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 5,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -156,73 +217,8 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 6,
-      "command": "Set-Location F:\\reverse-agent",
-      "phase": "status",
-      "kind": "set-location",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "set-location expected to exit 0"
-    },
-    {
-      "index": 7,
-      "command": "Get-Location",
-      "phase": "status",
-      "kind": "pwd",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pwd expected to exit 0"
-    },
-    {
-      "index": 8,
-      "command": "Test-Path F:\\reverse-agent",
-      "phase": "status",
-      "kind": "test-path",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "test-path expected to exit 0"
-    },
-    {
-      "index": 9,
-      "command": "git rev-parse --show-toplevel",
-      "phase": "status",
-      "kind": "git rev-parse",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "git rev-parse expected to exit 0"
-    },
-    {
-      "index": 10,
-      "command": "git status --short",
-      "phase": "status",
-      "kind": "git status",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "git status expected to exit 0"
-    },
-    {
       "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2 --mode execute",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1 --mode execute",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -275,7 +271,7 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -289,15 +285,15 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1"
 }
 
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed =====
 preflight: PASSED
-decision_id: decision_20260627_startup_order_gate_hard_rework_v2
-round_id: round_20260627_startup_order_gate_hard_rework_v2
+decision_id: decision_20260627_limited_acceptance_status_policy_rework_v1
+round_id: round_20260627_limited_acceptance_status_policy_rework_v1
 mainline: engineering_branch
   [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline
   [PASS] decision_meta_parse: decision_meta parsed
@@ -319,14 +315,15 @@ recommended_next_action: proceed_with_decision_scope
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
 report-summary: PASSED
-decision_id: decision_20260627_startup_order_gate_hard_rework_v2
-report_id: codex_report_20260627_startup_order_gate_hard_rework_v2
-round_id: round_20260627_startup_order_gate_hard_rework_v2
+decision_id: decision_20260627_limited_acceptance_status_policy_rework_v1
+report_id: codex_report_20260627_limited_acceptance_status_policy_rework_v1
+round_id: round_20260627_limited_acceptance_status_policy_rework_v1
+  [INFO] final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet
 artifact: project_state/gates/report_summary_synthesis.json
-recommended_next_action: no_action_required
+
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2 --mode execute =====
+===== COMMAND: python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1 --mode execute =====
 run-round: skipped
 reason: self-invocation guard: run-round must not invoke itself recursively
 
@@ -337,7 +334,7 @@ reason: self-invocation guard: run-round must not invoke itself recursively
 ........................................................................ [ 11%]
 ........................................................................ [ 17%]
 ........................................................................ [ 23%]
-........................................................................ [ 29%]
+.................................................F...................... [ 29%]
 ........................................................................ [ 35%]
 ........................................................................ [ 40%]
 ........................................................................ [ 46%]
@@ -351,64 +348,43 @@ reason: self-invocation guard: run-round must not invoke itself recursively
 ........................................................................ [ 93%]
 ........................................................................ [ 99%]
 ..........                                                               [100%]
-1234 passed in 162.55s (0:02:42)
+================================== FAILURES ===================================
+_ TestReportSummarySynthesisMainlineAware.test_reverse_solving_historical_blocks_in_synthesis _
 
-===== EXIT: 0 =====
+self = <test_project_gate.TestReportSummarySynthesisMainlineAware object at 0x000001E0464574D0>
+tmp_path = WindowsPath('C:/Users/wjc27/AppData/Local/Temp/pytest-of-wjc27/pytest-2953/test_reverse_solving_historica1')
 
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q =====
-........................................................................ [  5%]
-........................................................................ [ 11%]
-........................................................................ [ 17%]
-........................................................................ [ 23%]
-........................................................................ [ 29%]
-........................................................................ [ 34%]
-........................................................................ [ 40%]
-........................................................................ [ 46%]
-........................................................................ [ 52%]
-........................................................................ [ 58%]
-........................................................................ [ 63%]
-........................................................................ [ 69%]
-........................................................................ [ 75%]
-........................................................................ [ 81%]
-........................................................................ [ 87%]
-........................................................................ [ 92%]
-........................................................................ [ 98%]
-...............                                                          [100%]
-1239 passed in 165.56s (0:02:45)
+    def test_reverse_solving_historical_blocks_in_synthesis(self, tmp_path: Path) -> None:
+        """For reverse_solving, historical sample limitations must block (strict freshness)."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW", mainline="reverse_solving")
+        _write_json(
+            state_dir / "artifact_index.json",
+            {
+                "missing": [],
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "old_probe": {"freshness": "stale"},
+                    "missing_probe": {"freshness": "missing"},
+                },
+            },
+        )
+    
+        # Run final_check first to produce the gate result
+        final_check(state_dir=state_dir, repo_root=tmp_path)
+    
+        # Now run synthesis
+        result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+    
+        synthesized = result["synthesized_summary"]
+>       assert synthesized.get("acceptance_recommendation") in {"NEEDS_REVIEW", "REWORK_REQUIRED"}
+E       AssertionError: assert None in {'NEEDS_REVIEW', 'REWORK_REQUIRED'}
+E        +  where None = <built-in method get of dict object at 0x000001E046AA5300>('acceptance_recommendation')
+E        +    where <built-in method get of dict object at 0x000001E046AA5300> = {'based_on_decision_id': 'decision_gate', 'files_changed': ['project_state/codex_execution_report.md', 'project_state/...report_summary_synthesis.json', 'project_state/gates/round_baseline.json', ...], 'report_id': 'codex_report_gate', ...}.get
 
-===== EXIT: 0 =====
+tests\test_project_gate.py:7679: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_project_gate.py::TestReportSummarySynthesisMainlineAware::test_reverse_solving_historical_blocks_in_synthesis
+1 failed, 1233 passed in 100.71s (0:01:40)
 
-===== COMMAND: python -m reverse_agent.project_gate execution-log --state-dir project_state =====
-execution-log: PASSED
-decision_id: decision_20260627_startup_order_gate_hard_rework_v2
-round_id: round_20260627_startup_order_gate_hard_rework_v2
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
-decision_id: decision_20260627_startup_order_gate_hard_rework_v2
-report_id: codex_report_20260627_startup_order_gate_hard_rework_v2
-round_id: round_20260627_startup_order_gate_hard_rework_v2
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2 =====
-run-closeout: PASSED
-decision_id: decision_20260627_startup_order_gate_hard_rework_v2
-round_id: round_20260627_startup_order_gate_hard_rework_v2
-  [PASSED] decision-lint: exit=0
-  [PASSED] preflight: exit=0
-  [PASSED] pytest: exit=0
-  [PASSED] gate-profile: exit=0
-  [PASSED] command-plan: exit=0
-  [PASSED] command-plan-json: exit=0
-  [PASSED] report-summary: exit=0
-  [PASSED] final-check: exit=1
-  [PASSED] close-round: exit=0
-  [PASSED] final-check-after-close: exit=0
-artifact: project_state/gates/run_closeout_result.json
-recommended_next_action: no_action_required
-
-===== EXIT: 0 =====
+===== EXIT: 1 =====
 

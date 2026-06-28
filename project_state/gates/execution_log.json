@@ -2,11 +2,11 @@
   "schema_version": 1,
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-  "round_id": "round_20260627_startup_order_gate_hard_rework_v2",
-  "report_id": "codex_report_20260627_startup_order_gate_hard_rework_v2",
-  "generated_at": "2026-06-27T15:09:24.861908Z",
+  "gate_status": "WARN",
+  "decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+  "round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
+  "report_id": "codex_report_20260627_limited_acceptance_status_policy_rework_v1",
+  "generated_at": "2026-06-28T03:28:59.577645Z",
   "source": "derived_from_pytest_result_and_command_plan",
   "commands": [
     {
@@ -106,12 +106,12 @@
         0,
         1
       ],
-      "exit_code": 0,
+      "exit_code": 1,
       "status": "PASSED"
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2 --mode execute",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -156,29 +156,19 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
+      "exit_code": 1,
+      "status": "FAILED"
     }
   ],
-  "warnings": [],
+  "warnings": [
+    "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-check --state-dir project_state"
+  ],
   "blocking_reasons": [],
-  "recommended_next_action": "no_action_required"
+  "recommended_next_action": "review_execution_log_warnings"
 }

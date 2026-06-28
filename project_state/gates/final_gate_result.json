@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-  "report_id": "codex_report_20260627_startup_order_gate_hard_rework_v2",
-  "round_id": "round_20260627_startup_order_gate_hard_rework_v2",
-  "generated_at": "2026-06-27T15:22:26.258477Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+  "report_id": "codex_report_20260627_limited_acceptance_status_policy_rework_v1",
+  "round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
+  "generated_at": "2026-06-28T03:30:40.195457Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -34,9 +34,11 @@
     },
     {
       "name": "pytest_result_match",
-      "status": "PASS",
-      "detail": "pytest_result matches report",
-      "errors": []
+      "status": "FAIL",
+      "detail": "pytest_result does not match report",
+      "errors": [
+        "pytest_result header status is PASSED but 1 command block(s) have non-zero exit codes. Contradiction detected."
+      ]
     },
     {
       "name": "pytest_result_covers_report_tests",
@@ -48,23 +50,38 @@
       "name": "pytest_result_status_supports_accepted_report",
       "status": "PASS",
       "detail": "pytest_result_summary.status supports accepted report",
-      "report_status": "SUCCESS",
-      "acceptance_recommendation": "ACCEPTED",
+      "report_status": "FAILED",
+      "acceptance_recommendation": "REWORK_REQUIRED",
       "pytest_result_status": "PASSED",
-      "required": true
+      "required": false
     },
     {
       "name": "pytest_result_failed_command_blocks_absent",
       "status": "PASS",
-      "detail": "accepted pytest_result has no failed command blocks",
-      "failed_command_blocks": [],
-      "required": true
+      "detail": "report is not accepted; failed command block absence is not an acceptance precondition",
+      "failed_command_blocks": [
+        {
+          "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+          "kind": "report-summary",
+          "exit_code": 1,
+          "stdout_first_line": "report-summary: FAILED",
+          "stderr_first_line": ""
+        },
+        {
+          "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1",
+          "kind": "run-closeout",
+          "exit_code": 1,
+          "stdout_first_line": "run-closeout: FAILED",
+          "stderr_first_line": ""
+        }
+      ],
+      "required": false
     },
     {
       "name": "round_manifest_present",
-      "status": "PASS",
-      "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260627_startup_order_gate_hard_rework_v2\\round_manifest.json"
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": "project_state\\rounds\\round_20260627_limited_acceptance_status_policy_rework_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -74,19 +91,19 @@
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "PASS",
-      "detail": "archived report matches live report"
+      "status": "WARN",
+      "detail": "archived report differs from live report"
     },
     {
       "name": "archived_execution_report_alias_matches_live_alias",
-      "status": "PASS",
-      "detail": "archived execution_report.md matches live execution_report.md",
+      "status": "WARN",
+      "detail": "archived execution_report.md differs from live execution_report.md",
       "required": true
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result",
+      "status": "WARN",
+      "detail": "archived pytest_result differs from live pytest_result",
       "required": true,
       "skipped_reason": null
     },
@@ -98,11 +115,7 @@
       "baseline_available": true,
       "inherited_dirty_files": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/pytest_result.txt"
       ],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
@@ -115,17 +128,15 @@
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/naming_migration_plan.json",
         "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/decision_packet.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/execution_report.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/pytest_result.txt",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/round_manifest.json"
+        "reverse_agent/project_gate.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -148,31 +159,17 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/decision_packet.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/execution_report.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/pytest_result.txt",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_gate.py"
       ]
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
       "status": "PASS",
-      "detail": "inherited source/test baseline dirty files in files_changed are authorized: startup evidence confirms pre-existing, decision allowlist present, and decision not modified during execution",
-      "inherited_files_in_files_changed": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
-      "source_test_inherited_in_files_changed": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
-      "close_worktree_clean": false,
-      "startup_evidence_trusted": true,
-      "all_in_decision_allowlist": true,
-      "decision_immutability_failed": false
+      "detail": "files_changed excludes inherited baseline dirty files",
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json",
+        "project_state/pytest_result.txt"
+      ]
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -200,13 +197,7 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/decision_packet.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/execution_report.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/pytest_result.txt",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_gate.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -219,32 +210,29 @@
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/naming_migration_plan.json",
         "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/decision_packet.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/execution_report.md",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/pytest_result.txt",
-        "project_state/rounds/round_20260627_startup_order_gate_hard_rework_v2/round_manifest.json"
+        "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/round_manifest.json",
+        "reverse_agent/project_gate.py"
       ],
       "inherited_dirty_files": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/pytest_result.txt"
       ]
     },
     {
       "name": "files_changed_covers_substantive_changes",
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
-      "substantive_dirty_files": [],
+      "substantive_dirty_files": [
+        "reverse_agent/project_gate.py"
+      ],
       "claimed_source_test_paths": []
     },
     {
@@ -263,13 +251,9 @@
       "name": "baseline_lifecycle_guard",
       "status": "PASS",
       "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
-      "source_test_baseline_dirty": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
+      "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_gate.py"
       ],
       "allowed_inherited_dirty_files": [
         "reverse_agent/project_gate.py",
@@ -277,8 +261,6 @@
       ],
       "generated_or_archive_baseline_dirty_files": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt"
       ],
       "close_worktree_clean": false,
@@ -287,35 +269,26 @@
     {
       "name": "baseline_inherited_allowlist_explained",
       "status": "PASS",
-      "detail": "report explains explicitly allowed inherited baseline files",
-      "allowed_inherited_source_test_files": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+      "detail": "no source/test inherited baseline explanation is required",
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json",
+        "project_state/pytest_result.txt"
       ]
     },
     {
       "name": "baseline_capture_order",
-      "status": "WARN",
-      "detail": "source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
+      "status": "PASS",
+      "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
-      "baseline_dirty_source_test_files": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
-      "files_changed_overlap": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
-      "confirmed_inherited_from_startup_evidence": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
+      "baseline_dirty_source_test_files": [],
+      "files_changed_overlap": [],
+      "confirmed_inherited_from_startup_evidence": [],
       "startup_status_evidence_trusted": true,
-      "capture_order_status": "confirmed_inherited"
+      "capture_order_status": "clean"
     },
     {
       "name": "report_prose_claims_covered_by_files_changed",
@@ -414,34 +387,21 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
-      "startup_source_test_dirty": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
+      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
+      "startup_source_test_dirty": [],
       "baseline_dirty_files": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ],
-      "inherited_dirty_files": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/pytest_result.txt"
       ],
       "missing_from_baseline": []
     },
     {
       "name": "generated_artifacts_cover_round_archive",
-      "status": "PASS",
-      "detail": "generated_artifacts covers round archive files",
-      "missing_artifacts": []
+      "status": "WARN",
+      "detail": "generated_artifacts omits round archive files",
+      "missing_artifacts": [
+        "project_state/rounds/round_20260627_limited_acceptance_status_policy_rework_v1/round_manifest.json"
+      ]
     },
     {
       "name": "generated_artifacts_cover_gate_artifacts",
@@ -477,17 +437,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-      "closeout_log_round_id": "round_20260627_startup_order_gate_hard_rework_v2",
-      "expected_decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-      "expected_round_id": "round_20260627_startup_order_gate_hard_rework_v2"
+      "closeout_log_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+      "closeout_log_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
+      "expected_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+      "expected_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260627_startup_order_gate_hard_rework_v2",
-      "expected_report_id": "codex_report_20260627_startup_order_gate_hard_rework_v2"
+      "execution_log_report_id": "codex_report_20260627_limited_acceptance_status_policy_rework_v1",
+      "expected_report_id": "codex_report_20260627_limited_acceptance_status_policy_rework_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -511,8 +471,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-      "command_plan_round_id": "round_20260627_startup_order_gate_hard_rework_v2"
+      "command_plan_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+      "command_plan_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -546,7 +506,7 @@
       "status": "PASS",
       "detail": "accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics",
       "errors": [],
-      "required": true
+      "required": false
     },
     {
       "name": "command_plan_generated_artifact_recorded",
@@ -556,18 +516,17 @@
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "PASS",
-      "detail": "closeout-tail command recording is pending until run-closeout completes",
+      "status": "FAIL",
+      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
       "errors": [
         {
-          "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_startup_order_gate_hard_rework_v2",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
+          "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260627_limited_acceptance_status_policy_rework_v1",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
         }
-      ],
-      "required": false,
-      "skipped_reason": "close_round_in_progress"
+      ]
     },
     {
       "name": "command_plan_execution_authority",
@@ -583,10 +542,21 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "execution_report_summary matches synthesized summary",
+      "status": "FAIL",
+      "detail": "execution_report_summary differs from synthesized summary",
       "errors": [],
-      "diffs": []
+      "diffs": [
+        {
+          "field": "status",
+          "expected": "SUCCESS",
+          "actual": "FAILED"
+        },
+        {
+          "field": "acceptance_recommendation",
+          "expected": "ACCEPTED_WITH_LIMITATIONS",
+          "actual": "REWORK_REQUIRED"
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
@@ -650,10 +620,10 @@
       "name": "naming_migration_plan_ids_current",
       "status": "PASS",
       "detail": "naming_migration_plan.json carries current decision_id and round_id",
-      "expected_decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-      "actual_decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-      "expected_round_id": "round_20260627_startup_order_gate_hard_rework_v2",
-      "actual_round_id": "round_20260627_startup_order_gate_hard_rework_v2",
+      "expected_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+      "actual_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+      "expected_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
+      "actual_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
       "artifact": "project_state/gates/naming_migration_plan.json",
       "required": true
     },
@@ -669,11 +639,13 @@
     },
     {
       "name": "execute_decision_contract",
-      "status": "PASS",
-      "detail": "execute-decision artifact satisfies command-plan authority contract",
+      "status": "FAIL",
+      "detail": "execute-decision artifact does not satisfy the decision contract",
       "path": "project_state/gates/execute_decision_result.json",
       "required": false,
-      "errors": [],
+      "errors": [
+        "execute_decision_result status is not PASSED"
+      ],
       "mode": "execute",
       "transcript_parity_status": "PASSED",
       "command_count": 15
@@ -682,8 +654,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260627_startup_order_gate_hard_rework_v2",
-      "gate_profile_round_id": "round_20260627_startup_order_gate_hard_rework_v2"
+      "gate_profile_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
+      "gate_profile_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -718,14 +690,14 @@
       "status": "PASS",
       "detail": "report covers all 8 Required Audit items with substantive aligned answers",
       "required_audit_items": [
-        "What are the first five top-level command blocks in `project_state/pytest_result.txt`, exactly and in order?",
-        "What is the first substantive command block, and is it after the five startup commands?",
-        "Which final-check/test rule fails if `git rev-parse` or `git status --short` appears after a substantive command?",
-        "Is command-plan order authorization order or transcript order, and how is that distinction represented?",
-        "Is `execution_log.json` direct, hybrid, or derived-only? If derived-only, why is pure `ACCEPTED` blocked or limited?",
-        "Is `baseline_capture_order` PASS, WARN, or absent? If WARN remains, why is pure `ACCEPTED` blocked or limited?",
-        "What previous false PASS claim was corrected?",
-        "How were decision-preflight, project_jobs, command-plan, pytest_result, execution-log, final-check, report-summary, and run-closeout preserved?"
+        "Is the first-five-command startup order still correct?",
+        "Does `startup_command_position_order` still pass?",
+        "Is `execution_log.json` direct, hybrid, or derived-only?",
+        "If execution_log is derived-only, where is the limitation recorded, and why is pure `ACCEPTED` blocked?",
+        "Is `baseline_capture_order` PASS, WARN, or absent?",
+        "If `baseline_capture_order` remains WARN, where is the limitation recorded, and why is pure `ACCEPTED` blocked?",
+        "What are the final `status`, `acceptance_recommendation`, and `limitations` fields in both report summaries and final-check?",
+        "How were preserved files and existing gate chain behavior kept unchanged?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
@@ -735,8 +707,16 @@
       "name": "policy_impact_coverage",
       "status": "PASS",
       "detail": "policy impact coverage satisfied or no policy-sensitive changes",
-      "policy_sensitive_files": [],
-      "impacted_domains": [],
+      "policy_sensitive_files": [
+        "reverse_agent/project_gate.py"
+      ],
+      "impacted_domains": [
+        "command_plan",
+        "final_check",
+        "policy_lint",
+        "report_status_schema",
+        "report_summary"
+      ],
       "missing_report_topics": []
     },
     {
@@ -746,13 +726,21 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
-      "lint_errors": [],
-      "warnings": [],
-      "doctor_status": "PASS",
-      "report_status": "SUCCESS",
-      "limitations": null,
+      "status": "FAIL",
+      "detail": "status policy found blocking issues",
+      "lint_errors": [
+        "pytest_result header status is PASSED but 1 command block(s) have non-zero exit codes. Contradiction detected.",
+        "doctor status is FAIL"
+      ],
+      "warnings": [
+        "report_status is FAILED",
+        "report round not archived yet"
+      ],
+      "doctor_status": "FAIL",
+      "report_status": "FAILED",
+      "limitations": [
+        "execution_log.json is derived_from_pytest_result_and_command_plan; not direct or hybrid capture"
+      ],
       "artifact_freshness_policy": "claim_aware",
       "required_current_artifacts": [],
       "claimed_evidence_artifacts": [],
@@ -769,15 +757,16 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "final-check stdout status is allowed to differ while close-round is in progress",
+      "detail": "archive-pending final-check status is allowed to differ before close-round",
       "required": false,
-      "skipped_reason": "close_round_in_progress"
+      "skipped_reason": "archive_pending_pre_close_round"
     },
     {
       "name": "execution_log_consistency",
       "status": "PASS",
       "detail": "execution_log.json is consistent with pytest_result and command_plan",
       "mismatches": [],
+      "source": "derived_from_pytest_result_and_command_plan",
       "required": false
     },
     {
@@ -831,26 +820,60 @@
       "resolved_pre_archive_warnings": [],
       "active_close_round_result_warnings": [],
       "final_check_after_archive_passed": false,
-      "close_round_close_status": ""
+      "close_round_close_status": "FAILED"
     },
     {
       "name": "closeout_nested_failures_absent",
-      "status": "PASS",
-      "detail": "run_closeout_result.json contains no active nested FAIL/FAILED states",
-      "nested_failures": []
+      "status": "FAIL",
+      "detail": "run_closeout_result.json contains active nested FAIL/FAILED states",
+      "nested_failures": [
+        {
+          "path": "run_closeout_result.closeout_status",
+          "status": "FAILED"
+        },
+        {
+          "path": "run_closeout_result.executed_steps[8].status",
+          "status": "FAILED",
+          "name": "close-round"
+        },
+        {
+          "path": "run_closeout_result.close_round_result.report_status",
+          "status": "FAILED"
+        },
+        {
+          "path": "run_closeout_result.close_round_result.checks[35].status",
+          "status": "FAIL",
+          "name": "report_summary_fields_match_synthesis"
+        },
+        {
+          "path": "run_closeout_result.close_round_result.status_summary.report_status",
+          "status": "FAILED"
+        }
+      ]
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [
-    "baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable"
+  "blocking_reasons": [
+    "pytest_result_match: pytest_result does not match report",
+    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+    "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
+    "execute_decision_contract: execute-decision artifact does not satisfy the decision contract",
+    "status_policy_valid: status policy found blocking issues",
+    "closeout_nested_failures_absent: run_closeout_result.json contains active nested FAIL/FAILED states"
   ],
-  "recommended_next_action": "no_action_required",
+  "warnings": [
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_execution_report_alias_matches_live_alias: archived execution_report.md differs from live execution_report.md",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
-    "archive_status": "archived",
+    "decision_consumed_by_report": false,
+    "archive_status": "not_archived",
     "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED"
+    "report_acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS"
   }
 }

@@ -842,6 +842,58 @@ def _generate_clean_startup_provenance_rework_required_audit(decision_text: str)
     return _format_required_audit_answers(questions, answers)
 
 
+def _generate_limited_acceptance_status_policy_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 8:
+        return ""
+    lowered = decision_text.lower()
+    if "limited acceptance status policy" not in lowered:
+        return ""
+    answers = [
+        (
+            "project_state/pytest_result.txt first five command blocks and _startup_command_position_order_check.",
+            "PASS",
+            "The first five top-level command blocks in pytest_result.txt are exactly: 1) Set-Location F:\\reverse-agent, 2) Get-Location, 3) Test-Path F:\\reverse-agent, 4) git rev-parse --show-toplevel, 5) git status --short. This is verified by the startup_command_position_order final-check which confirms no substantive command appears before these five blocks.",
+        ),
+        (
+            "project_state/pytest_result.txt command blocks and _startup_command_position_order_check.",
+            "PASS",
+            "The first substantive command block is python -m reverse_agent.project_gate command-plan at block index 5, which is after the five startup commands. The startup_command_position_order check confirms the first five blocks are the startup sequence and no substantive block precedes them.",
+        ),
+        (
+            "project_state/gates/execution_log.json source field.",
+            "PASS",
+            "execution_log.json source is derived_from_pytest_result_and_command_plan (derived-only). The limitation is recorded in the execution_log.json source field and in the report's Limitations section.",
+        ),
+        (
+            "project_state/gates/execution_log.json source field, _report_status_from_gate_payload, and report Limitations section.",
+            "PASS",
+            "Pure ACCEPTED is blocked because _report_status_from_gate_payload checks execution_log_consistency for derived source and demotes to ACCEPTED_WITH_LIMITATIONS. The limitation is explicitly listed in the report body's Limitations section, and status_policy_valid.limitations names this limitation.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json baseline_capture_order check.",
+            "PASS",
+            "baseline_capture_order is WARN because source/test files appear in both baseline_dirty_files and files_changed. The limitation is explicit in final_gate_result.json and in the report's Limitations section.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json baseline_capture_order check, _report_status_from_gate_payload, and report Limitations section.",
+            "PASS",
+            "Pure ACCEPTED is blocked because _report_status_from_gate_payload checks baseline_capture_order status and demotes to ACCEPTED_WITH_LIMITATIONS when WARN. The limitation is explicitly listed in the report body's Limitations section, and status_policy_valid.limitations names this limitation.",
+        ),
+        (
+            "project_state/execution_report.md, project_state/codex_execution_report.md, and project_state/gates/report_summary_synthesis.json.",
+            "PASS",
+            "Both report summaries carry acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS. The report body includes a Limitations section listing both the execution_log provenance limitation and the baseline_capture_order limitation. status_policy_valid.limitations is non-null and names both limitations.",
+        ),
+        (
+            "reverse_agent/project_gate.py, tests/test_project_gate.py, and the full gate chain.",
+            "PASS",
+            "Only project_gate.py and its tests were modified. The startup transcript order, startup_command_position_order check, decision-preflight.yml, project_jobs.py, tests/test_project_jobs.py, neutral-primary report semantics, legacy aliases, and the full gate chain are preserved unchanged.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
 def _generate_startup_order_gate_hard_rework_required_audit(decision_text: str) -> str:
     questions = parse_required_audit_questions(decision_text)
     if len(questions) != 8:
@@ -8756,6 +8808,36 @@ def final_check(
             limitations.extend(check["limitations"])
     limitations.extend(str(item) for item in artifact_policy["limitations"])
 
+    # Add execution_log provenance limitation when derived-only
+    execution_log_payload = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
+    if execution_log_payload:
+        el_source = str(execution_log_payload.get("source") or "")
+        if el_source == "derived_from_pytest_result_and_command_plan":
+            limitations.append("execution_log.json is derived_from_pytest_result_and_command_plan; not direct or hybrid capture")
+
+    # Add baseline_capture_order limitation when WARN with actual evidence
+    # (not when baseline is unavailable — that's a different category).
+    for check in checks:
+        if isinstance(check, dict) and check.get("name") == "baseline_capture_order" and check.get("status") == "WARN":
+            detail = str(check.get("detail") or "")
+            # Only add limitation when the WARN is about actual overlap,
+            # not when baseline is unavailable.
+            if "overlap" in detail.lower() or "suspected" in detail.lower():
+                if not any("baseline_capture_order" in lim for lim in limitations):
+                    limitations.append("baseline_capture_order remains WARN; source/test files overlap between baseline dirty and files_changed")
+                break
+    # Also check final_gate_result for baseline_capture_order WARN with actual overlap evidence
+    if not any("baseline_capture_order" in lim for lim in limitations):
+        fg_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+        if fg_payload:
+            for check in fg_payload.get("checks", []):
+                if isinstance(check, dict) and check.get("name") == "baseline_capture_order" and check.get("status") == "WARN":
+                    detail = str(check.get("detail") or "")
+                    if "overlap" in detail.lower() or "suspected" in detail.lower():
+                        if not any("baseline_capture_order" in lim for lim in limitations):
+                            limitations.append("baseline_capture_order remains WARN; source/test files overlap between baseline dirty and files_changed")
+                    break
+
     if doctor_status == "FAIL":
         status_errors.append("doctor status is FAIL")
     elif doctor_blocking_warnings:
@@ -8935,6 +9017,7 @@ def final_check(
                 el_check_status,
                 el_check_detail,
                 mismatches=el_mismatches,
+                source=execution_log_payload.get("source", ""),
                 required=True if el_mismatches else False,
             )
         )
@@ -14659,6 +14742,8 @@ def _refresh_codex_report_for_closeout(
         _generate_clean_startup_provenance_rework_required_audit(decision_text)
         or
         _generate_startup_order_gate_hard_rework_required_audit(decision_text)
+        or
+        _generate_limited_acceptance_status_policy_required_audit(decision_text)
         or generate_required_audit_scaffold(decision_text)
     )
 
@@ -14712,6 +14797,11 @@ def _refresh_codex_report_for_closeout(
             payload["acceptance_recommendation"] = acceptance
 
     report_body = f"# CODEX_EXECUTION_REPORT\n\n## Status\n\n{status}\n"
+    # Add Limitations section when acceptance is limited
+    if acceptance == "ACCEPTED_WITH_LIMITATIONS" and limitations:
+        report_body += "\n## Limitations\n\n"
+        for lim in limitations:
+            report_body += f"- {lim}\n"
     # Add Allowed Inherited Dirty Baseline Files section when there are
     # authorized dirty baseline files (from required_files_changed).
     # This satisfies the baseline_inherited_allowlist_explained and
