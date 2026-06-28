@@ -289,3 +289,91 @@ def validate_job_file(path: str | Path) -> dict[str, Any]:
     """Validate a project_state/jobs/*.json job contract."""
 
     return validate_job_payload(load_job_file(path))
+
+
+def validate_jobs_dir(state_dir: str | Path) -> dict[str, Any]:
+    """Validate all job contracts under project_state/jobs without dispatching."""
+
+    root = Path(state_dir)
+    jobs_dir = root / "jobs"
+    errors: list[str] = []
+    warnings: list[str] = []
+    validated_paths: list[str] = []
+    status_counts = {status: 0 for status in sorted(JOB_STATUSES)}
+    seen_job_ids: dict[str, str] = {}
+
+    if not jobs_dir.exists():
+        return {
+            "schema_version": JOB_SCHEMA_VERSION,
+            "validation_status": "PASSED",
+            "errors": errors,
+            "warnings": warnings,
+            "jobs_dir": str(jobs_dir),
+            "job_count": 0,
+            "validated_paths": validated_paths,
+            "status_counts": status_counts,
+            "jobs": [],
+            "dispatch_enabled": False,
+        }
+    if not jobs_dir.is_dir():
+        errors.append(f"jobs path is not a directory: {jobs_dir}")
+        return {
+            "schema_version": JOB_SCHEMA_VERSION,
+            "validation_status": "FAILED",
+            "errors": errors,
+            "warnings": warnings,
+            "jobs_dir": str(jobs_dir),
+            "job_count": 0,
+            "validated_paths": validated_paths,
+            "status_counts": status_counts,
+            "jobs": [],
+            "dispatch_enabled": False,
+        }
+
+    jobs: list[dict[str, Any]] = []
+    for job_path in sorted(jobs_dir.glob("*.json")):
+        path_text = str(job_path)
+        try:
+            result = validate_job_file(job_path)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            errors.append(f"{path_text}: {exc}")
+            continue
+
+        errors.extend(f"{path_text}: {error}" for error in result["errors"])
+        job_id = result.get("job_id", "")
+        if job_id:
+            if job_id in seen_job_ids:
+                errors.append(
+                    f"duplicate job_id {job_id!r}: {seen_job_ids[job_id]} and {path_text}"
+                )
+            else:
+                seen_job_ids[job_id] = path_text
+        status = result.get("status", "")
+        if status in status_counts:
+            status_counts[status] += 1
+        if result["validation_status"] == "PASSED":
+            validated_paths.append(path_text)
+        jobs.append(
+            {
+                "path": path_text,
+                "job_id": job_id,
+                "round_id": result.get("round_id", ""),
+                "decision_id": result.get("decision_id", ""),
+                "status": status,
+                "validation_status": result["validation_status"],
+                "errors": result["errors"],
+            }
+        )
+
+    return {
+        "schema_version": JOB_SCHEMA_VERSION,
+        "validation_status": "FAILED" if errors else "PASSED",
+        "errors": errors,
+        "warnings": warnings,
+        "jobs_dir": str(jobs_dir),
+        "job_count": len(jobs),
+        "validated_paths": validated_paths,
+        "status_counts": status_counts,
+        "jobs": jobs,
+        "dispatch_enabled": False,
+    }

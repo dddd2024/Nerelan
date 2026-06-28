@@ -5,6 +5,7 @@ from reverse_agent.project_jobs import (
     JOB_STATUS_TRANSITIONS,
     JOB_STATUSES,
     validate_job_file,
+    validate_jobs_dir,
     validate_job_payload,
     validate_job_transition,
 )
@@ -227,3 +228,100 @@ def test_validate_job_file_accepts_safe_current_example(tmp_path: Path) -> None:
 
     assert result["validation_status"] == "PASSED"
     assert result["dispatch_enabled"] is False
+
+
+def test_validate_jobs_dir_accepts_missing_directory(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+
+    result = validate_jobs_dir(state_dir)
+
+    assert result["validation_status"] == "PASSED"
+    assert result["job_count"] == 0
+    assert result["validated_paths"] == []
+    assert result["dispatch_enabled"] is False
+    assert result["status_counts"]["DRAFT"] == 0
+
+
+def test_validate_jobs_dir_reports_invalid_json_without_dispatch(tmp_path: Path) -> None:
+    jobs_dir = tmp_path / "project_state" / "jobs"
+    jobs_dir.mkdir(parents=True)
+    (jobs_dir / "bad.json").write_text("{not json", encoding="utf-8")
+
+    result = validate_jobs_dir(tmp_path / "project_state")
+
+    assert result["validation_status"] == "FAILED"
+    assert result["job_count"] == 0
+    assert result["validated_paths"] == []
+    assert result["dispatch_enabled"] is False
+    assert any("bad.json" in error for error in result["errors"])
+
+
+def test_validate_jobs_dir_reports_invalid_payload_without_dispatch(tmp_path: Path) -> None:
+    jobs_dir = tmp_path / "project_state" / "jobs"
+    jobs_dir.mkdir(parents=True)
+    invalid_payload = _valid_job()
+    invalid_payload["runner"]["dispatch_enabled"] = True
+    (jobs_dir / "unsafe.json").write_text(json.dumps(invalid_payload), encoding="utf-8")
+
+    result = validate_jobs_dir(tmp_path / "project_state")
+
+    assert result["validation_status"] == "FAILED"
+    assert result["job_count"] == 1
+    assert result["validated_paths"] == []
+    assert result["dispatch_enabled"] is False
+    assert any("runner.dispatch_enabled must be false" in error for error in result["errors"])
+
+
+def test_validate_jobs_dir_rejects_duplicate_job_ids(tmp_path: Path) -> None:
+    jobs_dir = tmp_path / "project_state" / "jobs"
+    jobs_dir.mkdir(parents=True)
+    first = _valid_job()
+    second = _valid_job()
+    second["round_id"] = "round_second"
+    second["decision_id"] = "decision_second"
+    (jobs_dir / "first.json").write_text(json.dumps(first), encoding="utf-8")
+    (jobs_dir / "second.json").write_text(json.dumps(second), encoding="utf-8")
+
+    result = validate_jobs_dir(tmp_path / "project_state")
+
+    assert result["validation_status"] == "FAILED"
+    assert result["job_count"] == 2
+    assert len(result["validated_paths"]) == 2
+    assert any("duplicate job_id 'job_preflight_foundation'" in error for error in result["errors"])
+
+
+def test_validate_jobs_dir_returns_status_counts_and_validated_paths(tmp_path: Path) -> None:
+    jobs_dir = tmp_path / "project_state" / "jobs"
+    jobs_dir.mkdir(parents=True)
+    draft = _valid_job()
+    draft.update({"job_id": "job_draft", "status": "DRAFT"})
+    ready = _valid_job()
+    ready.update({"job_id": "job_ready", "status": "READY"})
+    blocked = _valid_job()
+    blocked.update({"job_id": "job_blocked", "status": "BLOCKED"})
+    for payload in (draft, ready, blocked):
+        (jobs_dir / f"{payload['job_id']}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    result = validate_jobs_dir(tmp_path / "project_state")
+
+    assert result["validation_status"] == "PASSED"
+    assert result["job_count"] == 3
+    assert len(result["validated_paths"]) == 3
+    assert result["status_counts"]["DRAFT"] == 1
+    assert result["status_counts"]["READY"] == 1
+    assert result["status_counts"]["BLOCKED"] == 1
+
+
+def test_validate_jobs_dir_accepts_current_draft_job_contract() -> None:
+    result = validate_jobs_dir(Path("project_state"))
+
+    assert result["validation_status"] == "PASSED"
+    current_job = next(
+        job
+        for job in result["jobs"]
+        if job["job_id"] == "job_20260628_clean_baseline_job_inventory_v1"
+    )
+    assert current_job["status"] == "DRAFT"
+    assert current_job["round_id"] == "round_20260628_clean_baseline_job_inventory_v1"
+    assert current_job["decision_id"] == "decision_20260628_clean_baseline_job_inventory_v1"
