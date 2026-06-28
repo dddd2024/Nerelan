@@ -1,22 +1,28 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "head_commit": "f99e8962a613",
+  "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
+  "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
+  "head_commit": "948918ceacbc",
   "baseline_git_status_short": [
     " M project_state/gates/command_plan.json",
-    " M project_state/pytest_result.txt"
+    " M project_state/pytest_result.txt",
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "project_state/gates/command_plan.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
     "project_state/gates/command_plan.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-28T04:35:47.028069Z"
+  "generated_at": "2026-06-28T07:55:12.623750Z"
 }

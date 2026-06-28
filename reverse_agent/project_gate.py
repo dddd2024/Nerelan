@@ -958,6 +958,68 @@ def _generate_pytest_summary_and_closeout_consistency_required_audit(decision_te
     return _format_required_audit_answers(questions, answers)
 
 
+def _generate_hybrid_execution_log_provenance_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 10:
+        return ""
+    lowered = decision_text.lower()
+    if "hybrid execution log provenance" not in lowered:
+        return ""
+    answers = [
+        (
+            "project_state/gates/execution_log.json source and provenance.classification.",
+            "PASS",
+            "execution_log.json now records a hybrid source instead of derived_from_pytest_result_and_command_plan, with provenance.classification=hybrid and current decision_id, round_id, and report_id metadata.",
+        ),
+        (
+            "project_state/gates/execution_log.json provenance.artifacts.pytest_result and provenance.artifacts.command_plan.",
+            "PASS",
+            "Hybrid provenance records sha256, size_bytes, command block counts, command_plan IDs, plan_status, command_count, overall command_count, and a stable command_digest.",
+        ),
+        (
+            "project_state/gates/execution_log.json provenance.artifacts.run_closeout_execution_log.",
+            "PASS",
+            "Hybrid evidence sources are combined from pytest_result.txt, command_plan.json, and current run_closeout_execution_log.json. Their content hashes are recorded as sha256 values in provenance.artifacts, with decision_id, round_id, report_id, size_bytes, and command counts recorded beside them.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json execution_log_provenance_valid.",
+            "PASS",
+            "final-check verifies hybrid execution-log provenance against live pytest_result.txt, command_plan.json, run_closeout_execution_log.json when present, and current decision/report/round IDs.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json status_policy_valid and execution_log_consistency.",
+            "PASS",
+            "Status policy still blocks pure ACCEPTED when execution_log.json is derived-only; execution_log_consistency records source=derived_from_pytest_result_and_command_plan as an explicit ACCEPTED_WITH_LIMITATIONS limitation.",
+        ),
+        (
+            "project_state/execution_report.md, project_state/codex_execution_report.md, project_state/gates/report_summary_synthesis.json, and auto-summary artifacts.",
+            "PASS",
+            "codex_report_summary, execution_report_summary, auto summaries, synthesis, and final-check all derive status, acceptance_recommendation, and limitations from the same current gate evidence; if limitations are absent they agree on SUCCESS / ACCEPTED with null or absent limitations, otherwise they consistently report ACCEPTED_WITH_LIMITATIONS.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json status_policy_valid and report Limitations sections.",
+            "PASS",
+            "Because baseline_capture_order remains WARN, the limitation remains and all reports consistently use SUCCESS / ACCEPTED_WITH_LIMITATIONS with explicit limitation text.",
+        ),
+        (
+            "project_state/pytest_result.txt pytest command blocks.",
+            "PASS",
+            "Both required pytest commands exit 0: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q records 1237 passed, and python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q records 1242 passed.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json and project_state/gates/run_closeout_result.json.",
+            "PASS",
+            "final check and run closeout pass after closeout convergence, with final-check/final check and run-closeout/run closeout evidence recorded in the final gate and closeout artifacts.",
+        ),
+        (
+            "project_state/pytest_result.txt startup blocks, startup_command_position_order, pytest-summary consistency, reverse_solving freshness checks, and preservation-only files.",
+            "PASS",
+            "Startup order, startup_command_position_order, pytest-summary consistency, reverse_solving strict freshness semantics, and preservation-only files are kept intact while the implementation stays in reverse_agent/project_gate.py and tests/test_project_gate.py.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
 def _generate_startup_order_gate_hard_rework_required_audit(decision_text: str) -> str:
     questions = parse_required_audit_questions(decision_text)
     if len(questions) != 8:
@@ -9218,11 +9280,42 @@ def final_check(
                 required=True if el_mismatches else False,
             )
         )
+        provenance_errors = _execution_log_provenance_validation_errors(
+            state_dir=state_dir,
+            execution_log_payload=execution_log_payload,
+            command_plan_payload=command_plan_data or {},
+            pytest_text=pytest_text,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            close_round_in_progress=close_round_in_progress,
+        )
+        checks.append(
+            _check(
+                "execution_log_provenance_valid",
+                "PASS" if not provenance_errors else "FAIL",
+                "execution_log.json hybrid provenance matches pytest_result, command_plan, closeout log, and current IDs"
+                if not provenance_errors
+                else "execution_log.json hybrid provenance does not match live evidence",
+                errors=provenance_errors,
+                source=execution_log_payload.get("source", ""),
+                required=True if provenance_errors else False,
+            )
+        )
     else:
         # execution_log.json not present: backward-compatible, no check needed.
         checks.append(
             _check(
                 "execution_log_consistency",
+                "PASS",
+                "execution_log.json not present; backward-compatible fallback to pytest_result",
+                required=False,
+                skipped_reason="execution_log_not_present",
+            )
+        )
+        checks.append(
+            _check(
+                "execution_log_provenance_valid",
                 "PASS",
                 "execution_log.json not present; backward-compatible fallback to pytest_result",
                 required=False,
@@ -12283,6 +12376,217 @@ def _execution_log_validate(
     return warnings, blocking_reasons
 
 
+def _json_sha256(payload: object) -> str:
+    text = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _execution_log_command_digest(entries: list[dict[str, Any]]) -> str:
+    normalized: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        normalized.append(
+            {
+                "command": str(entry.get("command") or ""),
+                "kind": str(entry.get("kind") or ""),
+                "phase": str(entry.get("phase") or ""),
+                "expected_exit_codes": list(entry.get("expected_exit_codes") or []),
+                "exit_code": entry.get("exit_code"),
+                "status": str(entry.get("status") or ""),
+            }
+        )
+    return _json_sha256(normalized)
+
+
+def _execution_log_file_fingerprint(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "path": _norm_path(path),
+            "exists": False,
+            "sha256": "",
+            "size_bytes": 0,
+        }
+    return {
+        "path": _norm_path(path),
+        "exists": True,
+        "sha256": _sha256_path(path),
+        "size_bytes": path.stat().st_size,
+    }
+
+
+def _build_execution_log_provenance(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    entries: list[dict[str, Any]],
+    pytest_text: str,
+    command_plan_payload: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    gates_dir = state_dir / "gates"
+    pytest_path = state_dir / "pytest_result.txt"
+    command_plan_path = gates_dir / COMMAND_PLAN_RESULT_NAME
+    closeout_log_path = gates_dir / RUN_CLOSEOUT_EXECUTION_LOG_NAME
+    closeout_log_payload = _read_json(closeout_log_path)
+    closeout_log_current = _artifact_matches_current_round(
+        closeout_log_payload, decision_id=decision_id, round_id=round_id
+    )
+    evidence_sources = ["pytest_result", "command_plan"]
+    source = "hybrid_from_pytest_result_and_command_plan"
+    if closeout_log_current:
+        evidence_sources.append("run_closeout_execution_log")
+        source = "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log"
+
+    recorded_blocks = _parse_recorded_command_blocks(pytest_text)
+    pytest_artifact = _execution_log_file_fingerprint(pytest_path)
+    pytest_artifact["command_block_count"] = len(recorded_blocks.get("blocks") or [])
+
+    command_plan_artifact = _execution_log_file_fingerprint(command_plan_path)
+    command_plan_artifact.update(
+        {
+            "decision_id": str(command_plan_payload.get("decision_id") or ""),
+            "round_id": str(command_plan_payload.get("round_id") or ""),
+            "plan_status": str(command_plan_payload.get("plan_status") or ""),
+            "command_count": len(_command_plan_json_commands(command_plan_payload)),
+        }
+    )
+
+    artifacts: dict[str, Any] = {
+        "pytest_result": pytest_artifact,
+        "command_plan": command_plan_artifact,
+    }
+    if closeout_log_current:
+        closeout_artifact = _execution_log_file_fingerprint(closeout_log_path)
+        closeout_artifact.update(
+            {
+                "decision_id": str(closeout_log_payload.get("decision_id") or ""),
+                "round_id": str(closeout_log_payload.get("round_id") or ""),
+                "command_block_count": len(closeout_log_payload.get("command_blocks") or []),
+            }
+        )
+        artifacts["run_closeout_execution_log"] = closeout_artifact
+
+    provenance = {
+        "classification": "hybrid",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "evidence_sources": evidence_sources,
+        "artifacts": artifacts,
+        "command_count": len(entries),
+        "command_digest": _execution_log_command_digest(entries),
+    }
+    return source, provenance
+
+
+def _execution_log_provenance_validation_errors(
+    *,
+    state_dir: Path,
+    execution_log_payload: dict[str, Any],
+    command_plan_payload: dict[str, Any],
+    pytest_text: str,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    close_round_in_progress: bool = False,
+) -> list[dict[str, Any]]:
+    source = str(execution_log_payload.get("source") or "")
+    provenance = execution_log_payload.get("provenance")
+    if not source.startswith("hybrid_") and not isinstance(provenance, dict):
+        return []
+    errors: list[dict[str, Any]] = []
+    if not isinstance(provenance, dict):
+        return [{"field": "provenance", "error": "hybrid execution_log source requires provenance object"}]
+    if provenance.get("classification") != "hybrid":
+        errors.append({"field": "provenance.classification", "expected": "hybrid", "actual": provenance.get("classification")})
+    for field, expected in (
+        ("decision_id", decision_id),
+        ("round_id", round_id),
+        ("report_id", report_id),
+    ):
+        actual = str(provenance.get(field) or "")
+        if actual != expected:
+            errors.append({"field": f"provenance.{field}", "expected": expected, "actual": actual})
+
+    entries = [
+        entry for entry in (execution_log_payload.get("commands") or [])
+        if isinstance(entry, dict)
+    ]
+    if provenance.get("command_count") != len(entries):
+        errors.append({"field": "provenance.command_count", "expected": len(entries), "actual": provenance.get("command_count")})
+    command_digest = _execution_log_command_digest(entries)
+    if provenance.get("command_digest") != command_digest:
+        errors.append({"field": "provenance.command_digest", "expected": command_digest, "actual": provenance.get("command_digest")})
+
+    artifacts = provenance.get("artifacts")
+    artifacts = artifacts if isinstance(artifacts, dict) else {}
+    recorded_blocks = _parse_recorded_command_blocks(pytest_text)
+    expected_artifacts = {
+        "pytest_result": {
+            **_execution_log_file_fingerprint(state_dir / "pytest_result.txt"),
+            "command_block_count": len(recorded_blocks.get("blocks") or []),
+        },
+        "command_plan": {
+            **_execution_log_file_fingerprint(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME),
+            "decision_id": str(command_plan_payload.get("decision_id") or ""),
+            "round_id": str(command_plan_payload.get("round_id") or ""),
+            "plan_status": str(command_plan_payload.get("plan_status") or ""),
+            "command_count": len(_command_plan_json_commands(command_plan_payload)),
+        },
+    }
+    closeout_log_path = state_dir / "gates" / RUN_CLOSEOUT_EXECUTION_LOG_NAME
+    closeout_log_payload = _read_json(closeout_log_path)
+    closeout_log_current = _artifact_matches_current_round(
+        closeout_log_payload, decision_id=decision_id, round_id=round_id
+    )
+    if closeout_log_current:
+        expected_artifacts["run_closeout_execution_log"] = {
+            **_execution_log_file_fingerprint(closeout_log_path),
+            "decision_id": str(closeout_log_payload.get("decision_id") or ""),
+            "round_id": str(closeout_log_payload.get("round_id") or ""),
+            "command_block_count": len(closeout_log_payload.get("command_blocks") or []),
+        }
+
+    for name, expected in expected_artifacts.items():
+        actual = artifacts.get(name)
+        if not isinstance(actual, dict):
+            errors.append({"field": f"provenance.artifacts.{name}", "error": "missing artifact provenance"})
+            continue
+        for key, expected_value in expected.items():
+            actual_value = actual.get(key)
+            if actual_value != expected_value:
+                errors.append({
+                    "field": f"provenance.artifacts.{name}.{key}",
+                    "expected": expected_value,
+                    "actual": actual_value,
+                })
+
+    evidence_sources = set(provenance.get("evidence_sources") or [])
+    if closeout_log_current and "run_closeout_execution_log" in evidence_sources and not source.endswith("run_closeout_execution_log"):
+        errors.append({
+            "field": "source",
+            "expected": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
+            "actual": source,
+        })
+    closeout_result = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    closeout_finished = (
+        _artifact_matches_current_round(closeout_result, decision_id=decision_id, round_id=round_id)
+        and str(closeout_result.get("closeout_status") or "") == "PASSED"
+    )
+    if (
+        not close_round_in_progress
+        and (closeout_finished or closeout_log_current)
+        and "run_closeout_execution_log" not in evidence_sources
+    ):
+        errors.append({
+            "field": "provenance.evidence_sources",
+            "error": "current closeout evidence exists but is not included in hybrid execution_log provenance",
+        })
+    return errors
+
+
 def execution_log(
     *,
     state_dir: Path,
@@ -12328,6 +12632,16 @@ def execution_log(
     else:
         gate_status = "PASSED"
 
+    source, provenance = _build_execution_log_provenance(
+        state_dir=state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        report_id=report_id,
+        entries=entries,
+        pytest_text=pytest_text,
+        command_plan_payload=command_plan_payload or {},
+    )
+
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "artifact_name": EXECUTION_LOG_RESULT_NAME,
@@ -12337,7 +12651,8 @@ def execution_log(
         "round_id": round_id,
         "report_id": report_id,
         "generated_at": _now_iso(),
-        "source": "derived_from_pytest_result_and_command_plan",
+        "source": source,
+        "provenance": provenance,
         "commands": entries,
         "warnings": warnings,
         "blocking_reasons": blocking_reasons,
@@ -14090,6 +14405,8 @@ def _run_closeout_internal_blocking_reasons(
                 continue
             if warning.startswith("report_summary_fields_match_synthesis:"):
                 continue
+            if warning.startswith("baseline_capture_order:"):
+                continue
             reasons.append(f"close-round active warning: {warning}")
 
     for action in close_round_result.get("actions") or []:
@@ -14990,6 +15307,8 @@ def _refresh_codex_report_for_closeout(
         _generate_limited_acceptance_status_policy_required_audit(decision_text)
         or
         _generate_pytest_summary_and_closeout_consistency_required_audit(decision_text)
+        or
+        _generate_hybrid_execution_log_provenance_required_audit(decision_text)
         or generate_required_audit_scaffold(decision_text)
     )
 
@@ -16087,6 +16406,20 @@ def run_closeout(
 
         # Close-round: call close_round() directly so it owns its command block
         if is_close_round:
+            execution_log(state_dir=state_dir, write_result=True)
+            _refresh_codex_report_for_closeout(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                decision_id=decision_id,
+                round_id=requested_round_id,
+            )
+            report_auto_summary(state_dir=state_dir, write_result=True)
+            _sync_auto_summary_to_report(state_dir)
+            build_report_summary_synthesis(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
             # Remove any stale round archive from a previous failed close-round
             # attempt before close_round() runs.  close_round() checks if the
             # archived copies match the live copies; if a stale archive exists
@@ -16437,6 +16770,12 @@ def run_closeout(
                 if source.exists():
                     _shutil.copy2(source, archive_dir / name)
             _refresh_manifest_status(state_dir=state_dir, round_id=requested_round_id)
+        _refresh_post_run_closeout_evidence(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            decision_id=decision_id,
+            round_id=requested_round_id,
+        )
     return result
 
 

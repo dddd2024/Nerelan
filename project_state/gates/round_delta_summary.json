@@ -1,21 +1,27 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "head_commit": "f99e8962a613",
+  "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
+  "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
+  "head_commit": "948918ceacbc",
   "baseline_available": true,
   "baseline_git_status_short": [
     " M project_state/gates/command_plan.json",
-    " M project_state/pytest_result.txt"
+    " M project_state/pytest_result.txt",
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "project_state/gates/command_plan.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
     "project_state/gates/command_plan.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
@@ -39,11 +45,12 @@
     " M project_state/gates/run_round_result.json",
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
-    "?? project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/execution_report.md",
-    "?? project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/round_manifest.json"
+    " M tests/test_project_gate.py",
+    "?? project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/execution_report.md",
+    "?? project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -64,7 +71,8 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "reverse_agent/project_gate.py"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "final_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -85,12 +93,13 @@
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/round_manifest.json",
-    "reverse_agent/project_gate.py"
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/decision_packet.md",
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/execution_report.md",
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/pytest_result.txt",
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/round_manifest.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -109,17 +118,18 @@
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/run_round_result.json",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/round_manifest.json",
-    "reverse_agent/project_gate.py"
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/decision_packet.md",
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/execution_report.md",
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/pytest_result.txt",
+    "project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/round_manifest.json"
   ],
   "inherited_dirty_files": [
     "project_state/gates/command_plan.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-28T07:30:06.048728Z"
+  "generated_at": "2026-06-28T08:56:50.233636Z"
 }

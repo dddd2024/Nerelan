@@ -3,11 +3,52 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "report_id": "codex_report_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "generated_at": "2026-06-28T07:26:43.126055Z",
-  "source": "derived_from_pytest_result_and_command_plan",
+  "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
+  "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
+  "report_id": "codex_report_20260628_hybrid_execution_log_provenance_v1",
+  "generated_at": "2026-06-28T08:55:46.293023Z",
+  "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
+  "provenance": {
+    "classification": "hybrid",
+    "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
+    "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
+    "report_id": "codex_report_20260628_hybrid_execution_log_provenance_v1",
+    "evidence_sources": [
+      "pytest_result",
+      "command_plan",
+      "run_closeout_execution_log"
+    ],
+    "artifacts": {
+      "pytest_result": {
+        "path": "project_state/pytest_result.txt",
+        "exists": true,
+        "sha256": "5d8ff3b2e7109b5795dedcb345259405c4196e23d43372bd9829a33bd48db854",
+        "size_bytes": 15855,
+        "command_block_count": 15
+      },
+      "command_plan": {
+        "path": "project_state/gates/command_plan.json",
+        "exists": true,
+        "sha256": "cf52be54b408522233b614772fdf9772e319983a07c1ef1f986c5221a696f282",
+        "size_bytes": 6783,
+        "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
+        "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
+        "plan_status": "PASSED",
+        "command_count": 15
+      },
+      "run_closeout_execution_log": {
+        "path": "project_state/gates/run_closeout_execution_log.json",
+        "exists": true,
+        "sha256": "f164fa856a1fb5fd2063f8aaf605e9fd35f5635c43cc37daf36429890b6634d1",
+        "size_bytes": 4175009,
+        "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
+        "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
+        "command_block_count": 1699
+      }
+    },
+    "command_count": 15,
+    "command_digest": "79b6187e284a2b3cbfff052d9f1df96158b37181a2d1acfbe679f08754946805"
+  },
   "commands": [
     {
       "index": 1,
@@ -122,7 +163,7 @@
     },
     {
       "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_pytest_summary_and_closeout_consistency_rework_v1 --mode execute",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_hybrid_execution_log_provenance_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -156,23 +197,23 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-      "kind": "run-closeout",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 15,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
       "expected_exit_codes": [
         0,
         1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_hybrid_execution_log_provenance_v1",
+      "kind": "run-closeout",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
       ],
       "exit_code": 0,
       "status": "PASSED"

@@ -10488,7 +10488,10 @@ class TestStructuredExecutionLog:
         result = execution_log(state_dir=state_dir, write_result=True)
         assert (state_dir / "gates" / EXECUTION_LOG_RESULT_NAME).exists()
         assert result.get("artifact_name") == EXECUTION_LOG_RESULT_NAME
-        assert result.get("source") == "derived_from_pytest_result_and_command_plan"
+        assert result.get("source") == "hybrid_from_pytest_result_and_command_plan"
+        provenance = result.get("provenance") or {}
+        assert provenance.get("classification") == "hybrid"
+        assert provenance.get("evidence_sources") == ["pytest_result", "command_plan"]
 
     def test_synthesis_includes_execution_log_when_exists(self, tmp_path: Path) -> None:
         """build_report_summary_synthesis includes execution_log.json in
@@ -16771,6 +16774,29 @@ def test_run_closeout_internal_blockers_include_active_close_round_warnings() ->
     )
 
 
+def test_run_closeout_internal_blockers_ignore_baseline_capture_order_limitation() -> None:
+    reasons = _run_closeout_internal_blocking_reasons(
+        executed_steps=[],
+        skipped_steps=[],
+        close_round_result={
+            "close_status": "CLOSED",
+            "blocking_reasons": [],
+            "warnings": [
+                "baseline_capture_order: source/test files overlap between baseline dirty and files_changed"
+            ],
+            "actions": [
+                {
+                    "name": "final_check_after_archive",
+                    "status": "PASSED",
+                    "gate_status": "PASSED_WITH_LIMITATIONS",
+                }
+            ],
+            "archive": {"status": "archived"},
+        },
+    )
+    assert reasons == []
+
+
 def test_run_closeout_self_record_refresh_clears_transient_nested_report_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -22036,6 +22062,113 @@ class TestExecutionLogRequiredCommandsRecordedCheck:
         assert check is not None
         assert check["status"] == "PASS"
         assert check.get("skipped_reason") == "execution_log_not_present"
+
+
+class TestExecutionLogHybridProvenance:
+    """Verify hybrid execution_log provenance generation and final-check validation."""
+
+    def test_execution_log_records_hybrid_closeout_provenance(self, tmp_path: Path) -> None:
+        from reverse_agent.project_gate import execution_log
+
+        state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+        gates_dir = state_dir / "gates"
+        _write_json(
+            gates_dir / "run_closeout_execution_log.json",
+            {
+                "schema_version": 1,
+                "gate_name": "run-closeout",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "command_blocks": [
+                    {
+                        "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                        "stdout": "final-check: PASSED",
+                        "stderr": "",
+                        "exit_code": 0,
+                    }
+                ],
+            },
+        )
+
+        result = execution_log(state_dir=state_dir, write_result=False)
+
+        assert result["source"] == "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log"
+        provenance = result["provenance"]
+        assert provenance["classification"] == "hybrid"
+        assert provenance["decision_id"] == "decision_gate"
+        assert provenance["round_id"] == "round_gate"
+        assert provenance["report_id"] == "codex_report_gate"
+        assert "pytest_result" in provenance["artifacts"]
+        assert "command_plan" in provenance["artifacts"]
+        assert "run_closeout_execution_log" in provenance["artifacts"]
+        assert provenance["artifacts"]["run_closeout_execution_log"]["command_block_count"] == 1
+        assert provenance["command_count"] == len(result["commands"])
+        assert provenance["command_digest"]
+
+    def test_final_check_fails_when_hybrid_provenance_hash_is_tampered(self, tmp_path: Path) -> None:
+        from reverse_agent.project_gate import execution_log
+
+        state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+        gates_dir = state_dir / "gates"
+        _write_json(
+            gates_dir / "run_closeout_execution_log.json",
+            {
+                "schema_version": 1,
+                "gate_name": "run-closeout",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "command_blocks": [],
+            },
+        )
+        execution_log(state_dir=state_dir, write_result=True)
+        payload = json.loads((gates_dir / "execution_log.json").read_text(encoding="utf-8"))
+        payload["provenance"]["artifacts"]["pytest_result"]["sha256"] = "bad"
+        _write_json(gates_dir / "execution_log.json", payload)
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        check = _check(result, "execution_log_provenance_valid")
+        assert check["status"] == "FAIL"
+        assert any(
+            error.get("field") == "provenance.artifacts.pytest_result.sha256"
+            for error in check.get("errors", [])
+        )
+
+    def test_final_check_fails_when_closeout_log_exists_but_hybrid_omits_it(self, tmp_path: Path) -> None:
+        from reverse_agent.project_gate import execution_log
+
+        state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+        gates_dir = state_dir / "gates"
+        execution_log(state_dir=state_dir, write_result=True)
+        _write_json(
+            gates_dir / "run_closeout_execution_log.json",
+            {
+                "schema_version": 1,
+                "gate_name": "run-closeout",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "command_blocks": [],
+            },
+        )
+        _write_json(
+            gates_dir / "run_closeout_result.json",
+            {
+                "schema_version": 1,
+                "gate_name": "run-closeout",
+                "closeout_status": "PASSED",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+            },
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+        check = _check(result, "execution_log_provenance_valid")
+        assert check["status"] == "FAIL"
+        assert any(
+            error.get("field") == "provenance.evidence_sources"
+            for error in check.get("errors", [])
+        )
 
 
 class TestReportAutoSummaryNoSynthesizeMissing:
