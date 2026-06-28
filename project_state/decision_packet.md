@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260628_clean_baseline_and_job_state_machine_v1",
-  "round_id": "round_20260628_clean_baseline_and_job_state_machine_v1",
+  "decision_id": "decision_20260628_clean_baseline_job_inventory_v1",
+  "round_id": "round_20260628_clean_baseline_job_inventory_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,14 +13,16 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
-  "previous_round_id": "round_20260628_hybrid_execution_log_provenance_v1",
+  "previous_decision_id": "decision_20260628_clean_baseline_and_job_state_machine_v1",
+  "previous_round_id": "round_20260628_clean_baseline_and_job_state_machine_v1",
   "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
-  "phase_label": "phase_2_11_clean_baseline_and_job_state_machine",
-  "primary_goal": "Combine cleanup of the remaining baseline warning with bounded forward progress on the project_state job state machine.",
+  "phase_label": "phase_2_12_clean_baseline_job_inventory",
+  "primary_goal": "Require a clean source/test startup baseline, then extend the existing job layer with project_state/jobs inventory validation and one safe non-dispatching DRAFT job contract.",
   "command_plan_authority_required": true,
-  "accepted_requires_no_baseline_capture_order_warn_for_pure_accepted": true,
-  "accepted_requires_job_state_machine_v1": true,
+  "accepted_requires_source_test_clean_start": true,
+  "accepted_requires_no_baseline_capture_order_warn": true,
+  "accepted_requires_job_inventory_v1": true,
+  "accepted_requires_safe_draft_job_contract": true,
   "accepted_requires_no_agent_dispatch": true,
   "accepted_requires_no_remote_mutation": true,
   "accepted_requires_pytest_summary_matches_command_blocks": true,
@@ -29,7 +31,7 @@
     "reverse_agent/project_jobs.py",
     "tests/test_project_jobs.py"
   ],
-  "inspect_only_files": [
+  "forbidden_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -37,6 +39,9 @@
     ".github/workflows/decision-preflight.yml",
     ".github/workflows/ci.yml",
     ".github/workflows/state-gate.yml"
+  ],
+  "allowed_generated_job_files": [
+    "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -55,35 +60,36 @@
 
 ## 1. Goal
 
-Implement Clean Baseline and Job State Machine v1.
+Implement Clean Baseline Job Inventory v1.
 
-The previous round succeeded in upgrading `execution_log.json` from derived-only to hybrid provenance, but it still ended as `ACCEPTED_WITH_LIMITATIONS` because `baseline_capture_order` returned to WARN when `reverse_agent/project_gate.py` and `tests/test_project_gate.py` were already dirty at startup and also appeared in `files_changed`.
+The previous round successfully added the job state-machine foundation, but final audit remained `ACCEPTED_WITH_LIMITATIONS` because `baseline_capture_order` was WARN. This round must stop accumulating baseline limitations and make actual forward progress only from a clean source/test baseline.
 
-This round combines cleanup and forward progress:
+This round combines cleanup and implementation:
 
-1. Avoid repeating the baseline overlap problem by not modifying the inherited dirty project gate files.
-2. Preserve the hybrid execution-log provenance work.
-3. Extend the already existing non-dispatching job contract validator into a small job state-machine foundation.
-4. Add tests for valid and invalid job status transitions, lock/lease metadata validation, and safe READY/RUNNING/DONE job contracts.
-5. Optionally generate one current `project_state/jobs/job_20260628_clean_baseline_and_job_state_machine_v1.json` example job contract if the implementation can do so without violating scope.
+1. Enforce a clean source/test startup baseline before any code change.
+2. Preserve the existing hybrid execution-log provenance and job state-machine helpers.
+3. Extend the existing `project_jobs.py` layer with bounded `project_state/jobs/*.json` inventory validation.
+4. Add a safe non-dispatching DRAFT job contract under `project_state/jobs/` for the current round.
+5. Add tests proving inventory validation, duplicate job detection, invalid job file reporting, status counts, backward compatibility, and safety restrictions.
 
-Final preferred outcome:
+Preferred final outcome:
 
 - `status: SUCCESS`.
 - `acceptance_recommendation: ACCEPTED`.
 - `limitations` null or absent.
-- `baseline_capture_order` PASS or absent.
+- startup source/test baseline is clean.
+- `baseline_capture_order` is PASS or absent.
 - `execution_log.json.source` remains hybrid/direct, not derived-only.
-- pytest summary, report-summary synthesis, final-check, and run-closeout all pass.
+- job inventory validation is implemented and tested.
+- the generated DRAFT job contract validates and cannot dispatch or mutate remote state.
+- final-check and run-closeout pass.
 
-Fallback acceptable outcome:
+Fallback outcome:
 
-- `status: SUCCESS`.
-- `acceptance_recommendation: ACCEPTED_WITH_LIMITATIONS`.
-- explicit limitation naming baseline/source-test inherited dirty state.
-- This fallback is acceptable only if all implementation requirements are satisfied and the limitation is accurately represented. It is not acceptable to claim pure ACCEPTED while baseline WARN remains.
+- If source/test files are dirty at startup, do not implement. Stop with `BLOCKED` and explain that the local worktree must be cleaned before this decision can run.
+- Do not downgrade to `ACCEPTED_WITH_LIMITATIONS` merely to continue from a dirty source/test baseline. The point of this round is to eliminate that class of limitation.
 
-This is still an engineering round. Do not implement Web UI, AgentRunner, API Planner/Auditor, self-hosted runner automation, database, queue, scheduler, automatic remote writes, or reverse-solving.
+This is an engineering round. Do not implement Web UI, AgentRunner, API Planner/Auditor, self-hosted runner automation, database, queue, scheduler, automatic remote writes, or reverse-solving.
 
 ## 2. Current Evidence
 
@@ -91,29 +97,32 @@ Mainline: `engineering_branch`.
 
 The current task is controlled by `project_state/decision_packet.md`; `task_packet.json` is non-authoritative background only.
 
-The previous round `decision_20260628_hybrid_execution_log_provenance_v1` ended with audit outcome `ACCEPTED_WITH_LIMITATIONS`.
+Previous accepted-with-limitations round: `decision_20260628_clean_baseline_and_job_state_machine_v1`.
 
-Accepted evidence from the previous round:
+Accepted evidence from that round:
 
-- `execution_log.json.source` was upgraded to `hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log`.
-- `execution_log.json.provenance.classification` was `hybrid`.
-- final-check included `execution_log_provenance_valid: PASS`.
-- both required pytest commands passed.
-- `pytest_result_summary.status` matched recorded command exits.
+- `reverse_agent/project_jobs.py` gained `JOB_TERMINAL_STATUSES`, `JOB_STATUS_TRANSITIONS`, lock/lease validation, `validate_job_transition`, and payload-level transition validation.
+- `tests/test_project_jobs.py` covered valid transitions, unsafe transitions, lock/lease metadata, backward compatibility, safe current example validation, dispatch rejection, and remote mutation rejection.
+- job tests passed.
+- full gate/state/jobs pytest passed.
 - final-check and run-closeout passed.
-- report-summary synthesis matched the reports.
-- startup order and `startup_command_position_order` remained valid.
-- reverse_solving strict freshness semantics remained intact.
+- `execution_log.json.source` remained `hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log`.
 
-Remaining limitation from the previous round:
+Remaining limitation:
 
-- `baseline_capture_order` was WARN because `reverse_agent/project_gate.py` and `tests/test_project_gate.py` overlapped between startup baseline dirty files and files_changed.
+- `baseline_capture_order` was WARN because source/test files were dirty at startup and overlapped with files_changed.
 
 Existing job capability to build on:
 
-- `reverse_agent/project_jobs.py` already defines `JOB_STATUSES`, `JOB_RUNNER_KINDS`, required fields, permission flags, budget validation, `validate_job_payload`, `load_job_file`, and `validate_job_file`.
-- `tests/test_project_jobs.py` already covers valid non-dispatching contracts, missing fields, unknown status rejection, dispatch/remote mutation rejection, and JSON file validation.
-- This round must extend that foundation, not replace it.
+- `project_jobs.py` already validates individual `project_state/jobs/*.json` contracts.
+- It already rejects dispatch and forbidden permissions.
+- It already supports safe state transitions and optional lock/lease metadata.
+- This round must extend that foundation with inventory-level validation, not replace it.
+
+Strategic context:
+
+- The long-term architecture moves from manual GPT/Codex loops toward Web console + Planner API + command-plan + AgentRunner + CI + final-check + Auditor, but current implementation should proceed in bounded layers.
+- The next safe layer is job inventory and job contract validation, not database, Web UI, full AgentRunner, or automatic dispatch.
 
 Artifact freshness:
 
@@ -128,13 +137,17 @@ Negative results:
 
 ## 3. Do Not Do
 
-Do not modify `reverse_agent/project_gate.py` or `tests/test_project_gate.py` unless a narrow compatibility fix is absolutely required and explicitly justified in the report. The intended path is to avoid these files so the previous inherited dirty overlap does not recur.
+Do not start implementation if startup `git status --short` shows dirty source/test files under `reverse_agent/` or `tests/`. Stop with `BLOCKED` instead.
 
-Do not redesign `project_jobs.py`. Extend the existing validator with small, testable state-machine helpers.
+Do not modify `reverse_agent/project_gate.py` or `tests/test_project_gate.py` in this round.
+
+Do not redesign `project_jobs.py`. Extend existing validators with small, testable inventory helpers.
 
 Do not enable dispatch. `runner.dispatch_enabled` must remain false.
 
 Do not allow remote mutation, LLM calls, agent dispatch, or reverse-solving permissions in job contracts.
+
+Do not create a READY/RUNNING job that an executor could treat as runnable. The generated job contract must be DRAFT and non-dispatching.
 
 Do not introduce Web UI, AgentRunner, API Planner/Auditor, database, queue, scheduler, self-hosted runner automation, GitHub Actions mutation, automatic push, or reverse-solving.
 
@@ -172,15 +185,18 @@ Then inspect bounded implementation files:
 
 1. `reverse_agent/project_jobs.py`
 2. `tests/test_project_jobs.py`
-3. `reverse_agent/project_gate.py` only to understand existing job validation integration; do not modify by default
-4. `tests/test_project_gate.py` only if a compatibility regression appears; do not modify by default
-5. `project_state/gates/execution_log.json`
-6. `project_state/gates/final_gate_result.json`
-7. `project_state/gates/run_closeout_result.json`
-8. `project_state/gates/round_baseline.json`
-9. `project_state/gates/round_delta_summary.json`
-10. `project_state/gates/command_plan.json`
-11. existing `project_state/jobs/*.json` if present
+3. existing `project_state/jobs/*.json` if present
+4. `project_state/gates/execution_log.json`
+5. `project_state/gates/final_gate_result.json`
+6. `project_state/gates/run_closeout_result.json`
+7. `project_state/gates/round_baseline.json`
+8. `project_state/gates/round_delta_summary.json`
+9. `project_state/gates/command_plan.json`
+
+Inspect only for regression context, do not modify:
+
+1. `reverse_agent/project_gate.py`
+2. `tests/test_project_gate.py`
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -188,19 +204,21 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 The report must answer all items with concrete evidence and status `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`:
 
-1. What source/test files were dirty at startup, and did any of them overlap with files_changed?
-2. Is `baseline_capture_order` PASS, WARN, or absent? If WARN remains, why is acceptance limited?
-3. Was `reverse_agent/project_gate.py` left unmodified? If not, why was modification unavoidable?
-4. Was `tests/test_project_gate.py` left unmodified? If not, why was modification unavoidable?
-5. What job state-machine helpers were added to `project_jobs.py`?
-6. What are the allowed job status transitions, and which invalid transitions are rejected by tests?
-7. How are lock/lease metadata fields validated while keeping old job contracts compatible?
-8. Does `runner.dispatch_enabled` remain false and do forbidden permission flags remain blocked?
-9. Was any example job contract generated under `project_state/jobs/`, and did validation pass?
-10. Did both required pytest commands exit 0, and what are their pass counts?
-11. Did final-check and run-closeout pass?
-12. Did hybrid execution-log provenance remain valid and non-derived-only?
-13. Were forbidden paths, full solve_reports scans, reverse-solving, Web/AgentRunner/DB/queue/scheduler scope, and remote mutation avoided?
+1. Was startup source/test baseline clean before implementation?
+2. Is `baseline_capture_order` PASS, WARN, or absent? If WARN remains, why did the round not claim pure `ACCEPTED`?
+3. Were `reverse_agent/project_gate.py` and `tests/test_project_gate.py` left unmodified?
+4. What job inventory helper(s) were added to `project_jobs.py`?
+5. How does inventory validation handle a missing `project_state/jobs/` directory?
+6. How does inventory validation report invalid job files without dispatching anything?
+7. How are duplicate `job_id` values detected?
+8. What status counts are returned for valid job inventories?
+9. Was `project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json` generated, and is it DRAFT/non-dispatching/safe?
+10. Does the generated job contract reference the current decision and round IDs?
+11. Do dispatch and forbidden permission flags remain blocked?
+12. Did both required pytest commands exit 0, and what are their pass counts?
+13. Did final-check and run-closeout pass?
+14. Did hybrid execution-log provenance remain valid and non-derived-only?
+15. Were forbidden paths, full solve_reports scans, reverse-solving, Web/AgentRunner/DB/queue/scheduler scope, and remote mutation avoided?
 
 ## 6. Implementation Scope
 
@@ -209,13 +227,14 @@ Allowed source changes:
 - `reverse_agent/project_jobs.py`
 - `tests/test_project_jobs.py`
 
-Inspect-only by default; modify only if a narrow compatibility issue blocks tests and the report justifies it:
+Forbidden source/test changes:
 
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
 
 Allowed generated or updated state artifacts:
 
+- `project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json`
 - `project_state/execution_report.md`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
@@ -235,25 +254,25 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/state_hygiene_inventory.json`
-- `project_state/jobs/job_20260628_clean_baseline_and_job_state_machine_v1.json`
-- `project_state/rounds/round_20260628_clean_baseline_and_job_state_machine_v1/*`
+- `project_state/rounds/round_20260628_clean_baseline_job_inventory_v1/*`
 
 Required behavior:
 
-1. Add a small, explicit allowed-transition table for job statuses.
-2. Add a helper such as `validate_job_transition(from_status, to_status)` or equivalent.
-3. Add payload-level validation for optional lock/lease metadata, while keeping existing job contracts valid when those fields are absent.
-4. Ensure `READY -> RUNNING -> DONE -> FINAL_CHECKED -> AUDITED -> ACCEPTED/ACCEPTED_WITH_LIMITATIONS/REWORK_REQUIRED/BLOCKED` is supported where appropriate.
-5. Ensure unsafe transitions are rejected, for example `DRAFT -> RUNNING`, terminal status back to `RUNNING`, or `ACCEPTED -> REWORK_REQUIRED` without a new job.
-6. Preserve strict rejection of dispatch and remote mutation permissions.
-7. Add tests for valid transitions, invalid transitions, lock/lease validation, backwards compatibility with existing minimal contracts, and safe example job file validation.
-8. If an example job file is generated, it must be non-dispatching, no remote mutation, no LLM calls, no reverse-solving, and must reference current decision/round IDs.
-9. Preserve hybrid execution-log provenance and status policy behavior.
-10. Keep implementation small and avoid broad refactors.
+1. Add bounded job inventory validation for `project_state/jobs/*.json`.
+2. Add a helper such as `validate_jobs_dir(state_dir)` or equivalent.
+3. Missing `project_state/jobs/` should be valid with zero jobs.
+4. Invalid JSON or invalid job payloads should be reported as inventory errors without raising uncaught exceptions.
+5. Duplicate `job_id` values across job files must be rejected.
+6. Valid inventories should return counts by job status and a list of validated job paths.
+7. Preserve existing single-job validation, transition validation, lock/lease validation, and dispatch/permission rejection.
+8. Generate a safe current DRAFT job contract under `project_state/jobs/`.
+9. The generated job must be non-dispatching, forbid remote mutation/LLM calls/agent dispatch/reverse-solving, and reference the current decision and round IDs.
+10. Preserve hybrid execution-log provenance and status policy behavior.
+11. Keep implementation small and avoid broad refactors.
 
 ## 7. Tests
 
-Record startup checks first:
+Before implementation, record startup checks first:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -263,6 +282,11 @@ git rev-parse --show-toplevel
 git status --short
 ```
 
+Hard startup rule:
+
+- If `git status --short` contains dirty source/test paths under `reverse_agent/` or `tests/`, stop with `BLOCKED` before modifying any file.
+- Project-state generated files may be dirty, but source/test dirty baseline is not allowed for this round.
+
 Then run command-plan-authorized validation. At minimum include:
 
 ```powershell
@@ -270,17 +294,16 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 python -m reverse_agent.project_gate report-summary --state-dir project_state
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_and_job_state_machine_v1 --mode execute
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_job_inventory_v1 --mode execute
 python -m pytest tests/test_project_jobs.py -q
-python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_and_job_state_machine_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_job_inventory_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-The command-plan-authorized set is authoritative. If this Tests section conflicts with command-plan, command-plan controls, except it must not override startup-first ordering, pytest summary consistency, baseline warning honesty, hybrid provenance preservation, or closeout consistency.
+The command-plan-authorized set is authoritative. If this Tests section conflicts with command-plan, command-plan controls, except it must not override startup-first ordering, clean source/test baseline, pytest summary consistency, baseline warning honesty, hybrid provenance preservation, or closeout consistency.
 
 Write all top-level commands and exit codes to `project_state/pytest_result.txt`.
 
@@ -289,13 +312,14 @@ Write all top-level commands and exit codes to `project_state/pytest_result.txt`
 Stop immediately and report `BLOCKED` if:
 
 - startup checks do not confirm `F:\reverse-agent` and repository root;
+- startup `git status --short` shows dirty source/test files under `reverse_agent/` or `tests/`;
 - decision_meta is invalid;
 - status is not APPROVED;
 - mainline is invalid;
 - skill profiles do not match active registry entries;
 - command-plan is missing, failed, or unsafe;
+- implementation requires modifying `reverse_agent/project_gate.py` or `tests/test_project_gate.py`;
 - implementation requires forbidden path mutation;
-- implementation requires modifying `reverse_agent/project_gate.py` or `tests/test_project_gate.py` for anything broader than a narrow compatibility fix;
 - implementation requires Web UI, AgentRunner, external dispatch, database, queue, scheduler, automatic remote writes, GitHub Actions mutation, or sample-solving work.
 
 Stop with `REWORK_REQUIRED` if:
@@ -303,11 +327,13 @@ Stop with `REWORK_REQUIRED` if:
 - any required pytest command exits nonzero;
 - `pytest_result_summary.status` contradicts recorded command-block exit codes;
 - `execution_log.json` regresses to derived-only while report/final-check claims pure `ACCEPTED`;
-- baseline_capture_order remains WARN while report/final-check claims pure `ACCEPTED`;
-- source/test files dirty at startup overlap with files_changed and the limitation is not reported;
-- job status transitions are not implemented or not tested;
-- invalid job transitions are accepted;
-- job lock/lease validation breaks existing minimal job contracts;
+- `baseline_capture_order` remains WARN while report/final-check claims pure `ACCEPTED`;
+- startup source/test dirty baseline was ignored and implementation proceeded;
+- `reverse_agent/project_gate.py` or `tests/test_project_gate.py` is modified;
+- job inventory validation is not implemented or not tested;
+- invalid job files are silently accepted;
+- duplicate job IDs are accepted;
+- the generated job contract is READY/RUNNING or dispatch-enabled;
 - dispatch or remote mutation permissions become allowed;
 - report-summary synthesis and report summaries disagree;
 - final-check fails unexpectedly;
