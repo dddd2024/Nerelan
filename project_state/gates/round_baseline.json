@@ -1,28 +1,34 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
-  "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
-  "head_commit": "948918ceacbc",
+  "decision_id": "decision_20260628_clean_baseline_and_job_state_machine_v1",
+  "round_id": "round_20260628_clean_baseline_and_job_state_machine_v1",
+  "head_commit": "ebbd09a03cc4",
   "baseline_git_status_short": [
     " M project_state/gates/command_plan.json",
+    " M project_state/gates/preflight_result.json",
+    " D project_state/gates/round_baseline.json",
     " M project_state/pytest_result.txt",
-    " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py"
+    " M reverse_agent/project_jobs.py",
+    " M tests/test_project_jobs.py"
   ],
   "baseline_git_diff_name_only": [
     "project_state/gates/command_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json",
     "project_state/pytest_result.txt",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "reverse_agent/project_jobs.py",
+    "tests/test_project_jobs.py"
   ],
   "baseline_dirty_files": [
     "project_state/gates/command_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json",
     "project_state/pytest_result.txt",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "reverse_agent/project_jobs.py",
+    "tests/test_project_jobs.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-28T07:55:12.623750Z"
+  "generated_at": "2026-06-28T09:14:47.246051Z"
 }

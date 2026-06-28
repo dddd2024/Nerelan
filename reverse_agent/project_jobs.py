@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -21,6 +22,29 @@ JOB_STATUSES = {
     "BLOCKED",
 }
 JOB_RUNNER_KINDS = {"manual", "codex", "trae", "human", "none"}
+JOB_TERMINAL_STATUSES = {
+    "ACCEPTED",
+    "ACCEPTED_WITH_LIMITATIONS",
+    "REWORK_REQUIRED",
+    "BLOCKED",
+}
+JOB_STATUS_TRANSITIONS = {
+    "DRAFT": {"READY", "BLOCKED"},
+    "READY": {"RUNNING", "BLOCKED"},
+    "RUNNING": {"DONE", "REWORK_REQUIRED", "BLOCKED"},
+    "DONE": {"FINAL_CHECKED", "REWORK_REQUIRED", "BLOCKED"},
+    "FINAL_CHECKED": {"AUDITED", "REWORK_REQUIRED", "BLOCKED"},
+    "AUDITED": {
+        "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
+        "REWORK_REQUIRED",
+        "BLOCKED",
+    },
+    "ACCEPTED": set(),
+    "ACCEPTED_WITH_LIMITATIONS": set(),
+    "REWORK_REQUIRED": set(),
+    "BLOCKED": set(),
+}
 REQUIRED_FIELDS = {
     "schema_version",
     "job_id",
@@ -99,6 +123,106 @@ def _validate_budgets(value: Any, errors: list[str]) -> dict[str, Any]:
     return budgets
 
 
+def _iso_datetime(value: Any, field: str, errors: list[str]) -> str:
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"{field} must be a non-empty ISO-8601 timestamp")
+        return ""
+    text = value.strip()
+    try:
+        datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        errors.append(f"{field} must be an ISO-8601 timestamp")
+    return text
+
+
+def _validate_lock(value: Any, errors: list[str]) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        errors.append("lock must be an object when present")
+        return {}
+    lock = dict(value)
+    for field in ("lock_id", "owner"):
+        if not isinstance(lock.get(field), str) or not lock.get(field, "").strip():
+            errors.append(f"lock.{field} must be a non-empty string")
+    if "created_at" in lock:
+        _iso_datetime(lock.get("created_at"), "lock.created_at", errors)
+    return lock
+
+
+def _validate_lease(value: Any, errors: list[str]) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        errors.append("lease must be an object when present")
+        return {}
+    lease = dict(value)
+    for field in ("lease_id", "owner", "expires_at"):
+        if field == "expires_at":
+            continue
+        if not isinstance(lease.get(field), str) or not lease.get(field, "").strip():
+            errors.append(f"lease.{field} must be a non-empty string")
+    expires_at = _iso_datetime(lease.get("expires_at"), "lease.expires_at", errors)
+    acquired_at = ""
+    if "acquired_at" in lease:
+        acquired_at = _iso_datetime(lease.get("acquired_at"), "lease.acquired_at", errors)
+    if "heartbeat_at" in lease:
+        _iso_datetime(lease.get("heartbeat_at"), "lease.heartbeat_at", errors)
+    if acquired_at and expires_at:
+        try:
+            acquired = datetime.fromisoformat(acquired_at.replace("Z", "+00:00"))
+            expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            if expires <= acquired:
+                errors.append("lease.expires_at must be later than lease.acquired_at")
+        except ValueError:
+            pass
+    return lease
+
+
+def validate_job_transition(from_status: str, to_status: str) -> dict[str, Any]:
+    """Validate a status transition without mutating or dispatching a job."""
+
+    from_value = str(from_status or "").strip().upper()
+    to_value = str(to_status or "").strip().upper()
+    errors: list[str] = []
+    if from_value not in JOB_STATUSES:
+        errors.append(f"from_status must be one of {sorted(JOB_STATUSES)}")
+    if to_value not in JOB_STATUSES:
+        errors.append(f"to_status must be one of {sorted(JOB_STATUSES)}")
+    allowed_to = sorted(JOB_STATUS_TRANSITIONS.get(from_value, set()))
+    if not errors and to_value not in JOB_STATUS_TRANSITIONS.get(from_value, set()):
+        errors.append(f"transition {from_value}->{to_value} is not allowed")
+    return {
+        "validation_status": "FAILED" if errors else "PASSED",
+        "errors": errors,
+        "from_status": from_value,
+        "to_status": to_value,
+        "allowed_to": allowed_to,
+        "terminal_from_status": from_value in JOB_TERMINAL_STATUSES,
+    }
+
+
+def _validate_transition(value: Any, status: str, errors: list[str]) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        errors.append("transition must be an object when present")
+        return {}
+    transition = dict(value)
+    from_status = str(transition.get("from_status") or "").strip().upper()
+    to_status = str(transition.get("to_status") or "").strip().upper()
+    result = validate_job_transition(from_status, to_status)
+    errors.extend(result["errors"])
+    if to_status and status and to_status != status:
+        errors.append("transition.to_status must match job status")
+    return {
+        "from_status": from_status,
+        "to_status": to_status,
+        "validation_status": result["validation_status"],
+        "allowed_to": result["allowed_to"],
+    }
+
+
 def validate_job_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a project job contract without dispatching anything."""
 
@@ -125,6 +249,9 @@ def validate_job_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     required_outputs = _string_list(payload, "required_outputs", errors)
     permissions = _validate_permissions(payload.get("permissions"), errors)
     budgets = _validate_budgets(payload.get("budgets"), errors)
+    transition = _validate_transition(payload.get("transition"), status, errors)
+    lock = _validate_lock(payload.get("lock"), errors)
+    lease = _validate_lease(payload.get("lease"), errors)
 
     return {
         "schema_version": JOB_SCHEMA_VERSION,
@@ -141,6 +268,9 @@ def validate_job_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         "required_outputs": required_outputs,
         "permissions": permissions,
         "budgets": budgets,
+        "transition": transition,
+        "lock": lock,
+        "lease": lease,
         "dispatch_enabled": False,
     }
 

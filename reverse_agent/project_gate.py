@@ -12946,6 +12946,21 @@ def report_auto_summary(
         status = "PARTIAL"
         acceptance = "NEEDS_REVIEW"
 
+    limitations: list[str] = []
+    external_state_notices: list[str] = []
+    if final_gate_matches:
+        limitations, external_state_notices = _limited_acceptance_details_from_gate_payload(
+            final_gate_payload
+        )
+    if not limitations and isinstance(report_summary.get("limitations"), list):
+        limitations = [str(item) for item in report_summary.get("limitations") or []]
+    if not external_state_notices and isinstance(
+        report_summary.get("external_state_notices"), list
+    ):
+        external_state_notices = [
+            str(item) for item in report_summary.get("external_state_notices") or []
+        ]
+
     # --- Build summary ---
     summary = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
@@ -12960,6 +12975,10 @@ def report_auto_summary(
         "referenced_artifacts": sorted(referenced_artifact_set),
         "required_closeout_artifacts": [],
     }
+    if limitations:
+        summary["limitations"] = limitations
+    if external_state_notices:
+        summary["external_state_notices"] = external_state_notices
 
     # --- gate_status ---
     if blocking_reasons:
@@ -15061,8 +15080,18 @@ def _refresh_codex_report_for_closeout(
     }
     gates_dir = state_dir / "gates"
     if (gates_dir / ROUND_BASELINE_RESULT_NAME).exists():
+        if (
+            ROUND_BASELINE_OUTPUT_PATH in dirty_files_norm
+            or ROUND_BASELINE_OUTPUT_PATH in baseline_dirty_files
+        ):
+            files_changed_set.add(ROUND_BASELINE_OUTPUT_PATH)
         generated_artifact_set.add(ROUND_BASELINE_OUTPUT_PATH)
     if (gates_dir / PREFLIGHT_RESULT_NAME).exists():
+        if (
+            PREFLIGHT_OUTPUT_PATH in dirty_files_norm
+            or PREFLIGHT_OUTPUT_PATH in baseline_dirty_files
+        ):
+            files_changed_set.add(PREFLIGHT_OUTPUT_PATH)
         generated_artifact_set.add(PREFLIGHT_OUTPUT_PATH)
     if (gates_dir / COMMAND_PLAN_RESULT_NAME).exists():
         if COMMAND_PLAN_OUTPUT_PATH in dirty_files_norm:
@@ -15234,7 +15263,7 @@ def _refresh_codex_report_for_closeout(
         exit_mismatches = _pytest_result_exit_mismatches_against_command_plan(
             pytest_text,
             command_plan_payload,
-            skip_kinds={"status", "run-round", "close-round"},
+            skip_kinds={"status", "run-round", "run-closeout", "close-round"},
         )
         if pytest_status != "PASSED" or exit_mismatches:
             status = "FAILED"

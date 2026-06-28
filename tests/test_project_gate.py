@@ -1467,6 +1467,97 @@ def test_refresh_report_explains_allowed_source_files_dirty_baseline(
     assert "- tests/test_project_gate.py" in report_text
 
 
+def test_refresh_report_ignores_previous_run_closeout_failure_during_closeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    monkeypatch.setattr("reverse_agent.project_gate._git_changed_files", lambda _repo_root: [])
+    run_closeout_command = (
+        "python -m reverse_agent.project_gate run-closeout "
+        "--state-dir project_state --round-id round_gate"
+    )
+    command_plan = {
+        "schema_version": 1,
+        "plan_status": "PASSED",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "commands": [
+            {
+                "command": run_closeout_command,
+                "kind": "run-closeout",
+                "expected_exit_codes": [0],
+            }
+        ],
+    }
+    _write_json(state_dir / "gates" / "command_plan.json", command_plan)
+    _write_json(state_dir / "gates" / "final_gate_result.json", {
+        "schema_version": 1,
+        "gate_status": "PASSED",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "checks": [],
+    })
+    (state_dir / "pytest_result.txt").write_text(
+        "```json pytest_result_summary\n"
+        f"{json.dumps({'status': 'PASSED', 'tests_ran': [run_closeout_command]}, indent=2)}\n"
+        "```\n\n"
+        f"===== COMMAND: {run_closeout_command} =====\n"
+        "previous closeout attempt failed\n"
+        "===== EXIT: 1 =====\n",
+        encoding="utf-8",
+    )
+
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+
+    summary = _read_execution_report_summary(state_dir)
+    assert summary["status"] == "SUCCESS"
+    assert summary["acceptance_recommendation"] == "ACCEPTED"
+
+
+def test_refresh_report_includes_dirty_preflight_and_round_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _write_json(state_dir / "gates" / "preflight_result.json", {
+        "schema_version": 1,
+        "gate_status": "PASSED",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+    })
+    _write_json(state_dir / "gates" / "round_baseline.json", {
+        "schema_version": 1,
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "baseline_dirty_files": [
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/round_baseline.json",
+        ],
+    })
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: [
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/round_baseline.json",
+        ],
+    )
+
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+
+    summary = _read_execution_report_summary(state_dir)
+    assert "project_state/gates/preflight_result.json" in summary["files_changed"]
+    assert "project_state/gates/round_baseline.json" in summary["files_changed"]
+
+
 def test_report_auto_summary_writes_neutral_alias(tmp_path: Path) -> None:
     from reverse_agent.project_gate import report_auto_summary
 
@@ -1483,6 +1574,36 @@ def test_report_auto_summary_writes_neutral_alias(tmp_path: Path) -> None:
     assert neutral["artifact_name"] == "execution_report_auto_summary.json"
     assert neutral["summary"] == legacy["summary"]
     assert legacy["alias_of"] == "project_state/gates/execution_report_auto_summary.json"
+
+
+def test_report_auto_summary_carries_limited_acceptance_details(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import report_auto_summary
+
+    state_dir = _make_gate_state(tmp_path)
+    limitation = (
+        "baseline_capture_order remains WARN; source/test files overlap between "
+        "baseline dirty and files_changed"
+    )
+    _write_json(state_dir / "gates" / "final_gate_result.json", {
+        "schema_version": 1,
+        "gate_status": "PASSED_WITH_LIMITATIONS",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "checks": [
+            {
+                "name": "baseline_capture_order",
+                "status": "WARN",
+                "detail": (
+                    "source/test files overlap between baseline dirty and files_changed"
+                ),
+            }
+        ],
+    })
+
+    result = report_auto_summary(state_dir=state_dir, write_result=False)
+
+    assert result["summary"]["acceptance_recommendation"] == "ACCEPTED_WITH_LIMITATIONS"
+    assert result["summary"]["limitations"] == [limitation]
 
 
 def test_final_check_fails_when_execution_report_alias_drifts(tmp_path: Path) -> None:
