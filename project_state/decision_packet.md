@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+  "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
+  "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,18 +13,16 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260627_limited_acceptance_status_policy_rework_v1",
-  "previous_round_id": "round_20260627_limited_acceptance_status_policy_rework_v1",
-  "previous_audit_outcome": "REWORK_REQUIRED",
-  "phase_label": "phase_2_9_pytest_summary_and_closeout_consistency_rework",
-  "primary_goal": "Fix the failed test, pytest summary contradiction, and closeout/report-summary state mismatch while preserving the already-correct startup and limited-acceptance policy work.",
+  "previous_decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+  "previous_round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
+  "phase_label": "phase_2_10_hybrid_execution_log_provenance",
+  "primary_goal": "Remove the remaining derived-only execution_log limitation by upgrading execution_log provenance to a mechanically checked hybrid/direct model without introducing AgentRunner or external dispatch.",
   "command_plan_authority_required": true,
-  "accepted_requires_pytest_commands_all_exit_zero": true,
+  "accepted_requires_execution_log_not_derived_only": true,
+  "accepted_requires_no_derived_log_limitation_for_pure_accepted": true,
   "accepted_requires_pytest_summary_matches_command_blocks": true,
-  "accepted_requires_reverse_solving_synthesis_regression_fixed": true,
-  "accepted_requires_report_summary_matches_synthesis": true,
   "accepted_requires_closeout_passed": true,
-  "accepted_requires_acceptance_with_limitations_when_derived_log_remains": true,
   "allowed_source_files": ["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
   "preserve_only_files": [
     ".github/workflows/decision-preflight.yml",
@@ -50,73 +48,77 @@
 
 ## 1. Goal
 
-Implement Pytest Summary and Closeout Consistency Rework v1.
+Implement Hybrid Execution Log Provenance v1.
 
-The previous round did not reach an acceptable limited-acceptance state. It correctly avoided pure `ACCEPTED`, but it ended as `FAILED / REWORK_REQUIRED` because a regression test failed, `pytest_result_summary.status` contradicted recorded command exits, final-check failed, and run-closeout failed.
+The previous round was accepted with limitations. The only active limitation was that `project_state/gates/execution_log.json` still had `source: derived_from_pytest_result_and_command_plan`. This round should remove that limitation by upgrading execution-log provenance to a bounded, mechanically checked hybrid or direct model.
 
-This round must fix the real failures. Do not broaden scope and do not redo completed work.
+This is an engineering round. It must not add AgentRunner, external agent dispatch, web UI, database, queue, scheduler, automatic remote writes, or sample-solving. The goal is provenance hardening inside the existing `project_gate` chain.
 
-Final acceptable state:
+Final preferred outcome:
 
-1. `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q` exits 0.
-2. `python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q` exits 0.
-3. `pytest_result_summary.status` is `PASSED` only if every required recorded command block that should pass has exit code 0. If any required command exits nonzero, summary status must not be `PASSED`.
-4. `TestReportSummarySynthesisMainlineAware::test_reverse_solving_historical_blocks_in_synthesis` passes. Engineering status-policy changes must not break reverse_solving strict freshness semantics.
-5. `report_summary_fields_match_synthesis` passes: live report summaries, auto summaries, report-summary synthesis, and final-check agree on status and acceptance recommendation.
-6. `run-closeout` exits 0 and `run_closeout_result.closeout_status` is `PASSED`.
-7. `final_gate_result.gate_status` is `PASSED`.
-8. If `execution_log.json.source` remains `derived_from_pytest_result_and_command_plan`, then final acceptance must be `ACCEPTED_WITH_LIMITATIONS`, with non-null limitations that name the derived execution-log provenance. `status` may remain `SUCCESS` only if tests and gates pass.
-9. Preserve the existing correct startup transcript order and `startup_command_position_order` check.
-10. Preserve `baseline_capture_order: PASS` if still achievable. If it regresses to WARN, acceptance must remain limited and limitations must name it.
+1. `execution_log.json.source` is no longer `derived_from_pytest_result_and_command_plan`.
+2. `execution_log.json` includes explicit provenance metadata sufficient for final-check to classify it as `hybrid` or `direct`.
+3. If classified as `hybrid`, the artifact must state what evidence was combined, such as pytest transcript command blocks, command-plan artifact/stdout parity, run-closeout execution log, command exit codes, current decision/report IDs, and content hashes.
+4. final-check must verify that the hybrid/direct provenance is current, internally consistent, and tied to the current round.
+5. If hybrid/direct provenance is valid, `status` may be `SUCCESS`, `acceptance_recommendation` may be pure `ACCEPTED`, and `limitations` may be null.
+6. If hybrid/direct provenance cannot be implemented safely, keep `ACCEPTED_WITH_LIMITATIONS` with the derived-log limitation and report why; do not fake direct capture.
+7. Preserve the existing correct startup order, `startup_command_position_order`, pytest-summary consistency, reverse_solving strict freshness semantics, report-summary synthesis consistency, and run-closeout convergence.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-The current task is controlled by `project_state/decision_packet.md`; `task_packet.json` remains background only.
+The previous accepted round was `decision_20260628_pytest_summary_and_closeout_consistency_rework_v1`, with audit outcome `ACCEPTED_WITH_LIMITATIONS`.
 
-Evidence from the failed previous round:
+Accepted evidence from that round:
 
-- `codex_execution_report.md` reported `status: FAILED` and `acceptance_recommendation: REWORK_REQUIRED`.
-- `pytest_result_summary.status` said `PASSED`, but a recorded pytest command exited 1.
-- The failing test was `tests/test_project_gate.py::TestReportSummarySynthesisMainlineAware::test_reverse_solving_historical_blocks_in_synthesis`.
-- final-check reported `gate_status: FAILED`.
-- run-closeout reported `closeout_status: FAILED` and close-round exited 1.
-- report-summary synthesis expected `SUCCESS / ACCEPTED_WITH_LIMITATIONS`, but the live report said `FAILED / REWORK_REQUIRED`.
+- `codex_report_summary.status` was `SUCCESS`.
+- `acceptance_recommendation` was `ACCEPTED_WITH_LIMITATIONS`.
+- The only active limitation was `execution_log.json is derived_from_pytest_result_and_command_plan; not direct or hybrid capture`.
+- Both required pytest commands exited 0.
+- `pytest_result_summary.status` matched command-block exits.
+- final-check completed as `PASSED_WITH_LIMITATIONS` with no blocking reasons or warnings.
+- run-closeout completed as `PASSED`.
 - `startup_command_position_order` remained PASS.
-- `baseline_capture_order` was PASS in the final-check evidence.
-- derived execution-log limitation was recorded, but the round did not close cleanly.
+- `baseline_capture_order` was PASS.
+- report-summary synthesis matched the live reports.
+- reverse_solving strict freshness regression was fixed.
 
-Previously accepted work to preserve:
+`task_packet.json` remains non-authoritative background state and states that `decision_packet` controls the current round. Do not execute `task_packet.task` as authority.
 
-- startup transcript order;
-- `startup_command_position_order`;
-- limited-acceptance rule for derived execution-log provenance;
-- `baseline_capture_order` clean handling;
-- `decision-preflight.yml`;
-- `project_jobs.py` and `tests/test_project_jobs.py`;
+`current_state.json` and `artifact_index.json` still describe sample-state and missing historical sample artifacts. They are non-blocking for this engineering round because no sample-solving evidence is claimed.
+
+`negative_results.json` contains reverse-solving prohibitions. This round must not repeat old sample_solver blind search, beam/budget expansion, compare_semantics_agree=false primary frontier usage, full solve_reports commits, or repeated runtime evidence directions.
+
+Existing accepted work to preserve:
+
+- `decision-preflight.yml` bounded read-only workflow;
+- `project_jobs.py` minimal non-dispatching job schema validator;
+- `tests/test_project_jobs.py` coverage;
 - neutral-primary report semantics and legacy aliases;
-- command-plan, pytest_result, execution-log, report-summary, final-check, and run-closeout chain.
-
-Historical sample artifacts remain non-blocking for this engineering round. Do not use sample-state as current engineering evidence. Do not execute sample-solving work.
+- command-plan, pytest_result, execution-log, report-summary, final-check, and run-closeout chain;
+- startup-position order validation;
+- limited-acceptance policy when provenance remains derived-only.
 
 ## 3. Do Not Do
 
-Do not paper over the failed pytest result by manually changing the summary header.
+Do not claim direct capture unless there is actual direct or hybrid provenance evidence and final-check verifies it.
 
-Do not set `pytest_result_summary.status` to `PASSED` if any required recorded command block exits nonzero.
+Do not remove the derived-log limitation by only editing report prose.
 
-Do not break reverse_solving strict freshness semantics while fixing engineering limited acceptance.
+Do not weaken status-policy checks that block pure `ACCEPTED` for derived-only execution logs.
 
-Do not turn the previous failed round into accepted by editing archived evidence.
+Do not break reverse_solving strict freshness semantics.
 
-Do not redo the startup-order implementation unless a narrow compatibility fix is required.
+Do not regress startup ordering, pytest summary consistency, report-summary synthesis, final-check, or run-closeout.
 
-Do not change `decision-preflight.yml`, `project_jobs.py`, or `tests/test_project_jobs.py` except for narrow compatibility preservation.
+Do not redesign `decision-preflight.yml`, `project_jobs.py`, or `tests/test_project_jobs.py`.
+
+Do not add Web UI, AgentRunner, external runner dispatch, database, queue, scheduler, automatic remote writes, GitHub Actions mutation, or sample-solving work.
+
+Do not scan full `solve_reports/` or execute reverse samples.
 
 Do not modify forbidden paths listed in `decision_contract`.
-
-Do not enter Web UI, external runner dispatch, database, queue, scheduler, automatic remote writes, or sample-solving scope.
 
 Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly instructs the executor to do so.
 
@@ -138,15 +140,16 @@ Then inspect only bounded implementation and gate evidence:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
-3. `project_state/gates/report_summary_synthesis.json`
-4. `project_state/gates/final_gate_result.json`
+3. `project_state/gates/execution_log.json`
+4. `project_state/gates/run_closeout_execution_log.json`
 5. `project_state/gates/run_closeout_result.json`
-6. `project_state/gates/execution_log.json`
-7. `project_state/gates/command_plan.json`
-8. `project_state/gates/execute_decision_result.json`
-9. `project_state/gates/round_baseline.json`
-10. `project_state/gates/round_delta_summary.json`
-11. preservation-only files named in `decision_contract.preserve_only_files` only to confirm they were not redesigned.
+6. `project_state/gates/command_plan.json`
+7. `project_state/gates/report_summary_synthesis.json`
+8. `project_state/gates/final_gate_result.json`
+9. `project_state/gates/execute_decision_result.json`
+10. `project_state/gates/round_baseline.json`
+11. `project_state/gates/round_delta_summary.json`
+12. preservation-only files named in `decision_contract.preserve_only_files` only to confirm they were not redesigned.
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -154,16 +157,16 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 The report must answer all items with concrete evidence and status `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`:
 
-1. Did the two required pytest commands exit 0, and what are their pass counts?
-2. Does `pytest_result_summary.status` match the recorded command-block exit codes?
-3. Was `TestReportSummarySynthesisMainlineAware::test_reverse_solving_historical_blocks_in_synthesis` fixed without weakening reverse_solving strict freshness semantics?
-4. What are the final `status`, `acceptance_recommendation`, and `limitations` in `codex_report_summary`, `execution_report_summary`, auto summaries, synthesis, and final-check?
-5. Does `report_summary_fields_match_synthesis` pass?
-6. Does `execute_decision_result` pass, and does it match the transcript?
-7. Does `run-closeout` exit 0 and does `run_closeout_result.closeout_status` equal `PASSED`?
-8. Are startup order and `startup_command_position_order` preserved?
-9. Is `execution_log.json` direct, hybrid, or derived-only? If derived-only, where is the `ACCEPTED_WITH_LIMITATIONS` limitation recorded?
-10. Was any preservation-only file redesigned? If no, list the preserved files.
+1. What is the final `execution_log.json.source` value?
+2. Is the execution log direct, hybrid, or still derived-only?
+3. If hybrid, what evidence sources are combined, and where are their content hashes or IDs recorded?
+4. Which final-check rule verifies that hybrid/direct provenance is current and consistent with pytest_result, command_plan, run_closeout_execution_log, decision_id, round_id, and report_id?
+5. Does status policy still block pure `ACCEPTED` when execution_log is derived-only?
+6. If the limitation is removed, do `codex_report_summary`, `execution_report_summary`, auto summaries, synthesis, and final-check all agree on `SUCCESS / ACCEPTED` with null or absent limitations?
+7. If the limitation remains, do all reports consistently use `SUCCESS / ACCEPTED_WITH_LIMITATIONS` with explicit limitation text?
+8. Did both required pytest commands exit 0, and what are their pass counts?
+9. Did final-check and run-closeout pass?
+10. Were startup order, `startup_command_position_order`, pytest-summary consistency, reverse_solving strict freshness semantics, and preservation-only files kept intact?
 
 ## 6. Implementation Scope
 
@@ -193,17 +196,16 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/state_hygiene_inventory.json`
-- `project_state/rounds/round_20260628_pytest_summary_and_closeout_consistency_rework_v1/*`
+- `project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/*`
 
 Required behavior:
 
-1. Fix the reverse_solving synthesis regression so acceptance recommendation is never `None` when strict freshness should block or require review.
-2. Fix pytest_result summary generation or validation so summary status cannot contradict command-block exits.
-3. Align report-summary synthesis, live report summaries, auto summaries, final-check, and report body.
-4. Make the clean intended end state `SUCCESS / ACCEPTED_WITH_LIMITATIONS` when tests pass and only derived execution-log limitation remains.
-5. Make run-closeout and close-round pass only when report-summary and final-check are consistent.
-6. Preserve startup-order behavior and limited-acceptance semantics.
-7. Keep implementation small and avoid broad refactors.
+1. Add or refine execution-log provenance classification so final-check distinguishes `derived`, `hybrid`, and `direct`.
+2. A hybrid classification must be mechanically supported by current artifacts, not report prose.
+3. Include enough provenance metadata in `execution_log.json` for final-check to validate current decision/round/report IDs, command-plan parity, pytest transcript command blocks and exit codes, run-closeout execution evidence where applicable, and content hashes or equivalent stable checks.
+4. Keep derived-only execution logs limited. Pure `ACCEPTED` is allowed only for verified hybrid/direct provenance.
+5. Preserve existing status-policy behavior for `ACCEPTED_WITH_LIMITATIONS` when provenance remains derived-only.
+6. Preserve all previous passing gate behavior and avoid broad refactors.
 
 ## 7. Tests
 
@@ -225,15 +227,15 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state --js
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_pytest_summary_and_closeout_consistency_rework_v1 --mode execute
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_hybrid_execution_log_provenance_v1 --mode execute
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
 python -m reverse_agent.project_gate execution-log --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_pytest_summary_and_closeout_consistency_rework_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_hybrid_execution_log_provenance_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-The command-plan-authorized set is authoritative, but it must not override startup-first ordering, pytest summary consistency, or closeout consistency requirements.
+The command-plan-authorized set is authoritative, but it must not override startup-first ordering, pytest summary consistency, provenance classification, or closeout consistency requirements.
 
 Write all top-level commands and exit codes to `project_state/pytest_result.txt`.
 
@@ -247,24 +249,23 @@ Stop immediately and report `BLOCKED` if:
 - mainline is invalid;
 - skill profiles do not match active registry entries;
 - command-plan is missing, failed, or unsafe;
-- forbidden path mutation is required;
-- scope requires Web UI, external runner dispatch, database, queue, scheduler, automatic remote writes, or sample-solving work.
+- implementing hybrid/direct provenance requires forbidden path mutation;
+- implementation requires Web UI, AgentRunner, external runner dispatch, database, queue, scheduler, automatic remote writes, GitHub Actions mutation, or sample-solving work.
 
 Stop with `REWORK_REQUIRED` if:
 
+- execution_log remains derived-only while report/final-check claims pure `ACCEPTED`;
+- execution_log claims hybrid/direct without final-check-verifiable evidence;
+- report summaries, auto summaries, synthesis, and final-check disagree on acceptance recommendation or limitations;
 - any required pytest command exits nonzero;
 - `pytest_result_summary.status` contradicts recorded command-block exit codes;
-- reverse_solving synthesis returns `None` for acceptance recommendation where strict freshness requires review or rework;
-- report-summary synthesis and report summaries disagree;
-- `execute_decision_result` is not PASSED;
-- final-check fails;
+- final-check fails unexpectedly;
 - run-closeout fails;
-- close-round fails;
-- clean intended state is not `SUCCESS / ACCEPTED_WITH_LIMITATIONS` when only derived execution-log limitation remains;
 - startup transcript order regresses;
 - `startup_command_position_order` disappears or fails;
-- limitations remain but `limitations` is null;
-- preservation-only files are unnecessarily redesigned;
+- reverse_solving strict freshness semantics regress;
+- baseline_capture_order regresses to WARN without explicit limited acceptance;
+- preservation-only files are redesigned;
 - neutral-primary report semantics regress;
 - legacy alias parity breaks;
 - forbidden paths are modified;
