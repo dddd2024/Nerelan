@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
-  "round_id": "round_20260628_hybrid_execution_log_provenance_v1",
+  "decision_id": "decision_20260628_clean_baseline_and_job_state_machine_v1",
+  "round_id": "round_20260628_clean_baseline_and_job_state_machine_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,21 +13,28 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260628_pytest_summary_and_closeout_consistency_rework_v1",
-  "previous_round_id": "round_20260628_pytest_summary_and_closeout_consistency_rework_v1",
+  "previous_decision_id": "decision_20260628_hybrid_execution_log_provenance_v1",
+  "previous_round_id": "round_20260628_hybrid_execution_log_provenance_v1",
   "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
-  "phase_label": "phase_2_10_hybrid_execution_log_provenance",
-  "primary_goal": "Remove the remaining derived-only execution_log limitation by upgrading execution_log provenance to a mechanically checked hybrid/direct model without introducing AgentRunner or external dispatch.",
+  "phase_label": "phase_2_11_clean_baseline_and_job_state_machine",
+  "primary_goal": "Combine cleanup of the remaining baseline warning with bounded forward progress on the project_state job state machine.",
   "command_plan_authority_required": true,
-  "accepted_requires_execution_log_not_derived_only": true,
-  "accepted_requires_no_derived_log_limitation_for_pure_accepted": true,
+  "accepted_requires_no_baseline_capture_order_warn_for_pure_accepted": true,
+  "accepted_requires_job_state_machine_v1": true,
+  "accepted_requires_no_agent_dispatch": true,
+  "accepted_requires_no_remote_mutation": true,
   "accepted_requires_pytest_summary_matches_command_blocks": true,
-  "accepted_requires_closeout_passed": true,
-  "allowed_source_files": ["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
+  "accepted_requires_final_check_and_closeout_passed": true,
+  "allowed_source_files": [
+    "reverse_agent/project_jobs.py",
+    "tests/test_project_jobs.py"
+  ],
+  "inspect_only_files": [
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
+  ],
   "preserve_only_files": [
     ".github/workflows/decision-preflight.yml",
-    "reverse_agent/project_jobs.py",
-    "tests/test_project_jobs.py",
     ".github/workflows/ci.yml",
     ".github/workflows/state-gate.yml"
   ],
@@ -48,77 +55,102 @@
 
 ## 1. Goal
 
-Implement Hybrid Execution Log Provenance v1.
+Implement Clean Baseline and Job State Machine v1.
 
-The previous round was accepted with limitations. The only active limitation was that `project_state/gates/execution_log.json` still had `source: derived_from_pytest_result_and_command_plan`. This round should remove that limitation by upgrading execution-log provenance to a bounded, mechanically checked hybrid or direct model.
+The previous round succeeded in upgrading `execution_log.json` from derived-only to hybrid provenance, but it still ended as `ACCEPTED_WITH_LIMITATIONS` because `baseline_capture_order` returned to WARN when `reverse_agent/project_gate.py` and `tests/test_project_gate.py` were already dirty at startup and also appeared in `files_changed`.
 
-This is an engineering round. It must not add AgentRunner, external agent dispatch, web UI, database, queue, scheduler, automatic remote writes, or sample-solving. The goal is provenance hardening inside the existing `project_gate` chain.
+This round combines cleanup and forward progress:
+
+1. Avoid repeating the baseline overlap problem by not modifying the inherited dirty project gate files.
+2. Preserve the hybrid execution-log provenance work.
+3. Extend the already existing non-dispatching job contract validator into a small job state-machine foundation.
+4. Add tests for valid and invalid job status transitions, lock/lease metadata validation, and safe READY/RUNNING/DONE job contracts.
+5. Optionally generate one current `project_state/jobs/job_20260628_clean_baseline_and_job_state_machine_v1.json` example job contract if the implementation can do so without violating scope.
 
 Final preferred outcome:
 
-1. `execution_log.json.source` is no longer `derived_from_pytest_result_and_command_plan`.
-2. `execution_log.json` includes explicit provenance metadata sufficient for final-check to classify it as `hybrid` or `direct`.
-3. If classified as `hybrid`, the artifact must state what evidence was combined, such as pytest transcript command blocks, command-plan artifact/stdout parity, run-closeout execution log, command exit codes, current decision/report IDs, and content hashes.
-4. final-check must verify that the hybrid/direct provenance is current, internally consistent, and tied to the current round.
-5. If hybrid/direct provenance is valid, `status` may be `SUCCESS`, `acceptance_recommendation` may be pure `ACCEPTED`, and `limitations` may be null.
-6. If hybrid/direct provenance cannot be implemented safely, keep `ACCEPTED_WITH_LIMITATIONS` with the derived-log limitation and report why; do not fake direct capture.
-7. Preserve the existing correct startup order, `startup_command_position_order`, pytest-summary consistency, reverse_solving strict freshness semantics, report-summary synthesis consistency, and run-closeout convergence.
+- `status: SUCCESS`.
+- `acceptance_recommendation: ACCEPTED`.
+- `limitations` null or absent.
+- `baseline_capture_order` PASS or absent.
+- `execution_log.json.source` remains hybrid/direct, not derived-only.
+- pytest summary, report-summary synthesis, final-check, and run-closeout all pass.
+
+Fallback acceptable outcome:
+
+- `status: SUCCESS`.
+- `acceptance_recommendation: ACCEPTED_WITH_LIMITATIONS`.
+- explicit limitation naming baseline/source-test inherited dirty state.
+- This fallback is acceptable only if all implementation requirements are satisfied and the limitation is accurately represented. It is not acceptable to claim pure ACCEPTED while baseline WARN remains.
+
+This is still an engineering round. Do not implement Web UI, AgentRunner, API Planner/Auditor, self-hosted runner automation, database, queue, scheduler, automatic remote writes, or reverse-solving.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-The previous accepted round was `decision_20260628_pytest_summary_and_closeout_consistency_rework_v1`, with audit outcome `ACCEPTED_WITH_LIMITATIONS`.
+The current task is controlled by `project_state/decision_packet.md`; `task_packet.json` is non-authoritative background only.
 
-Accepted evidence from that round:
+The previous round `decision_20260628_hybrid_execution_log_provenance_v1` ended with audit outcome `ACCEPTED_WITH_LIMITATIONS`.
 
-- `codex_report_summary.status` was `SUCCESS`.
-- `acceptance_recommendation` was `ACCEPTED_WITH_LIMITATIONS`.
-- The only active limitation was `execution_log.json is derived_from_pytest_result_and_command_plan; not direct or hybrid capture`.
-- Both required pytest commands exited 0.
-- `pytest_result_summary.status` matched command-block exits.
-- final-check completed as `PASSED_WITH_LIMITATIONS` with no blocking reasons or warnings.
-- run-closeout completed as `PASSED`.
-- `startup_command_position_order` remained PASS.
-- `baseline_capture_order` was PASS.
-- report-summary synthesis matched the live reports.
-- reverse_solving strict freshness regression was fixed.
+Accepted evidence from the previous round:
 
-`task_packet.json` remains non-authoritative background state and states that `decision_packet` controls the current round. Do not execute `task_packet.task` as authority.
+- `execution_log.json.source` was upgraded to `hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log`.
+- `execution_log.json.provenance.classification` was `hybrid`.
+- final-check included `execution_log_provenance_valid: PASS`.
+- both required pytest commands passed.
+- `pytest_result_summary.status` matched recorded command exits.
+- final-check and run-closeout passed.
+- report-summary synthesis matched the reports.
+- startup order and `startup_command_position_order` remained valid.
+- reverse_solving strict freshness semantics remained intact.
 
-`current_state.json` and `artifact_index.json` still describe sample-state and missing historical sample artifacts. They are non-blocking for this engineering round because no sample-solving evidence is claimed.
+Remaining limitation from the previous round:
 
-`negative_results.json` contains reverse-solving prohibitions. This round must not repeat old sample_solver blind search, beam/budget expansion, compare_semantics_agree=false primary frontier usage, full solve_reports commits, or repeated runtime evidence directions.
+- `baseline_capture_order` was WARN because `reverse_agent/project_gate.py` and `tests/test_project_gate.py` overlapped between startup baseline dirty files and files_changed.
 
-Existing accepted work to preserve:
+Existing job capability to build on:
 
-- `decision-preflight.yml` bounded read-only workflow;
-- `project_jobs.py` minimal non-dispatching job schema validator;
-- `tests/test_project_jobs.py` coverage;
-- neutral-primary report semantics and legacy aliases;
-- command-plan, pytest_result, execution-log, report-summary, final-check, and run-closeout chain;
-- startup-position order validation;
-- limited-acceptance policy when provenance remains derived-only.
+- `reverse_agent/project_jobs.py` already defines `JOB_STATUSES`, `JOB_RUNNER_KINDS`, required fields, permission flags, budget validation, `validate_job_payload`, `load_job_file`, and `validate_job_file`.
+- `tests/test_project_jobs.py` already covers valid non-dispatching contracts, missing fields, unknown status rejection, dispatch/remote mutation rejection, and JSON file validation.
+- This round must extend that foundation, not replace it.
+
+Artifact freshness:
+
+- `current_state.json` and `artifact_index.json` still describe sample-state and missing historical sample artifacts.
+- Those sample artifacts are non-blocking for this engineering round because no sample-solving evidence is claimed.
+- Do not upgrade missing/stale sample evidence to current.
+
+Negative results:
+
+- `negative_results.json` blocks old sample_solver blind search, only increasing beam/budget, using compare_semantics_agree=false candidates as primary frontier, committing full solve_reports, and repeating old runtime evidence directions.
+- This round must not perform reverse-solving, sample execution, runtime probing, or full solve_reports scans.
 
 ## 3. Do Not Do
 
-Do not claim direct capture unless there is actual direct or hybrid provenance evidence and final-check verifies it.
+Do not modify `reverse_agent/project_gate.py` or `tests/test_project_gate.py` unless a narrow compatibility fix is absolutely required and explicitly justified in the report. The intended path is to avoid these files so the previous inherited dirty overlap does not recur.
 
-Do not remove the derived-log limitation by only editing report prose.
+Do not redesign `project_jobs.py`. Extend the existing validator with small, testable state-machine helpers.
 
-Do not weaken status-policy checks that block pure `ACCEPTED` for derived-only execution logs.
+Do not enable dispatch. `runner.dispatch_enabled` must remain false.
 
-Do not break reverse_solving strict freshness semantics.
+Do not allow remote mutation, LLM calls, agent dispatch, or reverse-solving permissions in job contracts.
 
-Do not regress startup ordering, pytest summary consistency, report-summary synthesis, final-check, or run-closeout.
+Do not introduce Web UI, AgentRunner, API Planner/Auditor, database, queue, scheduler, self-hosted runner automation, GitHub Actions mutation, automatic push, or reverse-solving.
 
-Do not redesign `decision-preflight.yml`, `project_jobs.py`, or `tests/test_project_jobs.py`.
+Do not add a heavy workflow engine.
 
-Do not add Web UI, AgentRunner, external runner dispatch, database, queue, scheduler, automatic remote writes, GitHub Actions mutation, or sample-solving work.
+Do not modify forbidden paths listed in `decision_contract`.
 
 Do not scan full `solve_reports/` or execute reverse samples.
 
-Do not modify forbidden paths listed in `decision_contract`.
+Do not change `.codex-skills/registry.json` or store dynamic run facts in `.codex-skills/`.
+
+Do not claim pure `ACCEPTED` if `baseline_capture_order` remains WARN.
+
+Do not claim pure `ACCEPTED` if `execution_log.json` regresses to derived-only.
+
+Do not manually edit `pytest_result.txt` to hide failed command blocks.
 
 Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly instructs the executor to do so.
 
@@ -136,20 +168,19 @@ Read first:
 8. `project_state/pytest_result.txt`
 9. `.codex-skills/registry.json`
 
-Then inspect only bounded implementation and gate evidence:
+Then inspect bounded implementation files:
 
-1. `reverse_agent/project_gate.py`
-2. `tests/test_project_gate.py`
-3. `project_state/gates/execution_log.json`
-4. `project_state/gates/run_closeout_execution_log.json`
-5. `project_state/gates/run_closeout_result.json`
-6. `project_state/gates/command_plan.json`
-7. `project_state/gates/report_summary_synthesis.json`
-8. `project_state/gates/final_gate_result.json`
-9. `project_state/gates/execute_decision_result.json`
-10. `project_state/gates/round_baseline.json`
-11. `project_state/gates/round_delta_summary.json`
-12. preservation-only files named in `decision_contract.preserve_only_files` only to confirm they were not redesigned.
+1. `reverse_agent/project_jobs.py`
+2. `tests/test_project_jobs.py`
+3. `reverse_agent/project_gate.py` only to understand existing job validation integration; do not modify by default
+4. `tests/test_project_gate.py` only if a compatibility regression appears; do not modify by default
+5. `project_state/gates/execution_log.json`
+6. `project_state/gates/final_gate_result.json`
+7. `project_state/gates/run_closeout_result.json`
+8. `project_state/gates/round_baseline.json`
+9. `project_state/gates/round_delta_summary.json`
+10. `project_state/gates/command_plan.json`
+11. existing `project_state/jobs/*.json` if present
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -157,20 +188,28 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 The report must answer all items with concrete evidence and status `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`:
 
-1. What is the final `execution_log.json.source` value?
-2. Is the execution log direct, hybrid, or still derived-only?
-3. If hybrid, what evidence sources are combined, and where are their content hashes or IDs recorded?
-4. Which final-check rule verifies that hybrid/direct provenance is current and consistent with pytest_result, command_plan, run_closeout_execution_log, decision_id, round_id, and report_id?
-5. Does status policy still block pure `ACCEPTED` when execution_log is derived-only?
-6. If the limitation is removed, do `codex_report_summary`, `execution_report_summary`, auto summaries, synthesis, and final-check all agree on `SUCCESS / ACCEPTED` with null or absent limitations?
-7. If the limitation remains, do all reports consistently use `SUCCESS / ACCEPTED_WITH_LIMITATIONS` with explicit limitation text?
-8. Did both required pytest commands exit 0, and what are their pass counts?
-9. Did final-check and run-closeout pass?
-10. Were startup order, `startup_command_position_order`, pytest-summary consistency, reverse_solving strict freshness semantics, and preservation-only files kept intact?
+1. What source/test files were dirty at startup, and did any of them overlap with files_changed?
+2. Is `baseline_capture_order` PASS, WARN, or absent? If WARN remains, why is acceptance limited?
+3. Was `reverse_agent/project_gate.py` left unmodified? If not, why was modification unavoidable?
+4. Was `tests/test_project_gate.py` left unmodified? If not, why was modification unavoidable?
+5. What job state-machine helpers were added to `project_jobs.py`?
+6. What are the allowed job status transitions, and which invalid transitions are rejected by tests?
+7. How are lock/lease metadata fields validated while keeping old job contracts compatible?
+8. Does `runner.dispatch_enabled` remain false and do forbidden permission flags remain blocked?
+9. Was any example job contract generated under `project_state/jobs/`, and did validation pass?
+10. Did both required pytest commands exit 0, and what are their pass counts?
+11. Did final-check and run-closeout pass?
+12. Did hybrid execution-log provenance remain valid and non-derived-only?
+13. Were forbidden paths, full solve_reports scans, reverse-solving, Web/AgentRunner/DB/queue/scheduler scope, and remote mutation avoided?
 
 ## 6. Implementation Scope
 
 Allowed source changes:
+
+- `reverse_agent/project_jobs.py`
+- `tests/test_project_jobs.py`
+
+Inspect-only by default; modify only if a narrow compatibility issue blocks tests and the report justifies it:
 
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
@@ -196,16 +235,21 @@ Allowed generated or updated state artifacts:
 - `project_state/gates/run_closeout_result.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/state_hygiene_inventory.json`
-- `project_state/rounds/round_20260628_hybrid_execution_log_provenance_v1/*`
+- `project_state/jobs/job_20260628_clean_baseline_and_job_state_machine_v1.json`
+- `project_state/rounds/round_20260628_clean_baseline_and_job_state_machine_v1/*`
 
 Required behavior:
 
-1. Add or refine execution-log provenance classification so final-check distinguishes `derived`, `hybrid`, and `direct`.
-2. A hybrid classification must be mechanically supported by current artifacts, not report prose.
-3. Include enough provenance metadata in `execution_log.json` for final-check to validate current decision/round/report IDs, command-plan parity, pytest transcript command blocks and exit codes, run-closeout execution evidence where applicable, and content hashes or equivalent stable checks.
-4. Keep derived-only execution logs limited. Pure `ACCEPTED` is allowed only for verified hybrid/direct provenance.
-5. Preserve existing status-policy behavior for `ACCEPTED_WITH_LIMITATIONS` when provenance remains derived-only.
-6. Preserve all previous passing gate behavior and avoid broad refactors.
+1. Add a small, explicit allowed-transition table for job statuses.
+2. Add a helper such as `validate_job_transition(from_status, to_status)` or equivalent.
+3. Add payload-level validation for optional lock/lease metadata, while keeping existing job contracts valid when those fields are absent.
+4. Ensure `READY -> RUNNING -> DONE -> FINAL_CHECKED -> AUDITED -> ACCEPTED/ACCEPTED_WITH_LIMITATIONS/REWORK_REQUIRED/BLOCKED` is supported where appropriate.
+5. Ensure unsafe transitions are rejected, for example `DRAFT -> RUNNING`, terminal status back to `RUNNING`, or `ACCEPTED -> REWORK_REQUIRED` without a new job.
+6. Preserve strict rejection of dispatch and remote mutation permissions.
+7. Add tests for valid transitions, invalid transitions, lock/lease validation, backwards compatibility with existing minimal contracts, and safe example job file validation.
+8. If an example job file is generated, it must be non-dispatching, no remote mutation, no LLM calls, no reverse-solving, and must reference current decision/round IDs.
+9. Preserve hybrid execution-log provenance and status policy behavior.
+10. Keep implementation small and avoid broad refactors.
 
 ## 7. Tests
 
@@ -226,16 +270,17 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 python -m reverse_agent.project_gate report-summary --state-dir project_state
-python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_hybrid_execution_log_provenance_v1 --mode execute
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_and_job_state_machine_v1 --mode execute
+python -m pytest tests/test_project_jobs.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
 python -m reverse_agent.project_gate execution-log --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_hybrid_execution_log_provenance_v1
+python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_and_job_state_machine_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-The command-plan-authorized set is authoritative, but it must not override startup-first ordering, pytest summary consistency, provenance classification, or closeout consistency requirements.
+The command-plan-authorized set is authoritative. If this Tests section conflicts with command-plan, command-plan controls, except it must not override startup-first ordering, pytest summary consistency, baseline warning honesty, hybrid provenance preservation, or closeout consistency.
 
 Write all top-level commands and exit codes to `project_state/pytest_result.txt`.
 
@@ -249,24 +294,26 @@ Stop immediately and report `BLOCKED` if:
 - mainline is invalid;
 - skill profiles do not match active registry entries;
 - command-plan is missing, failed, or unsafe;
-- implementing hybrid/direct provenance requires forbidden path mutation;
-- implementation requires Web UI, AgentRunner, external runner dispatch, database, queue, scheduler, automatic remote writes, GitHub Actions mutation, or sample-solving work.
+- implementation requires forbidden path mutation;
+- implementation requires modifying `reverse_agent/project_gate.py` or `tests/test_project_gate.py` for anything broader than a narrow compatibility fix;
+- implementation requires Web UI, AgentRunner, external dispatch, database, queue, scheduler, automatic remote writes, GitHub Actions mutation, or sample-solving work.
 
 Stop with `REWORK_REQUIRED` if:
 
-- execution_log remains derived-only while report/final-check claims pure `ACCEPTED`;
-- execution_log claims hybrid/direct without final-check-verifiable evidence;
-- report summaries, auto summaries, synthesis, and final-check disagree on acceptance recommendation or limitations;
 - any required pytest command exits nonzero;
 - `pytest_result_summary.status` contradicts recorded command-block exit codes;
+- `execution_log.json` regresses to derived-only while report/final-check claims pure `ACCEPTED`;
+- baseline_capture_order remains WARN while report/final-check claims pure `ACCEPTED`;
+- source/test files dirty at startup overlap with files_changed and the limitation is not reported;
+- job status transitions are not implemented or not tested;
+- invalid job transitions are accepted;
+- job lock/lease validation breaks existing minimal job contracts;
+- dispatch or remote mutation permissions become allowed;
+- report-summary synthesis and report summaries disagree;
 - final-check fails unexpectedly;
 - run-closeout fails;
 - startup transcript order regresses;
-- `startup_command_position_order` disappears or fails;
 - reverse_solving strict freshness semantics regress;
-- baseline_capture_order regresses to WARN without explicit limited acceptance;
-- preservation-only files are redesigned;
-- neutral-primary report semantics regress;
-- legacy alias parity breaks;
+- preservation-only workflows are redesigned;
 - forbidden paths are modified;
 - tests fail.
