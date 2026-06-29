@@ -3,15 +3,15 @@
   "artifact_name": "control_plane_snapshot.json",
   "gate_name": "control-plane-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
-  "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
+  "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+  "round_id": "round_20260629_job_orchestration_foundation_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T15:48:36.334443Z",
+  "generated_at": "2026-06-29T16:47:11.776941Z",
   "artifact_path": "project_state/gates/control_plane_snapshot.json",
   "snapshot_mode": "final_state",
   "active_decision": {
-    "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
-    "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
+    "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+    "round_id": "round_20260629_job_orchestration_foundation_v1",
     "status": "APPROVED",
     "mainline": "engineering_branch",
     "skill_profiles": [
@@ -23,8 +23,8 @@
   "execution_status": {
     "snapshot_mode": "final_state",
     "final_state_complete": true,
-    "report_id": "codex_report_20260629_startup_snapshot_and_control_plane_rework_v1",
-    "expected_report_id": "codex_report_20260629_startup_snapshot_and_control_plane_rework_v1",
+    "report_id": "codex_report_20260629_job_orchestration_foundation_v1",
+    "expected_report_id": "codex_report_20260629_job_orchestration_foundation_v1",
     "report_status": "SUCCESS",
     "acceptance_recommendation": "ACCEPTED",
     "pytest_status": "PASSED",
@@ -34,8 +34,7 @@
     "command_plan_status": "PASSED",
     "execution_log_source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
     "warnings": [
-      "audit inventory is historical_nonblocking",
-      "jobs inventory is historical_nonblocking"
+      "audit inventory is historical_nonblocking"
     ],
     "blocking_reasons": []
   },
@@ -61,25 +60,51 @@
       "warnings": []
     },
     "jobs_inventory": {
-      "status": "historical_nonblocking",
-      "is_current": false,
-      "nonblocking": true,
-      "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
-      "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
-      "mismatches": [
-        "decision_id mismatch",
-        "round_id mismatch"
-      ],
+      "status": "PASSED",
+      "is_current": true,
+      "nonblocking": false,
+      "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+      "round_id": "round_20260629_job_orchestration_foundation_v1",
       "gate_name": "jobs-inventory",
       "gate_status": "PASSED",
       "inventory_validation_status": "PASSED",
-      "job_count": 1,
+      "job_count": 2,
       "validated_paths": [
-        "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json"
+        "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json",
+        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json"
       ],
       "warnings": [],
       "dispatch_enabled": false,
       "dispatch_safety_status": "PASSED"
+    },
+    "job_orchestration": {
+      "status": "PASSED",
+      "is_current": true,
+      "nonblocking": false,
+      "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+      "round_id": "round_20260629_job_orchestration_foundation_v1",
+      "gate_name": "job-orchestration",
+      "gate_status": "PASSED",
+      "job_id": "job_20260629_job_orchestration_foundation_v1",
+      "job_status": "DRAFT",
+      "job_artifact_path": "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+      "dispatch_enabled": false,
+      "dispatch_safety_status": "PASSED"
+    },
+    "runner_contract": {
+      "status": "PASSED",
+      "is_current": true,
+      "nonblocking": false,
+      "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+      "round_id": "round_20260629_job_orchestration_foundation_v1",
+      "gate_name": "runner-contract",
+      "gate_status": "PASSED",
+      "contract_id": "runner_contract_20260629_job_orchestration_foundation_v1",
+      "contract_validation_status": "PASSED",
+      "dispatch_enabled": false,
+      "executable": false,
+      "allowed_command_count": 22,
+      "forbidden_command_count": 0
     },
     "round_archive_inventory": {
       "status": "not_implemented",
@@ -87,11 +112,36 @@
       "detail": "snapshot does not scan full project_state/rounds"
     }
   },
+  "job_queue_status": {
+    "job_count": 2,
+    "status_counts": {
+      "ACCEPTED": 0,
+      "ACCEPTED_WITH_LIMITATIONS": 0,
+      "AUDITED": 0,
+      "BLOCKED": 0,
+      "DONE": 0,
+      "DRAFT": 2,
+      "FINAL_CHECKED": 0,
+      "READY": 0,
+      "REWORK_REQUIRED": 0,
+      "RUNNING": 0
+    },
+    "current_job_id": "job_20260629_job_orchestration_foundation_v1",
+    "current_job_status": "DRAFT",
+    "ready_or_running_job_count": 0,
+    "dispatch_safety_status": "PASSED"
+  },
   "runner_readiness": {
     "can_dispatch_next_decision": false,
     "default_dispatch_policy": "non_dispatch",
     "explicit_safe_dispatch_evidence": false,
     "ready_or_running_job_count": 0,
+    "job_orchestration_ready": true,
+    "runner_contract_ready": true,
+    "job_orchestration_status": "PASSED",
+    "runner_contract_status": "PASSED",
+    "runner_contract_executable": false,
+    "dispatch_safety_status": "PASSED",
     "reason": "external dispatch stays disabled unless a future safe dispatch policy is explicit"
   },
   "authority_separation": {
@@ -104,8 +154,7 @@
     "next_action": "review_warnings_before_dispatch",
     "blocking_reasons": [],
     "warnings": [
-      "audit inventory is historical_nonblocking",
-      "jobs inventory is historical_nonblocking"
+      "audit inventory is historical_nonblocking"
     ]
   },
   "generated_artifacts": [

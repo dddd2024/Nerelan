@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
-  "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
-  "generated_at": "2026-06-29T15:48:13.577915Z",
+  "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+  "round_id": "round_20260629_job_orchestration_foundation_v1",
+  "generated_at": "2026-06-29T16:46:33.881959Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -90,7 +90,7 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260629_startup_snapshot_and_control_plane_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260629_job_orchestration_foundation_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
@@ -116,13 +116,13 @@
     "schema_version": 1,
     "gate_name": "close-round",
     "close_status": "CLOSED",
-    "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
-    "report_id": "codex_report_20260629_startup_snapshot_and_control_plane_rework_v1",
-    "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
-    "decision_round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
-    "report_round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
+    "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+    "report_id": "codex_report_20260629_job_orchestration_foundation_v1",
+    "round_id": "round_20260629_job_orchestration_foundation_v1",
+    "decision_round_id": "round_20260629_job_orchestration_foundation_v1",
+    "report_round_id": "round_20260629_job_orchestration_foundation_v1",
     "report_status": "SUCCESS",
-    "generated_at": "2026-06-29T15:48:11.790639Z",
+    "generated_at": "2026-06-29T16:46:32.672768Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -149,15 +149,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
-        "decision_round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
-        "report_round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1"
+        "requested_round_id": "round_20260629_job_orchestration_foundation_v1",
+        "decision_round_id": "round_20260629_job_orchestration_foundation_v1",
+        "report_round_id": "round_20260629_job_orchestration_foundation_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1"
+        "report_based_on_decision_id": "decision_20260629_job_orchestration_foundation_v1"
       },
       {
         "name": "pytest_result_match",
@@ -183,8 +183,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
-        "command_plan_round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1"
+        "command_plan_decision_id": "decision_20260629_job_orchestration_foundation_v1",
+        "command_plan_round_id": "round_20260629_job_orchestration_foundation_v1"
       },
       {
         "name": "command_plan_covers_report_tests",
@@ -232,7 +232,7 @@
         "detail": "closeout-tail command recording is pending until run-closeout completes",
         "errors": [
           {
-            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_startup_snapshot_and_control_plane_rework_v1",
+            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_job_orchestration_foundation_v1",
             "error": "missing recorded command block",
             "expected_count": 1,
             "recorded_count": 0
@@ -255,7 +255,6 @@
         "baseline_available": true,
         "inherited_dirty_files": [],
         "new_dirty_files_since_baseline": [
-          "docs/prompts/codex_execution_prompt.md",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
@@ -266,24 +265,29 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
+          "project_state/gates/job_orchestration_result.json",
+          "project_state/gates/jobs_inventory_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
+          "project_state/gates/runner_contract_result.json",
           "project_state/gates/startup_snapshot.json",
+          "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
           "project_state/pytest_result.txt",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
+          "reverse_agent/project_jobs.py",
+          "reverse_agent/project_runner_contract.py",
           "tests/test_project_control_plane.py",
           "tests/test_project_gate.py",
-          "tests/test_project_gate_baseline_lifecycle.py"
+          "tests/test_project_jobs.py",
+          "tests/test_project_runner_contract.py"
         ],
         "final_dirty_files": [
-          "docs/prompts/codex_execution_prompt.md",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
@@ -294,21 +298,27 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
+          "project_state/gates/job_orchestration_result.json",
+          "project_state/gates/jobs_inventory_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
+          "project_state/gates/runner_contract_result.json",
           "project_state/gates/startup_snapshot.json",
+          "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
           "project_state/pytest_result.txt",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
+          "reverse_agent/project_jobs.py",
+          "reverse_agent/project_runner_contract.py",
           "tests/test_project_control_plane.py",
           "tests/test_project_gate.py",
-          "tests/test_project_gate_baseline_lifecycle.py"
+          "tests/test_project_jobs.py",
+          "tests/test_project_runner_contract.py"
         ]
       },
       {
@@ -323,7 +333,6 @@
         "detail": "files_changed covers round delta files",
         "missing_files": [],
         "git_changed_files": [
-          "docs/prompts/codex_execution_prompt.md",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
@@ -334,24 +343,29 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
+          "project_state/gates/job_orchestration_result.json",
+          "project_state/gates/jobs_inventory_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
+          "project_state/gates/runner_contract_result.json",
           "project_state/gates/startup_snapshot.json",
+          "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
           "project_state/pytest_result.txt",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
+          "reverse_agent/project_jobs.py",
+          "reverse_agent/project_runner_contract.py",
           "tests/test_project_control_plane.py",
           "tests/test_project_gate.py",
-          "tests/test_project_gate_baseline_lifecycle.py"
+          "tests/test_project_jobs.py",
+          "tests/test_project_runner_contract.py"
         ],
         "required_round_delta_files": [
-          "docs/prompts/codex_execution_prompt.md",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/codex_report_auto_summary.json",
@@ -362,22 +376,28 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
+          "project_state/gates/job_orchestration_result.json",
+          "project_state/gates/jobs_inventory_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
+          "project_state/gates/runner_contract_result.json",
           "project_state/gates/startup_snapshot.json",
+          "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260629_startup_snapshot_and_control_plane_rework_v1/round_manifest.json",
+          "project_state/rounds/round_20260629_job_orchestration_foundation_v1/round_manifest.json",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
+          "reverse_agent/project_jobs.py",
+          "reverse_agent/project_runner_contract.py",
           "tests/test_project_control_plane.py",
           "tests/test_project_gate.py",
-          "tests/test_project_gate_baseline_lifecycle.py"
+          "tests/test_project_jobs.py",
+          "tests/test_project_runner_contract.py"
         ],
         "inherited_dirty_files": []
       },
@@ -386,11 +406,15 @@
         "status": "PASS",
         "detail": "files_changed covers substantive source/test/artifact changes",
         "substantive_dirty_files": [
+          "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
+          "reverse_agent/project_jobs.py",
+          "reverse_agent/project_runner_contract.py",
           "tests/test_project_control_plane.py",
           "tests/test_project_gate.py",
-          "tests/test_project_gate_baseline_lifecycle.py"
+          "tests/test_project_jobs.py",
+          "tests/test_project_runner_contract.py"
         ],
         "claimed_source_test_paths": []
       },
@@ -409,22 +433,19 @@
       {
         "name": "baseline_lifecycle_guard",
         "status": "PASS",
-        "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
+        "detail": "baseline source/test dirty files are absent or explicitly allowed",
         "source_test_baseline_dirty": [],
-        "close_source_test_dirty": [
-          "docs/prompts/codex_execution_prompt.md",
+        "allowed_inherited_dirty_files": [
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
+          "reverse_agent/project_jobs.py",
+          "reverse_agent/project_runner_contract.py",
           "tests/test_project_control_plane.py",
           "tests/test_project_gate.py",
-          "tests/test_project_gate_baseline_lifecycle.py"
+          "tests/test_project_jobs.py",
+          "tests/test_project_runner_contract.py"
         ],
-        "allowed_inherited_dirty_files": [
-          "docs/prompts/codex_execution_prompt.md"
-        ],
-        "generated_or_archive_baseline_dirty_files": [],
-        "close_worktree_clean": false,
-        "close_snapshot_available": true
+        "generated_or_archive_baseline_dirty_files": []
       },
       {
         "name": "baseline_capture_order",
@@ -432,7 +453,14 @@
         "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
         "suspected_late_baseline_files": [],
         "allowed_inherited_dirty_files": [
-          "docs/prompts/codex_execution_prompt.md"
+          "reverse_agent/project_control_plane.py",
+          "reverse_agent/project_gate.py",
+          "reverse_agent/project_jobs.py",
+          "reverse_agent/project_runner_contract.py",
+          "tests/test_project_control_plane.py",
+          "tests/test_project_gate.py",
+          "tests/test_project_jobs.py",
+          "tests/test_project_runner_contract.py"
         ],
         "baseline_dirty_source_test_files": [],
         "files_changed_overlap": [],
@@ -465,17 +493,19 @@
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/gate_profile_plan.json",
+          "project_state/gates/job_orchestration_result.json",
+          "project_state/gates/jobs_inventory_result.json",
           "project_state/gates/phase1_completion_result.json",
           "project_state/gates/policy_impact_audit.json",
           "project_state/gates/policy_lint_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
+          "project_state/gates/runner_contract_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/gates/state_hygiene_inventory.json",
           "project_state/pytest_result.txt"
@@ -576,7 +606,7 @@
         "status": "WARN",
         "detail": "generated_artifacts omits round archive files",
         "missing_artifacts": [
-          "project_state/rounds/round_20260629_startup_snapshot_and_control_plane_rework_v1/round_manifest.json"
+          "project_state/rounds/round_20260629_job_orchestration_foundation_v1/round_manifest.json"
         ]
       },
       {
@@ -594,16 +624,18 @@
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
+          "project_state/gates/job_orchestration_result.json",
+          "project_state/gates/jobs_inventory_result.json",
           "project_state/gates/phase1_completion_result.json",
           "project_state/gates/policy_impact_audit.json",
           "project_state/gates/policy_lint_result.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
+          "project_state/gates/runner_contract_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/gates/state_hygiene_inventory.json"
         ],
@@ -646,8 +678,8 @@
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260629_startup_snapshot_and_control_plane_rework_v1",
-        "manifest": "project_state\\rounds\\round_20260629_startup_snapshot_and_control_plane_rework_v1\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260629_job_orchestration_foundation_v1",
+        "manifest": "project_state\\rounds\\round_20260629_job_orchestration_foundation_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
@@ -664,7 +696,7 @@
     ],
     "archive": {
       "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260629_startup_snapshot_and_control_plane_rework_v1/round_manifest.json",
+      "round_manifest_path": "project_state/rounds/round_20260629_job_orchestration_foundation_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",

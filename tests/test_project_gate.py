@@ -36,7 +36,9 @@ from reverse_agent.project_gate import (
     _is_startup_command,
     _audit_inventory_gate_check,
     _control_plane_snapshot_gate_check,
+    _job_orchestration_gate_check,
     _jobs_inventory_gate_check,
+    _runner_contract_gate_check,
     _normalize_closed_close_round_result_for_success,
     _round_baseline_matches_startup_snapshot_check,
     _read_round_close_snapshot,
@@ -62,10 +64,12 @@ from reverse_agent.project_gate import (
     final_check,
     audit_inventory,
     control_plane_snapshot,
+    job_orchestration,
     jobs_inventory,
     main,
     phase1_completion,
     preflight,
+    runner_contract,
     run_closeout,
     run_round,
     startup_snapshot,
@@ -17035,7 +17039,8 @@ def test_run_closeout_constants_and_allowlist():
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
         "git diff", "preflight", "pytest", "command-plan", "report-summary",
             "final-check", "close-round", "decision-lint", "gate-profile",
-            "execution-log", "report-auto-summary", "jobs-inventory", "audit-inventory",
+            "execution-log", "report-auto-summary", "jobs-inventory",
+            "job-orchestration", "runner-contract", "audit-inventory",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
         }
@@ -25241,6 +25246,78 @@ def test_command_kind_recognizes_control_plane_snapshot_gate() -> None:
 
     assert _command_kind(command) == "control-plane-snapshot"
     assert _command_phase("control-plane-snapshot", archive_seen=False) == "gate"
+
+
+def test_command_kind_recognizes_job_orchestration_and_runner_contract_gates() -> None:
+    assert _command_kind(
+        "python -m reverse_agent.project_gate job-orchestration --state-dir project_state"
+    ) == "job-orchestration"
+    assert _command_kind(
+        "python -m reverse_agent.project_gate runner-contract --state-dir project_state"
+    ) == "runner-contract"
+    assert _command_phase("job-orchestration", archive_seen=False) == "gate"
+    assert _command_phase("runner-contract", archive_seen=False) == "gate"
+    assert "job-orchestration" in RUN_CLOSEOUT_ALLOWED_KINDS
+    assert "runner-contract" in RUN_CLOSEOUT_ALLOWED_KINDS
+
+
+def test_job_orchestration_and_runner_contract_gates_write_current_artifacts(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_20260629_job_orchestration_foundation_v1",
+        round_id="round_20260629_job_orchestration_foundation_v1",
+    )
+    _write_json(
+        state_dir / "gates" / "command_plan.json",
+        {
+            "schema_version": 1,
+            "plan_name": "command-plan",
+            "plan_status": "PASSED",
+            "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+            "round_id": "round_20260629_job_orchestration_foundation_v1",
+            "mainline": "engineering_branch",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m reverse_agent.project_gate job-orchestration --state-dir project_state",
+                    "kind": "job-orchestration",
+                    "phase": "gate",
+                    "expected_exit_codes": [0],
+                    "required": True,
+                }
+            ],
+            "omitted_commands": [
+                {"command": "gh workflow run state-gate.yml", "kind": "github-actions"}
+            ],
+        },
+    )
+
+    orchestration = job_orchestration(state_dir=state_dir)
+    contract = runner_contract(state_dir=state_dir, repo_root=tmp_path)
+
+    assert orchestration["gate_status"] == "PASSED"
+    assert orchestration["job_id"] == "job_20260629_job_orchestration_foundation_v1"
+    assert (tmp_path / orchestration["job_artifact_path"]).exists()
+    assert contract["gate_status"] == "PASSED"
+    assert contract["dispatch_enabled"] is False
+    assert contract["executable"] is False
+
+    orchestration_check = _job_orchestration_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_20260629_job_orchestration_foundation_v1",
+        round_id="round_20260629_job_orchestration_foundation_v1",
+        decision_contract={"accepted_requires_job_orchestration_artifact": True},
+    )
+    runner_check = _runner_contract_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_20260629_job_orchestration_foundation_v1",
+        round_id="round_20260629_job_orchestration_foundation_v1",
+        decision_contract={"accepted_requires_runner_contract_artifact": True},
+    )
+    assert orchestration_check["status"] == "PASS"
+    assert runner_check["status"] == "PASS"
 
 
 def test_startup_snapshot_writes_and_reuses_first_current_round_artifact(

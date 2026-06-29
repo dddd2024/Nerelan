@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-29T16:46:30Z",
+  "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260629_job_orchestration_foundation_v1\\codex_execution_report.md",
+      "sha256": "c73e1f5e83ca4b7e5f0fcb549d04bee920334bd8245d762eeb8fe9ad318bee0a",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260629_job_orchestration_foundation_v1\\decision_packet.md",
+      "sha256": "fc790de73675dd15521d956bcc778f36e6682161cdba324251a4e61f2bc3aa57",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260629_job_orchestration_foundation_v1\\pytest_result.txt",
+      "sha256": "460da80b5607cacbc51e118de6dbfa191f8b842415433af3e1297715bcfb4530",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260629_job_orchestration_foundation_v1\\execution_report.md",
+      "sha256": "98cec45242a7d31d5a28985af49fbba72b003f18efbee03ab47575bb5b6a2e02",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260629_job_orchestration_foundation_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260629_job_orchestration_foundation_v1",
+  "schema_version": 1,
+  "source_git_commit": "c0f71f69913d",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

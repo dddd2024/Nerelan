@@ -208,6 +208,8 @@ def build_control_plane_snapshot(
     closeout = _read_json(gates_dir / "run_closeout_result.json")
     audit_inventory = _read_json(gates_dir / "audit_inventory_result.json")
     jobs_inventory = _read_json(gates_dir / "jobs_inventory_result.json")
+    job_orchestration = _read_json(gates_dir / "job_orchestration_result.json")
+    runner_contract = _read_json(gates_dir / "runner_contract_result.json")
     execution_log = _read_json(gates_dir / "execution_log.json")
 
     decision_id = str(decision.get("decision_id") or "")
@@ -281,7 +283,61 @@ def build_control_plane_snapshot(
         required=False,
         count_field="job_count",
     )
-    for name, entry in (("audit inventory", audit_entry), ("jobs inventory", jobs_entry)):
+    job_orchestration_entry = _status_payload(
+        job_orchestration,
+        expected_decision_id=decision_id,
+        expected_round_id=round_id,
+        required=False,
+    )
+    job_orchestration_entry.update(
+        {
+            "gate_name": job_orchestration.get("gate_name") if job_orchestration else "",
+            "gate_status": job_orchestration.get("gate_status") if job_orchestration else "MISSING",
+            "job_id": job_orchestration.get("job_id") if job_orchestration else "",
+            "job_status": job_orchestration.get("job_status") if job_orchestration else "",
+            "job_artifact_path": job_orchestration.get("job_artifact_path")
+            if job_orchestration
+            else "",
+            "dispatch_enabled": bool(job_orchestration.get("dispatch_enabled"))
+            if job_orchestration
+            else False,
+            "dispatch_safety_status": job_orchestration.get("dispatch_safety_status")
+            if job_orchestration
+            else "MISSING",
+        }
+    )
+    runner_contract_entry = _status_payload(
+        runner_contract,
+        expected_decision_id=decision_id,
+        expected_round_id=round_id,
+        required=False,
+    )
+    runner_contract_entry.update(
+        {
+            "gate_name": runner_contract.get("gate_name") if runner_contract else "",
+            "gate_status": runner_contract.get("gate_status") if runner_contract else "MISSING",
+            "contract_id": runner_contract.get("contract_id") if runner_contract else "",
+            "contract_validation_status": runner_contract.get("contract_validation_status")
+            if runner_contract
+            else "MISSING",
+            "dispatch_enabled": runner_contract.get("dispatch_enabled")
+            if runner_contract
+            else False,
+            "executable": runner_contract.get("executable") if runner_contract else False,
+            "allowed_command_count": runner_contract.get("allowed_command_count", 0)
+            if runner_contract
+            else 0,
+            "forbidden_command_count": runner_contract.get("forbidden_command_count", 0)
+            if runner_contract
+            else 0,
+        }
+    )
+    for name, entry in (
+        ("audit inventory", audit_entry),
+        ("jobs inventory", jobs_entry),
+        ("job orchestration", job_orchestration_entry),
+        ("runner contract", runner_contract_entry),
+    ):
         if entry.get("status") in {"historical_nonblocking", "missing_optional"}:
             warnings.append(f"{name} is {entry.get('status')}")
 
@@ -333,11 +389,27 @@ def build_control_plane_snapshot(
         for job in runner_jobs
         if isinstance(job, dict) and str(job.get("status") or "") in {"READY", "RUNNING"}
     ]
+    status_counts = jobs_inventory.get("status_counts") if isinstance(jobs_inventory.get("status_counts"), dict) else {}
+    current_job_status = str(job_orchestration.get("job_status") or "")
+    current_job_id = str(job_orchestration.get("job_id") or "")
     explicit_safe_dispatch = bool(
         jobs_entry.get("is_current")
         and jobs_inventory.get("dispatch_safety_status") == "PASSED"
         and not jobs_inventory.get("dispatch_enabled")
         and ready_or_running
+    )
+    job_orchestration_ready = bool(
+        job_orchestration_entry.get("is_current")
+        and job_orchestration.get("gate_status") == "PASSED"
+        and job_orchestration.get("dispatch_safety_status") == "PASSED"
+        and job_orchestration.get("dispatch_enabled") is False
+    )
+    runner_contract_ready = bool(
+        runner_contract_entry.get("is_current")
+        and runner_contract.get("gate_status") == "PASSED"
+        and runner_contract.get("contract_validation_status") == "PASSED"
+        and runner_contract.get("dispatch_enabled") is False
+        and runner_contract.get("executable") is False
     )
     can_dispatch = False
 
@@ -391,17 +463,40 @@ def build_control_plane_snapshot(
         "inventory_status": {
             "audit_inventory": audit_entry,
             "jobs_inventory": jobs_entry,
+            "job_orchestration": job_orchestration_entry,
+            "runner_contract": runner_contract_entry,
             "round_archive_inventory": {
                 "status": "not_implemented",
                 "nonblocking": True,
                 "detail": "snapshot does not scan full project_state/rounds",
             },
         },
+        "job_queue_status": {
+            "job_count": int(jobs_inventory.get("job_count") or 0),
+            "status_counts": status_counts,
+            "current_job_id": current_job_id,
+            "current_job_status": current_job_status,
+            "ready_or_running_job_count": len(ready_or_running),
+            "dispatch_safety_status": job_orchestration.get("dispatch_safety_status")
+            or jobs_inventory.get("dispatch_safety_status")
+            or "MISSING",
+        },
         "runner_readiness": {
             "can_dispatch_next_decision": can_dispatch,
             "default_dispatch_policy": "non_dispatch",
             "explicit_safe_dispatch_evidence": explicit_safe_dispatch,
             "ready_or_running_job_count": len(ready_or_running),
+            "job_orchestration_ready": job_orchestration_ready,
+            "runner_contract_ready": runner_contract_ready,
+            "job_orchestration_status": str(job_orchestration.get("gate_status") or "MISSING"),
+            "runner_contract_status": str(runner_contract.get("gate_status") or "MISSING"),
+            "runner_contract_executable": runner_contract.get("executable")
+            if runner_contract
+            else False,
+            "dispatch_safety_status": job_orchestration.get("dispatch_safety_status")
+            or runner_contract.get("dispatch_enabled")
+            or jobs_inventory.get("dispatch_safety_status")
+            or "MISSING",
             "reason": "external dispatch stays disabled unless a future safe dispatch policy is explicit",
         },
         "authority_separation": {

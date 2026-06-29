@@ -64,6 +64,19 @@ FORBIDDEN_PERMISSION_FLAGS = {
     "allow_agent_dispatch",
     "allow_reverse_solving",
 }
+JOB_ORCHESTRATION_JOB_OUTPUT_TEMPLATE = "project_state/jobs/{job_id}.json"
+JOB_ORCHESTRATION_REQUIRED_INPUTS = [
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+]
+JOB_ORCHESTRATION_REQUIRED_OUTPUTS = [
+    "project_state/jobs/{job_id}.json",
+    "project_state/gates/job_orchestration_result.json",
+    "project_state/gates/runner_contract_result.json",
+    "project_state/gates/control_plane_snapshot.json",
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt",
+]
 
 
 def _string_value(payload: Mapping[str, Any], field: str, errors: list[str]) -> str:
@@ -177,6 +190,75 @@ def _validate_lease(value: Any, errors: list[str]) -> dict[str, Any] | None:
         except ValueError:
             pass
     return lease
+
+
+def planned_job_id_for_round(round_id: str) -> str:
+    """Return the deterministic local job id for a decision round."""
+
+    text = str(round_id or "").strip()
+    if text.startswith("round_"):
+        return f"job_{text[len('round_'):]}"
+    return f"job_{text}" if text else ""
+
+
+def planned_job_artifact_path(job_id: str) -> str:
+    """Return the project-relative path for a planned local job artifact."""
+
+    return JOB_ORCHESTRATION_JOB_OUTPUT_TEMPLATE.format(job_id=str(job_id or "").strip())
+
+
+def build_planned_job_payload(
+    decision: Mapping[str, Any],
+    *,
+    status: str = "DRAFT",
+) -> dict[str, Any]:
+    """Build a deterministic non-dispatching job plan from decision metadata."""
+
+    round_id = str(decision.get("round_id") or "").strip()
+    decision_id = str(decision.get("decision_id") or "").strip()
+    mainline = str(decision.get("mainline") or "").strip()
+    job_id = planned_job_id_for_round(round_id)
+    job_path = planned_job_artifact_path(job_id)
+    required_outputs = [
+        output.format(job_id=job_id) for output in JOB_ORCHESTRATION_REQUIRED_OUTPUTS
+    ]
+    if job_path not in required_outputs:
+        required_outputs.insert(0, job_path)
+    return {
+        "schema_version": JOB_SCHEMA_VERSION,
+        "job_id": job_id,
+        "round_id": round_id,
+        "decision_id": decision_id,
+        "mainline": mainline,
+        "status": str(status or "DRAFT").strip().upper(),
+        "runner": {
+            "kind": "none",
+            "dispatch_enabled": False,
+        },
+        "required_inputs": list(JOB_ORCHESTRATION_REQUIRED_INPUTS),
+        "required_outputs": required_outputs,
+        "permissions": {
+            "allow_remote_mutation": False,
+            "allow_llm_calls": False,
+            "allow_agent_dispatch": False,
+            "allow_reverse_solving": False,
+            "allow_github_actions": False,
+            "allow_database_writes": False,
+            "allow_scheduler": False,
+            "allow_web_ui_mutation": False,
+        },
+        "budgets": {
+            "max_runtime_seconds": 0,
+            "max_commands": 0,
+        },
+        "orchestration": {
+            "planning_mode": "non_dispatching",
+            "dispatch_policy": "disabled_by_default",
+            "task_contract_path": "project_state/decision_packet.md",
+            "command_plan_path": "project_state/gates/command_plan.json",
+            "execution_authority": "project_state/gates/command_plan.json",
+        },
+    }
 
 
 def validate_job_transition(from_status: str, to_status: str) -> dict[str, Any]:

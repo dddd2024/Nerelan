@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
-  "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
-  "head_commit": "6051d12a40305c010a20418ded892dbe5a3fb5d9",
+  "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+  "round_id": "round_20260629_job_orchestration_foundation_v1",
+  "head_commit": "c0f71f69913d",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
@@ -11,5 +11,5 @@
   "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-06-29T13:16:17.157183Z"
+  "generated_at": "2026-06-29T16:23:27.381828Z"
 }

@@ -159,6 +159,72 @@ def test_control_plane_snapshot_treats_stale_jobs_inventory_as_historical(tmp_pa
     assert "jobs inventory is historical_nonblocking" in result["ui_summary"]["warnings"]
 
 
+def test_control_plane_snapshot_summarizes_job_and_runner_readiness(tmp_path: Path) -> None:
+    state_dir = _make_state(
+        tmp_path,
+        decision_id="decision_job_runner",
+        round_id="round_job_runner",
+    )
+    _write_json(
+        state_dir / "gates" / "jobs_inventory_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "jobs-inventory",
+            "gate_status": "PASSED",
+            "decision_id": "decision_job_runner",
+            "round_id": "round_job_runner",
+            "inventory_validation_status": "PASSED",
+            "job_count": 1,
+            "status_counts": {"DRAFT": 1, "READY": 0, "RUNNING": 0},
+            "validated_paths": ["project_state/jobs/job_job_runner.json"],
+            "dispatch_enabled": False,
+            "dispatch_safety_status": "PASSED",
+            "jobs": [{"job_id": "job_job_runner", "status": "DRAFT"}],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "job_orchestration_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "job-orchestration",
+            "gate_status": "PASSED",
+            "decision_id": "decision_job_runner",
+            "round_id": "round_job_runner",
+            "job_id": "job_job_runner",
+            "job_status": "DRAFT",
+            "job_artifact_path": "project_state/jobs/job_job_runner.json",
+            "dispatch_enabled": False,
+            "dispatch_safety_status": "PASSED",
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "runner_contract_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "runner-contract",
+            "gate_status": "PASSED",
+            "decision_id": "decision_job_runner",
+            "round_id": "round_job_runner",
+            "contract_id": "runner_contract_job_runner",
+            "contract_validation_status": "PASSED",
+            "dispatch_enabled": False,
+            "executable": False,
+            "allowed_command_count": 2,
+            "forbidden_command_count": 1,
+        },
+    )
+
+    result = build_control_plane_snapshot(state_dir=state_dir, write_result=False)
+
+    assert result["inventory_status"]["job_orchestration"]["status"] == "PASSED"
+    assert result["inventory_status"]["runner_contract"]["contract_validation_status"] == "PASSED"
+    assert result["job_queue_status"]["current_job_id"] == "job_job_runner"
+    assert result["job_queue_status"]["current_job_status"] == "DRAFT"
+    assert result["runner_readiness"]["job_orchestration_ready"] is True
+    assert result["runner_readiness"]["runner_contract_ready"] is True
+    assert result["runner_readiness"]["can_dispatch_next_decision"] is False
+
+
 def test_control_plane_snapshot_records_hard_identity_mismatch(tmp_path: Path) -> None:
     state_dir = _make_state(tmp_path)
     _write_json(

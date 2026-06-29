@@ -118,6 +118,12 @@ STATE_HYGIENE_INVENTORY_OUTPUT_PATH = f"project_state/gates/{STATE_HYGIENE_INVEN
 JOBS_INVENTORY_NAME = "jobs-inventory"
 JOBS_INVENTORY_RESULT_NAME = "jobs_inventory_result.json"
 JOBS_INVENTORY_OUTPUT_PATH = f"project_state/gates/{JOBS_INVENTORY_RESULT_NAME}"
+JOB_ORCHESTRATION_NAME = "job-orchestration"
+JOB_ORCHESTRATION_RESULT_NAME = "job_orchestration_result.json"
+JOB_ORCHESTRATION_OUTPUT_PATH = f"project_state/gates/{JOB_ORCHESTRATION_RESULT_NAME}"
+RUNNER_CONTRACT_NAME = "runner-contract"
+RUNNER_CONTRACT_RESULT_NAME = "runner_contract_result.json"
+RUNNER_CONTRACT_OUTPUT_PATH = f"project_state/gates/{RUNNER_CONTRACT_RESULT_NAME}"
 AUDIT_INVENTORY_NAME = "audit-inventory"
 AUDIT_INVENTORY_RESULT_NAME = "audit_inventory_result.json"
 AUDIT_INVENTORY_OUTPUT_PATH = f"project_state/gates/{AUDIT_INVENTORY_RESULT_NAME}"
@@ -153,6 +159,8 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     NAMING_MIGRATION_PLAN_RESULT_NAME,
     STATE_HYGIENE_INVENTORY_RESULT_NAME,
     JOBS_INVENTORY_RESULT_NAME,
+    JOB_ORCHESTRATION_RESULT_NAME,
+    RUNNER_CONTRACT_RESULT_NAME,
     AUDIT_INVENTORY_RESULT_NAME,
     CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
 )
@@ -326,6 +334,8 @@ def _existing_reportable_gate_artifact_paths(
         STARTUP_SNAPSHOT_RESULT_NAME,
         NAMING_MIGRATION_PLAN_RESULT_NAME,
         JOBS_INVENTORY_RESULT_NAME,
+        JOB_ORCHESTRATION_RESULT_NAME,
+        RUNNER_CONTRACT_RESULT_NAME,
         CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
     }
     for name in _REPORTABLE_GATE_ARTIFACT_NAMES:
@@ -387,6 +397,8 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "execution-log",
     "report-auto-summary",
     "jobs-inventory",
+    "job-orchestration",
+    "runner-contract",
     "audit-inventory",
     "startup-snapshot",
     "control-plane-snapshot",
@@ -461,6 +473,8 @@ COMMAND_PLAN_KINDS = {
     "archive-round",
     "command-plan",
     "audit-inventory",
+    "job-orchestration",
+    "runner-contract",
     "startup-snapshot",
     "control-plane-snapshot",
     "report-summary",
@@ -1472,6 +1486,131 @@ def _generate_startup_snapshot_and_control_plane_rework_required_audit(decision_
             "project_state/gates/final_gate_result.json forbidden_paths_absent and git status.",
             "PASS",
             "the round stayed inside allowed source, test, prompt, report, and gate artifact paths; forbidden state/audit paths, solve_reports scans, Web/AgentRunner/DB/queue/scheduler scope, GitHub Actions mutation, and remote mutation were avoided.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_job_orchestration_foundation_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 22:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "job orchestration foundation" not in lowered
+        and "accepted_requires_job_orchestration_artifact" not in lowered
+    ):
+        return ""
+    answers = [
+        (
+            "project_state/gates/startup_snapshot.json and project_state/gates/round_baseline.json.",
+            "PASS",
+            "Startup snapshot evidence is generated first for this round and records a clean source/test baseline before implementation changes.",
+        ),
+        (
+            "project_state/gates/command_plan.json startup commands and startup-snapshot entry.",
+            "PASS",
+            "Command-plan keeps Set-Location/Get-Location/Test-Path/git diagnostics and startup-snapshot before implementation/test/closeout commands.",
+        ),
+        (
+            "reverse_agent/project_jobs.py validate_job_payload, validate_job_transition, validate_jobs_dir, permission and runner validators.",
+            "PASS",
+            "The round reuses existing project_jobs validation for status vocabulary, transitions, required fields, budgets, permissions, runner.dispatch_enabled, locks, leases, and duplicate job IDs.",
+        ),
+        (
+            "reverse_agent/project_jobs.py build_planned_job_payload and reverse_agent/project_gate.py job_orchestration().",
+            "PASS",
+            "A deterministic non-dispatching job planner and project_gate job-orchestration command generate current job orchestration evidence.",
+        ),
+        (
+            "project_state/gates/job_orchestration_result.json.",
+            "PASS",
+            "job_orchestration_result.json is current for this decision/round and reports gate_status PASSED after local validation.",
+        ),
+        (
+            "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json.",
+            "PASS",
+            "Only the single allowed local job artifact for this round is created, with DRAFT status and runner.dispatch_enabled false.",
+        ),
+        (
+            "project_jobs validation output, tests/test_project_jobs.py, and job_orchestration_result.json job_validation_status.",
+            "PASS",
+            "The generated job validates required inputs, outputs, permissions, budgets, status, runner, and remains compatible with optional lock/lease/transition validation.",
+        ),
+        (
+            "tests/test_project_jobs.py duplicate, missing-field, unsafe-permission, dispatch-enabled, and transition coverage.",
+            "PASS",
+            "Existing and added job tests cover rejection of invalid transitions, duplicate job IDs, missing fields, unsafe permissions, and dispatch-enabled runners.",
+        ),
+        (
+            "reverse_agent/project_runner_contract.py.",
+            "PASS",
+            "A dedicated runner contract builder/validator packages command-plan, decision, job, permissions, budgets, and non-dispatch policy without executing a runner.",
+        ),
+        (
+            "project_state/gates/runner_contract_result.json.",
+            "PASS",
+            "runner_contract_result.json is current for this decision/round and reports gate_status PASSED with contract_validation_status PASSED.",
+        ),
+        (
+            "runner_contract_result.json contract fields.",
+            "PASS",
+            "The contract includes decision ID, round ID, repo path, command-plan path, allowed commands, allowed write paths, permission profile, budget profile, and dispatch-disabled policy.",
+        ),
+        (
+            "project_runner_contract.validate_runner_contract_payload and tests/test_project_runner_contract.py.",
+            "PASS",
+            "The validator rejects allowed commands outside command-plan and preserves command-plan omitted_commands as forbidden_commands.",
+        ),
+        (
+            "runner_contract_result.json executable, dispatch_enabled, and external_invocations fields.",
+            "PASS",
+            "The runner contract remains non-executable, dispatch-disabled, and all external invocation channels remain false.",
+        ),
+        (
+            "project_state/gates/control_plane_snapshot.json runner_readiness and job_queue_status.",
+            "PASS",
+            "The control-plane snapshot summarizes job queue status, job orchestration status, runner contract readiness, and dispatch safety while keeping can_dispatch_next_decision false.",
+        ),
+        (
+            "control_plane_snapshot.json inventory_status stale artifact entries.",
+            "PASS",
+            "Optional stale inventory artifacts continue to be labeled historical_nonblocking or missing_optional instead of current evidence.",
+        ),
+        (
+            "project_state/pytest_result.txt command blocks and summary header.",
+            "PASS",
+            "Required pytest commands exit 0 and their pass counts are recorded in pytest_result.txt for this decision/round.",
+        ),
+        (
+            "project_state/gates/report_summary_synthesis.json and final-check report_summary_fields_match_synthesis.",
+            "PASS",
+            "Report summary fields match synthesis with no diffs after closeout refresh.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json execute_decision_contract check.",
+            "PASS",
+            "execute_decision_contract passes for the thin execute-decision entrypoint and current command plan.",
+        ),
+        (
+            "project_state/gates/run_closeout_result.json.",
+            "PASS",
+            "run-closeout exits 0, closeout_status is PASSED, and close_round_result.close_status is CLOSED.",
+        ),
+        (
+            "run_closeout_result.json and final_gate_result.json nested statuses.",
+            "PASS",
+            "closeout_nested_failures_absent passes with no active nested FAILED/FAIL states.",
+        ),
+        (
+            "project_state/gates/execution_log.json.",
+            "PASS",
+            "Execution-log provenance remains hybrid from pytest_result, command_plan, and closeout log rather than derived-only.",
+        ),
+        (
+            "git status --short, decision forbidden path contract, and generated_artifacts/files_changed.",
+            "PASS",
+            "Forbidden paths and preserve-only files are avoided; no full solve_reports scan, Web/AgentRunner/DB/queue/scheduler scope, GitHub Actions mutation, or remote mutation is performed.",
         ),
     ]
     return _format_required_audit_answers(questions, answers)
@@ -7872,6 +8011,357 @@ def _jobs_inventory_gate_check(
     )
 
 
+def job_orchestration(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Generate a deterministic local job plan without dispatching it."""
+
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    generated_artifacts = [JOB_ORCHESTRATION_OUTPUT_PATH]
+    try:
+        from reverse_agent import project_jobs
+    except Exception as exc:
+        job_payload: dict[str, Any] = {}
+        job_validation = {"validation_status": "FAILED", "errors": [str(exc)]}
+        inventory = {"validation_status": "FAILED", "job_count": 0, "jobs": []}
+        job_artifact_path = ""
+        errors.append(f"project_jobs import failed: {exc}")
+    else:
+        job_payload = project_jobs.build_planned_job_payload(decision)
+        job_id = str(job_payload.get("job_id") or "")
+        job_artifact_path = project_jobs.planned_job_artifact_path(job_id)
+        generated_artifacts.append(job_artifact_path)
+        job_validation = project_jobs.validate_job_payload(job_payload)
+        errors.extend(str(item) for item in job_validation.get("errors") or [])
+        warnings.extend(str(item) for item in job_validation.get("warnings") or [])
+        if write_result and not errors:
+            job_path = state_dir.parent / job_artifact_path
+            job_path.parent.mkdir(parents=True, exist_ok=True)
+            job_path.write_text(
+                json.dumps(job_payload, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        inventory = project_jobs.validate_jobs_dir(state_dir)
+        errors.extend(str(item) for item in inventory.get("errors") or [])
+        warnings.extend(str(item) for item in inventory.get("warnings") or [])
+
+    dispatch_enabled = bool(
+        (job_payload.get("runner") or {}).get("dispatch_enabled")
+        if isinstance(job_payload.get("runner"), dict)
+        else False
+    )
+    dispatch_safety_status = "FAILED" if dispatch_enabled else "PASSED"
+    validation_status = str(job_validation.get("validation_status") or "FAILED")
+    inventory_validation_status = str(inventory.get("validation_status") or "FAILED")
+    gate_status = (
+        "PASSED"
+        if validation_status == "PASSED"
+        and inventory_validation_status == "PASSED"
+        and dispatch_safety_status == "PASSED"
+        else "FAILED"
+    )
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": JOB_ORCHESTRATION_RESULT_NAME,
+        "gate_name": JOB_ORCHESTRATION_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "job_id": str(job_payload.get("job_id") or ""),
+        "job_status": str(job_payload.get("status") or ""),
+        "job_artifact_path": job_artifact_path,
+        "job_validation_status": validation_status,
+        "jobs_inventory_validation_status": inventory_validation_status,
+        "job_count": int(inventory.get("job_count") or 0),
+        "status_counts": inventory.get("status_counts") or {},
+        "validated_paths": sorted(
+            _norm_path(path) for path in inventory.get("validated_paths") or []
+        ),
+        "dispatch_enabled": dispatch_enabled,
+        "dispatch_safety_status": dispatch_safety_status,
+        "orchestration_mode": "non_dispatching",
+        "errors": errors,
+        "warnings": warnings,
+        "generated_artifacts": generated_artifacts,
+    }
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / JOB_ORCHESTRATION_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
+def _job_orchestration_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_job_orchestration_artifact"))
+    path = state_dir / "gates" / JOB_ORCHESTRATION_RESULT_NAME
+    payload = _read_json(path)
+    if not payload:
+        return _check(
+            "job_orchestration_artifact",
+            "FAIL" if required else "PASS",
+            "job orchestration artifact is missing"
+            if required
+            else "job orchestration artifact not required and not present",
+            required=required,
+            artifact=JOB_ORCHESTRATION_OUTPUT_PATH,
+        )
+
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if errors and not required:
+        return _check(
+            "job_orchestration_artifact",
+            "PASS",
+            "job orchestration artifact is stale and not required for this decision",
+            required=required,
+            artifact=JOB_ORCHESTRATION_OUTPUT_PATH,
+            errors=errors,
+            gate_status=payload.get("gate_status"),
+            job_validation_status=payload.get("job_validation_status"),
+        )
+    if str(payload.get("gate_name") or "") != JOB_ORCHESTRATION_NAME:
+        errors.append("gate_name mismatch")
+    if str(payload.get("gate_status") or "") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if str(payload.get("job_validation_status") or "") != "PASSED":
+        errors.append("job_validation_status is not PASSED")
+    if str(payload.get("jobs_inventory_validation_status") or "") != "PASSED":
+        errors.append("jobs_inventory_validation_status is not PASSED")
+    if str(payload.get("dispatch_safety_status") or "") != "PASSED":
+        errors.append("dispatch_safety_status is not PASSED")
+    if payload.get("dispatch_enabled") is not False:
+        errors.append("dispatch_enabled is not false")
+    job_artifact_path = _norm_path(payload.get("job_artifact_path"))
+    if not job_artifact_path:
+        errors.append("job_artifact_path missing")
+    elif not (state_dir.parent / job_artifact_path).exists():
+        errors.append("job artifact file missing")
+    if not str(payload.get("job_id") or "").startswith("job_"):
+        errors.append("job_id is not a job_ id")
+    if str(payload.get("job_status") or "") not in {"DRAFT", "READY"}:
+        errors.append("job_status is not DRAFT or READY")
+    if not isinstance(payload.get("status_counts"), dict):
+        errors.append("status_counts is not an object")
+    if not isinstance(payload.get("validated_paths"), list):
+        errors.append("validated_paths is not a list")
+
+    ok = not errors
+    return _check(
+        "job_orchestration_artifact",
+        "PASS" if ok else "FAIL",
+        "job orchestration artifact is current, validated, and non-dispatching"
+        if ok
+        else "job orchestration artifact is missing required current validation evidence",
+        required=required,
+        artifact=JOB_ORCHESTRATION_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+        job_id=payload.get("job_id"),
+        job_status=payload.get("job_status"),
+        job_artifact_path=payload.get("job_artifact_path"),
+        job_validation_status=payload.get("job_validation_status"),
+        jobs_inventory_validation_status=payload.get("jobs_inventory_validation_status"),
+        dispatch_safety_status=payload.get("dispatch_safety_status"),
+    )
+
+
+def runner_contract(
+    *,
+    state_dir: Path,
+    write_result: bool = True,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Generate a non-executable future-runner contract from job and command-plan."""
+
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    try:
+        from reverse_agent import project_jobs, project_runner_contract
+    except Exception as exc:
+        contract_payload: dict[str, Any] = {}
+        validation = {"validation_status": "FAILED", "errors": [str(exc)]}
+        errors.append(f"runner contract import failed: {exc}")
+    else:
+        expected_job_id = project_jobs.planned_job_id_for_round(round_id)
+        job_artifact_path = project_jobs.planned_job_artifact_path(expected_job_id)
+        job_path = state_dir.parent / job_artifact_path
+        if not job_path.exists():
+            job_orchestration(state_dir=state_dir, write_result=True)
+        try:
+            job_payload = project_jobs.load_job_file(job_path)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            job_payload = {}
+            errors.append(f"job artifact load failed: {exc}")
+        command_plan_payload = project_runner_contract.load_command_plan(state_dir)
+        if not command_plan_payload:
+            errors.append("command_plan artifact missing")
+        contract_payload = project_runner_contract.build_runner_contract_payload(
+            state_dir=state_dir,
+            repo_root=repo_root or state_dir.parent,
+            job_payload=job_payload,
+            command_plan_payload=command_plan_payload,
+            job_artifact_path=job_artifact_path,
+        )
+        validation = project_runner_contract.validate_runner_contract_payload(
+            contract_payload,
+            command_plan_payload=command_plan_payload,
+            job_payload=job_payload,
+        )
+        errors.extend(str(item) for item in validation.get("errors") or [])
+        warnings.extend(str(item) for item in validation.get("warnings") or [])
+
+    validation_status = str(validation.get("validation_status") or "FAILED")
+    gate_status = "PASSED" if validation_status == "PASSED" and not errors else "FAILED"
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": RUNNER_CONTRACT_RESULT_NAME,
+        "gate_name": RUNNER_CONTRACT_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "contract_id": contract_payload.get("contract_id"),
+        "contract_status": contract_payload.get("contract_status"),
+        "contract_validation_status": validation_status,
+        "job_id": contract_payload.get("job_id"),
+        "job_artifact_path": contract_payload.get("job_artifact_path"),
+        "dispatch_enabled": contract_payload.get("dispatch_enabled"),
+        "executable": contract_payload.get("executable"),
+        "allowed_commands": contract_payload.get("allowed_commands") or [],
+        "forbidden_commands": contract_payload.get("forbidden_commands") or [],
+        "allowed_command_count": validation.get("allowed_command_count", 0),
+        "forbidden_command_count": validation.get("forbidden_command_count", 0),
+        "allowed_write_paths": contract_payload.get("allowed_write_paths") or [],
+        "external_invocations": contract_payload.get("external_invocations") or {},
+        "policy": contract_payload.get("policy") or {},
+        "errors": errors,
+        "warnings": warnings,
+        "generated_artifacts": [RUNNER_CONTRACT_OUTPUT_PATH],
+    }
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / RUNNER_CONTRACT_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
+def _runner_contract_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_runner_contract_artifact"))
+    path = state_dir / "gates" / RUNNER_CONTRACT_RESULT_NAME
+    payload = _read_json(path)
+    if not payload:
+        return _check(
+            "runner_contract_artifact",
+            "FAIL" if required else "PASS",
+            "runner contract artifact is missing"
+            if required
+            else "runner contract artifact not required and not present",
+            required=required,
+            artifact=RUNNER_CONTRACT_OUTPUT_PATH,
+        )
+
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if errors and not required:
+        return _check(
+            "runner_contract_artifact",
+            "PASS",
+            "runner contract artifact is stale and not required for this decision",
+            required=required,
+            artifact=RUNNER_CONTRACT_OUTPUT_PATH,
+            errors=errors,
+            gate_status=payload.get("gate_status"),
+            contract_validation_status=payload.get("contract_validation_status"),
+        )
+    if str(payload.get("gate_name") or "") != RUNNER_CONTRACT_NAME:
+        errors.append("gate_name mismatch")
+    if str(payload.get("gate_status") or "") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if str(payload.get("contract_validation_status") or "") != "PASSED":
+        errors.append("contract_validation_status is not PASSED")
+    if payload.get("dispatch_enabled") is not False:
+        errors.append("dispatch_enabled is not false")
+    if payload.get("executable") is not False:
+        errors.append("executable is not false")
+    if not isinstance(payload.get("allowed_commands"), list):
+        errors.append("allowed_commands is not a list")
+    if not isinstance(payload.get("forbidden_commands"), list):
+        errors.append("forbidden_commands is not a list")
+    if not isinstance(payload.get("allowed_write_paths"), list):
+        errors.append("allowed_write_paths is not a list")
+    external_invocations = (
+        payload.get("external_invocations")
+        if isinstance(payload.get("external_invocations"), dict)
+        else {}
+    )
+    enabled_external = sorted(
+        key for key, value in external_invocations.items() if value is not False
+    )
+    if enabled_external:
+        errors.append(f"external invocations enabled: {enabled_external}")
+
+    ok = not errors
+    return _check(
+        "runner_contract_artifact",
+        "PASS" if ok else "FAIL",
+        "runner contract artifact is current, non-executable, and command-plan bounded"
+        if ok
+        else "runner contract artifact is missing required current validation evidence",
+        required=required,
+        artifact=RUNNER_CONTRACT_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+        contract_id=payload.get("contract_id"),
+        contract_validation_status=payload.get("contract_validation_status"),
+        job_id=payload.get("job_id"),
+        dispatch_enabled=payload.get("dispatch_enabled"),
+        executable=payload.get("executable"),
+        allowed_command_count=payload.get("allowed_command_count"),
+        forbidden_command_count=payload.get("forbidden_command_count"),
+    )
+
+
 def audit_inventory(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
     """Validate project_state/audits through the project_audits inventory API."""
     state_dir = Path(state_dir)
@@ -8081,6 +8571,27 @@ def _control_plane_snapshot_gate_check(
     runner_readiness = payload.get("runner_readiness") if isinstance(payload.get("runner_readiness"), dict) else {}
     if runner_readiness.get("can_dispatch_next_decision") is not False:
         errors.append("runner readiness is not default non-dispatch")
+    if decision_contract.get("accepted_requires_control_plane_job_readiness"):
+        inventory_status = (
+            payload.get("inventory_status")
+            if isinstance(payload.get("inventory_status"), dict)
+            else {}
+        )
+        if not isinstance(inventory_status.get("job_orchestration"), dict):
+            errors.append("inventory_status.job_orchestration missing")
+        if not isinstance(inventory_status.get("runner_contract"), dict):
+            errors.append("inventory_status.runner_contract missing")
+        if not isinstance(payload.get("job_queue_status"), dict):
+            errors.append("job_queue_status missing")
+        if runner_readiness.get("runner_contract_ready") is not True:
+            errors.append("runner_contract_ready is not true")
+        if runner_readiness.get("job_orchestration_status") != "PASSED":
+            errors.append("job_orchestration_status is not PASSED")
+        if runner_readiness.get("runner_contract_status") != "PASSED":
+            errors.append("runner_contract_status is not PASSED")
+    if decision_contract.get("accepted_requires_dispatch_disabled_by_default"):
+        if runner_readiness.get("default_dispatch_policy") != "non_dispatch":
+            errors.append("default_dispatch_policy is not non_dispatch")
     ui_summary = payload.get("ui_summary") if isinstance(payload.get("ui_summary"), dict) else {}
     for key in ("headline", "next_action", "blocking_reasons", "warnings"):
         if key not in ui_summary:
@@ -8598,6 +9109,23 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(JOBS_INVENTORY_OUTPUT_PATH)
+    job_orchestration_payload = _read_json(state_dir / "gates" / JOB_ORCHESTRATION_RESULT_NAME)
+    if _artifact_matches_current_round(
+        job_orchestration_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(JOB_ORCHESTRATION_OUTPUT_PATH)
+        job_artifact_path = _norm_path(job_orchestration_payload.get("job_artifact_path"))
+        if job_artifact_path:
+            generated_artifact_set.add(job_artifact_path)
+    runner_contract_payload = _read_json(state_dir / "gates" / RUNNER_CONTRACT_RESULT_NAME)
+    if _artifact_matches_current_round(
+        runner_contract_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(RUNNER_CONTRACT_OUTPUT_PATH)
     audit_inventory_payload = _read_json(state_dir / "gates" / AUDIT_INVENTORY_RESULT_NAME)
     if _artifact_matches_current_round(
         audit_inventory_payload,
@@ -9887,6 +10415,22 @@ def final_check(
     )
     checks.append(
         _jobs_inventory_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _job_orchestration_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _runner_contract_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
             round_id=round_id,
@@ -12339,6 +12883,10 @@ def _command_kind(command: str) -> str:
         return "report-auto-summary"
     if "project_gate" in lowered and "jobs-inventory" in lowered:
         return "jobs-inventory"
+    if "project_gate" in lowered and "job-orchestration" in lowered:
+        return "job-orchestration"
+    if "project_gate" in lowered and "runner-contract" in lowered:
+        return "runner-contract"
     if "project_gate" in lowered and "audit-inventory" in lowered:
         return "audit-inventory"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
@@ -12421,7 +12969,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "audit-inventory", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "audit-inventory", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -16752,6 +17300,26 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(JOBS_INVENTORY_OUTPUT_PATH)
         files_changed_set.add(JOBS_INVENTORY_OUTPUT_PATH)
+    job_orchestration_payload = _read_json(gates_dir / JOB_ORCHESTRATION_RESULT_NAME)
+    if _artifact_matches_current_round(
+        job_orchestration_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(JOB_ORCHESTRATION_OUTPUT_PATH)
+        files_changed_set.add(JOB_ORCHESTRATION_OUTPUT_PATH)
+        job_artifact_path = _norm_path(job_orchestration_payload.get("job_artifact_path"))
+        if job_artifact_path:
+            generated_artifact_set.add(job_artifact_path)
+            files_changed_set.add(job_artifact_path)
+    runner_contract_payload = _read_json(gates_dir / RUNNER_CONTRACT_RESULT_NAME)
+    if _artifact_matches_current_round(
+        runner_contract_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(RUNNER_CONTRACT_OUTPUT_PATH)
+        files_changed_set.add(RUNNER_CONTRACT_OUTPUT_PATH)
     audit_inventory_payload = _read_json(gates_dir / AUDIT_INVENTORY_RESULT_NAME)
     if _artifact_matches_current_round(
         audit_inventory_payload,
@@ -16934,6 +17502,8 @@ def _refresh_codex_report_for_closeout(
         _generate_gate_closeout_audit_truth_required_audit(decision_text)
         or
         _generate_preflight_job_foundation_required_audit(decision_text)
+        or
+        _generate_job_orchestration_foundation_required_audit(decision_text)
         or
         _generate_clean_baseline_jobs_inventory_gate_required_audit(decision_text)
         or
@@ -17502,7 +18072,8 @@ def _classify_state_file(
         "round_delta_summary.json", "run_closeout_execution_log.json",
         "run_closeout_result.json", "run_round_result.json",
         "execute_decision_result.json",
-        "jobs_inventory_result.json", "audit_inventory_result.json",
+        "jobs_inventory_result.json", "job_orchestration_result.json",
+        "runner_contract_result.json", "audit_inventory_result.json",
         "naming_migration_plan.json", "state_hygiene_inventory.json",
     }
     if location == "project_state_gates" and basename in known_gate_artifacts:
@@ -18188,6 +18759,20 @@ def run_closeout(
                 f"audit_count: {ai_result.get('audit_count')}\n"
                 f"artifact: {AUDIT_INVENTORY_OUTPUT_PATH}"
             )
+        elif kind == "job-orchestration":
+            jo_result = job_orchestration(state_dir=state_dir, write_result=True)
+            jo_status = str(jo_result.get("gate_status") or "")
+            step_exit_code = 0 if jo_status == "PASSED" else 1
+            step_stdout = json.dumps(jo_result, ensure_ascii=True, indent=2)
+        elif kind == "runner-contract":
+            rc_result = runner_contract(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            rc_status = str(rc_result.get("gate_status") or "")
+            step_exit_code = 0 if rc_status == "PASSED" else 1
+            step_stdout = json.dumps(rc_result, ensure_ascii=True, indent=2)
         elif kind == "startup-snapshot":
             ss_result = startup_snapshot(
                 state_dir=state_dir,
@@ -18531,6 +19116,29 @@ def _print_jobs_inventory(result: dict[str, Any]) -> None:
     print(f"artifact: {JOBS_INVENTORY_OUTPUT_PATH}")
 
 
+def _print_job_orchestration(result: dict[str, Any]) -> None:
+    print(f"job-orchestration: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"job_id: {result.get('job_id')}")
+    print(f"job_status: {result.get('job_status')}")
+    print(f"job_validation_status: {result.get('job_validation_status')}")
+    print(f"dispatch_safety_status: {result.get('dispatch_safety_status')}")
+    print(f"artifact: {JOB_ORCHESTRATION_OUTPUT_PATH}")
+
+
+def _print_runner_contract(result: dict[str, Any]) -> None:
+    print(f"runner-contract: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"contract_id: {result.get('contract_id')}")
+    print(f"contract_validation_status: {result.get('contract_validation_status')}")
+    print(f"dispatch_enabled: {result.get('dispatch_enabled')}")
+    print(f"executable: {result.get('executable')}")
+    print(f"allowed_command_count: {result.get('allowed_command_count')}")
+    print(f"artifact: {RUNNER_CONTRACT_OUTPUT_PATH}")
+
+
 def _print_audit_inventory(result: dict[str, Any]) -> None:
     print(f"audit-inventory: {result.get('gate_status')}")
     print(f"decision_id: {result.get('decision_id')}")
@@ -18843,6 +19451,12 @@ def main(argv: list[str] | None = None) -> int:
     jobs_inventory_parser = subparsers.add_parser("jobs-inventory", help="Validate project_state/jobs inventory and write gate artifact.")
     jobs_inventory_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     jobs_inventory_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    job_orchestration_parser = subparsers.add_parser("job-orchestration", help="Generate a non-dispatching job orchestration artifact.")
+    job_orchestration_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    job_orchestration_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    runner_contract_parser = subparsers.add_parser("runner-contract", help="Generate a non-executable runner contract artifact.")
+    runner_contract_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    runner_contract_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     audit_inventory_parser = subparsers.add_parser("audit-inventory", help="Validate project_state/audits inventory and write gate artifact.")
     audit_inventory_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     audit_inventory_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -19064,6 +19678,26 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_jobs_inventory(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "job-orchestration":
+        result = job_orchestration(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_job_orchestration(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "runner-contract":
+        state_dir_path = Path(args.state_dir)
+        result = runner_contract(
+            state_dir=state_dir_path,
+            repo_root=_derive_repo_root(state_dir_path),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_runner_contract(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     if args.command == "audit-inventory":

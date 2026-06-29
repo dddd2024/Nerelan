@@ -4,6 +4,9 @@ from pathlib import Path
 from reverse_agent.project_jobs import (
     JOB_STATUS_TRANSITIONS,
     JOB_STATUSES,
+    build_planned_job_payload,
+    planned_job_artifact_path,
+    planned_job_id_for_round,
     validate_job_file,
     validate_jobs_dir,
     validate_job_payload,
@@ -50,6 +53,30 @@ def test_validate_job_payload_accepts_non_dispatching_contract() -> None:
     assert result["validation_status"] == "PASSED"
     assert result["dispatch_enabled"] is False
     assert result["errors"] == []
+
+
+def test_build_planned_job_payload_is_deterministic_non_dispatching() -> None:
+    decision = {
+        "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+        "round_id": "round_20260629_job_orchestration_foundation_v1",
+        "mainline": "engineering_branch",
+    }
+
+    payload = build_planned_job_payload(decision)
+    result = validate_job_payload(payload)
+
+    assert payload["job_id"] == "job_20260629_job_orchestration_foundation_v1"
+    assert planned_job_id_for_round(decision["round_id"]) == payload["job_id"]
+    assert planned_job_artifact_path(payload["job_id"]) in payload["required_outputs"]
+    assert payload["status"] == "DRAFT"
+    assert payload["runner"]["dispatch_enabled"] is False
+    assert payload["permissions"]["allow_remote_mutation"] is False
+    assert payload["permissions"]["allow_llm_calls"] is False
+    assert payload["permissions"]["allow_agent_dispatch"] is False
+    assert payload["permissions"]["allow_reverse_solving"] is False
+    assert payload["budgets"]["max_runtime_seconds"] == 0
+    assert payload["budgets"]["max_commands"] == 0
+    assert result["validation_status"] == "PASSED"
 
 
 def test_validate_job_payload_rejects_missing_required_fields() -> None:
