@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-  "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
+  "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-28T15:17:27.992645Z",
+  "generated_at": "2026-06-28T16:43:13.683848Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -28,19 +28,6 @@
   "commands": [
     {
       "index": 1,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 2,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -52,6 +39,19 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 2,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
     },
     {
       "index": 3,
@@ -159,6 +159,19 @@
     },
     {
       "index": 11,
+      "command": "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
+      "phase": "gate",
+      "kind": "jobs-inventory",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "jobs-inventory expected to exit 0"
+    },
+    {
+      "index": 12,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -172,8 +185,8 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_job_inventory_closeout_convergence_rework_v1 --mode execute",
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -185,7 +198,7 @@
       "notes": "execute-decision expected to exit 0"
     },
     {
-      "index": 13,
+      "index": 14,
       "command": "python -m pytest tests/test_project_jobs.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -198,7 +211,7 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 14,
+      "index": 15,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -211,7 +224,7 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 15,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "phase": "gate",
       "kind": "execution-log",
@@ -225,8 +238,8 @@
       "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_job_inventory_closeout_convergence_rework_v1",
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -240,5 +253,5 @@
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_job_inventory_closeout_convergence_rework_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1"
 }

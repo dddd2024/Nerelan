@@ -33,6 +33,7 @@ from reverse_agent.project_gate import (
     _is_run_closeout_command,
     _is_self_invocation,
     _is_startup_command,
+    _jobs_inventory_gate_check,
     _read_round_close_snapshot,
     _read_execution_report_summary,
     _parse_recorded_command_blocks,
@@ -51,6 +52,7 @@ from reverse_agent.project_gate import (
     command_plan,
     execute_decision,
     final_check,
+    jobs_inventory,
     main,
     phase1_completion,
     preflight,
@@ -65,6 +67,27 @@ from reverse_agent.project_state import archive_round, read_codex_report_summary
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _valid_inventory_job(*, job_id: str = "job_inventory_valid", status: str = "DRAFT") -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "job_id": job_id,
+        "round_id": "round_inventory",
+        "decision_id": "decision_inventory",
+        "mainline": "engineering_branch",
+        "status": status,
+        "runner": {"kind": "codex", "dispatch_enabled": False},
+        "required_inputs": ["project_state/decision_packet.md"],
+        "required_outputs": ["project_state/gates/jobs_inventory_result.json"],
+        "permissions": {
+            "allow_remote_mutation": False,
+            "allow_llm_calls": False,
+            "allow_agent_dispatch": False,
+            "allow_reverse_solving": False,
+        },
+        "budgets": {"max_runtime_seconds": 60, "max_commands": 4},
+    }
 
 
 def _write_ci_workflow_files(repo_root: Path) -> None:
@@ -16829,7 +16852,7 @@ def test_run_closeout_constants_and_allowlist():
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
         "git diff", "preflight", "pytest", "command-plan", "report-summary",
         "final-check", "close-round", "decision-lint", "gate-profile",
-        "execution-log", "report-auto-summary", "run-round", "run-closeout",
+        "execution-log", "report-auto-summary", "jobs-inventory", "run-round", "run-closeout",
     }
     assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
 
@@ -24576,3 +24599,107 @@ class TestPytestReportStatusConvergence:
         assert synthesized["acceptance_recommendation"] == "REWORK_REQUIRED"
         assert result["synthesis_status"] == "FAILED"
         assert any("pytest_result_summary.status" in err for err in result["errors"])
+
+
+def test_jobs_inventory_gate_writes_current_artifact_for_existing_jobs(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_jobs_inventory",
+        round_id="round_jobs_inventory",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "jobs" / "valid.json",
+        _valid_inventory_job(job_id="job_inventory_valid", status="DRAFT"),
+    )
+
+    result = jobs_inventory(state_dir=state_dir)
+
+    artifact = json.loads(
+        (state_dir / "gates" / "jobs_inventory_result.json").read_text(encoding="utf-8")
+    )
+    assert result["gate_status"] == "PASSED"
+    assert artifact["decision_id"] == "decision_jobs_inventory"
+    assert artifact["round_id"] == "round_jobs_inventory"
+    assert artifact["inventory_validation_status"] == "PASSED"
+    assert artifact["job_count"] == 1
+    assert artifact["status_counts"]["DRAFT"] == 1
+    assert artifact["validated_paths"] == ["project_state/jobs/valid.json"]
+    assert artifact["duplicate_job_errors"] == []
+    assert artifact["invalid_file_errors"] == []
+    assert artifact["dispatch_safety_status"] == "PASSED"
+    assert artifact["dispatch_enabled"] is False
+
+
+def test_jobs_inventory_gate_accepts_missing_jobs_directory(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_jobs_missing",
+        round_id="round_jobs_missing",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+
+    result = jobs_inventory(state_dir=state_dir)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["inventory_validation_status"] == "PASSED"
+    assert result["job_count"] == 0
+    assert result["validated_paths"] == []
+    assert result["dispatch_safety_status"] == "PASSED"
+
+
+def test_jobs_inventory_gate_rejects_duplicate_and_invalid_job_files(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_jobs_invalid",
+        round_id="round_jobs_invalid",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(state_dir / "jobs" / "a.json", _valid_inventory_job(job_id="job_duplicate"))
+    _write_json(state_dir / "jobs" / "b.json", _valid_inventory_job(job_id="job_duplicate"))
+    bad_path = state_dir / "jobs" / "bad.json"
+    bad_path.parent.mkdir(parents=True, exist_ok=True)
+    bad_path.write_text("{bad json", encoding="utf-8")
+
+    result = jobs_inventory(state_dir=state_dir)
+
+    assert result["gate_status"] == "FAILED"
+    assert result["inventory_validation_status"] == "FAILED"
+    assert any("duplicate job_id" in error for error in result["duplicate_job_errors"])
+    assert result["invalid_file_errors"]
+    assert result["dispatch_safety_status"] == "PASSED"
+    assert result["dispatch_enabled"] is False
+
+
+def test_jobs_inventory_gate_check_requires_current_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_jobs_check",
+        round_id="round_jobs_check",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    contract = {"accepted_requires_jobs_inventory_gate_artifact": True}
+
+    missing = _jobs_inventory_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_jobs_check",
+        round_id="round_jobs_check",
+        decision_contract=contract,
+    )
+    assert missing["status"] == "FAIL"
+
+    jobs_inventory(state_dir=state_dir)
+    current = _jobs_inventory_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_jobs_check",
+        round_id="round_jobs_check",
+        decision_contract=contract,
+    )
+    assert current["status"] == "PASS"
+
+
+def test_command_kind_recognizes_jobs_inventory_gate() -> None:
+    command = "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state"
+
+    assert _command_kind(command) == "jobs-inventory"
+    assert _command_phase("jobs-inventory", archive_seen=False) == "gate"

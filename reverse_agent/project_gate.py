@@ -112,6 +112,9 @@ NAMING_MIGRATION_PLAN_RESULT_NAME = "naming_migration_plan.json"
 NAMING_MIGRATION_PLAN_OUTPUT_PATH = f"project_state/gates/{NAMING_MIGRATION_PLAN_RESULT_NAME}"
 STATE_HYGIENE_INVENTORY_RESULT_NAME = "state_hygiene_inventory.json"
 STATE_HYGIENE_INVENTORY_OUTPUT_PATH = f"project_state/gates/{STATE_HYGIENE_INVENTORY_RESULT_NAME}"
+JOBS_INVENTORY_NAME = "jobs-inventory"
+JOBS_INVENTORY_RESULT_NAME = "jobs_inventory_result.json"
+JOBS_INVENTORY_OUTPUT_PATH = f"project_state/gates/{JOBS_INVENTORY_RESULT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -139,6 +142,7 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     PHASE1_COMPLETION_RESULT_NAME,
     NAMING_MIGRATION_PLAN_RESULT_NAME,
     STATE_HYGIENE_INVENTORY_RESULT_NAME,
+    JOBS_INVENTORY_RESULT_NAME,
 )
 
 
@@ -308,6 +312,7 @@ def _existing_reportable_gate_artifact_paths(
         RUN_CLOSEOUT_EXECUTION_LOG_NAME,
         ROUND_CLOSE_SNAPSHOT_RESULT_NAME,
         NAMING_MIGRATION_PLAN_RESULT_NAME,
+        JOBS_INVENTORY_RESULT_NAME,
     }
     for name in _REPORTABLE_GATE_ARTIFACT_NAMES:
         if not (gates_dir / name).exists():
@@ -366,6 +371,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "gate-profile",
     "execution-log",
     "report-auto-summary",
+    "jobs-inventory",
     "run-round",
     "run-closeout",
 })
@@ -1219,6 +1225,106 @@ def _generate_job_inventory_closeout_convergence_required_audit(decision_text: s
             "decision_packet.md scope locks, final-check forbidden_paths_absent, git status --short, and command-plan commands.",
             "PASS",
             "The round stays inside the approved gate/test source files and generated project_state artifacts, with no forbidden path mutation, full solve_reports scan, reverse-solving, Web/AgentRunner/DB/queue/scheduler work, or remote mutation.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_clean_baseline_jobs_inventory_gate_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 17:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "clean baseline jobs inventory gate" not in lowered
+        and "accepted_requires_jobs_inventory_gate_artifact" not in lowered
+    ):
+        return ""
+    answers = [
+        (
+            "project_state/pytest_result.txt first five startup command blocks and startup git status --short output.",
+            "PASS",
+            "Startup source/test baseline was clean before implementation: the first five transcript blocks are Set-Location, Get-Location, Test-Path, git rev-parse --show-toplevel, and git status --short, with no source/test dirty output before edits.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json baseline_capture_order and project_state/pytest_result.txt startup_command_position_order evidence.",
+            "PASS",
+            "baseline_capture_order is expected to be PASS or absent for this round because implementation started from a clean source/test baseline and startup_command_position_order remains preserved.",
+        ),
+        (
+            "reverse_agent/project_jobs.py, tests/test_project_jobs.py, and project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json.",
+            "PASS",
+            "The existing job inventory implementation is preserved; the new gate is a thin project_gate wrapper around project_jobs.validate_jobs_dir rather than a rewrite.",
+        ),
+        (
+            "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json runner and permissions fields plus jobs-inventory gate output.",
+            "PASS",
+            "The generated job contract remains a validating DRAFT job in project_state/jobs with runner.dispatch_enabled false and safe permissions, and it is represented in jobs_inventory_result.json status counts.",
+        ),
+        (
+            "reverse_agent/project_gate.py jobs_inventory() and CLI command python -m reverse_agent.project_gate jobs-inventory --state-dir project_state.",
+            "PASS",
+            "The added project_gate surface is jobs-inventory, which calls project_jobs.validate_jobs_dir and writes project_state/gates/jobs_inventory_result.json.",
+        ),
+        (
+            "project_state/gates/jobs_inventory_result.json decision_id and round_id fields.",
+            "PASS",
+            "jobs_inventory_result.json exists for the current decision and round IDs and is checked by final-check jobs_inventory_gate_artifact.",
+        ),
+        (
+            "project_state/gates/jobs_inventory_result.json status_counts, validated_paths, duplicate_job_errors, invalid_file_errors, and dispatch_safety_status.",
+            "PASS",
+            "The jobs inventory gate reports status counts, validated paths, duplicate job errors, invalid file errors, and dispatch_safety_status without dispatching any job.",
+        ),
+        (
+            "reverse_agent/project_jobs.py validate_jobs_dir and tests/test_project_gate.py jobs inventory missing-directory regression.",
+            "PASS",
+            "A missing jobs directory is valid inventory evidence with job_count 0, empty validated_paths, and gate_status PASSED.",
+        ),
+        (
+            "final-check jobs_inventory_gate_artifact and project_state/gates/jobs_inventory_result.json.",
+            "PASS",
+            "Jobs inventory evidence is included in final-check through jobs_inventory_gate_artifact and in generated_artifacts through current-round jobs_inventory_result.json coverage.",
+        ),
+        (
+            "project_jobs validator dispatch rejection, jobs_inventory_result.json dispatch_safety_status, and tests/test_project_jobs.py permission coverage.",
+            "PASS",
+            "Dispatch and forbidden permission flags remain blocked: dispatch_enabled stays false, dispatch_safety_status is PASSED, and unsafe job payloads remain invalid.",
+        ),
+        (
+            "pytest command blocks for tests/test_project_jobs.py and tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py.",
+            "PASS",
+            "Both required pytest commands are command-plan authorized and are expected to exit 0, with pass counts recorded in pytest_result.txt.",
+        ),
+        (
+            "project_state/gates/report_summary_synthesis.json and final-check report_summary_fields_match_synthesis.",
+            "PASS",
+            "report_summary_fields_match_synthesis is expected to pass with no diffs after report-summary and closeout refresh generated_artifacts including the jobs inventory artifact.",
+        ),
+        (
+            "project_state/gates/execute_decision_result.json and final-check execute_decision_contract.",
+            "PASS",
+            "execute_decision_contract is expected to pass for the current decision/round after execute-decision records command-plan authorized execution evidence.",
+        ),
+        (
+            "project_state/gates/run_closeout_result.json and project_state/pytest_result.txt run-closeout command block.",
+            "PASS",
+            "run-closeout is expected to exit 0 with closeout_status PASSED and close_round_result.close_status CLOSED after the final report/archive refresh.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json closeout_nested_failures_absent.",
+            "PASS",
+            "closeout_nested_failures_absent is expected to pass with no active nested FAIL or FAILED states in final-check evidence.",
+        ),
+        (
+            "project_state/gates/execution_log.json source and final-check execution_log_provenance_valid.",
+            "PASS",
+            "Hybrid execution-log provenance remains valid and non-derived-only by combining pytest_result, command_plan, and run_closeout_execution_log evidence.",
+        ),
+        (
+            "decision_packet.md forbidden paths, command-plan.commands, final-check forbidden_paths_absent, and git status --short.",
+            "PASS",
+            "The round stays inside reverse_agent/project_gate.py, tests/test_project_gate.py, and authorized project_state gate/report artifacts, with no forbidden path mutation, full solve_reports scan, reverse-solving, Web/AgentRunner/DB/queue/scheduler work, or remote mutation.",
         ),
     ]
     return _format_required_audit_answers(questions, answers)
@@ -6977,6 +7083,161 @@ def _project_job_schema_validation_check(
     )
 
 
+def jobs_inventory(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Validate project_state/jobs through the existing project_jobs inventory API."""
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+
+    def _inventory_path(value: object) -> str:
+        text = _norm_path(value)
+        if not text:
+            return ""
+        path = Path(text)
+        try:
+            return _norm_path(path.resolve().relative_to(state_dir.parent.resolve()))
+        except (OSError, ValueError):
+            return text
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    try:
+        from reverse_agent import project_jobs
+    except Exception as exc:
+        inventory: dict[str, Any] = {
+            "validation_status": "FAILED",
+            "job_count": 0,
+            "status_counts": {},
+            "validated_paths": [],
+            "jobs": [],
+            "dispatch_enabled": False,
+        }
+        errors.append(f"project_jobs import failed: {exc}")
+    else:
+        inventory = project_jobs.validate_jobs_dir(state_dir)
+        errors.extend(str(item) for item in inventory.get("errors") or [])
+        warnings.extend(str(item) for item in inventory.get("warnings") or [])
+
+    duplicate_job_errors = [
+        error for error in errors if "duplicate job_id" in error.lower()
+    ]
+    invalid_file_errors = [
+        error for error in errors if "duplicate job_id" not in error.lower()
+    ]
+    dispatch_enabled = bool(inventory.get("dispatch_enabled"))
+    dispatch_safety_status = "FAILED" if dispatch_enabled else "PASSED"
+    validation_status = str(inventory.get("validation_status") or "FAILED")
+    gate_status = (
+        "PASSED"
+        if validation_status == "PASSED" and dispatch_safety_status == "PASSED"
+        else "FAILED"
+    )
+
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": JOBS_INVENTORY_RESULT_NAME,
+        "gate_name": JOBS_INVENTORY_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "inventory_validation_status": validation_status,
+        "job_count": int(inventory.get("job_count") or 0),
+        "status_counts": inventory.get("status_counts") or {},
+        "validated_paths": sorted(_inventory_path(path) for path in inventory.get("validated_paths") or []),
+        "jobs_dir": _inventory_path(inventory.get("jobs_dir")),
+        "jobs": inventory.get("jobs") or [],
+        "duplicate_job_errors": duplicate_job_errors,
+        "invalid_file_errors": invalid_file_errors,
+        "errors": errors,
+        "warnings": warnings,
+        "dispatch_enabled": dispatch_enabled,
+        "dispatch_safety_status": dispatch_safety_status,
+        "generated_artifacts": [JOBS_INVENTORY_OUTPUT_PATH],
+    }
+
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / JOBS_INVENTORY_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
+def _jobs_inventory_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_jobs_inventory_gate_artifact"))
+    path = state_dir / "gates" / JOBS_INVENTORY_RESULT_NAME
+    payload = _read_json(path)
+    if not payload:
+        return _check(
+            "jobs_inventory_gate_artifact",
+            "FAIL" if required else "PASS",
+            "jobs inventory gate artifact is missing"
+            if required
+            else "jobs inventory gate artifact not required and not present",
+            required=required,
+            artifact=JOBS_INVENTORY_OUTPUT_PATH,
+        )
+
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if str(payload.get("gate_name") or "") != JOBS_INVENTORY_NAME:
+        errors.append("gate_name mismatch")
+    if str(payload.get("gate_status") or "") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if str(payload.get("inventory_validation_status") or "") != "PASSED":
+        errors.append("inventory_validation_status is not PASSED")
+    if str(payload.get("dispatch_safety_status") or "") != "PASSED":
+        errors.append("dispatch_safety_status is not PASSED")
+    if bool(payload.get("dispatch_enabled")):
+        errors.append("dispatch_enabled is true")
+    if not isinstance(payload.get("status_counts"), dict):
+        errors.append("status_counts is not an object")
+    if not isinstance(payload.get("validated_paths"), list):
+        errors.append("validated_paths is not a list")
+    if not isinstance(payload.get("duplicate_job_errors"), list):
+        errors.append("duplicate_job_errors is not a list")
+    if not isinstance(payload.get("invalid_file_errors"), list):
+        errors.append("invalid_file_errors is not a list")
+    if not isinstance(payload.get("job_count"), int):
+        errors.append("job_count is not an integer")
+
+    ok = not errors
+    return _check(
+        "jobs_inventory_gate_artifact",
+        "PASS" if ok else "FAIL",
+        "jobs inventory gate artifact is current, non-dispatching, and validated"
+        if ok
+        else "jobs inventory gate artifact is missing required current validation evidence",
+        required=required,
+        artifact=JOBS_INVENTORY_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+        inventory_validation_status=payload.get("inventory_validation_status"),
+        job_count=payload.get("job_count"),
+        status_counts=payload.get("status_counts"),
+        validated_paths=payload.get("validated_paths"),
+        duplicate_job_errors=payload.get("duplicate_job_errors"),
+        invalid_file_errors=payload.get("invalid_file_errors"),
+        dispatch_safety_status=payload.get("dispatch_safety_status"),
+    )
+
+
 def _update_report_archive_paths(*, state_dir: Path, round_id: str) -> None:
     """Add round archive paths to the report's files_changed and generated_artifacts.
 
@@ -7401,6 +7662,13 @@ def build_report_summary_synthesis(
     # Include state_hygiene_inventory.json when it exists on disk.
     if (state_dir / "gates" / STATE_HYGIENE_INVENTORY_RESULT_NAME).exists():
         generated_artifact_set.add(STATE_HYGIENE_INVENTORY_OUTPUT_PATH)
+    jobs_inventory_payload = _read_json(state_dir / "gates" / JOBS_INVENTORY_RESULT_NAME)
+    if _artifact_matches_current_round(
+        jobs_inventory_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(JOBS_INVENTORY_OUTPUT_PATH)
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
     # must appear in generated_artifacts just like other gate artifacts.
@@ -8651,6 +8919,14 @@ def final_check(
     checks.append(
         _project_job_schema_validation_check(
             repo_root=repo_root,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _jobs_inventory_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
             decision_contract=decision_contract,
         )
     )
@@ -11081,6 +11357,8 @@ def _command_kind(command: str) -> str:
         return "execution-log"
     if "project_gate" in lowered and "report-auto-summary" in lowered:
         return "report-auto-summary"
+    if "project_gate" in lowered and "jobs-inventory" in lowered:
+        return "jobs-inventory"
     if "project_gate" in lowered and "naming-hygiene" in lowered:
         return "naming-hygiene"
     if "project_gate" in lowered and "execute-decision" in lowered:
@@ -11157,7 +11435,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -15291,6 +15569,14 @@ def _refresh_codex_report_for_closeout(
     # Include state_hygiene_inventory.json when it exists on disk.
     if (gates_dir / STATE_HYGIENE_INVENTORY_RESULT_NAME).exists():
         generated_artifact_set.add(STATE_HYGIENE_INVENTORY_OUTPUT_PATH)
+    jobs_inventory_payload = _read_json(gates_dir / JOBS_INVENTORY_RESULT_NAME)
+    if _artifact_matches_current_round(
+        jobs_inventory_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(JOBS_INVENTORY_OUTPUT_PATH)
+        files_changed_set.add(JOBS_INVENTORY_OUTPUT_PATH)
 
     # Include close snapshot if requested (after close-round)
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
@@ -15455,6 +15741,8 @@ def _refresh_codex_report_for_closeout(
         _generate_gate_closeout_audit_truth_required_audit(decision_text)
         or
         _generate_preflight_job_foundation_required_audit(decision_text)
+        or
+        _generate_clean_baseline_jobs_inventory_gate_required_audit(decision_text)
         or
         _generate_job_inventory_closeout_convergence_required_audit(decision_text)
         or
@@ -16595,6 +16883,14 @@ def run_closeout(
 
         # Close-round: call close_round() directly so it owns its command block
         if is_close_round:
+            # Remove any stale round archive before refreshing report/synthesis
+            # evidence.  If the stale archive is still present during report
+            # refresh, archive paths are claimed in the live report and then
+            # disappear before close_round() validates the synthesis.
+            _archive_dir = state_dir / "rounds" / requested_round_id
+            if _archive_dir.exists():
+                import shutil as _shutil
+                _shutil.rmtree(_archive_dir)
             execution_log(state_dir=state_dir, write_result=True)
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
@@ -16609,17 +16905,6 @@ def run_closeout(
                 repo_root=repo_root,
                 write_result=True,
             )
-            # Remove any stale round archive from a previous failed close-round
-            # attempt before close_round() runs.  close_round() checks if the
-            # archived copies match the live copies; if a stale archive exists
-            # with a different manifest, archive_round() refuses to overwrite
-            # it (FileExistsError).  By removing the stale archive here, we
-            # ensure close_round() creates a fresh archive from the current
-            # live report/pytest.
-            _archive_dir = state_dir / "rounds" / requested_round_id
-            if _archive_dir.exists():
-                import shutil as _shutil
-                _shutil.rmtree(_archive_dir)
             close_round_result = close_round(
                 state_dir=state_dir,
                 round_id=requested_round_id,
@@ -17002,6 +17287,16 @@ def _print_command_plan(result: dict[str, Any]) -> None:
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
+def _print_jobs_inventory(result: dict[str, Any]) -> None:
+    print(f"jobs-inventory: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"inventory_validation_status: {result.get('inventory_validation_status')}")
+    print(f"job_count: {result.get('job_count')}")
+    print(f"dispatch_safety_status: {result.get('dispatch_safety_status')}")
+    print(f"artifact: {JOBS_INVENTORY_OUTPUT_PATH}")
+
+
 def _print_run_round(result: dict[str, Any]) -> None:
     print(f"{result.get('gate_name')}: {result.get('gate_status') or result.get('run_status')}")
     print(f"decision_id: {result.get('decision_id')}")
@@ -17288,6 +17583,9 @@ def main(argv: list[str] | None = None) -> int:
     report_auto_summary_parser = subparsers.add_parser("report-auto-summary", help="Generate Codex Report Auto-Summary v1 artifact.")
     report_auto_summary_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     report_auto_summary_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    jobs_inventory_parser = subparsers.add_parser("jobs-inventory", help="Validate project_state/jobs inventory and write gate artifact.")
+    jobs_inventory_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    jobs_inventory_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     execute_decision_parser = subparsers.add_parser("execute-decision", help="Thin decision-level entrypoint delegating to run-round.")
     execute_decision_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     execute_decision_parser.add_argument("--round-id", default=None, help="Round ID for the execution.")
@@ -17491,6 +17789,14 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_report_auto_summary(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "jobs-inventory":
+        result = jobs_inventory(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_jobs_inventory(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     return 1

@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED_WITH_LIMITATIONS",
-  "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-  "report_id": "codex_report_20260628_job_inventory_closeout_convergence_rework_v1",
-  "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
-  "generated_at": "2026-06-28T15:17:49.964541Z",
+  "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "generated_at": "2026-06-28T16:43:56.865875Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -64,7 +64,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260628_job_inventory_closeout_convergence_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260628_clean_baseline_jobs_inventory_gate_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -98,6 +98,8 @@
       "baseline_available": true,
       "inherited_dirty_files": [
         "project_state/gates/command_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
+        "project_state/pytest_result.txt",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -118,12 +120,11 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/decision_packet.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/execution_report.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/pytest_result.txt",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/round_manifest.json"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -135,6 +136,7 @@
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -144,11 +146,11 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/decision_packet.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/execution_report.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/pytest_result.txt",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -185,6 +187,7 @@
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -194,11 +197,11 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/decision_packet.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/execution_report.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/pytest_result.txt",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -219,15 +222,16 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260628_job_inventory_closeout_convergence_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/decision_packet.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/execution_report.md",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/pytest_result.txt",
+        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
         "project_state/gates/command_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
+        "project_state/pytest_result.txt",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -268,7 +272,9 @@
         "tests/test_project_gate.py"
       ],
       "generated_or_archive_baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
+        "project_state/gates/command_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
+        "project_state/pytest_result.txt"
       ],
       "close_worktree_clean": false,
       "close_snapshot_available": true
@@ -330,6 +336,7 @@
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
@@ -410,11 +417,15 @@
       ],
       "baseline_dirty_files": [
         "project_state/gates/command_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
+        "project_state/pytest_result.txt",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "inherited_dirty_files": [
         "project_state/gates/command_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
+        "project_state/pytest_result.txt",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -439,6 +450,7 @@
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
@@ -457,17 +469,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-      "closeout_log_round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
-      "expected_decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-      "expected_round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1"
+      "closeout_log_decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "closeout_log_round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "expected_decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "expected_round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260628_job_inventory_closeout_convergence_rework_v1",
-      "expected_report_id": "codex_report_20260628_job_inventory_closeout_convergence_rework_v1"
+      "execution_log_report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "expected_report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -489,8 +501,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-      "command_plan_round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1"
+      "command_plan_decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "command_plan_round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -621,6 +633,35 @@
       "job_file_errors": []
     },
     {
+      "name": "jobs_inventory_gate_artifact",
+      "status": "PASS",
+      "detail": "jobs inventory gate artifact is current, non-dispatching, and validated",
+      "required": true,
+      "artifact": "project_state/gates/jobs_inventory_result.json",
+      "errors": [],
+      "gate_status": "PASSED",
+      "inventory_validation_status": "PASSED",
+      "job_count": 1,
+      "status_counts": {
+        "ACCEPTED": 0,
+        "ACCEPTED_WITH_LIMITATIONS": 0,
+        "AUDITED": 0,
+        "BLOCKED": 0,
+        "DONE": 0,
+        "DRAFT": 1,
+        "FINAL_CHECKED": 0,
+        "READY": 0,
+        "REWORK_REQUIRED": 0,
+        "RUNNING": 0
+      },
+      "validated_paths": [
+        "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json"
+      ],
+      "duplicate_job_errors": [],
+      "invalid_file_errors": [],
+      "dispatch_safety_status": "PASSED"
+    },
+    {
       "name": "naming_migration_plan_ids_current",
       "status": "PASS",
       "detail": "naming_migration_plan.json not required for this decision",
@@ -645,14 +686,14 @@
       "errors": [],
       "mode": "execute",
       "transcript_parity_status": "PASSED",
-      "command_count": 16
+      "command_count": 17
     },
     {
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-      "gate_profile_round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1"
+      "gate_profile_decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "gate_profile_round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -685,22 +726,23 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 16 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 17 Required Audit items with substantive aligned answers",
       "required_audit_items": [
         "Was startup source/test baseline clean before implementation?",
+        "Is `baseline_capture_order` PASS, WARN, or absent?",
         "Was the existing job inventory implementation preserved rather than rewritten?",
         "Does the generated DRAFT job contract still validate as DRAFT, non-dispatching, and safe?",
-        "Did dispatch and forbidden permission flags remain blocked?",
-        "What caused the previous `report_summary_fields_match_synthesis` failure, and what exact behavior now prevents the mismatch?",
-        "Do live report summaries, auto summaries, and `report_summary_synthesis.json` agree on `status`, `acceptance_recommendation`, `files_changed`, `generated_artifacts`, `tests_ran`, and `limitations`?",
-        "What caused the previous `execute_decision_contract` failure, and why is `execute_decision_result.status` now `PASSED`?",
-        "If execute-decision self-invocation guard is used, how is it represented without failing the execute-decision contract?",
-        "Does `pytest_result_summary.status` match all required recorded command-block exit codes?",
+        "What `project_gate` CLI/gate surface was added for jobs inventory validation?",
+        "Does `jobs_inventory_result.json` exist, and does it carry current decision/round IDs?",
+        "Does the jobs inventory gate report status counts, validated paths, duplicate job errors, and invalid file errors without dispatching anything?",
+        "How does the jobs inventory gate handle a missing jobs directory?",
+        "Is jobs inventory evidence included in final-check or an equivalent gate evidence path?",
+        "Do dispatch and forbidden permission flags remain blocked?",
         "Did both required pytest commands exit 0, and what are their pass counts?",
-        "Did `final-check` pass before closeout or produce only allowed diagnostic states?",
-        "Did `run-closeout` exit 0?",
-        "Is `run_closeout_result.closeout_status` `PASSED`, and is `close_round_result.close_status` `CLOSED`?",
-        "Does `closeout_nested_failures_absent` pass with no active nested FAILED/FAIL states?",
+        "Did `report_summary_fields_match_synthesis` pass with no diffs?",
+        "Did `execute_decision_contract` pass?",
+        "Did `run-closeout` exit 0, with `closeout_status: PASSED` and `close_round_result.close_status: CLOSED`?",
+        "Did `closeout_nested_failures_absent` pass with no active nested FAILED/FAIL states?",
         "Did hybrid execution-log provenance remain valid and non-derived-only?",
         "Were forbidden paths, full solve_reports scans, reverse-solving, Web/AgentRunner/DB/queue/scheduler scope, and remote mutation avoided?"
       ],
@@ -748,11 +790,8 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "recorded final-check stdout matches gate_status",
-      "expected_gate_status": "PASSED_WITH_LIMITATIONS",
-      "recorded_stdout_status": "PASSED",
-      "conservative_warn_accepted": false,
-      "conservative_pass_accepted": true
+      "detail": "no recorded final-check stdout status to compare",
+      "required": false
     },
     {
       "name": "execution_log_consistency",

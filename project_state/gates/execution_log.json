@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-  "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
-  "report_id": "codex_report_20260628_job_inventory_closeout_convergence_rework_v1",
-  "generated_at": "2026-06-28T15:17:49.351364Z",
+  "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "generated_at": "2026-06-28T16:43:44.844676Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-    "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
-    "report_id": "codex_report_20260628_job_inventory_closeout_convergence_rework_v1",
+    "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+    "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+    "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "57b50cabcfd223a9fcef8307dce475f2401c04a6803dff86035d6995e8af342a",
-        "size_bytes": 16671,
-        "command_block_count": 16
+        "sha256": "e8c55ce4fba7c74024875a00344a1c399494651bdf9f0c6cc789c28cb49e5d63",
+        "size_bytes": 17448,
+        "command_block_count": 17
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "83376fa003b2ff4cd26f78c6990a690b0b8aafed0151ca7124637164305c6969",
-        "size_bytes": 7170,
-        "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-        "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
+        "sha256": "e0f9024be75abde301980c3b1a8f201863e3314d029cdde43e6e8c6436800336",
+        "size_bytes": 7519,
+        "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+        "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
         "plan_status": "PASSED",
-        "command_count": 16
+        "command_count": 17
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "2de13a231047d5c0091b5d2236ae0171c64fc91657e5442945bb3d685784e6cd",
-        "size_bytes": 4602315,
-        "decision_id": "decision_20260628_job_inventory_closeout_convergence_rework_v1",
-        "round_id": "round_20260628_job_inventory_closeout_convergence_rework_v1",
-        "command_block_count": 1853
+        "sha256": "cae2d13f277ce76c8ec88bc2a2ecaa87bccdb1b9bafe9afba8ddeda35913196d",
+        "size_bytes": 4713539,
+        "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+        "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+        "command_block_count": 1895
       }
     },
-    "command_count": 16,
-    "command_digest": "f889ea4acad4d977c64679fe7c76c3713a24db1b840ecbfb8c4da34fa6a82f42"
+    "command_count": 17,
+    "command_digest": "4cde90a461efd8f4c3bc65354307607a915635364679c81dd8301dbe24a3b08a"
   },
   "commands": [
     {
@@ -151,6 +151,17 @@
     },
     {
       "index": 10,
+      "command": "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
+      "kind": "jobs-inventory",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 11,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -162,8 +173,8 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_job_inventory_closeout_convergence_rework_v1 --mode execute",
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -173,7 +184,7 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
+      "index": 13,
       "command": "python -m pytest tests/test_project_jobs.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -184,7 +195,7 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
+      "index": 14,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -195,24 +206,13 @@
       "status": "PASSED"
     },
     {
-      "index": 14,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
       "expected_exit_codes": [
         0,
         1
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_job_inventory_closeout_convergence_rework_v1",
-      "kind": "run-closeout",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
       ],
       "exit_code": 0,
       "status": "PASSED"
@@ -225,6 +225,17 @@
       "expected_exit_codes": [
         0,
         1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "kind": "run-closeout",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
       ],
       "exit_code": 0,
       "status": "PASSED"
