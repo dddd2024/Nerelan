@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
-  "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
-  "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
-  "generated_at": "2026-06-29T06:44:06.581278Z",
+  "decision_id": "decision_20260629_audit_inventory_gate_v1",
+  "round_id": "round_20260629_audit_inventory_gate_v1",
+  "report_id": "codex_report_20260629_audit_inventory_gate_v1",
+  "generated_at": "2026-06-29T08:29:34.721975Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
-    "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
-    "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
+    "decision_id": "decision_20260629_audit_inventory_gate_v1",
+    "round_id": "round_20260629_audit_inventory_gate_v1",
+    "report_id": "codex_report_20260629_audit_inventory_gate_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "61210d0a86500b36a4330035fd15ece4b8cafcbd710da518ba55171ba1c18554",
-        "size_bytes": 17256,
-        "command_block_count": 17
+        "sha256": "d61c51d95154a9e87799ec90b0ae8a5a649c0a3333398d7de3741e30b553adad",
+        "size_bytes": 18316,
+        "command_block_count": 18
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "5fb131dc2e4663ccb1dd710a1e1c0b18c446eecaf6acf249ab88eaa215f33f95",
-        "size_bytes": 7519,
-        "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
-        "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+        "sha256": "40410a2d0f0ca37c899c85d3ed056c64def84d65e1fee0f9fb31e06ce0628300",
+        "size_bytes": 7773,
+        "decision_id": "decision_20260629_audit_inventory_gate_v1",
+        "round_id": "round_20260629_audit_inventory_gate_v1",
         "plan_status": "PASSED",
-        "command_count": 17
+        "command_count": 18
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "95ae029b0246d3201d011588356cf6e6bb94dc97b491981446abe4a3468827d2",
-        "size_bytes": 4741553,
-        "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
-        "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
-        "command_block_count": 1906
+        "sha256": "909d1fc2aeaaa718e5c922b09fec9b673e821b4043bc57213e5b3343431605e0",
+        "size_bytes": 4826114,
+        "decision_id": "decision_20260629_audit_inventory_gate_v1",
+        "round_id": "round_20260629_audit_inventory_gate_v1",
+        "command_block_count": 1938
       }
     },
-    "command_count": 17,
-    "command_digest": "f26251e1831cbd66701c5b50c69ada986af8158d579003e905f9c37615f913bd"
+    "command_count": 18,
+    "command_digest": "84b1f44f4a0657a5c2c94cf0eda8d3ab7c0199280077ddd3448acca4a3348507"
   },
   "commands": [
     {
@@ -107,6 +107,17 @@
     },
     {
       "index": 6,
+      "command": "git diff --name-only",
+      "kind": "git diff",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 7,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -117,7 +128,7 @@
       "status": "PASSED"
     },
     {
-      "index": 7,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -128,7 +139,7 @@
       "status": "PASSED"
     },
     {
-      "index": 8,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -139,7 +150,7 @@
       "status": "PASSED"
     },
     {
-      "index": 9,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight",
       "phase": "preflight",
@@ -150,9 +161,9 @@
       "status": "PASSED"
     },
     {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
-      "kind": "jobs-inventory",
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -161,7 +172,7 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -173,8 +184,8 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute",
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -184,19 +195,8 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
-      "command": "python -m pytest tests/test_project_jobs.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
       "index": 14,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
+      "command": "python -m pytest tests/test_project_audits.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -207,6 +207,17 @@
     },
     {
       "index": 15,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -218,8 +229,8 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
@@ -229,7 +240,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",

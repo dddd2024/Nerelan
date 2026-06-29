@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
-  "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "decision_id": "decision_20260629_audit_inventory_gate_v1",
+  "round_id": "round_20260629_audit_inventory_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T06:39:33.483873Z",
+  "generated_at": "2026-06-29T08:24:11.889217Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision consumption allowed for closeout",
       "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1"
+      "report_id": "codex_report_20260629_audit_inventory_gate_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,8 +71,10 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
+        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/execute_decision_result.json",
@@ -80,7 +82,6 @@
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -90,11 +91,12 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json",
-        "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260628_clean_baseline_jobs_inventory_gate_v1/*",
+        "project_state/rounds/round_20260629_audit_inventory_gate_v1/*",
+        "reverse_agent/project_audits.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_jobs.py",
+        "tests/test_project_audits.py",
         "tests/test_project_gate.py",
         "tests/test_project_jobs.py"
       ]
@@ -134,10 +136,17 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
+        "reverse_agent/project_audits.py",
         "reverse_agent/project_gate.py",
+        "tests/test_project_audits.py",
         "tests/test_project_gate.py"
       ],
-      "baseline_source_test_dirty": []
+      "baseline_source_test_dirty": [
+        "reverse_agent/project_audits.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_audits.py",
+        "tests/test_project_gate.py"
+      ]
     },
     {
       "name": "decision_command_plan_conflict",
@@ -152,9 +161,14 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      "project_state/gates/round_baseline.json"
+      "project_state/gates/audit_inventory_result.json",
+      "project_state/gates/command_plan.json",
+      "reverse_agent/project_audits.py",
+      "reverse_agent/project_gate.py",
+      "tests/test_project_audits.py",
+      "tests/test_project_gate.py"
     ],
-    "head_commit": "d16332b98e69"
+    "head_commit": "df0d17d20de1"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",

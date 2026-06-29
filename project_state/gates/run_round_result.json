@@ -4,18 +4,19 @@
   "gate_name": "run-round",
   "gate_status": "PASSED",
   "run_status": "PASSED",
-  "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
-  "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+  "decision_id": "decision_20260629_audit_inventory_gate_v1",
+  "round_id": "round_20260629_audit_inventory_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T06:43:57.375077Z",
+  "generated_at": "2026-06-29T08:29:10.146446Z",
   "mode": "execute",
   "phases": [
+    "status",
     "gate",
     "test",
-    "status",
     "preflight"
   ],
   "authorized_commands": [
+    "git diff --name-only",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "Set-Location F:\\reverse-agent",
@@ -26,16 +27,17 @@
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-    "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
+    "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute",
-    "python -m pytest tests/test_project_jobs.py -q",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1 --mode execute",
+    "python -m pytest tests/test_project_audits.py -q",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1"
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1"
   ],
   "omitted_commands": [],
   "would_run_commands": [
+    "git diff --name-only",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "git rev-parse --show-toplevel",
@@ -43,17 +45,30 @@
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-    "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
+    "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m pytest tests/test_project_jobs.py -q",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
+    "python -m pytest tests/test_project_audits.py -q",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1"
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1"
   ],
-  "command_count": 17,
+  "command_count": 18,
   "commands": [
     {
       "index": 1,
+      "command": "git diff --name-only",
+      "phase": "status",
+      "kind": "git diff",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "git diff expected to exit 0"
+    },
+    {
+      "index": 2,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -67,7 +82,7 @@
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 2,
+      "index": 3,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -80,7 +95,7 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 3,
+      "index": 4,
       "command": "Set-Location F:\\reverse-agent",
       "phase": "status",
       "kind": "set-location",
@@ -93,7 +108,7 @@
       "notes": "set-location expected to exit 0"
     },
     {
-      "index": 4,
+      "index": 5,
       "command": "Get-Location",
       "phase": "status",
       "kind": "pwd",
@@ -106,7 +121,7 @@
       "notes": "pwd expected to exit 0"
     },
     {
-      "index": 5,
+      "index": 6,
       "command": "Test-Path F:\\reverse-agent",
       "phase": "status",
       "kind": "test-path",
@@ -119,7 +134,7 @@
       "notes": "test-path expected to exit 0"
     },
     {
-      "index": 6,
+      "index": 7,
       "command": "git rev-parse --show-toplevel",
       "phase": "status",
       "kind": "git rev-parse",
@@ -132,7 +147,7 @@
       "notes": "git rev-parse expected to exit 0"
     },
     {
-      "index": 7,
+      "index": 8,
       "command": "git status --short",
       "phase": "status",
       "kind": "git status",
@@ -145,7 +160,7 @@
       "notes": "git status expected to exit 0"
     },
     {
-      "index": 8,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "phase": "gate",
       "kind": "command-plan",
@@ -158,7 +173,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 9,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "phase": "gate",
       "kind": "command-plan",
@@ -171,7 +186,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 10,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "phase": "preflight",
       "kind": "preflight",
@@ -184,20 +199,20 @@
       "notes": "preflight expected to exit 0"
     },
     {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "phase": "gate",
-      "kind": "jobs-inventory",
+      "kind": "audit-inventory",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "jobs-inventory expected to exit 0"
+      "notes": "audit-inventory expected to exit 0"
     },
     {
-      "index": 12,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -211,8 +226,8 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute",
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1 --mode execute",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -224,21 +239,8 @@
       "notes": "execute-decision expected to exit 0"
     },
     {
-      "index": 14,
-      "command": "python -m pytest tests/test_project_jobs.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
       "index": 15,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
+      "command": "python -m pytest tests/test_project_audits.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -251,6 +253,19 @@
     },
     {
       "index": 16,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 17,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "phase": "gate",
       "kind": "execution-log",
@@ -264,8 +279,8 @@
       "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -279,7 +294,20 @@
   ],
   "executed_commands": [
     {
-      "index": 2,
+      "index": 1,
+      "command": "git diff --name-only",
+      "kind": "git diff",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "stdout": "project_state/codex_execution_report.md\nproject_state/execution_report.md\nproject_state/gates/codex_report_auto_summary.json\nproject_state/gates/command_plan.json\nproject_state/gates/execute_decision_result.json\nproject_state/gates/execution_log.json\nproject_state/gates/execution_report_auto_summary.json\nproject_state/gates/final_gate_result.json\nproject_state/gates/gate_profile_plan.json\nproject_state/gates/preflight_result.json\nproject_state/gates/report_summary_synthesis.json\nproject_state/gates/round_baseline.json\nproject_state/gates/round_close_snapshot.json\nproject_state/gates/round_delta_summary.json\nproject_state/gates/run_closeout_execution_log.json\nproject_state/gates/run_closeout_result.json\nproject_state/gates/run_round_result.json\nproject_state/pytest_result.txt\nreverse_agent/project_gate.py\ntests/test_project_gate.py\n",
+      "stderr": "",
+      "status": "PASSED"
+    },
+    {
+      "index": 3,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -287,12 +315,12 @@
         0
       ],
       "exit_code": 0,
-      "stdout": "........................................................................ [  5%]\n........................................................................ [ 11%]\n........................................................................ [ 17%]\n........................................................................ [ 23%]\n........................................................................ [ 28%]\n........................................................................ [ 34%]\n........................................................................ [ 40%]\n........................................................................ [ 46%]\n........................................................................ [ 51%]\n........................................................................ [ 57%]\n........................................................................ [ 63%]\n........................................................................ [ 69%]\n........................................................................ [ 74%]\n........................................................................ [ 80%]\n........................................................................ [ 86%]\n........................................................................ [ 92%]\n........................................................................ [ 97%]\n..........................                                               [100%]\n1250 passed in 229.99s (0:03:49)\n",
+      "stdout": "........................................................................ [  5%]\n........................................................................ [ 11%]\n........................................................................ [ 17%]\n........................................................................ [ 22%]\n........................................................................ [ 28%]\n........................................................................ [ 34%]\n........................................................................ [ 40%]\n........................................................................ [ 45%]\n........................................................................ [ 51%]\n........................................................................ [ 57%]\n........................................................................ [ 63%]\n........................................................................ [ 68%]\n........................................................................ [ 74%]\n........................................................................ [ 80%]\n........................................................................ [ 85%]\n........................................................................ [ 91%]\n........................................................................ [ 97%]\n.................................                                        [100%]\n1257 passed in 270.16s (0:04:30)\n",
       "stderr": "",
       "status": "PASSED"
     },
     {
-      "index": 8,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -300,12 +328,12 @@
         0
       ],
       "exit_code": 0,
-      "stdout": "command-plan: PASSED\ndecision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1\nround_id: round_20260628_clean_baseline_jobs_inventory_gate_v1\nrecommended_next_action: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "stdout": "command-plan: PASSED\ndecision_id: decision_20260629_audit_inventory_gate_v1\nround_id: round_20260629_audit_inventory_gate_v1\nrecommended_next_action: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1",
       "stderr": "",
       "status": "PASSED"
     },
     {
-      "index": 9,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -313,12 +341,12 @@
         0
       ],
       "exit_code": 0,
-      "stdout": "{\n  \"schema_version\": 1,\n  \"plan_name\": \"command-plan\",\n  \"plan_status\": \"PASSED\",\n  \"decision_id\": \"decision_20260628_clean_baseline_jobs_inventory_gate_v1\",\n  \"round_id\": \"round_20260628_clean_baseline_jobs_inventory_gate_v1\",\n  \"mainline\": \"engineering_branch\",\n  \"generated_at\": \"2026-06-29T06:35:46.120927Z\",\n  \"profile_meta\": {\n    \"profile\": \"full\",\n    \"profile_reason\": \"gate/project_state/harness/solver/tool-runner changes require full validation pipeline\",\n    \"closeout_allowed\": true,\n    \"required_command_kinds\": [\n      \"startup\",\n      \"preflight\",\n      \"gate-profile\",\n      \"command-plan\",\n      \"run-round\",\n      \"pytest\",\n      \"doctor\",\n      \"lint-report\",\n      \"report-summary\",\n      \"final-check\",\n      \"close-round\"\n    ]\n  },\n  \"omitted_commands\": [],\n  \"commands\": [\n    {\n      \"index\": 1,\n      \"command\": \"python -m reverse_agent.project_gate final-check --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"final-check\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0,\n        1\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"final-check diagnostic allows exit 0 or 1; findings captured in report/final gate\"\n    },\n    {\n      \"index\": 2,\n      \"command\": \"python -m pytest tests/test_project_gate.py tests/test_project_state.py -q\",\n      \"phase\": \"test\",\n      \"kind\": \"pytest\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"pytest expected to exit 0\"\n    },\n    {\n      \"index\": 3,\n      \"command\": \"Set-Location F:\\\\reverse-agent\",\n      \"phase\": \"status\",\n      \"kind\": \"set-location\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"set-location expected to exit 0\"\n    },\n    {\n      \"index\": 4,\n      \"command\": \"Get-Location\",\n      \"phase\": \"status\",\n      \"kind\": \"pwd\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"pwd expected to exit 0\"\n    },\n    {\n      \"index\": 5,\n      \"command\": \"Test-Path F:\\\\reverse-agent\",\n      \"phase\": \"status\",\n      \"kind\": \"test-path\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"test-path expected to exit 0\"\n    },\n    {\n      \"index\": 6,\n      \"command\": \"git rev-parse --show-toplevel\",\n      \"phase\": \"status\",\n      \"kind\": \"git rev-parse\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"git rev-parse expected to exit 0\"\n    },\n    {\n      \"index\": 7,\n      \"command\": \"git status --short\",\n      \"phase\": \"status\",\n      \"kind\": \"git status\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"git status expected to exit 0\"\n    },\n    {\n      \"index\": 8,\n      \"command\": \"python -m reverse_agent.project_gate command-plan --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"command-plan\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"command-plan expected to exit 0\"\n    },\n    {\n      \"index\": 9,\n      \"command\": \"python -m reverse_agent.project_gate command-plan --state-dir project_state --json\",\n      \"phase\": \"gate\",\n      \"kind\": \"command-plan\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"command-plan expected to exit 0\"\n    },\n    {\n      \"index\": 10,\n      \"command\": \"python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed\",\n      \"phase\": \"preflight\",\n      \"kind\": \"preflight\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"preflight expected to exit 0\"\n    },\n    {\n      \"index\": 11,\n      \"command\": \"python -m reverse_agent.project_gate jobs-inventory --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"jobs-inventory\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"jobs-inventory expected to exit 0\"\n    },\n    {\n      \"index\": 12,\n      \"command\": \"python -m reverse_agent.project_gate report-summary --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"report-summary\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0,\n        1\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate\"\n    },\n    {\n      \"index\": 13,\n      \"command\": \"python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute\",\n      \"phase\": \"gate\",\n      \"kind\": \"execute-decision\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"execute-decision expected to exit 0\"\n    },\n    {\n      \"index\": 14,\n      \"command\": \"python -m pytest tests/test_project_jobs.py -q\",\n      \"phase\": \"test\",\n      \"kind\": \"pytest\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"pytest expected to exit 0\"\n    },\n    {\n      \"index\": 15,\n      \"command\": \"python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q\",\n      \"phase\": \"test\",\n      \"kind\": \"pytest\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"pytest expected to exit 0\"\n    },\n    {\n      \"index\": 16,\n      \"command\": \"python -m reverse_agent.project_gate execution-log --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"execution-log\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0,\n        1\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate\"\n    },\n    {\n      \"index\": 17,\n      \"command\": \"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1\",\n      \"phase\": \"gate\",\n      \"kind\": \"run-closeout\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"run-closeout expected exit 0 after final-check passed\"\n    }\n  ],\n  \"warnings\": [],\n  \"blocking_reasons\": [],\n  \"recommended_next_action\": \"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1\"\n}",
+      "stdout": "{\n  \"schema_version\": 1,\n  \"plan_name\": \"command-plan\",\n  \"plan_status\": \"PASSED\",\n  \"decision_id\": \"decision_20260629_audit_inventory_gate_v1\",\n  \"round_id\": \"round_20260629_audit_inventory_gate_v1\",\n  \"mainline\": \"engineering_branch\",\n  \"generated_at\": \"2026-06-29T08:19:40.441793Z\",\n  \"profile_meta\": {\n    \"profile\": \"full\",\n    \"profile_reason\": \"gate/project_state/harness/solver/tool-runner changes require full validation pipeline\",\n    \"closeout_allowed\": true,\n    \"required_command_kinds\": [\n      \"startup\",\n      \"preflight\",\n      \"gate-profile\",\n      \"command-plan\",\n      \"run-round\",\n      \"pytest\",\n      \"doctor\",\n      \"lint-report\",\n      \"report-summary\",\n      \"final-check\",\n      \"close-round\"\n    ]\n  },\n  \"omitted_commands\": [],\n  \"commands\": [\n    {\n      \"index\": 1,\n      \"command\": \"git diff --name-only\",\n      \"phase\": \"status\",\n      \"kind\": \"git diff\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"git diff expected to exit 0\"\n    },\n    {\n      \"index\": 2,\n      \"command\": \"python -m reverse_agent.project_gate final-check --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"final-check\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0,\n        1\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"final-check diagnostic allows exit 0 or 1; findings captured in report/final gate\"\n    },\n    {\n      \"index\": 3,\n      \"command\": \"python -m pytest tests/test_project_gate.py tests/test_project_state.py -q\",\n      \"phase\": \"test\",\n      \"kind\": \"pytest\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"pytest expected to exit 0\"\n    },\n    {\n      \"index\": 4,\n      \"command\": \"Set-Location F:\\\\reverse-agent\",\n      \"phase\": \"status\",\n      \"kind\": \"set-location\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"set-location expected to exit 0\"\n    },\n    {\n      \"index\": 5,\n      \"command\": \"Get-Location\",\n      \"phase\": \"status\",\n      \"kind\": \"pwd\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"pwd expected to exit 0\"\n    },\n    {\n      \"index\": 6,\n      \"command\": \"Test-Path F:\\\\reverse-agent\",\n      \"phase\": \"status\",\n      \"kind\": \"test-path\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"test-path expected to exit 0\"\n    },\n    {\n      \"index\": 7,\n      \"command\": \"git rev-parse --show-toplevel\",\n      \"phase\": \"status\",\n      \"kind\": \"git rev-parse\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"git rev-parse expected to exit 0\"\n    },\n    {\n      \"index\": 8,\n      \"command\": \"git status --short\",\n      \"phase\": \"status\",\n      \"kind\": \"git status\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"git status expected to exit 0\"\n    },\n    {\n      \"index\": 9,\n      \"command\": \"python -m reverse_agent.project_gate command-plan --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"command-plan\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"command-plan expected to exit 0\"\n    },\n    {\n      \"index\": 10,\n      \"command\": \"python -m reverse_agent.project_gate command-plan --state-dir project_state --json\",\n      \"phase\": \"gate\",\n      \"kind\": \"command-plan\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"command-plan expected to exit 0\"\n    },\n    {\n      \"index\": 11,\n      \"command\": \"python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed\",\n      \"phase\": \"preflight\",\n      \"kind\": \"preflight\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"preflight expected to exit 0\"\n    },\n    {\n      \"index\": 12,\n      \"command\": \"python -m reverse_agent.project_gate audit-inventory --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"audit-inventory\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"audit-inventory expected to exit 0\"\n    },\n    {\n      \"index\": 13,\n      \"command\": \"python -m reverse_agent.project_gate report-summary --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"report-summary\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0,\n        1\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate\"\n    },\n    {\n      \"index\": 14,\n      \"command\": \"python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1 --mode execute\",\n      \"phase\": \"gate\",\n      \"kind\": \"execute-decision\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"execute-decision expected to exit 0\"\n    },\n    {\n      \"index\": 15,\n      \"command\": \"python -m pytest tests/test_project_audits.py -q\",\n      \"phase\": \"test\",\n      \"kind\": \"pytest\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"pytest expected to exit 0\"\n    },\n    {\n      \"index\": 16,\n      \"command\": \"python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q\",\n      \"phase\": \"test\",\n      \"kind\": \"pytest\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"pytest expected to exit 0\"\n    },\n    {\n      \"index\": 17,\n      \"command\": \"python -m reverse_agent.project_gate execution-log --state-dir project_state\",\n      \"phase\": \"gate\",\n      \"kind\": \"execution-log\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0,\n        1\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate\"\n    },\n    {\n      \"index\": 18,\n      \"command\": \"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1\",\n      \"phase\": \"gate\",\n      \"kind\": \"run-closeout\",\n      \"required\": true,\n      \"expected_exit_codes\": [\n        0\n      ],\n      \"conditional_closeout\": false,\n      \"records_stdout_stderr\": true,\n      \"notes\": \"run-closeout expected exit 0 after final-check passed\"\n    }\n  ],\n  \"warnings\": [],\n  \"blocking_reasons\": [],\n  \"recommended_next_action\": \"python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1\"\n}",
       "stderr": "",
       "status": "PASSED"
     },
     {
-      "index": 10,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight",
       "phase": "preflight",
@@ -326,25 +354,25 @@
         0
       ],
       "exit_code": 0,
-      "stdout": "preflight: PASSED\ndecision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1\nround_id: round_20260628_clean_baseline_jobs_inventory_gate_v1\nmainline: engineering_branch\n  [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline\n  [PASS] decision_meta_parse: decision_meta parsed\n  [PASS] decision_approved: decision status is APPROVED\n  [PASS] mainline_valid: mainline is engineering_branch\n  [PASS] skill_profiles_active: skill profiles are active\n  [PASS] decision_not_consumed_by_report: decision consumption allowed for closeout\n  [PASS] task_packet_is_non_authoritative: decision_packet remains authoritative over task_packet suggestions\n  [PASS] implementation_scope_present: implementation scope is present and parseable\n  [PASS] forbidden_paths_not_allowed: allowed scope contains no forbidden paths\n  [PASS] mainline_scope_policy: mainline scope policy is satisfied\n  [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence\n  [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied\n  [PASS] source_test_clean_start: no source/test files are dirty at startup baseline\n  [PASS] decision_command_plan_conflict: decision Tests/closeout expectations do not conflict with command-plan\nrecommended_next_action: proceed_with_decision_scope\n",
-      "stderr": "",
-      "status": "PASSED"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
-      "kind": "jobs-inventory",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "stdout": "jobs-inventory: PASSED\ndecision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1\nround_id: round_20260628_clean_baseline_jobs_inventory_gate_v1\ninventory_validation_status: PASSED\njob_count: 1\ndispatch_safety_status: PASSED\nartifact: project_state/gates/jobs_inventory_result.json\n",
+      "stdout": "preflight: PASSED\ndecision_id: decision_20260629_audit_inventory_gate_v1\nround_id: round_20260629_audit_inventory_gate_v1\nmainline: engineering_branch\n  [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline\n  [PASS] decision_meta_parse: decision_meta parsed\n  [PASS] decision_approved: decision status is APPROVED\n  [PASS] mainline_valid: mainline is engineering_branch\n  [PASS] skill_profiles_active: skill profiles are active\n  [PASS] decision_not_consumed_by_report: decision consumption allowed for closeout\n  [PASS] task_packet_is_non_authoritative: decision_packet remains authoritative over task_packet suggestions\n  [PASS] implementation_scope_present: implementation scope is present and parseable\n  [PASS] forbidden_paths_not_allowed: allowed scope contains no forbidden paths\n  [PASS] mainline_scope_policy: mainline scope policy is satisfied\n  [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence\n  [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied\n  [PASS] source_test_clean_start: no source/test files are dirty at startup baseline\n  [PASS] decision_command_plan_conflict: decision Tests/closeout expectations do not conflict with command-plan\nrecommended_next_action: proceed_with_decision_scope\n",
       "stderr": "",
       "status": "PASSED"
     },
     {
       "index": 12,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "stdout": "audit-inventory: PASSED\ndecision_id: decision_20260629_audit_inventory_gate_v1\nround_id: round_20260629_audit_inventory_gate_v1\ninventory_validation_status: PASSED\naudit_count: 1\nartifact: project_state/gates/audit_inventory_result.json\n",
+      "stderr": "",
+      "status": "PASSED"
+    },
+    {
+      "index": 13,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -352,39 +380,39 @@
         0,
         1
       ],
-      "exit_code": 1,
-      "stdout": "report-summary: FAILED\ndecision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1\nreport_id: codex_report_20260628_clean_baseline_jobs_inventory_gate_v1\nround_id: round_20260628_clean_baseline_jobs_inventory_gate_v1\n  [DIFF] files_changed\nartifact: project_state/gates/report_summary_synthesis.json\n",
-      "stderr": "",
-      "status": "PASSED"
-    },
-    {
-      "index": 14,
-      "command": "python -m pytest tests/test_project_jobs.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
       "exit_code": 0,
-      "stdout": "...................                                                      [100%]\n19 passed in 0.13s\n",
+      "stdout": "report-summary: PASSED\ndecision_id: decision_20260629_audit_inventory_gate_v1\nreport_id: codex_report_20260629_audit_inventory_gate_v1\nround_id: round_20260629_audit_inventory_gate_v1\nartifact: project_state/gates/report_summary_synthesis.json\n",
       "stderr": "",
       "status": "PASSED"
     },
     {
       "index": 15,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
+      "command": "python -m pytest tests/test_project_audits.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
         0
       ],
       "exit_code": 0,
-      "stdout": "........................................................................ [  5%]\n........................................................................ [ 11%]\n........................................................................ [ 17%]\n........................................................................ [ 22%]\n........................................................................ [ 28%]\n........................................................................ [ 34%]\n........................................................................ [ 39%]\n........................................................................ [ 45%]\n........................................................................ [ 51%]\n........................................................................ [ 56%]\n........................................................................ [ 62%]\n........................................................................ [ 68%]\n........................................................................ [ 73%]\n........................................................................ [ 79%]\n........................................................................ [ 85%]\n........................................................................ [ 90%]\n........................................................................ [ 96%]\n.............................................                            [100%]\n1269 passed in 225.51s (0:03:45)\n",
+      "stdout": ".........                                                                [100%]\n9 passed in 0.10s\n",
       "stderr": "",
       "status": "PASSED"
     },
     {
       "index": 16,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "stdout": "........................................................................ [  5%]\n........................................................................ [ 11%]\n........................................................................ [ 17%]\n........................................................................ [ 22%]\n........................................................................ [ 28%]\n........................................................................ [ 34%]\n........................................................................ [ 39%]\n........................................................................ [ 45%]\n........................................................................ [ 51%]\n........................................................................ [ 56%]\n........................................................................ [ 62%]\n........................................................................ [ 68%]\n........................................................................ [ 73%]\n........................................................................ [ 79%]\n........................................................................ [ 85%]\n........................................................................ [ 90%]\n........................................................................ [ 96%]\n..........................................                               [100%]\n1266 passed in 262.55s (0:04:22)\n",
+      "stderr": "",
+      "status": "PASSED"
+    },
+    {
+      "index": 17,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -393,25 +421,25 @@
         1
       ],
       "exit_code": 1,
-      "stdout": "execution-log: FAILED\ndecision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1\nround_id: round_20260628_clean_baseline_jobs_inventory_gate_v1\ncommands: 14 entry/entries\n  [PASSED] Set-Location F:\\reverse-agent (exit=0)\n  [PASSED] Get-Location (exit=0)\n  [PASSED] Test-Path F:\\reverse-agent (exit=0)\n  [PASSED] git rev-parse --show-toplevel (exit=0)\n  [PASSED] git status --short (exit=0)\n  [PASSED] python -m pytest tests/test_project_gate.py tests/test_project_state.py -q (exit=0)\n  [PASSED] python -m reverse_agent.project_gate command-plan --state-dir project_state (exit=0)\n  [PASSED] python -m reverse_agent.project_gate command-plan --state-dir project_state --json (exit=0)\n  [PASSED] python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed (exit=0)\n  [PASSED] python -m reverse_agent.project_gate jobs-inventory --state-dir project_state (exit=0)\n  [PASSED] python -m reverse_agent.project_gate report-summary --state-dir project_state (exit=1)\n  [PASSED] python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute (exit=0)\n  [PASSED] python -m pytest tests/test_project_jobs.py -q (exit=0)\n  [PASSED] python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q (exit=0)\n  [WARN] command_plan has 2 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate execution-log --state-dir project_state, python -m reverse_agent.project_gate final-check --state-dir project_state\n  [FAIL] command_plan has 1 required command(s) not recorded in execution_log: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1\nrecommended_next_action: fix_execution_log_mismatches\n",
+      "stdout": "execution-log: FAILED\ndecision_id: decision_20260629_audit_inventory_gate_v1\nround_id: round_20260629_audit_inventory_gate_v1\ncommands: 15 entry/entries\n  [PASSED] Set-Location F:\\reverse-agent (exit=0)\n  [PASSED] Get-Location (exit=0)\n  [PASSED] Test-Path F:\\reverse-agent (exit=0)\n  [PASSED] git rev-parse --show-toplevel (exit=0)\n  [PASSED] git status --short (exit=0)\n  [PASSED] git diff --name-only (exit=0)\n  [PASSED] python -m pytest tests/test_project_gate.py tests/test_project_state.py -q (exit=0)\n  [PASSED] python -m reverse_agent.project_gate command-plan --state-dir project_state (exit=0)\n  [PASSED] python -m reverse_agent.project_gate command-plan --state-dir project_state --json (exit=0)\n  [PASSED] python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed (exit=0)\n  [PASSED] python -m reverse_agent.project_gate audit-inventory --state-dir project_state (exit=0)\n  [PASSED] python -m reverse_agent.project_gate report-summary --state-dir project_state (exit=0)\n  [PASSED] python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1 --mode execute (exit=0)\n  [PASSED] python -m pytest tests/test_project_audits.py -q (exit=0)\n  [PASSED] python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q (exit=0)\n  [WARN] command_plan has 2 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate execution-log --state-dir project_state, python -m reverse_agent.project_gate final-check --state-dir project_state\n  [FAIL] command_plan has 1 required command(s) not recorded in execution_log: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1\nrecommended_next_action: fix_execution_log_mismatches\n",
       "stderr": "",
       "status": "PASSED"
     },
     {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
       ],
       "exit_code": 0,
-      "stdout": "run-closeout: PASSED\ndecision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1\nround_id: round_20260628_clean_baseline_jobs_inventory_gate_v1\npost_self_record_refresh: applied\nartifact: project_state/gates/run_closeout_result.json\nrecommended_next_action: no_action_required\n",
+      "stdout": "run-closeout: PASSED\ndecision_id: decision_20260629_audit_inventory_gate_v1\nround_id: round_20260629_audit_inventory_gate_v1\npost_self_record_refresh: applied\nartifact: project_state/gates/run_closeout_result.json\nrecommended_next_action: no_action_required\n",
       "stderr": "",
       "status": "PASSED"
     },
     {
-      "index": 1,
+      "index": 2,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -419,51 +447,51 @@
         0,
         1
       ],
-      "exit_code": 0,
-      "stdout": "final-check: PASSED\ndecision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1\nreport_id: codex_report_20260628_clean_baseline_jobs_inventory_gate_v1\nround_id: round_20260628_clean_baseline_jobs_inventory_gate_v1\n  [PASS] decision_report_match: decision/report ids and round_id match\n  [PASS] execution_report_alias_present: execution_report.md neutral alias is present\n  [PASS] execution_report_alias_semantic_parity: execution_report.md semantically matches codex_execution_report.md\n  [PASS] execution_report_summary_block_semantic_parity: dual report summary blocks are semantically aligned\n  [PASS] pytest_result_match: pytest_result matches report\n  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests\n  [PASS] pytest_result_status_supports_accepted_report: pytest_result_summary.status supports accepted report\n  [PASS] pytest_result_failed_command_blocks_absent: report is not accepted; failed command block absence is not an acceptance precondition\n  [PASS] round_manifest_present: round manifest is present\n  [PASS] round_manifest_status_matches_report: round manifest status matches report\n  [PASS] archived_report_matches_live_report: archived report matches live report\n  [PASS] archived_execution_report_alias_matches_live_alias: archived execution_report.md matches live execution_report.md\n  [PASS] archived_pytest_result_matches_live_pytest_result: archived pytest_result matches live pytest_result\n  [PASS] round_delta_summary_present: round delta summary is baseline-aware\n  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files\n  [PASS] files_changed_covers_git_diff: files_changed covers round delta files\n  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes\n  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts\n  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline\n  [PASS] baseline_lifecycle_guard: round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope\n  [PASS] baseline_inherited_allowlist_explained: no source/test inherited baseline explanation is required\n  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed\n  [PASS] report_prose_claims_covered_by_files_changed: report prose does not claim source/test changes beyond files_changed\n  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state\n  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk\n  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands\n  [PASS] startup_command_position_order: first five command blocks are exactly the required startup sequence in correct order with no substantive commands before them\n  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution\n  [PASS] build_output_scope: no build-generated state files in round delta\n  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks\n  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup\n  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files\n  [PASS] generated_artifacts_cover_gate_artifacts: generated_artifacts or referenced_artifacts cover all existing gate artifacts\n  [PASS] closeout_execution_log_is_current: run_closeout_execution_log.json contains current round IDs\n  [PASS] execution_log_report_id_is_current: execution_log.json carries current report_id\n  [PASS] required_closeout_artifacts_covered: no required closeout artifacts declared in decision\n  [PASS] command_plan_present: command_plan.json is present\n  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report\n  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests\n  [PASS] startup_command_coverage: pytest_result command blocks cover required startup commands\n  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array\n  [PASS] command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout matches live command_plan.json command list, expected exits, and notes\n  [PASS] command_plan_run_closeout_success_semantics: accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics\n  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json\n  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes\n  [PASS] command_plan_execution_authority: all recorded commands are authorized by command_plan\n  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report\n  [PASS] report_summary_fields_match_synthesis: execution_report_summary matches synthesized summary\n  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result\n  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation\n  [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs\n  [PASS] report_body_consistency: report body prose is consistent with structured JSON summary\n  [PASS] github_ci_state_gate_workflows: GitHub CI workflows are bounded, read-only, and include project_gate validation\n  [PASS] decision_preflight_workflow: decision-preflight workflow is read-only, bounded, and validates preflight/job foundation\n  [PASS] project_job_schema_validation: project job schema validator is present, non-dispatching, and validates any project_state/jobs/*.json files\n  [PASS] jobs_inventory_gate_artifact: jobs inventory gate artifact is current, non-dispatching, and validated\n  [PASS] naming_migration_plan_ids_current: naming_migration_plan.json not required for this decision\n  [PASS] decision_contract_artifact_placement: decision_contract has no required artifact/file constraints\n  [PASS] decision_contract_status_hardening: decision_contract status hardening requirements satisfied\n  [PASS] execute_decision_contract: execute-decision artifact satisfies command-plan authority contract\n  [PASS] gate_profile_plan_current: gate_profile_plan.json carries current decision/round IDs\n  [PASS] gate_profile_plan_command_plan_consistency: gate_profile_plan.json profile matches command_plan.json profile\n  [PASS] fast_profile_scope_valid: profile is not fast; scope validation not applicable\n  [PASS] fast_profile_pytest_not_omitted_with_source_changes: profile is not fast; pytest omission check not applicable\n  [PASS] fast_profile_closeout_consistency: profile is not fast; closeout consistency check not applicable\n  [PASS] forbidden_paths_absent: no forbidden paths detected\n  [PASS] required_audit_coverage: report covers all 17 Required Audit items with substantive aligned answers\n  [PASS] policy_impact_coverage: policy impact coverage satisfied or no policy-sensitive changes\n  [PASS] command_plan_recommends_run_closeout: run-closeout not required by decision_contract (manual fallback is acceptable)\n  [WARN] status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking\n  [PASS] final_check_stdout_matches_gate_status: no recorded final-check stdout status to compare\n  [PASS] execution_log_consistency: execution_log.json is consistent with pytest_result and command_plan\n  [PASS] execution_log_provenance_valid: execution_log.json hybrid provenance matches pytest_result, command_plan, closeout log, and current IDs\n  [PASS] execution_log_required_commands_recorded: all required command_plan commands recorded in execution_log\n  [PASS] report_auto_summary_consistency: execution_report_auto_summary.json is consistent with live execution report summary\n  [PASS] execution_report_auto_summary_alias_present: execution_report_auto_summary.json neutral alias is present\n  [PASS] execution_report_auto_summary_alias_semantic_parity: execution_report_auto_summary.json semantically matches codex_report_auto_summary.json\n  [PASS] phase1_completion_status: Phase 1 completion artifact is PASS\n  [PASS] phase1_completion_evidence_paths_exist: All Phase 1 completion capability evidence paths exist on disk\n  [PASS] phase1_completion_evidence_paths_reported: All Phase 1 completion gate evidence paths are in generated_artifacts or referenced_artifacts\n  [PASS] closeout_active_warnings_clean: closeout result has no active warnings\n  [PASS] closeout_nested_failures_absent: run_closeout_result.json contains no active nested FAIL/FAILED states\nrecommended_next_action: no_action_required\n",
+      "exit_code": 1,
+      "stdout": "final-check: FAILED\ndecision_id: decision_20260629_audit_inventory_gate_v1\nreport_id: codex_report_20260629_audit_inventory_gate_v1\nround_id: round_20260629_audit_inventory_gate_v1\n  [PASS] decision_report_match: decision/report ids and round_id match\n  [PASS] execution_report_alias_present: execution_report.md neutral alias is present\n  [PASS] execution_report_alias_semantic_parity: execution_report.md semantically matches codex_execution_report.md\n  [PASS] execution_report_summary_block_semantic_parity: dual report summary blocks are semantically aligned\n  [PASS] pytest_result_match: pytest_result matches report\n  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests\n  [PASS] pytest_result_status_supports_accepted_report: pytest_result_summary.status supports accepted report\n  [PASS] pytest_result_failed_command_blocks_absent: accepted pytest_result has no failed command blocks\n  [PASS] round_manifest_present: round manifest is present\n  [PASS] round_manifest_status_matches_report: round manifest status matches report\n  [PASS] archived_report_matches_live_report: archived report matches live report\n  [PASS] archived_execution_report_alias_matches_live_alias: archived execution_report.md matches live execution_report.md\n  [PASS] archived_pytest_result_matches_live_pytest_result: archived pytest_result matches live pytest_result\n  [PASS] round_delta_summary_present: round delta summary is baseline-aware\n  [PASS] files_changed_excludes_inherited_dirty_files: inherited source/test baseline dirty files in files_changed are authorized: startup evidence confirms pre-existing, decision allowlist present, and decision not modified during execution\n  [PASS] files_changed_covers_git_diff: files_changed covers round delta files\n  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes\n  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts\n  [PASS] baseline_lifecycle_violation: baseline untracked implementation files are explicitly allowed by decision inherited dirty scope\n  [PASS] baseline_lifecycle_guard: round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope\n  [PASS] baseline_inherited_allowlist_explained: report explains explicitly allowed inherited baseline files\n  [WARN] baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable\n  [PASS] report_prose_claims_covered_by_files_changed: report prose does not claim source/test changes beyond files_changed\n  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state\n  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk\n  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands\n  [PASS] startup_command_position_order: first five command blocks are exactly the required startup sequence in correct order with no substantive commands before them\n  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution\n  [PASS] build_output_scope: no build-generated state files in round delta\n  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks\n  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; source/test dirty files are properly recorded\n  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files\n  [PASS] generated_artifacts_cover_gate_artifacts: generated_artifacts or referenced_artifacts cover all existing gate artifacts\n  [PASS] closeout_execution_log_is_current: run_closeout_execution_log.json contains current round IDs\n  [PASS] execution_log_report_id_is_current: execution_log.json carries current report_id\n  [PASS] required_closeout_artifacts_covered: no required closeout artifacts declared in decision\n  [PASS] command_plan_present: command_plan.json is present\n  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report\n  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests\n  [PASS] startup_command_coverage: pytest_result command blocks cover required startup commands\n  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array\n  [PASS] command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout matches live command_plan.json command list, expected exits, and notes\n  [PASS] command_plan_run_closeout_success_semantics: accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics\n  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json\n  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes\n  [PASS] command_plan_execution_authority: all recorded commands are authorized by command_plan\n  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report\n  [PASS] report_summary_fields_match_synthesis: execution_report_summary matches synthesized summary\n  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result\n  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation\n  [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs\n  [PASS] report_body_consistency: report body prose is consistent with structured JSON summary\n  [PASS] github_ci_state_gate_workflows: GitHub CI workflows are bounded, read-only, and include project_gate validation\n  [PASS] decision_preflight_workflow: decision-preflight workflow is read-only, bounded, and validates preflight/job foundation\n  [PASS] project_job_schema_validation: project job schema validator is present, non-dispatching, and validates any project_state/jobs/*.json files\n  [PASS] jobs_inventory_gate_artifact: jobs inventory gate artifact is stale and not required for this decision\n  [PASS] audit_inventory_gate_artifact: audit inventory gate artifact is current and validated\n  [PASS] naming_migration_plan_ids_current: naming_migration_plan.json not required for this decision\n  [PASS] decision_contract_artifact_placement: decision_contract has no required artifact/file constraints\n  [FAIL] decision_contract_status_hardening: decision_contract status hardening requirements not met\n  [FAIL] execute_decision_contract: execute-decision artifact does not satisfy the decision contract\n  [PASS] gate_profile_plan_current: gate_profile_plan.json carries current decision/round IDs\n  [PASS] gate_profile_plan_command_plan_consistency: gate_profile_plan.json profile matches command_plan.json profile\n  [PASS] fast_profile_scope_valid: profile is not fast; scope validation not applicable\n  [PASS] fast_profile_pytest_not_omitted_with_source_changes: profile is not fast; pytest omission check not applicable\n  [PASS] fast_profile_closeout_consistency: profile is not fast; closeout consistency check not applicable\n  [PASS] forbidden_paths_absent: no forbidden paths detected\n  [PASS] required_audit_coverage: report covers all 18 Required Audit items with substantive aligned answers\n  [PASS] policy_impact_coverage: policy impact coverage satisfied or no policy-sensitive changes\n  [PASS] command_plan_recommends_run_closeout: run-closeout not required by decision_contract (manual fallback is acceptable)\n  [PASS] status_policy_valid: SUCCESS report passes lint and doctor\n  [PASS] final_check_stdout_matches_gate_status: no recorded final-check stdout status to compare\n  [PASS] execution_log_consistency: execution_log.json is consistent with pytest_result and command_plan\n  [PASS] execution_log_provenance_valid: execution_log.json hybrid provenance matches pytest_result, command_plan, closeout log, and current IDs\n  [PASS] execution_log_required_commands_recorded: all required command_plan commands recorded in execution_log\n  [PASS] report_auto_summary_consistency: execution_report_auto_summary.json is consistent with live execution report summary\n  [PASS] execution_report_auto_summary_alias_present: execution_report_auto_summary.json neutral alias is present\n  [PASS] execution_report_auto_summary_alias_semantic_parity: execution_report_auto_summary.json semantically matches codex_report_auto_summary.json\n  [PASS] phase1_completion_status: Phase 1 completion artifact is PASS\n  [PASS] phase1_completion_evidence_paths_exist: All Phase 1 completion capability evidence paths exist on disk\n  [PASS] phase1_completion_evidence_paths_reported: All Phase 1 completion gate evidence paths are in generated_artifacts or referenced_artifacts\n  [WARN] closeout_active_warnings_clean: closeout result has active warnings\n  [PASS] closeout_nested_failures_absent: run_closeout_result.json contains no active nested FAIL/FAILED states\nrecommended_next_action: fix_gate_failures_before_archive_or_handoff\n",
       "stderr": "",
       "status": "PASSED"
     }
   ],
   "skipped_commands": [
     {
-      "index": 3,
+      "index": 4,
       "command": "Set-Location F:\\reverse-agent",
       "kind": "set-location",
       "phase": "status",
       "reason": "PowerShell-only cmdlet: cannot execute via subprocess (cmd.exe); status verified at startup"
     },
     {
-      "index": 4,
+      "index": 5,
       "command": "Get-Location",
       "kind": "pwd",
       "phase": "status",
       "reason": "PowerShell-only cmdlet: cannot execute via subprocess (cmd.exe); status verified at startup"
     },
     {
-      "index": 5,
+      "index": 6,
       "command": "Test-Path F:\\reverse-agent",
       "kind": "test-path",
       "phase": "status",
       "reason": "PowerShell-only cmdlet: cannot execute via subprocess (cmd.exe); status verified at startup"
     },
     {
-      "index": 6,
+      "index": 7,
       "command": "git rev-parse --show-toplevel",
       "kind": "git rev-parse",
       "phase": "status",
       "reason": "startup command already recorded by _record_startup_diagnostics"
     },
     {
-      "index": 7,
+      "index": 8,
       "command": "git status --short",
       "kind": "git status",
       "phase": "status",
       "reason": "startup command already recorded by _record_startup_diagnostics"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute",
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "reason": "self-invocation guard: run-round must not invoke itself recursively"
@@ -475,17 +503,18 @@
     "Test-Path F:\\reverse-agent",
     "git rev-parse --show-toplevel",
     "git status --short",
+    "git diff --name-only",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-    "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
+    "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 --mode execute",
-    "python -m pytest tests/test_project_jobs.py -q",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1 --mode execute",
+    "python -m pytest tests/test_project_audits.py -q",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1",
     "python -m reverse_agent.project_gate final-check --state-dir project_state"
   ],
   "blocking_reasons": [],

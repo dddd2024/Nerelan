@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-29T08:28:41Z",
+  "decision_id": "decision_20260629_audit_inventory_gate_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260629_audit_inventory_gate_v1\\codex_execution_report.md",
+      "sha256": "ab9e2fbc2eb723a3b2f7b531367e96052f47b8ffb17e368aa476991189658d7c",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260629_audit_inventory_gate_v1\\decision_packet.md",
+      "sha256": "1975eada8bf81eeb4cbda9b2957fde53e1f3fd72dcead1e2fead9a2312603b2f",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260629_audit_inventory_gate_v1\\pytest_result.txt",
+      "sha256": "d61c51d95154a9e87799ec90b0ae8a5a649c0a3333398d7de3741e30b553adad",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260629_audit_inventory_gate_v1\\execution_report.md",
+      "sha256": "e5a1fed9037a23d796c47fa516e4a9005c31cb85271edd7747c148de63a7f296",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260629_audit_inventory_gate_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260629_audit_inventory_gate_v1",
+  "schema_version": 1,
+  "source_git_commit": "df0d17d20de1",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}
