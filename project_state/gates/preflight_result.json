@@ -2,11 +2,32 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
-  "round_id": "round_20260629_control_plane_snapshot_gate_v1",
+  "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
+  "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T12:05:54.740510Z",
+  "generated_at": "2026-06-29T15:43:34.589829Z",
   "checks": [
+    {
+      "name": "startup_snapshot_artifact",
+      "status": "PASS",
+      "detail": "startup snapshot is current and source/test clean",
+      "required": true,
+      "artifact": "project_state/gates/startup_snapshot.json",
+      "errors": [],
+      "source_test_dirty_files": [],
+      "gate_status": "PASSED"
+    },
+    {
+      "name": "round_baseline_derived_from_startup_snapshot",
+      "status": "PASS",
+      "detail": "round baseline is derived from the current startup snapshot",
+      "required": true,
+      "errors": [],
+      "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
+      "round_baseline_path": "project_state/gates/round_baseline.json",
+      "startup_dirty_files": [],
+      "baseline_dirty_files": []
+    },
     {
       "name": "decision_not_dirty_in_baseline",
       "status": "PASS",
@@ -54,9 +75,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision consumption allowed for closeout",
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "report_id": "codex_report_20260629_control_plane_snapshot_gate_v1"
+      "detail": "decision has not been consumed by a report",
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "report_id": "codex_report_20260629_startup_snapshot_and_control_plane_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,6 +92,7 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "docs/prompts/codex_execution_prompt.md",
         "project_state/audits/audit_20260629_rework_required_audit_inventory_gate.md",
         "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md",
         "project_state/codex_execution_report.md",
@@ -91,9 +113,10 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
+        "project_state/gates/startup_snapshot.json",
         "project_state/gates/state_hygiene_inventory.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/*",
+        "project_state/rounds/round_20260629_startup_snapshot_and_control_plane_rework_v1/*",
         "reverse_agent/project_audits.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
@@ -102,6 +125,7 @@
         "tests/test_project_audits.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
+        "tests/test_project_gate_baseline_lifecycle.py",
         "tests/test_project_jobs.py",
         "tests/test_project_rounds.py"
       ]
@@ -140,18 +164,8 @@
       "status": "PASS",
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
-      "allowed_inherited_dirty_baseline_files": [
-        "reverse_agent/project_control_plane.py",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_control_plane.py",
-        "tests/test_project_gate.py"
-      ],
-      "baseline_source_test_dirty": [
-        "reverse_agent/project_control_plane.py",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_control_plane.py",
-        "tests/test_project_gate.py"
-      ]
+      "allowed_inherited_dirty_baseline_files": [],
+      "baseline_source_test_dirty": []
     },
     {
       "name": "decision_command_plan_conflict",
@@ -165,19 +179,13 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [
-      "project_state/gates/command_plan.json",
-      "reverse_agent/project_control_plane.py",
-      "reverse_agent/project_gate.py",
-      "tests/test_project_control_plane.py",
-      "tests/test_project_gate.py"
-    ],
-    "head_commit": "0a65664aa92f"
+    "baseline_dirty_files": [],
+    "head_commit": "6051d12a40305c010a20418ded892dbe5a3fb5d9"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
+    "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

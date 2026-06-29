@@ -16,7 +16,7 @@ Before any file modification, execute and record:
 4. `git rev-parse --show-toplevel` — must point to `F:/reverse-agent`
 5. `git status --short` — the first output is the startup baseline
 
-If the directory is missing, not a Git repository, or the startup baseline has source/test files dirty without explicit allowed inherited dirty baseline files, stop immediately.
+If the directory is missing, not a Git repository, or the startup baseline has source/test files dirty under `reverse_agent/` or `tests/`, stop immediately. Current-round source/test inherited dirty allowlists are not valid substitutes for a clean startup snapshot.
 
 ## Decision Packet Authority
 
@@ -27,6 +27,7 @@ If the directory is missing, not a Git repository, or the startup baseline has s
 Run preflight before any implementation modification:
 
 ```powershell
+python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 python -m reverse_agent.project_gate preflight --state-dir project_state
 ```
 

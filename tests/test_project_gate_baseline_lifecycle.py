@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from reverse_agent.project_gate import (
+    _baseline_capture_order_checks,
     _close_round_exit_code,
     _report_status_from_gate,
     _report_status_from_gate_payload,
@@ -213,6 +214,51 @@ _STARTUP_COMMAND_BLOCKS = [
     _command_block("git rev-parse --show-toplevel", "F:\\reverse-agent"),
     _command_block("git status --short", ""),
 ]
+
+
+def test_baseline_capture_order_fails_confirmed_inherited_when_clean_startup_required() -> None:
+    decision_text = """# Decision
+
+```json decision_contract
+{
+  "accepted_requires_startup_snapshot_artifact": true,
+  "accepted_requires_no_source_test_inherited_dirty_allowlist": true
+}
+```
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+## Allowed Inherited Dirty Baseline Files
+
+- `reverse_agent/project_gate.py`
+"""
+    pytest_text = "\n\n".join(
+        [
+            _command_block("Set-Location F:\\reverse-agent", "F:\\reverse-agent"),
+            _command_block("Get-Location", "F:\\reverse-agent"),
+            _command_block("Test-Path F:\\reverse-agent", "True"),
+            _command_block("git rev-parse --show-toplevel", "F:\\reverse-agent"),
+            _command_block("git status --short", " M reverse_agent/project_gate.py"),
+        ]
+    )
+
+    checks = _baseline_capture_order_checks(
+        delta_summary={
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+        },
+        files_changed={"reverse_agent/project_gate.py"},
+        decision_text=decision_text,
+        report_text="",
+        pytest_text=pytest_text,
+    )
+
+    assert checks[0]["status"] == "FAIL"
+    assert checks[0]["capture_order_status"] == "source_test_inherited_dirty_disallowed"
 
 
 def _make_baseline_lifecycle_state(
@@ -755,7 +801,15 @@ def test_close_round_archive_consistent_with_live(tmp_path: Path) -> None:
             "project_state/gates/command_plan.json",
             "project_state/gates/final_gate_result.json",
             *archive,
-        ],
+            ],
+        )
+    report_path = state_dir / "codex_execution_report.md"
+    report_text = report_path.read_text(encoding="utf-8")
+    report_path.write_text(
+        report_text
+        + "\n## Policy Impact\n\n"
+        + "- command-plan, final-check, report-summary, policy-lint, status schema, prompt, skill, and test coverage is acknowledged for the fixture's policy-sensitive source/test files.\n",
+        encoding="utf-8",
     )
     _write_json(state_dir / "gates" / "command_plan.json", plan_payload)
 

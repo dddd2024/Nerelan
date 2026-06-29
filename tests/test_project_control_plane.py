@@ -33,15 +33,22 @@ def _write_decision(state_dir: Path, *, decision_id: str, round_id: str) -> None
     )
 
 
-def _write_report(state_dir: Path, *, decision_id: str, round_id: str) -> str:
+def _write_report(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    status: str = "SUCCESS",
+    acceptance: str = "ACCEPTED",
+) -> str:
     report_id = "codex_report_control_plane"
     payload = {
         "schema_version": 1,
         "report_id": report_id,
         "round_id": round_id,
         "based_on_decision_id": decision_id,
-        "status": "SUCCESS",
-        "acceptance_recommendation": "ACCEPTED",
+        "status": status,
+        "acceptance_recommendation": acceptance,
         "files_changed": [],
         "tests_ran": [],
         "generated_artifacts": [ARTIFACT_PATH],
@@ -180,3 +187,144 @@ def test_control_plane_snapshot_missing_command_plan_fails_build(tmp_path: Path)
 
     assert result["gate_status"] == "FAILED"
     assert "command_plan artifact missing" in result["ui_summary"]["blocking_reasons"]
+
+
+def test_control_plane_snapshot_final_state_requires_closeout_completion(tmp_path: Path) -> None:
+    state_dir = _make_state(tmp_path)
+
+    result = build_control_plane_snapshot(state_dir=state_dir, write_result=False, final_state=True)
+
+    assert result["gate_status"] == "FAILED"
+    assert result["snapshot_mode"] == "final_state"
+    assert result["execution_status"]["final_state_complete"] is False
+    assert "final-state closeout status is not PASSED" in result["ui_summary"]["blocking_reasons"]
+
+
+def test_control_plane_snapshot_final_state_passes_when_closeout_is_closed(tmp_path: Path) -> None:
+    state_dir = _make_state(
+        tmp_path,
+        decision_id="decision_control_plane",
+        round_id="round_control_plane",
+    )
+    _write_json(
+        state_dir / "gates" / "run_closeout_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "PASSED",
+            "decision_id": "decision_control_plane",
+            "round_id": "round_control_plane",
+            "close_round_result": {"close_status": "CLOSED"},
+        },
+    )
+
+    result = build_control_plane_snapshot(state_dir=state_dir, write_result=False, final_state=True)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["snapshot_mode"] == "final_state"
+    assert result["execution_status"]["final_state_complete"] is True
+
+
+def test_control_plane_snapshot_final_state_uses_closeout_when_tail_only_pending(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_state(
+        tmp_path,
+        decision_id="decision_control_plane",
+        round_id="round_control_plane",
+    )
+    _write_report(
+        state_dir,
+        decision_id="decision_control_plane",
+        round_id="round_control_plane",
+        status="FAILED",
+        acceptance="REWORK_REQUIRED",
+    )
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "FAILED",
+            "decision_id": "decision_control_plane",
+            "round_id": "round_control_plane",
+            "report_id": "codex_report_control_plane",
+            "checks": [
+                {"name": "control_plane_snapshot_artifact", "status": "FAIL"},
+                {"name": "execute_decision_contract", "status": "FAIL"},
+                {"name": "execution_log_required_commands_recorded", "status": "FAIL"},
+            ],
+            "blocking_reasons": [
+                "control_plane_snapshot_artifact: final-state snapshot pending",
+                "execute_decision_contract: execute-decision result pending",
+                "execution_log_required_commands_recorded: final-state command pending",
+            ],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "run_closeout_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "PASSED",
+            "decision_id": "decision_control_plane",
+            "round_id": "round_control_plane",
+            "close_round_result": {
+                "close_status": "CLOSED",
+                "status_summary": {
+                    "report_status": "SUCCESS",
+                    "report_acceptance_recommendation": "ACCEPTED",
+                },
+            },
+        },
+    )
+
+    result = build_control_plane_snapshot(state_dir=state_dir, write_result=False, final_state=True)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["execution_status"]["final_state_complete"] is True
+    assert result["execution_status"]["report_status"] == "SUCCESS"
+    assert result["execution_status"]["acceptance_recommendation"] == "ACCEPTED"
+    assert result["execution_status"]["final_gate_status"] == "PASSED"
+    assert result["ui_summary"]["blocking_reasons"] == []
+
+
+def test_control_plane_snapshot_final_state_rejects_non_tail_final_gate_failure(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_state(tmp_path)
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "FAILED",
+            "decision_id": "decision_control",
+            "round_id": "round_control",
+            "report_id": "codex_report_control_plane",
+            "checks": [{"name": "pytest_result_match", "status": "FAIL"}],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "run_closeout_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "PASSED",
+            "decision_id": "decision_control",
+            "round_id": "round_control",
+            "close_round_result": {
+                "close_status": "CLOSED",
+                "status_summary": {
+                    "report_status": "SUCCESS",
+                    "report_acceptance_recommendation": "ACCEPTED",
+                },
+            },
+        },
+    )
+
+    result = build_control_plane_snapshot(state_dir=state_dir, write_result=False, final_state=True)
+
+    assert result["gate_status"] == "FAILED"
+    assert result["execution_status"]["final_state_complete"] is False
+    assert "final-state final_gate status is not PASSED" in result["ui_summary"]["blocking_reasons"]

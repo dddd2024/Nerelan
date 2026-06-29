@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
-  "round_id": "round_20260629_control_plane_snapshot_gate_v1",
-  "report_id": "codex_report_20260629_control_plane_snapshot_gate_v1",
-  "generated_at": "2026-06-29T12:10:29.332718Z",
+  "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
+  "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
+  "report_id": "codex_report_20260629_startup_snapshot_and_control_plane_rework_v1",
+  "generated_at": "2026-06-29T15:49:24.122235Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
-    "round_id": "round_20260629_control_plane_snapshot_gate_v1",
-    "report_id": "codex_report_20260629_control_plane_snapshot_gate_v1",
+    "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
+    "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
+    "report_id": "codex_report_20260629_startup_snapshot_and_control_plane_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "3967564883f0dce61a6e037cb5f8f7651adf51ce2b8f06a0d4c545a001fefa2a",
-        "size_bytes": 17524,
-        "command_block_count": 17
+        "sha256": "fadfc1484618e7c41f4e5176d33b039610af4e8023fe4f6ce479cd0c29cf0780",
+        "size_bytes": 20629,
+        "command_block_count": 20
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "bee2c8a20ef2c2176be51760864a7ce9a9878918e7f82ab37ec7c7cbf9e66964",
-        "size_bytes": 7588,
-        "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
-        "round_id": "round_20260629_control_plane_snapshot_gate_v1",
+        "sha256": "0bdc91760600fa685066e7920f0a505e2e5bab1ae0b23d9b263dd12c7406275f",
+        "size_bytes": 8890,
+        "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
+        "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
         "plan_status": "PASSED",
-        "command_count": 17
+        "command_count": 20
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "69b8b77645a53e67e1088baf70c54c9a5092a8874d3ca07e898a6dbd0191056c",
-        "size_bytes": 4966047,
-        "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
-        "round_id": "round_20260629_control_plane_snapshot_gate_v1",
-        "command_block_count": 1990
+        "sha256": "d5b6083a06dd4ccb9bd35893cd8c9255eaa4dc142b89628f687ca7603891ca7c",
+        "size_bytes": 5141966,
+        "decision_id": "decision_20260629_startup_snapshot_and_control_plane_rework_v1",
+        "round_id": "round_20260629_startup_snapshot_and_control_plane_rework_v1",
+        "command_block_count": 2053
       }
     },
-    "command_count": 17,
-    "command_digest": "f4c67f054f8603e18d6f65e895a77596af4e60d7518e4d0f921939cae3be1dbb"
+    "command_count": 20,
+    "command_digest": "4cce2399358588308852df161d91159ea07217b19bac06d122efd8b4296bf629"
   },
   "commands": [
     {
@@ -107,6 +107,17 @@
     },
     {
       "index": 6,
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "kind": "startup-snapshot",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 7,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -117,52 +128,7 @@
       "status": "PASSED"
     },
     {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
       "index": 8,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "phase": "preflight",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
-      "kind": "control-plane-snapshot",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 11,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -174,8 +140,53 @@
       "status": "PASSED"
     },
     {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_control_plane_snapshot_gate_v1 --mode execute",
+      "command": "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
+      "kind": "control-plane-snapshot",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_startup_snapshot_and_control_plane_rework_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -185,19 +196,8 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
-      "command": "python -m pytest tests/test_project_control_plane.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
       "index": 14,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_control_plane.py -q",
+      "command": "python -m pytest tests/test_project_gate_baseline_lifecycle.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -208,6 +208,28 @@
     },
     {
       "index": 15,
+      "command": "python -m pytest tests/test_project_control_plane.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_gate_baseline_lifecycle.py tests/test_project_control_plane.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 17,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -219,8 +241,8 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_control_plane_snapshot_gate_v1",
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_startup_snapshot_and_control_plane_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
@@ -230,13 +252,24 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 19,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
       "expected_exit_codes": [
         0,
         1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state --final-state",
+      "kind": "control-plane-snapshot",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
       ],
       "exit_code": 0,
       "status": "PASSED"

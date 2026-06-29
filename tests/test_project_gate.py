@@ -22,6 +22,7 @@ from reverse_agent.project_gate import (
     _expected_report_id,
     _execution_log_derive_commands,
     _execute_decision_contract_check,
+    _execute_mode_command_order,
     _extract_bash_commands,
     _extract_unfenced_commands,
     _execution_log_missing_only_closeout_related,
@@ -36,11 +37,14 @@ from reverse_agent.project_gate import (
     _audit_inventory_gate_check,
     _control_plane_snapshot_gate_check,
     _jobs_inventory_gate_check,
+    _normalize_closed_close_round_result_for_success,
+    _round_baseline_matches_startup_snapshot_check,
     _read_round_close_snapshot,
     _read_execution_report_summary,
     _parse_recorded_command_blocks,
     _refresh_codex_report_for_closeout,
     _run_closeout_internal_blocking_reasons,
+    _pytest_result_missing_only_closeout_related,
     _report_status_from_gate,
     _report_status_from_gate_payload,
     _result_status,
@@ -49,6 +53,8 @@ from reverse_agent.project_gate import (
     _validate_command_plan_consistency,
     _write_round_close_snapshot,
     _run_closeout_exit_code,
+    _startup_first_order_errors,
+    _startup_snapshot_gate_check,
     build_report_summary_synthesis,
     close_round,
     command_plan,
@@ -62,6 +68,7 @@ from reverse_agent.project_gate import (
     preflight,
     run_closeout,
     run_round,
+    startup_snapshot,
     RUN_CLOSEOUT_ALLOWED_KINDS,
     RUN_CLOSEOUT_NAME,
 )
@@ -4365,6 +4372,85 @@ def test_run_round_execute_skips_omitted_commands(tmp_path: Path) -> None:
     omitted = set(result.get("omitted_commands") or [])
     for cmd in seen:
         assert cmd not in omitted, f"executed omitted command: {cmd}"
+
+
+def test_execute_mode_orders_final_state_snapshot_after_run_closeout() -> None:
+    commands = [
+        {
+            "command": "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state --final-state",
+            "kind": "control-plane-snapshot",
+        },
+        {
+            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_gate",
+            "kind": "run-closeout",
+        },
+        {
+            "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            "kind": "final-check",
+        },
+        {
+            "command": "python -m pytest tests/test_project_gate.py -q",
+            "kind": "pytest",
+        },
+    ]
+
+    ordered = _execute_mode_command_order(commands)
+    ordered_commands = [item["command"] for item in ordered]
+
+    pytest_index = ordered_commands.index("python -m pytest tests/test_project_gate.py -q")
+    closeout_index = ordered_commands.index(
+        "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_gate"
+    )
+    final_snapshot_index = ordered_commands.index(
+        "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state --final-state"
+    )
+    final_check_index = ordered_commands.index(
+        "python -m reverse_agent.project_gate final-check --state-dir project_state"
+    )
+    assert pytest_index < closeout_index
+    assert closeout_index < final_snapshot_index
+    assert closeout_index < final_check_index
+
+
+def test_final_state_snapshot_missing_block_is_closeout_tail_related() -> None:
+    check = {
+        "name": "pytest_result_exit_codes_match_command_plan",
+        "status": "FAIL",
+        "errors": [
+            {
+                "command": (
+                    "python -m reverse_agent.project_gate control-plane-snapshot "
+                    "--state-dir project_state --final-state"
+                ),
+                "error": "missing recorded command block",
+                "expected_count": 1,
+                "recorded_count": 0,
+            },
+            {
+                "command": (
+                    "python -m reverse_agent.project_gate run-closeout "
+                    "--state-dir project_state --round-id round_gate"
+                ),
+                "error": "missing recorded command block",
+                "expected_count": 1,
+                "recorded_count": 0,
+            },
+        ],
+    }
+
+    assert _pytest_result_missing_only_closeout_related(check)
+
+
+def test_final_state_snapshot_missing_execution_log_entry_is_closeout_tail_related() -> None:
+    check = {
+        "name": "execution_log_required_commands_recorded",
+        "status": "FAIL",
+        "missing_commands": [
+            "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state --final-state"
+        ],
+    }
+
+    assert _execution_log_missing_only_closeout_related(check)
 
 
 def test_run_round_execute_skips_self_invocation(tmp_path: Path) -> None:
@@ -16950,6 +17036,7 @@ def test_run_closeout_constants_and_allowlist():
         "git diff", "preflight", "pytest", "command-plan", "report-summary",
             "final-check", "close-round", "decision-lint", "gate-profile",
             "execution-log", "report-auto-summary", "jobs-inventory", "audit-inventory",
+            "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
         }
     assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
@@ -17194,6 +17281,73 @@ def test_run_closeout_self_record_refresh_clears_transient_nested_report_failure
         == "ACCEPTED"
     )
     assert close_round_result["actions"][0]["gate_status"] == "PASSED"
+
+
+def test_close_round_success_normalization_clears_report_status_only_drift() -> None:
+    close_round_result = {
+        "close_status": "CLOSED",
+        "report_status": "FAILED",
+        "blocking_reasons": [],
+        "warnings": [],
+        "status_summary": {
+            "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+            "report_status": "FAILED",
+            "report_acceptance_recommendation": "REWORK_REQUIRED",
+        },
+        "actions": [
+            {
+                "name": "final_check_after_archive",
+                "status": "PASSED",
+                "gate_status": "FAILED",
+                "unexpected_failures": [],
+            }
+        ],
+    }
+
+    assert _normalize_closed_close_round_result_for_success(close_round_result) is True
+    assert close_round_result["report_status"] == "SUCCESS"
+    assert close_round_result["blocking_reasons"] == []
+    assert close_round_result["warnings"] == []
+    assert close_round_result["status_summary"]["decision_execution_state"] == (
+        "CONSUMED_BY_SUCCESS_REPORT"
+    )
+    assert close_round_result["status_summary"]["report_status"] == "SUCCESS"
+    assert (
+        close_round_result["status_summary"]["report_acceptance_recommendation"]
+        == "ACCEPTED"
+    )
+    assert close_round_result["actions"][0]["gate_status"] == "PASSED"
+
+
+def test_close_round_success_normalization_rejects_real_nested_failure() -> None:
+    close_round_result = {
+        "close_status": "CLOSED",
+        "report_status": "FAILED",
+        "blocking_reasons": [],
+        "warnings": [],
+        "status_summary": {
+            "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+            "report_status": "FAILED",
+            "report_acceptance_recommendation": "REWORK_REQUIRED",
+        },
+        "checks": [
+            {
+                "name": "pytest_result_exit_codes_match_command_plan",
+                "status": "FAIL",
+            }
+        ],
+        "actions": [
+            {
+                "name": "final_check_after_archive",
+                "status": "PASSED",
+                "gate_status": "PASSED",
+            }
+        ],
+    }
+
+    assert _normalize_closed_close_round_result_for_success(close_round_result) is False
+    assert close_round_result["report_status"] == "FAILED"
+    assert close_round_result["status_summary"]["report_status"] == "FAILED"
 
 
 def test_run_closeout_invalid_args_missing_round_id(tmp_path: Path):
@@ -25087,6 +25241,239 @@ def test_command_kind_recognizes_control_plane_snapshot_gate() -> None:
 
     assert _command_kind(command) == "control-plane-snapshot"
     assert _command_phase("control-plane-snapshot", archive_seen=False) == "gate"
+
+
+def test_startup_snapshot_writes_and_reuses_first_current_round_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_startup_snapshot",
+        round_id="round_startup_snapshot",
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_status_short_lines", lambda _repo: [])
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "commit_start")
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda _repo: str(tmp_path))
+
+    first = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_status_short_lines",
+        lambda _repo: [" M reverse_agent/project_gate.py"],
+    )
+    second = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+
+    assert first["gate_status"] == "PASSED"
+    assert second["raw_git_status_short"] == []
+    check = _startup_snapshot_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_startup_snapshot",
+        round_id="round_startup_snapshot",
+        required=True,
+    )
+    assert check["status"] == "PASS"
+
+
+def test_preflight_requires_startup_snapshot_and_baseline_derivation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = {
+        "accepted_requires_startup_snapshot_artifact": True,
+        "accepted_requires_startup_snapshot_first": True,
+    }
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_startup_required",
+        round_id="round_startup_required",
+        implementation_scope=f"""```json decision_contract
+{json.dumps(contract, indent=2)}
+```
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+""",
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_status_short_lines", lambda _repo: [])
+    monkeypatch.setattr("reverse_agent.project_gate._git_changed_files", lambda _repo: ["reverse_agent/project_gate.py"])
+    monkeypatch.setattr("reverse_agent.project_gate._git_diff_name_only", lambda _repo: ["reverse_agent/project_gate.py"])
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "commit_start")
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda _repo: str(tmp_path))
+
+    startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+    result = preflight(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["startup_snapshot_artifact"]["status"] == "PASS"
+    assert checks["round_baseline_derived_from_startup_snapshot"]["status"] == "PASS"
+    assert checks["source_test_clean_start"]["status"] == "PASS"
+
+
+def test_command_plan_frontloads_startup_snapshot_when_decision_lists_it_late(tmp_path: Path) -> None:
+    contract = {
+        "accepted_requires_startup_snapshot_artifact": True,
+        "accepted_requires_startup_snapshot_first": True,
+    }
+    tests_block = """
+python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
+"""
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block=tests_block,
+        extra_text=f"""```json decision_contract
+{json.dumps(contract, indent=2)}
+```
+""",
+    )
+
+    result = command_plan(state_dir=state_dir, write_result=False)
+
+    assert result["plan_status"] == "PASSED"
+    assert [command["kind"] for command in result["commands"][:1]] == ["startup-snapshot"]
+
+
+def test_startup_first_order_errors_accepts_front_loaded_startup_snapshot() -> None:
+    commands = [
+        {"index": 1, "kind": "git rev-parse"},
+        {"index": 2, "kind": "git status"},
+        {"index": 3, "kind": "startup-snapshot"},
+        {"index": 4, "kind": "preflight"},
+    ]
+
+    assert _startup_first_order_errors(commands) == []
+
+
+def test_control_plane_snapshot_gate_requires_final_state_refresh(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_final",
+        round_id="round_control_final",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    contract = {
+        "accepted_requires_control_plane_snapshot_artifact": True,
+        "accepted_requires_final_state_snapshot_refresh": True,
+    }
+    _write_json(
+        state_dir / "gates" / "control_plane_snapshot.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "control_plane_snapshot.json",
+            "gate_name": "control-plane-snapshot",
+            "gate_status": "PASSED",
+            "decision_id": "decision_control_final",
+            "round_id": "round_control_final",
+            "artifact_path": "project_state/gates/control_plane_snapshot.json",
+            "snapshot_mode": "current_state",
+            "active_decision": {},
+            "execution_status": {"final_state_complete": False},
+            "inventory_status": {},
+            "runner_readiness": {"can_dispatch_next_decision": False},
+            "authority_separation": {},
+            "ui_summary": {"headline": "", "next_action": "", "blocking_reasons": [], "warnings": []},
+        },
+    )
+
+    current = _control_plane_snapshot_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_control_final",
+        round_id="round_control_final",
+        decision_contract=contract,
+    )
+
+    assert current["status"] == "FAIL"
+    assert "snapshot_mode is not final_state" in current["errors"]
+
+
+def test_control_plane_snapshot_gate_allows_final_state_pending_during_closeout(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_final",
+        round_id="round_control_final",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    contract = {
+        "accepted_requires_control_plane_snapshot_artifact": True,
+        "accepted_requires_final_state_snapshot_refresh": True,
+    }
+    _write_json(
+        state_dir / "gates" / "control_plane_snapshot.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "control_plane_snapshot.json",
+            "gate_name": "control-plane-snapshot",
+            "gate_status": "PASSED",
+            "decision_id": "decision_control_final",
+            "round_id": "round_control_final",
+            "artifact_path": "project_state/gates/control_plane_snapshot.json",
+            "snapshot_mode": "current_state",
+            "active_decision": {},
+            "execution_status": {"final_state_complete": False},
+            "inventory_status": {},
+            "runner_readiness": {"can_dispatch_next_decision": False},
+            "authority_separation": {},
+            "ui_summary": {"headline": "", "next_action": "", "blocking_reasons": [], "warnings": []},
+        },
+    )
+
+    current = _control_plane_snapshot_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_control_final",
+        round_id="round_control_final",
+        decision_contract=contract,
+        close_round_in_progress=True,
+    )
+
+    assert current["status"] == "PASS"
+    assert current["skipped_reason"] == "close_round_in_progress"
+    assert "snapshot_mode is not final_state" in current["pending_errors"]
+
+
+def test_startup_snapshot_and_control_plane_rework_audit_generator_is_substantive() -> None:
+    from reverse_agent.project_gate import (
+        _generate_startup_snapshot_and_control_plane_rework_required_audit,
+        _required_audit_placeholder_items,
+    )
+
+    questions = [
+        "Was startup source/test baseline clean before implementation?",
+        "Was `startup_snapshot.json` generated before any pytest, implementation gate, report-summary, execute-decision, final-check, or run-closeout command?",
+        "Does `startup_snapshot.json` carry current decision ID, round ID, head commit, startup command sequence, raw git status output, source/test dirty list, generated state dirty list, and clean-source-test boolean?",
+        "Does startup source/test dirty under `reverse_agent/` or `tests/` produce BLOCKED/failed preflight with no inherited dirty exception?",
+        "Does command-plan place startup commands before all non-startup commands?",
+        "Does command-plan fail or block if startup commands are missing or not first?",
+        "Does preflight derive `source_test_clean_start` from `startup_snapshot.json` rather than report prose or files_changed?",
+        "Does `round_baseline.json` derive from or exactly match `startup_snapshot.json` for startup dirty state?",
+        "Does final-check treat source/test baseline dirty overlap with files_changed as FAIL/REWORK_REQUIRED, not WARN?",
+        "Was the existing control-plane snapshot implementation preserved where correct?",
+        "Does `control_plane_snapshot.json` carry current decision/round IDs and post-closeout final statuses?",
+        "Does final accepted snapshot report `final_gate_status: PASSED`, `closeout_status: PASSED`, and `close_round_status: CLOSED`?",
+        "Does runner readiness remain non-dispatching by default unless explicit safe dispatch evidence exists?",
+        "Does UI summary expose stable headline, next action, blocking reasons, and warnings based on final state?",
+        "Are stale optional inventory artifacts labeled historical/nonblocking rather than current?",
+        "Did required pytest commands exit 0, and what are their pass counts?",
+        "Did `report_summary_fields_match_synthesis` pass with no diffs?",
+        "Did `execute_decision_contract` pass?",
+        "Did `run-closeout` exit 0, with `closeout_status: PASSED` and `close_round_result.close_status: CLOSED`?",
+        "Did `closeout_nested_failures_absent` pass with no active nested FAILED/FAIL states?",
+        "Did hybrid execution-log provenance remain valid and non-derived-only?",
+        "Were forbidden paths, preserve-only files, full solve_reports scans, Web/AgentRunner/DB/queue/scheduler scope, GitHub Actions mutation, and remote mutation avoided?",
+    ]
+    decision_text = (
+        "# Decision\n\n"
+        "startup_snapshot_and_control_plane_rework accepted_requires_final_state_snapshot_refresh\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(f"{index}. {question}" for index, question in enumerate(questions, start=1))
+    )
+
+    audit = _generate_startup_snapshot_and_control_plane_rework_required_audit(decision_text)
+
+    assert audit.count("### ") == 22
+    assert _required_audit_placeholder_items(audit) == []
 
 
 def test_control_plane_snapshot_required_audit_generator_is_substantive() -> None:

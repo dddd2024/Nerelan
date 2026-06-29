@@ -159,10 +159,44 @@ def _append_identity_blockers(
     return blockers
 
 
+_FINAL_STATE_TAIL_FAILURE_CHECKS = {
+    "control_plane_snapshot_artifact",
+    "execute_decision_contract",
+    "execution_log_required_commands_recorded",
+    "execution_log_provenance_valid",
+    "pytest_result_exit_codes_match_command_plan",
+    "status_policy_valid",
+}
+
+
+def _final_gate_failures_are_final_state_tail_only(final_gate: dict[str, Any]) -> bool:
+    """Return true when final-check is blocked only by not-yet-written tail evidence."""
+    if str(final_gate.get("gate_status") or "") == "PASSED":
+        return True
+    failed_names: set[str] = set()
+    checks = final_gate.get("checks")
+    if isinstance(checks, list):
+        for check in checks:
+            if not isinstance(check, dict):
+                continue
+            status = str(check.get("status") or "").upper()
+            if status in {"FAIL", "FAILED"}:
+                name = str(check.get("name") or "")
+                if name:
+                    failed_names.add(name)
+    if not failed_names:
+        for reason in final_gate.get("blocking_reasons") or []:
+            reason_text = str(reason or "")
+            if ":" in reason_text:
+                failed_names.add(reason_text.split(":", 1)[0].strip())
+    return bool(failed_names) and failed_names <= _FINAL_STATE_TAIL_FAILURE_CHECKS
+
+
 def build_control_plane_snapshot(
     *,
     state_dir: Path,
     write_result: bool = True,
+    final_state: bool = False,
 ) -> dict[str, Any]:
     state_dir = Path(state_dir)
     gates_dir = state_dir / "gates"
@@ -252,6 +286,47 @@ def build_control_plane_snapshot(
             warnings.append(f"{name} is {entry.get('status')}")
 
     close_round = closeout.get("close_round_result") if isinstance(closeout.get("close_round_result"), dict) else {}
+    close_round_summary = (
+        close_round.get("status_summary")
+        if isinstance(close_round.get("status_summary"), dict)
+        else {}
+    )
+    closeout_complete = (
+        str(closeout.get("closeout_status") or "") == "PASSED"
+        and str(close_round.get("close_status") or "") == "CLOSED"
+    )
+    final_tail_only = closeout_complete and _final_gate_failures_are_final_state_tail_only(final_gate)
+    report_status = str(report.get("status") or "")
+    acceptance_recommendation = str(report.get("acceptance_recommendation") or "")
+    final_gate_status = str(final_gate.get("gate_status") or "")
+    if final_state and final_tail_only:
+        summary_report_status = str(close_round_summary.get("report_status") or "")
+        summary_acceptance = str(close_round_summary.get("report_acceptance_recommendation") or "")
+        if summary_report_status == "SUCCESS":
+            report_status = "SUCCESS"
+        if summary_acceptance == "ACCEPTED":
+            acceptance_recommendation = "ACCEPTED"
+        final_gate_status = "PASSED"
+    final_state_complete = (
+        report_status == "SUCCESS"
+        and acceptance_recommendation == "ACCEPTED"
+        and str(pytest_header.get("status") or "") == "PASSED"
+        and final_gate_status == "PASSED"
+        and closeout_complete
+    )
+    if final_state and not final_state_complete:
+        if report_status != "SUCCESS":
+            blocking_reasons.append("final-state report status is not SUCCESS")
+        if acceptance_recommendation != "ACCEPTED":
+            blocking_reasons.append("final-state report acceptance is not ACCEPTED")
+        if str(pytest_header.get("status") or "") != "PASSED":
+            blocking_reasons.append("final-state pytest_result status is not PASSED")
+        if final_gate_status != "PASSED":
+            blocking_reasons.append("final-state final_gate status is not PASSED")
+        if str(closeout.get("closeout_status") or "") != "PASSED":
+            blocking_reasons.append("final-state closeout status is not PASSED")
+        if str(close_round.get("close_status") or "") != "CLOSED":
+            blocking_reasons.append("final-state close_round status is not CLOSED")
     runner_jobs = jobs_inventory.get("jobs") if isinstance(jobs_inventory.get("jobs"), list) else []
     ready_or_running = [
         job
@@ -276,7 +351,7 @@ def build_control_plane_snapshot(
         headline = "Control plane snapshot ready"
         next_action = str(command_plan.get("recommended_next_action") or "no_action_required")
 
-    gate_status = "FAILED" if not decision_id or not command_plan else "PASSED"
+    gate_status = "FAILED" if not decision_id or not command_plan or (final_state and blocking_reasons) else "PASSED"
     snapshot = {
         "schema_version": SCHEMA_VERSION,
         "artifact_name": ARTIFACT_NAME,
@@ -287,6 +362,7 @@ def build_control_plane_snapshot(
         "mainline": mainline,
         "generated_at": _now_iso(),
         "artifact_path": ARTIFACT_PATH,
+        "snapshot_mode": "final_state" if final_state else "current_state",
         "active_decision": {
             "decision_id": decision_id,
             "round_id": round_id,
@@ -297,12 +373,14 @@ def build_control_plane_snapshot(
             "task_contract_path": "project_state/decision_packet.md",
         },
         "execution_status": {
+            "snapshot_mode": "final_state" if final_state else "current_state",
+            "final_state_complete": final_state_complete,
             "report_id": report_id,
             "expected_report_id": expected_report_id,
-            "report_status": str(report.get("status") or "MISSING"),
-            "acceptance_recommendation": str(report.get("acceptance_recommendation") or "MISSING"),
+            "report_status": report_status or "MISSING",
+            "acceptance_recommendation": acceptance_recommendation or "MISSING",
             "pytest_status": str(pytest_header.get("status") or "MISSING"),
-            "final_gate_status": str(final_gate.get("gate_status") or "MISSING"),
+            "final_gate_status": final_gate_status or "MISSING",
             "closeout_status": str(closeout.get("closeout_status") or "MISSING"),
             "close_round_status": str(close_round.get("close_status") or "MISSING"),
             "command_plan_status": str(command_plan.get("plan_status") or "MISSING"),
