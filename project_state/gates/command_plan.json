@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260629_audit_inventory_gate_v1",
-  "round_id": "round_20260629_audit_inventory_gate_v1",
+  "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
+  "round_id": "round_20260629_control_plane_snapshot_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T09:39:17.996792Z",
+  "generated_at": "2026-06-29T12:09:42.750891Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -28,33 +28,6 @@
   "commands": [
     {
       "index": 1,
-      "command": "git diff --name-only",
-      "phase": "status",
-      "kind": "git diff",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "git diff expected to exit 0"
-    },
-    {
-      "index": 2,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 3,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -65,6 +38,32 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 2,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 3,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
     },
     {
       "index": 4,
@@ -133,32 +132,6 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 11,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "phase": "preflight",
       "kind": "preflight",
@@ -171,20 +144,21 @@
       "notes": "preflight expected to exit 0"
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
       "phase": "gate",
-      "kind": "audit-inventory",
+      "kind": "control-plane-snapshot",
       "required": true,
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "audit-inventory expected to exit 0"
+      "notes": "control-plane-snapshot diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 13,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -198,8 +172,8 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1 --mode execute",
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260629_control_plane_snapshot_gate_v1 --mode execute",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -211,33 +185,33 @@
       "notes": "execute-decision expected to exit 0"
     },
     {
+      "index": 13,
+      "command": "python -m pytest tests/test_project_control_plane.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 14,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_control_plane.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
       "index": 15,
-      "command": "python -m pytest tests/test_project_audits.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 16,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_audits.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 17,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "phase": "gate",
       "kind": "execution-log",
@@ -251,8 +225,22 @@
       "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1",
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_control_plane_snapshot_gate_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -266,5 +254,5 @@
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_control_plane_snapshot_gate_v1"
 }

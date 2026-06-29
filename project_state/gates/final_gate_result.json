@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260629_audit_inventory_gate_v1",
-  "report_id": "codex_report_20260629_audit_inventory_gate_v1",
-  "round_id": "round_20260629_audit_inventory_gate_v1",
-  "generated_at": "2026-06-29T09:40:18.371568Z",
+  "gate_status": "PASSED_WITH_LIMITATIONS",
+  "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
+  "report_id": "codex_report_20260629_control_plane_snapshot_gate_v1",
+  "round_id": "round_20260629_control_plane_snapshot_gate_v1",
+  "generated_at": "2026-06-29T12:10:44.523707Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -49,7 +49,7 @@
       "status": "PASS",
       "detail": "pytest_result_summary.status supports accepted report",
       "report_status": "SUCCESS",
-      "acceptance_recommendation": "ACCEPTED",
+      "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
       "pytest_result_status": "PASSED",
       "required": true
     },
@@ -64,7 +64,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260629_audit_inventory_gate_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260629_control_plane_snapshot_gate_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -98,37 +98,16 @@
       "baseline_available": true,
       "inherited_dirty_files": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
       ],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/codex_report_auto_summary.json",
-        "project_state/gates/execute_decision_result.json",
-        "project_state/gates/execution_log.json",
-        "project_state/gates/execution_report_auto_summary.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_closeout_execution_log.json",
-        "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/execution_report.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/pytest_result.txt",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/round_manifest.json"
-      ],
-      "final_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
-        "project_state/gates/codex_report_auto_summary.json",
-        "project_state/gates/command_plan.json",
+        "project_state/gates/control_plane_snapshot.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
@@ -143,21 +122,63 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/execution_report.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/pytest_result.txt",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/round_manifest.json"
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/decision_packet.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/execution_report.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/pytest_result.txt",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/round_manifest.json"
+      ],
+      "final_dirty_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/control_plane_snapshot.json",
+        "project_state/gates/execute_decision_result.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/decision_packet.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/execution_report.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/pytest_result.txt",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/round_manifest.json",
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
       "status": "PASS",
-      "detail": "files_changed excludes inherited baseline dirty files",
-      "inherited_dirty_files": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
-      ]
+      "detail": "inherited source/test baseline dirty files in files_changed are authorized: startup evidence confirms pre-existing, decision allowlist present, and decision not modified during execution",
+      "inherited_files_in_files_changed": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
+      "source_test_inherited_in_files_changed": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
+      "close_worktree_clean": false,
+      "startup_evidence_trusted": true,
+      "all_in_decision_allowlist": true,
+      "decision_immutability_failed": false
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -167,9 +188,9 @@
       "git_changed_files": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
+        "project_state/gates/control_plane_snapshot.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
@@ -184,38 +205,47 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/execution_report.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/pytest_result.txt",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/round_manifest.json"
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/decision_packet.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/execution_report.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/pytest_result.txt",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/round_manifest.json",
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/control_plane_snapshot.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/decision_packet.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/execution_report.md",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/pytest_result.txt",
-        "project_state/rounds/round_20260629_audit_inventory_gate_v1/round_manifest.json"
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/decision_packet.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/execution_report.md",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/pytest_result.txt",
+        "project_state/rounds/round_20260629_control_plane_snapshot_gate_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
@@ -234,25 +264,36 @@
     {
       "name": "baseline_lifecycle_violation",
       "status": "PASS",
-      "detail": "baseline was captured before implementation; no untracked implementation files in baseline",
-      "baseline_untracked_implementation_files": []
+      "detail": "baseline untracked implementation files are explicitly allowed by decision inherited dirty scope",
+      "baseline_untracked_implementation_files": [
+        "reverse_agent/project_control_plane.py",
+        "tests/test_project_control_plane.py"
+      ]
     },
     {
       "name": "baseline_lifecycle_guard",
       "status": "PASS",
       "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
-      "source_test_baseline_dirty": [],
-      "close_source_test_dirty": [],
-      "allowed_inherited_dirty_files": [
-        "reverse_agent/project_audits.py",
+      "source_test_baseline_dirty": [
+        "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "tests/test_project_audits.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
+      "close_source_test_dirty": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
+      "allowed_inherited_dirty_files": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
         "tests/test_project_gate.py"
       ],
       "generated_or_archive_baseline_dirty_files": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+        "project_state/gates/command_plan.json"
       ],
       "close_worktree_clean": false,
       "close_snapshot_available": true
@@ -260,29 +301,45 @@
     {
       "name": "baseline_inherited_allowlist_explained",
       "status": "PASS",
-      "detail": "no source/test inherited baseline explanation is required",
-      "inherited_dirty_files": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+      "detail": "report explains explicitly allowed inherited baseline files",
+      "allowed_inherited_source_test_files": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
       "name": "baseline_capture_order",
-      "status": "PASS",
-      "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
+      "status": "WARN",
+      "detail": "source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
-        "reverse_agent/project_audits.py",
+        "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "tests/test_project_audits.py",
+        "tests/test_project_control_plane.py",
         "tests/test_project_gate.py"
       ],
-      "baseline_dirty_source_test_files": [],
-      "files_changed_overlap": [],
-      "confirmed_inherited_from_startup_evidence": [],
+      "baseline_dirty_source_test_files": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
+      "files_changed_overlap": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
+      "confirmed_inherited_from_startup_evidence": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
       "startup_status_evidence_trusted": true,
-      "capture_order_status": "clean"
+      "capture_order_status": "confirmed_inherited"
     },
     {
       "name": "report_prose_claims_covered_by_files_changed",
@@ -302,9 +359,9 @@
       "detail": "all live project_state/ generated artifact paths exist on disk",
       "live_paths": [
         "project_state/codex_execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
+        "project_state/gates/control_plane_snapshot.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
@@ -382,12 +439,26 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
-      "startup_source_test_dirty": [],
+      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
+      "startup_source_test_dirty": [
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
       "baseline_dirty_files": [
         "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json",
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
       ],
       "missing_from_baseline": []
     },
@@ -406,6 +477,7 @@
         "project_state/gates/audit_inventory_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
+        "project_state/gates/control_plane_snapshot.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
@@ -423,30 +495,34 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/state_hygiene_inventory.json"
       ],
-      "referenced_artifacts": []
+      "referenced_artifacts": [
+        "project_state/gates/audit_inventory_result.json"
+      ]
     },
     {
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260629_audit_inventory_gate_v1",
-      "closeout_log_round_id": "round_20260629_audit_inventory_gate_v1",
-      "expected_decision_id": "decision_20260629_audit_inventory_gate_v1",
-      "expected_round_id": "round_20260629_audit_inventory_gate_v1"
+      "closeout_log_decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
+      "closeout_log_round_id": "round_20260629_control_plane_snapshot_gate_v1",
+      "expected_decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
+      "expected_round_id": "round_20260629_control_plane_snapshot_gate_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260629_audit_inventory_gate_v1",
-      "expected_report_id": "codex_report_20260629_audit_inventory_gate_v1"
+      "execution_log_report_id": "codex_report_20260629_control_plane_snapshot_gate_v1",
+      "expected_report_id": "codex_report_20260629_control_plane_snapshot_gate_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
       "status": "PASS",
       "detail": "no required closeout artifacts declared in decision",
       "required_closeout_artifacts": [],
-      "referenced_artifacts": [],
+      "referenced_artifacts": [
+        "project_state/gates/audit_inventory_result.json"
+      ],
       "uncovered_artifacts": []
     },
     {
@@ -461,8 +537,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260629_audit_inventory_gate_v1",
-      "command_plan_round_id": "round_20260629_audit_inventory_gate_v1"
+      "command_plan_decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
+      "command_plan_round_id": "round_20260629_control_plane_snapshot_gate_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -496,7 +572,7 @@
       "status": "PASS",
       "detail": "accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics",
       "errors": [],
-      "required": true
+      "required": false
     },
     {
       "name": "command_plan_generated_artifact_recorded",
@@ -627,10 +703,13 @@
     {
       "name": "audit_inventory_gate_artifact",
       "status": "PASS",
-      "detail": "audit inventory gate artifact is current and validated",
-      "required": true,
+      "detail": "audit inventory gate artifact is stale and not required for this decision",
+      "required": false,
       "artifact": "project_state/gates/audit_inventory_result.json",
-      "errors": [],
+      "errors": [
+        "decision_id mismatch",
+        "round_id mismatch"
+      ],
       "gate_status": "PASSED",
       "inventory_validation_status": "PASSED",
       "audit_count": 2,
@@ -646,6 +725,20 @@
       ],
       "duplicate_audit_id_errors": [],
       "invalid_file_errors": []
+    },
+    {
+      "name": "control_plane_snapshot_artifact",
+      "status": "PASS",
+      "detail": "control-plane snapshot artifact is current and structurally valid",
+      "required": true,
+      "artifact": "project_state/gates/control_plane_snapshot.json",
+      "errors": [],
+      "gate_status": "PASSED",
+      "blocking_reasons": [],
+      "warnings": [
+        "audit inventory is historical_nonblocking",
+        "jobs inventory is historical_nonblocking"
+      ]
     },
     {
       "name": "naming_migration_plan_ids_current",
@@ -672,14 +765,14 @@
       "errors": [],
       "mode": "execute",
       "transcript_parity_status": "PASSED",
-      "command_count": 18
+      "command_count": 17
     },
     {
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260629_audit_inventory_gate_v1",
-      "gate_profile_round_id": "round_20260629_audit_inventory_gate_v1"
+      "gate_profile_decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
+      "gate_profile_round_id": "round_20260629_control_plane_snapshot_gate_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -712,26 +805,28 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 18 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 20 Required Audit items with substantive aligned answers",
       "required_audit_items": [
         "Was startup source/test baseline clean before implementation?",
-        "Was the previous accepted jobs inventory gate preserved?",
-        "What audit inventory validator was added, and where is it implemented?",
-        "What `project_gate` CLI/gate surface was added for audit inventory validation?",
-        "Does `audit_inventory_result.json` exist, and does it carry current decision/round IDs?",
-        "Does audit inventory report audit count, validated paths, duplicate audit ID errors, invalid file errors, and allowed outcome counts?",
-        "Does audit inventory handle a missing `project_state/audits` directory as valid zero-audit evidence?",
-        "Are invalid `audit_summary` blocks reported without mutating audit files?",
-        "Are duplicate audit IDs rejected?",
-        "Are existing audit record files preserved byte-for-byte or at least not modified in git diff?",
-        "Is audit inventory evidence included in final-check or an equivalent gate evidence path?",
+        "Was the previous accepted audit inventory gate preserved?",
+        "Was the previous accepted jobs inventory gate preserved or safely treated as historical/nonblocking when stale?",
+        "What control-plane snapshot builder was added, and where is it implemented?",
+        "What `project_gate` CLI/gate surface was added for control-plane snapshot generation?",
+        "Does `control_plane_snapshot.json` exist, and does it carry current decision/round IDs?",
+        "Does the snapshot summarize active decision metadata, including decision ID, status, mainline, skill profiles, and consumed-by-report status?",
+        "Does the snapshot summarize execution status: report status, acceptance recommendation, pytest status, final gate status, closeout status, and close-round status?",
+        "Does the snapshot summarize inventory status for audit inventory, jobs inventory, and any optional round/archive inventory without mislabeling stale artifacts as current?",
+        "Does the snapshot expose runner readiness with default non-dispatch behavior unless explicit safe dispatch evidence exists?",
+        "Does the snapshot expose a stable UI summary with headline, next action, blocking reasons, and warnings?",
+        "Does the snapshot preserve task authority separation: decision is task contract, command-plan is command execution authority, snapshot is read-only status output?",
+        "Does the implementation avoid full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, full `project_state/rounds/`, Web/AgentRunner/DB/queue/scheduler, and remote mutation?",
         "Did required pytest commands exit 0, and what are their pass counts?",
         "Did `report_summary_fields_match_synthesis` pass with no diffs?",
         "Did `execute_decision_contract` pass?",
         "Did `run-closeout` exit 0, with `closeout_status: PASSED` and `close_round_result.close_status: CLOSED`?",
         "Did `closeout_nested_failures_absent` pass with no active nested FAILED/FAIL states?",
         "Did hybrid execution-log provenance remain valid and non-derived-only?",
-        "Were forbidden paths, full solve_reports scans, reverse-solving, Web/AgentRunner/DB/queue/scheduler scope, and remote mutation avoided?"
+        "Were forbidden paths and preserve-only files avoided?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
@@ -758,7 +853,9 @@
       "warnings": [],
       "doctor_status": "PASS",
       "report_status": "SUCCESS",
-      "limitations": null,
+      "limitations": [
+        "baseline_capture_order remains WARN; source/test files overlap between baseline dirty and files_changed"
+      ],
       "artifact_freshness_policy": "claim_aware",
       "required_current_artifacts": [],
       "claimed_evidence_artifacts": [],
@@ -776,10 +873,10 @@
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
       "detail": "recorded final-check stdout matches gate_status",
-      "expected_gate_status": "PASSED",
+      "expected_gate_status": "PASSED_WITH_LIMITATIONS",
       "recorded_stdout_status": "PASSED",
       "conservative_warn_accepted": false,
-      "conservative_pass_accepted": false
+      "conservative_pass_accepted": true
     },
     {
       "name": "execution_log_consistency",
@@ -858,7 +955,9 @@
     }
   ],
   "blocking_reasons": [],
-  "warnings": [],
+  "warnings": [
+    "baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable"
+  ],
   "recommended_next_action": "no_action_required",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
@@ -866,6 +965,6 @@
     "decision_consumed_by_report": true,
     "archive_status": "archived",
     "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED"
+    "report_acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS"
   }
 }

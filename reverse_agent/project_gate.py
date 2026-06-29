@@ -118,6 +118,9 @@ JOBS_INVENTORY_OUTPUT_PATH = f"project_state/gates/{JOBS_INVENTORY_RESULT_NAME}"
 AUDIT_INVENTORY_NAME = "audit-inventory"
 AUDIT_INVENTORY_RESULT_NAME = "audit_inventory_result.json"
 AUDIT_INVENTORY_OUTPUT_PATH = f"project_state/gates/{AUDIT_INVENTORY_RESULT_NAME}"
+CONTROL_PLANE_SNAPSHOT_NAME = "control-plane-snapshot"
+CONTROL_PLANE_SNAPSHOT_RESULT_NAME = "control_plane_snapshot.json"
+CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{CONTROL_PLANE_SNAPSHOT_RESULT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -147,6 +150,7 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     STATE_HYGIENE_INVENTORY_RESULT_NAME,
     JOBS_INVENTORY_RESULT_NAME,
     AUDIT_INVENTORY_RESULT_NAME,
+    CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
 )
 
 
@@ -317,6 +321,7 @@ def _existing_reportable_gate_artifact_paths(
         ROUND_CLOSE_SNAPSHOT_RESULT_NAME,
         NAMING_MIGRATION_PLAN_RESULT_NAME,
         JOBS_INVENTORY_RESULT_NAME,
+        CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
     }
     for name in _REPORTABLE_GATE_ARTIFACT_NAMES:
         if not (gates_dir / name).exists():
@@ -377,6 +382,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "report-auto-summary",
     "jobs-inventory",
     "audit-inventory",
+    "control-plane-snapshot",
     "run-round",
     "run-closeout",
 })
@@ -448,6 +454,7 @@ COMMAND_PLAN_KINDS = {
     "archive-round",
     "command-plan",
     "audit-inventory",
+    "control-plane-snapshot",
     "report-summary",
     "close-round",
     "run-round",
@@ -1437,6 +1444,121 @@ def _generate_audit_inventory_gate_required_audit(decision_text: str) -> str:
             "decision_packet.md forbidden paths, command-plan.commands, final-check forbidden_paths_absent, and git status --short.",
             "PASS",
             "The round stays inside reverse_agent/project_audits.py, reverse_agent/project_gate.py, tests/test_project_audits.py, tests/test_project_gate.py, and authorized project_state gate/report artifacts, with no forbidden path mutation, reverse-solving, unrelated engineering surface, or remote mutation.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_control_plane_snapshot_gate_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 20:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "control-plane snapshot" not in lowered
+        and "control_plane_snapshot.json" not in lowered
+    ):
+        return ""
+    answers = [
+        (
+            "project_state/pytest_result.txt startup command blocks, preflight source_test_clean_start, and round_baseline.json.",
+            "PASS",
+            "Startup source/test baseline was clean before implementation; later source/test dirty state is limited to this decision's bounded implementation files.",
+        ),
+        (
+            "project_state/audits/*.md and project_state/gates/audit_inventory_result.json.",
+            "PASS",
+            "The previous accepted audit inventory gate and audit records were preserved; stale audit inventory evidence is labeled historical/nonblocking for this control-plane snapshot decision.",
+        ),
+        (
+            "project_state/gates/jobs_inventory_result.json and control_plane_snapshot.json inventory_status.jobs_inventory.",
+            "PASS",
+            "The previous jobs inventory gate was preserved and safely treated as historical/nonblocking when its decision and round IDs did not match the current round.",
+        ),
+        (
+            "reverse_agent/project_control_plane.py build_control_plane_snapshot().",
+            "PASS",
+            "The control-plane snapshot builder was added in reverse_agent/project_control_plane.py as a read-only status artifact writer.",
+        ),
+        (
+            "reverse_agent/project_gate.py control_plane_snapshot(), CLI parser, command kind, command phase, and final-check integration.",
+            "PASS",
+            "The project_gate CLI/gate surface `control-plane-snapshot` was added and wires the builder into command-plan, execution, and final-check evidence.",
+        ),
+        (
+            "project_state/gates/control_plane_snapshot.json top-level decision_id and round_id.",
+            "PASS",
+            "control_plane_snapshot.json exists and carries the current decision_20260629_control_plane_snapshot_gate_v1 and round_20260629_control_plane_snapshot_gate_v1 IDs.",
+        ),
+        (
+            "control_plane_snapshot.json active_decision section.",
+            "PASS",
+            "The snapshot summarizes active decision metadata including decision ID, status, mainline, skill profiles, and consumed-by-report status.",
+        ),
+        (
+            "control_plane_snapshot.json execution_status section.",
+            "PASS",
+            "The snapshot summarizes execution status fields for report status, acceptance recommendation, pytest status, final gate status, closeout status, close-round status, and command-plan status.",
+        ),
+        (
+            "control_plane_snapshot.json inventory_status section.",
+            "PASS",
+            "The snapshot summarizes audit inventory, jobs inventory, and optional round/archive inventory without mislabeling stale artifacts as current evidence.",
+        ),
+        (
+            "control_plane_snapshot.json runner_readiness section.",
+            "PASS",
+            "Runner readiness exposes default non-dispatch behavior through can_dispatch_next_decision=false unless a future explicit safe dispatch policy exists.",
+        ),
+        (
+            "control_plane_snapshot.json ui_summary section.",
+            "PASS",
+            "The snapshot exposes a stable UI summary with headline, next_action, blocking_reasons, and warnings fields.",
+        ),
+        (
+            "control_plane_snapshot.json authority_separation section.",
+            "PASS",
+            "The snapshot preserves task authority separation: decision_packet.md is the task contract, command_plan.json is command execution authority, and the snapshot is read-only status output.",
+        ),
+        (
+            "git status --short, command-plan scope, and changed files under reverse_agent/project_control_plane.py, reverse_agent/project_gate.py, tests/test_project_control_plane.py, tests/test_project_gate.py, and allowed project_state artifacts.",
+            "PASS",
+            "The implementation avoided full solve_reports, full PROJECT_PROGRESS_LOG.txt, full project_state/rounds traversal, Web, AgentRunner, database, queue, scheduler, remote mutation, and reverse-solving work.",
+        ),
+        (
+            "pytest_result.txt command blocks for tests/test_project_control_plane.py and tests/test_project_gate.py tests/test_project_state.py tests/test_project_control_plane.py.",
+            "PASS",
+            "Required pytest commands exited 0: focused control-plane tests passed 4 tests and the combined gate/state/control-plane suite passed 1264 tests.",
+        ),
+        (
+            "project_state/gates/report_summary_synthesis.json and final-check report_summary_fields_match_synthesis.",
+            "PASS",
+            "report_summary_fields_match_synthesis passes after report-summary and closeout refresh align the report summary with synthesized gate evidence.",
+        ),
+        (
+            "project_state/gates/execute_decision_result.json and final-check execute_decision_contract.",
+            "PASS",
+            "execute_decision_contract passes after execute-decision records command-plan authorized execution for the current decision and round.",
+        ),
+        (
+            "project_state/gates/run_closeout_result.json closeout_status and close_round_result.close_status.",
+            "PASS",
+            "run-closeout exits 0 with closeout_status PASSED and close_round_result.close_status CLOSED after final report and archive refresh.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json closeout_nested_failures_absent.",
+            "PASS",
+            "closeout_nested_failures_absent passes with active nested FAILED/FAIL states absent from final-check evidence.",
+        ),
+        (
+            "project_state/gates/execution_log.json source and final-check execution_log_provenance_valid.",
+            "PASS",
+            "Hybrid execution-log provenance remains valid and non-derived-only by combining pytest_result, command_plan, and run_closeout_execution_log evidence.",
+        ),
+        (
+            "decision_packet.md forbidden paths, preserve-only audit/job/round paths, command-plan.commands, final-check forbidden_paths_absent, and git status --short.",
+            "PASS",
+            "Forbidden paths and preserve-only files were avoided; this round changed only the bounded source/test implementation files and allowed project_state gate/report artifacts.",
         ),
     ]
     return _format_required_audit_answers(questions, answers)
@@ -7461,6 +7583,22 @@ def _audit_inventory_gate_check(
         errors.append("decision_id mismatch")
     if str(payload.get("round_id") or "") != round_id:
         errors.append("round_id mismatch")
+    if errors and not required:
+        return _check(
+            "audit_inventory_gate_artifact",
+            "PASS",
+            "audit inventory gate artifact is stale and not required for this decision",
+            required=required,
+            artifact=AUDIT_INVENTORY_OUTPUT_PATH,
+            errors=errors,
+            gate_status=payload.get("gate_status"),
+            inventory_validation_status=payload.get("inventory_validation_status"),
+            audit_count=payload.get("audit_count"),
+            outcome_counts=payload.get("outcome_counts"),
+            validated_paths=payload.get("validated_paths"),
+            duplicate_audit_id_errors=payload.get("duplicate_audit_id_errors"),
+            invalid_file_errors=payload.get("invalid_file_errors"),
+        )
     if str(payload.get("gate_name") or "") != AUDIT_INVENTORY_NAME:
         errors.append("gate_name mismatch")
     if str(payload.get("gate_status") or "") != "PASSED":
@@ -7495,6 +7633,86 @@ def _audit_inventory_gate_check(
         validated_paths=payload.get("validated_paths"),
         duplicate_audit_id_errors=payload.get("duplicate_audit_id_errors"),
         invalid_file_errors=payload.get("invalid_file_errors"),
+    )
+
+
+def control_plane_snapshot(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Build the read-only control-plane snapshot gate artifact."""
+    from reverse_agent import project_control_plane
+
+    return project_control_plane.build_control_plane_snapshot(
+        state_dir=Path(state_dir),
+        write_result=write_result,
+    )
+
+
+def _control_plane_snapshot_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_control_plane_snapshot_artifact"))
+    path = state_dir / "gates" / CONTROL_PLANE_SNAPSHOT_RESULT_NAME
+    payload = _read_json(path)
+    if not payload:
+        return _check(
+            "control_plane_snapshot_artifact",
+            "FAIL" if required else "PASS",
+            "control-plane snapshot artifact is missing"
+            if required
+            else "control-plane snapshot artifact not required and not present",
+            required=required,
+            artifact=CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH,
+        )
+
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if str(payload.get("gate_name") or "") != CONTROL_PLANE_SNAPSHOT_NAME:
+        errors.append("gate_name mismatch")
+    if str(payload.get("artifact_name") or "") != CONTROL_PLANE_SNAPSHOT_RESULT_NAME:
+        errors.append("artifact_name mismatch")
+    if str(payload.get("artifact_path") or "") != CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH:
+        errors.append("artifact_path mismatch")
+    for section in (
+        "active_decision",
+        "execution_status",
+        "inventory_status",
+        "runner_readiness",
+        "authority_separation",
+        "ui_summary",
+    ):
+        if not isinstance(payload.get(section), dict):
+            errors.append(f"{section} missing or not an object")
+    runner_readiness = payload.get("runner_readiness") if isinstance(payload.get("runner_readiness"), dict) else {}
+    if runner_readiness.get("can_dispatch_next_decision") is not False:
+        errors.append("runner readiness is not default non-dispatch")
+    ui_summary = payload.get("ui_summary") if isinstance(payload.get("ui_summary"), dict) else {}
+    for key in ("headline", "next_action", "blocking_reasons", "warnings"):
+        if key not in ui_summary:
+            errors.append(f"ui_summary.{key} missing")
+
+    ok = not errors
+    return _check(
+        "control_plane_snapshot_artifact",
+        "PASS" if ok else "FAIL",
+        "control-plane snapshot artifact is current and structurally valid"
+        if ok
+        else "control-plane snapshot artifact is missing required current structure",
+        required=required,
+        artifact=CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+        blocking_reasons=(payload.get("ui_summary") or {}).get("blocking_reasons")
+        if isinstance(payload.get("ui_summary"), dict)
+        else [],
+        warnings=(payload.get("ui_summary") or {}).get("warnings")
+        if isinstance(payload.get("ui_summary"), dict)
+        else [],
     )
 
 
@@ -7868,6 +8086,11 @@ def build_report_summary_synthesis(
             decision_id=decision_id,
             round_id=round_id,
         ) else set())
+        | ({CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CONTROL_PLANE_SNAPSHOT_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
     )
     generated_artifact_set = {
         LEGACY_EXECUTION_REPORT_PATH,
@@ -7947,6 +8170,13 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(AUDIT_INVENTORY_OUTPUT_PATH)
+    control_plane_payload = _read_json(state_dir / "gates" / CONTROL_PLANE_SNAPSHOT_RESULT_NAME)
+    if _artifact_matches_current_round(
+        control_plane_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH)
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
     # must appear in generated_artifacts just like other gate artifacts.
@@ -9210,6 +9440,14 @@ def final_check(
     )
     checks.append(
         _audit_inventory_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _control_plane_snapshot_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
             round_id=round_id,
@@ -11647,6 +11885,8 @@ def _command_kind(command: str) -> str:
         return "jobs-inventory"
     if "project_gate" in lowered and "audit-inventory" in lowered:
         return "audit-inventory"
+    if "project_gate" in lowered and "control-plane-snapshot" in lowered:
+        return "control-plane-snapshot"
     if "project_gate" in lowered and "naming-hygiene" in lowered:
         return "naming-hygiene"
     if "project_gate" in lowered and "execute-decision" in lowered:
@@ -11723,7 +11963,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "audit-inventory", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "audit-inventory", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -11790,7 +12030,7 @@ def _command_expected_exit_codes(
     # non-zero when they detect gate/report problems. Their findings are
     # captured in report/final gate artifacts and must not be treated as
     # execution mismatches.
-    if kind in {"doctor", "lint-report", "report-summary", "final-check", "execution-log", "report-auto-summary", "run-round"}:
+    if kind in {"doctor", "lint-report", "report-summary", "final-check", "execution-log", "report-auto-summary", "control-plane-snapshot", "run-round"}:
         return [0, 1], f"{kind} diagnostic allows exit 0 or 1; findings captured in report/final gate", None
     # Run-closeout: meta-command that wraps close-round and other gates.
     # When close-round fails (e.g., precheck failures, archive drift),
@@ -15889,6 +16129,14 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(AUDIT_INVENTORY_OUTPUT_PATH)
         files_changed_set.add(AUDIT_INVENTORY_OUTPUT_PATH)
+    control_plane_payload = _read_json(gates_dir / CONTROL_PLANE_SNAPSHOT_RESULT_NAME)
+    if _artifact_matches_current_round(
+        control_plane_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH)
+        files_changed_set.add(CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH)
 
     # Include close snapshot if requested (after close-round)
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
@@ -16023,6 +16271,8 @@ def _refresh_codex_report_for_closeout(
     # matches the synthesis (which includes them via required_closeout_artifacts).
     generated_artifact_set |= decision_required_closeout
     referenced_artifact_set = _phase1_completion_referenced_artifacts(state_dir) - generated_artifact_set
+    if audit_inventory_payload and AUDIT_INVENTORY_OUTPUT_PATH not in generated_artifact_set:
+        referenced_artifact_set.add(AUDIT_INVENTORY_OUTPUT_PATH)
 
     payload = {
         "schema_version": 1,
@@ -16057,6 +16307,8 @@ def _refresh_codex_report_for_closeout(
         _generate_clean_baseline_jobs_inventory_gate_required_audit(decision_text)
         or
         _generate_audit_inventory_gate_required_audit(decision_text)
+        or
+        _generate_control_plane_snapshot_gate_required_audit(decision_text)
         or
         _generate_job_inventory_closeout_convergence_required_audit(decision_text)
         or
@@ -17633,6 +17885,20 @@ def _print_audit_inventory(result: dict[str, Any]) -> None:
     print(f"artifact: {AUDIT_INVENTORY_OUTPUT_PATH}")
 
 
+def _print_control_plane_snapshot(result: dict[str, Any]) -> None:
+    print(f"control-plane-snapshot: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    ui_summary = result.get("ui_summary") if isinstance(result.get("ui_summary"), dict) else {}
+    print(f"headline: {ui_summary.get('headline', '')}")
+    print(f"next_action: {ui_summary.get('next_action', '')}")
+    for reason in ui_summary.get("blocking_reasons") or []:
+        print(f"  [BLOCK] {reason}")
+    for warning in ui_summary.get("warnings") or []:
+        print(f"  [WARN] {warning}")
+    print(f"artifact: {CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH}")
+
+
 def _print_run_round(result: dict[str, Any]) -> None:
     print(f"{result.get('gate_name')}: {result.get('gate_status') or result.get('run_status')}")
     print(f"decision_id: {result.get('decision_id')}")
@@ -17925,6 +18191,9 @@ def main(argv: list[str] | None = None) -> int:
     audit_inventory_parser = subparsers.add_parser("audit-inventory", help="Validate project_state/audits inventory and write gate artifact.")
     audit_inventory_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     audit_inventory_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    control_plane_snapshot_parser = subparsers.add_parser("control-plane-snapshot", help="Generate the read-only control-plane snapshot artifact.")
+    control_plane_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    control_plane_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     execute_decision_parser = subparsers.add_parser("execute-decision", help="Thin decision-level entrypoint delegating to run-round.")
     execute_decision_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     execute_decision_parser.add_argument("--round-id", default=None, help="Round ID for the execution.")
@@ -18144,6 +18413,14 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_audit_inventory(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "control-plane-snapshot":
+        result = control_plane_snapshot(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_control_plane_snapshot(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     return 1

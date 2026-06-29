@@ -34,6 +34,7 @@ from reverse_agent.project_gate import (
     _is_self_invocation,
     _is_startup_command,
     _audit_inventory_gate_check,
+    _control_plane_snapshot_gate_check,
     _jobs_inventory_gate_check,
     _read_round_close_snapshot,
     _read_execution_report_summary,
@@ -54,6 +55,7 @@ from reverse_agent.project_gate import (
     execute_decision,
     final_check,
     audit_inventory,
+    control_plane_snapshot,
     jobs_inventory,
     main,
     phase1_completion,
@@ -16946,10 +16948,10 @@ def test_run_closeout_constants_and_allowlist():
     expected = {
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
         "git diff", "preflight", "pytest", "command-plan", "report-summary",
-        "final-check", "close-round", "decision-lint", "gate-profile",
-        "execution-log", "report-auto-summary", "jobs-inventory", "audit-inventory",
-        "run-round", "run-closeout",
-    }
+            "final-check", "close-round", "decision-lint", "gate-profile",
+            "execution-log", "report-auto-summary", "jobs-inventory", "audit-inventory",
+            "control-plane-snapshot", "run-round", "run-closeout",
+        }
     assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
 
 
@@ -24934,8 +24936,267 @@ def test_audit_inventory_gate_check_requires_current_artifact(tmp_path: Path) ->
     assert current["status"] == "PASS"
 
 
+def test_audit_inventory_gate_check_ignores_stale_optional_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_audits_optional",
+        round_id="round_audits_optional",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "gates" / "audit_inventory_result.json",
+        {
+            "gate_name": "audit-inventory",
+            "gate_status": "PASSED",
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+            "inventory_validation_status": "PASSED",
+            "audit_count": 1,
+            "outcome_counts": {"REWORK_REQUIRED": 1},
+            "validated_paths": ["project_state/audits/previous.md"],
+            "duplicate_audit_id_errors": [],
+            "invalid_file_errors": [],
+        },
+    )
+
+    result = _audit_inventory_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_audits_optional",
+        round_id="round_audits_optional",
+        decision_contract={},
+    )
+
+    assert result["status"] == "PASS"
+
+
 def test_command_kind_recognizes_audit_inventory_gate() -> None:
     command = "python -m reverse_agent.project_gate audit-inventory --state-dir project_state"
 
     assert _command_kind(command) == "audit-inventory"
     assert _command_phase("audit-inventory", archive_seen=False) == "gate"
+
+
+def test_control_plane_snapshot_gate_writes_current_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_plane",
+        round_id="round_control_plane",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_report(
+        state_dir,
+        decision_id="decision_control_plane",
+        report_id="codex_report_control_plane",
+        round_id="round_control_plane",
+        generated_artifacts=["project_state/gates/control_plane_snapshot.json"],
+    )
+    _write_pytest(
+        state_dir,
+        decision_id="decision_control_plane",
+        report_id="codex_report_control_plane",
+        round_id="round_control_plane",
+    )
+    _write_json(
+        state_dir / "gates" / "command_plan.json",
+        {
+            "schema_version": 1,
+            "plan_name": "command-plan",
+            "plan_status": "PASSED",
+            "decision_id": "decision_control_plane",
+            "round_id": "round_control_plane",
+            "mainline": "engineering_branch",
+            "commands": [],
+            "warnings": [],
+            "blocking_reasons": [],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "PASSED",
+            "decision_id": "decision_control_plane",
+            "round_id": "round_control_plane",
+            "report_id": "codex_report_control_plane",
+        },
+    )
+
+    result = control_plane_snapshot(state_dir=state_dir)
+
+    artifact = json.loads(
+        (state_dir / "gates" / "control_plane_snapshot.json").read_text(encoding="utf-8")
+    )
+    assert result["gate_status"] == "PASSED"
+    assert artifact["decision_id"] == "decision_control_plane"
+    assert artifact["round_id"] == "round_control_plane"
+    assert artifact["runner_readiness"]["can_dispatch_next_decision"] is False
+
+
+def test_control_plane_snapshot_gate_check_requires_current_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_check",
+        round_id="round_control_check",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    contract = {"accepted_requires_control_plane_snapshot_artifact": True}
+
+    missing = _control_plane_snapshot_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_control_check",
+        round_id="round_control_check",
+        decision_contract=contract,
+    )
+    assert missing["status"] == "FAIL"
+
+    _write_json(
+        state_dir / "gates" / "control_plane_snapshot.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "control_plane_snapshot.json",
+            "gate_name": "control-plane-snapshot",
+            "gate_status": "PASSED",
+            "decision_id": "decision_control_check",
+            "round_id": "round_control_check",
+            "artifact_path": "project_state/gates/control_plane_snapshot.json",
+            "active_decision": {},
+            "execution_status": {},
+            "inventory_status": {},
+            "runner_readiness": {"can_dispatch_next_decision": False},
+            "authority_separation": {},
+            "ui_summary": {
+                "headline": "ready",
+                "next_action": "no_action_required",
+                "blocking_reasons": [],
+                "warnings": [],
+            },
+        },
+    )
+    current = _control_plane_snapshot_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_control_check",
+        round_id="round_control_check",
+        decision_contract=contract,
+    )
+    assert current["status"] == "PASS"
+
+
+def test_command_kind_recognizes_control_plane_snapshot_gate() -> None:
+    command = "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state"
+
+    assert _command_kind(command) == "control-plane-snapshot"
+    assert _command_phase("control-plane-snapshot", archive_seen=False) == "gate"
+
+
+def test_control_plane_snapshot_required_audit_generator_is_substantive() -> None:
+    from reverse_agent.project_gate import (
+        _generate_control_plane_snapshot_gate_required_audit,
+        _required_audit_coverage_check,
+    )
+
+    questions = [
+        "Was startup source/test baseline clean before implementation?",
+        "Was the previous accepted audit inventory gate preserved?",
+        "Was the previous accepted jobs inventory gate preserved or safely treated as historical/nonblocking when stale?",
+        "What control-plane snapshot builder was added, and where is it implemented?",
+        "What `project_gate` CLI/gate surface was added for control-plane snapshot generation?",
+        "Does `control_plane_snapshot.json` exist, and does it carry current decision/round IDs?",
+        "Does the snapshot summarize active decision metadata, including decision ID, status, mainline, skill profiles, and consumed-by-report status?",
+        "Does the snapshot summarize execution status: report status, acceptance recommendation, pytest status, final gate status, closeout status, and close-round status?",
+        "Does the snapshot summarize inventory status for audit inventory, jobs inventory, and any optional round/archive inventory without mislabeling stale artifacts as current?",
+        "Does the snapshot expose runner readiness with default non-dispatch behavior unless explicit safe dispatch evidence exists?",
+        "Does the snapshot expose a stable UI summary with headline, next action, blocking reasons, and warnings?",
+        "Does the snapshot preserve task authority separation: decision is task contract, command-plan is command execution authority, snapshot is read-only status output?",
+        "Does the implementation avoid full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, full `project_state/rounds/`, Web/AgentRunner/DB/queue/scheduler, and remote mutation?",
+        "Did required pytest commands exit 0, and what are their pass counts?",
+        "Did `report_summary_fields_match_synthesis` pass with no diffs?",
+        "Did `execute_decision_contract` pass?",
+        "Did `run-closeout` exit 0, with `closeout_status: PASSED` and `close_round_result.close_status: CLOSED`?",
+        "Did `closeout_nested_failures_absent` pass with no active nested FAILED/FAIL states?",
+        "Did hybrid execution-log provenance remain valid and non-derived-only?",
+        "Were forbidden paths and preserve-only files avoided?",
+    ]
+    decision_text = (
+        "# Decision\n\n"
+        "## Goal\n\nBuild control-plane snapshot gate for control_plane_snapshot.json.\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(f"{index}. {question}" for index, question in enumerate(questions, start=1))
+    )
+
+    audit = _generate_control_plane_snapshot_gate_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit + "\n",
+        report_status="SUCCESS",
+    )
+
+    assert audit
+    assert result["status"] == "PASS"
+    assert result["placeholder_answers"] == []
+
+
+def test_closeout_report_covers_control_plane_and_historical_audit_artifacts(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_plane_report",
+        round_id="round_control_plane_report",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "gates" / "audit_inventory_result.json",
+        {
+            "gate_name": "audit-inventory",
+            "gate_status": "PASSED",
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+            "inventory_validation_status": "PASSED",
+            "audit_count": 1,
+            "outcome_counts": {"REWORK_REQUIRED": 1},
+            "validated_paths": ["project_state/audits/previous.md"],
+            "duplicate_audit_id_errors": [],
+            "invalid_file_errors": [],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "control_plane_snapshot.json",
+        {
+            "gate_name": "control-plane-snapshot",
+            "gate_status": "PASSED",
+            "artifact_name": "control_plane_snapshot.json",
+            "artifact_path": "project_state/gates/control_plane_snapshot.json",
+            "decision_id": "decision_control_plane_report",
+            "round_id": "round_control_plane_report",
+            "active_decision": {},
+            "execution_status": {},
+            "inventory_status": {},
+            "runner_readiness": {"can_dispatch_next_decision": False},
+            "authority_separation": {},
+            "ui_summary": {
+                "headline": "ready",
+                "next_action": "review",
+                "blocking_reasons": [],
+                "warnings": [],
+            },
+        },
+    )
+
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_control_plane_report",
+        round_id="round_control_plane_report",
+    )
+    summary = _read_execution_report_summary(state_dir)
+
+    assert "project_state/gates/control_plane_snapshot.json" in summary["generated_artifacts"]
+    assert "project_state/gates/audit_inventory_result.json" in summary["referenced_artifacts"]
+
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+    synthesized = synthesis["synthesized_summary"]
+    assert "project_state/gates/control_plane_snapshot.json" in synthesized["files_changed"]
+    assert "project_state/gates/control_plane_snapshot.json" in synthesized["generated_artifacts"]

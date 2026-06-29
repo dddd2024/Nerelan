@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "artifact_name": "control_plane_snapshot.json",
+  "gate_name": "control-plane-snapshot",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
+  "round_id": "round_20260629_control_plane_snapshot_gate_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-29T12:02:45.806516Z",
+  "artifact_path": "project_state/gates/control_plane_snapshot.json",
+  "active_decision": {
+    "decision_id": "decision_20260629_control_plane_snapshot_gate_v1",
+    "round_id": "round_20260629_control_plane_snapshot_gate_v1",
+    "status": "APPROVED",
+    "mainline": "engineering_branch",
+    "skill_profiles": [
+      "reverse-agent-iteration@v2"
+    ],
+    "consumed_by_matching_report": true,
+    "task_contract_path": "project_state/decision_packet.md"
+  },
+  "execution_status": {
+    "report_id": "codex_report_20260629_control_plane_snapshot_gate_v1",
+    "expected_report_id": "codex_report_20260629_control_plane_snapshot_gate_v1",
+    "report_status": "SUCCESS",
+    "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+    "pytest_status": "PASSED",
+    "final_gate_status": "FAILED",
+    "closeout_status": "FAILED",
+    "close_round_status": "FAILED",
+    "command_plan_status": "PASSED",
+    "execution_log_source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
+    "warnings": [
+      "audit inventory is historical_nonblocking",
+      "jobs inventory is historical_nonblocking"
+    ],
+    "blocking_reasons": []
+  },
+  "inventory_status": {
+    "audit_inventory": {
+      "status": "historical_nonblocking",
+      "is_current": false,
+      "nonblocking": true,
+      "decision_id": "decision_20260629_audit_inventory_gate_v1",
+      "round_id": "round_20260629_audit_inventory_gate_v1",
+      "mismatches": [
+        "decision_id mismatch",
+        "round_id mismatch"
+      ],
+      "gate_name": "audit-inventory",
+      "gate_status": "PASSED",
+      "inventory_validation_status": "PASSED",
+      "audit_count": 2,
+      "validated_paths": [
+        "project_state/audits/audit_20260629_rework_required_audit_inventory_gate.md",
+        "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md"
+      ],
+      "warnings": []
+    },
+    "jobs_inventory": {
+      "status": "historical_nonblocking",
+      "is_current": false,
+      "nonblocking": true,
+      "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
+      "mismatches": [
+        "decision_id mismatch",
+        "round_id mismatch"
+      ],
+      "gate_name": "jobs-inventory",
+      "gate_status": "PASSED",
+      "inventory_validation_status": "PASSED",
+      "job_count": 1,
+      "validated_paths": [
+        "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json"
+      ],
+      "warnings": [],
+      "dispatch_enabled": false,
+      "dispatch_safety_status": "PASSED"
+    },
+    "round_archive_inventory": {
+      "status": "not_implemented",
+      "nonblocking": true,
+      "detail": "snapshot does not scan full project_state/rounds"
+    }
+  },
+  "runner_readiness": {
+    "can_dispatch_next_decision": false,
+    "default_dispatch_policy": "non_dispatch",
+    "explicit_safe_dispatch_evidence": false,
+    "ready_or_running_job_count": 0,
+    "reason": "external dispatch stays disabled unless a future safe dispatch policy is explicit"
+  },
+  "authority_separation": {
+    "task_contract": "project_state/decision_packet.md",
+    "command_execution_authority": "project_state/gates/command_plan.json",
+    "snapshot_role": "read_only_status_output"
+  },
+  "ui_summary": {
+    "headline": "Control plane snapshot ready with warnings",
+    "next_action": "review_warnings_before_dispatch",
+    "blocking_reasons": [],
+    "warnings": [
+      "audit inventory is historical_nonblocking",
+      "jobs inventory is historical_nonblocking"
+    ]
+  },
+  "generated_artifacts": [
+    "project_state/gates/control_plane_snapshot.json"
+  ]
+}
