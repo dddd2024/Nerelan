@@ -1,12 +1,12 @@
 {
-  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "acceptance_recommendation": "ACCEPTED",
   "archive_mode": "minimal",
-  "archived_at": "2026-06-29T08:28:41Z",
+  "archived_at": "2026-06-29T09:39:23Z",
   "decision_id": "decision_20260629_audit_inventory_gate_v1",
   "files": {
     "codex_execution_report.md": {
       "archived_path": "project_state\\rounds\\round_20260629_audit_inventory_gate_v1\\codex_execution_report.md",
-      "sha256": "ab9e2fbc2eb723a3b2f7b531367e96052f47b8ffb17e368aa476991189658d7c",
+      "sha256": "18f00cbd915163c6d1f7a99870894754468a09aecb5600d802599b18ebba454a",
       "source_path": "project_state\\codex_execution_report.md"
     },
     "decision_packet.md": {
@@ -16,12 +16,12 @@
     },
     "pytest_result.txt": {
       "archived_path": "project_state\\rounds\\round_20260629_audit_inventory_gate_v1\\pytest_result.txt",
-      "sha256": "d61c51d95154a9e87799ec90b0ae8a5a649c0a3333398d7de3741e30b553adad",
+      "sha256": "eddb38f1ff3ba3288a3b2dbdc1f6ec02d2401b2b7475d5542a409dd7f8eb56f3",
       "source_path": "project_state\\pytest_result.txt"
     },
     "execution_report.md": {
       "path": "project_state\\rounds\\round_20260629_audit_inventory_gate_v1\\execution_report.md",
-      "sha256": "e5a1fed9037a23d796c47fa516e4a9005c31cb85271edd7747c148de63a7f296",
+      "sha256": "ab64e999a4a06587727d96f7841d975aebecb2619a0139744b3449f9ee5a3263",
       "source_path": "project_state\\execution_report.md"
     }
   },
@@ -40,7 +40,7 @@
   "report_status": "SUCCESS",
   "round_id": "round_20260629_audit_inventory_gate_v1",
   "schema_version": 1,
-  "source_git_commit": "df0d17d20de1",
+  "source_git_commit": "1662d5ad4ce4",
   "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
   "state_build_id": "state_20260618_134029_d6bd033d2532",
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",

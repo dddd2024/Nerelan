@@ -6,7 +6,7 @@
   "decision_id": "decision_20260629_audit_inventory_gate_v1",
   "round_id": "round_20260629_audit_inventory_gate_v1",
   "report_id": "codex_report_20260629_audit_inventory_gate_v1",
-  "generated_at": "2026-06-29T08:29:34.721975Z",
+  "generated_at": "2026-06-29T09:40:18.692055Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
@@ -22,14 +22,14 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "d61c51d95154a9e87799ec90b0ae8a5a649c0a3333398d7de3741e30b553adad",
-        "size_bytes": 18316,
+        "sha256": "eddb38f1ff3ba3288a3b2dbdc1f6ec02d2401b2b7475d5542a409dd7f8eb56f3",
+        "size_bytes": 17534,
         "command_block_count": 18
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "40410a2d0f0ca37c899c85d3ed056c64def84d65e1fee0f9fb31e06ce0628300",
+        "sha256": "867e92536871ed6939f1fd2a146be01384709d5e0ced373c308569234254bc62",
         "size_bytes": 7773,
         "decision_id": "decision_20260629_audit_inventory_gate_v1",
         "round_id": "round_20260629_audit_inventory_gate_v1",
@@ -39,11 +39,11 @@
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "909d1fc2aeaaa718e5c922b09fec9b673e821b4043bc57213e5b3343431605e0",
-        "size_bytes": 4826114,
+        "sha256": "7850996584fa9b1aa3c23aa09c5730f467c3921baa930b880f27b59dccb3aaea",
+        "size_bytes": 4853922,
         "decision_id": "decision_20260629_audit_inventory_gate_v1",
         "round_id": "round_20260629_audit_inventory_gate_v1",
-        "command_block_count": 1938
+        "command_block_count": 1949
       }
     },
     "command_count": 18,

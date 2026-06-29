@@ -6,20 +6,31 @@
   "decision_id": "decision_20260629_audit_inventory_gate_v1",
   "round_id": "round_20260629_audit_inventory_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T08:19:40.873568Z",
+  "generated_at": "2026-06-29T09:29:22.140087Z",
   "inventory_validation_status": "PASSED",
-  "audit_count": 1,
+  "audit_count": 2,
   "outcome_counts": {
     "ACCEPTED": 0,
     "ACCEPTED_WITH_LIMITATIONS": 0,
     "BLOCKED": 0,
-    "REWORK_REQUIRED": 1
+    "REWORK_REQUIRED": 2
   },
   "validated_paths": [
+    "project_state/audits/audit_20260629_rework_required_audit_inventory_gate.md",
     "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md"
   ],
   "audits_dir": "project_state/audits",
   "audits": [
+    {
+      "path": "project_state/audits/audit_20260629_rework_required_audit_inventory_gate.md",
+      "audit_id": "audit_20260629_rework_required_audit_inventory_gate",
+      "audited_decision_id": "decision_20260629_audit_inventory_gate_v1",
+      "audited_round_id": "round_20260629_audit_inventory_gate_v1",
+      "outcome": "REWORK_REQUIRED",
+      "mainline": "engineering_branch",
+      "validation_status": "PASSED",
+      "errors": []
+    },
     {
       "path": "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md",
       "audit_id": "audit_20260629_rework_required_clean_baseline_jobs_inventory_gate",

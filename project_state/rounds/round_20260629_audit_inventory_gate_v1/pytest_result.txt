@@ -4,7 +4,7 @@
   "decision_id": "decision_20260629_audit_inventory_gate_v1",
   "report_id": "codex_report_20260629_audit_inventory_gate_v1",
   "round_id": "round_20260629_audit_inventory_gate_v1",
-  "generated_at": "2026-06-29T08:15:02.186384Z",
+  "generated_at": "2026-06-29T09:24:48.002503Z",
   "status": "PASSED",
   "tests_ran": [
     "git diff --name-only",
@@ -46,35 +46,17 @@ F:/reverse-agent
 
 ===== COMMAND: git status --short =====
  M project_state/gates/command_plan.json
- M reverse_agent/project_gate.py
- M tests/test_project_gate.py
-?? project_state/gates/audit_inventory_result.json
-?? reverse_agent/project_audits.py
-?? tests/test_project_audits.py
+ M project_state/gates/preflight_result.json
+ D project_state/gates/round_baseline.json
 
 ===== EXIT: 0 =====
 
 ===== COMMAND: git diff --name-only =====
-project_state/codex_execution_report.md
-project_state/execution_report.md
-project_state/gates/codex_report_auto_summary.json
+project_state/gates/audit_inventory_result.json
 project_state/gates/command_plan.json
-project_state/gates/execute_decision_result.json
-project_state/gates/execution_log.json
-project_state/gates/execution_report_auto_summary.json
-project_state/gates/final_gate_result.json
-project_state/gates/gate_profile_plan.json
 project_state/gates/preflight_result.json
-project_state/gates/report_summary_synthesis.json
 project_state/gates/round_baseline.json
-project_state/gates/round_close_snapshot.json
-project_state/gates/round_delta_summary.json
-project_state/gates/run_closeout_execution_log.json
-project_state/gates/run_closeout_result.json
-project_state/gates/run_round_result.json
 project_state/pytest_result.txt
-reverse_agent/project_gate.py
-tests/test_project_gate.py
 
 ===== EXIT: 0 =====
 
@@ -97,7 +79,7 @@ tests/test_project_gate.py
 ........................................................................ [ 91%]
 ........................................................................ [ 97%]
 .................................                                        [100%]
-1257 passed in 270.16s (0:04:30)
+1257 passed in 272.55s (0:04:32)
 
 ===== EXIT: 0 =====
 
@@ -117,7 +99,7 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
   "decision_id": "decision_20260629_audit_inventory_gate_v1",
   "round_id": "round_20260629_audit_inventory_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T08:19:40.441793Z",
+  "generated_at": "2026-06-29T09:29:21.738347Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -411,7 +393,7 @@ audit-inventory: PASSED
 decision_id: decision_20260629_audit_inventory_gate_v1
 round_id: round_20260629_audit_inventory_gate_v1
 inventory_validation_status: PASSED
-audit_count: 1
+audit_count: 2
 artifact: project_state/gates/audit_inventory_result.json
 
 ===== EXIT: 0 =====
@@ -433,7 +415,7 @@ reason: self-invocation guard: run-round must not invoke itself recursively
 
 ===== COMMAND: python -m pytest tests/test_project_audits.py -q =====
 .........                                                                [100%]
-9 passed in 0.10s
+9 passed in 0.11s
 
 ===== EXIT: 0 =====
 
@@ -456,7 +438,7 @@ reason: self-invocation guard: run-round must not invoke itself recursively
 ........................................................................ [ 90%]
 ........................................................................ [ 96%]
 ..........................................                               [100%]
-1266 passed in 262.55s (0:04:22)
+1266 passed in 292.33s (0:04:52)
 
 ===== EXIT: 0 =====
 
@@ -480,7 +462,6 @@ final-check: PASSED
 decision_id: decision_20260629_audit_inventory_gate_v1
 report_id: codex_report_20260629_audit_inventory_gate_v1
 round_id: round_20260629_audit_inventory_gate_v1
-post_execute_decision_result_refresh: applied
 recommended_next_action: no_action_required
 ===== EXIT: 0 =====
 

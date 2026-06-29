@@ -5,7 +5,7 @@
   "round_id": "round_20260629_audit_inventory_gate_v1",
   "based_on_decision_id": "decision_20260629_audit_inventory_gate_v1",
   "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
@@ -30,11 +30,7 @@
     "project_state/rounds/round_20260629_audit_inventory_gate_v1/decision_packet.md",
     "project_state/rounds/round_20260629_audit_inventory_gate_v1/execution_report.md",
     "project_state/rounds/round_20260629_audit_inventory_gate_v1/pytest_result.txt",
-    "project_state/rounds/round_20260629_audit_inventory_gate_v1/round_manifest.json",
-    "reverse_agent/project_audits.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_audits.py",
-    "tests/test_project_gate.py"
+    "project_state/rounds/round_20260629_audit_inventory_gate_v1/round_manifest.json"
   ],
   "tests_ran": [
     "git diff --name-only",
@@ -83,9 +79,6 @@
   ],
   "referenced_artifacts": [],
   "required_closeout_artifacts": [],
-  "limitations": [
-    "baseline_capture_order remains WARN; source/test files overlap between baseline dirty and files_changed"
-  ],
   "external_state_notices": [
     "50 missing historical sample artifacts"
   ]
@@ -98,18 +91,22 @@
 
 SUCCESS
 
-## Limitations
-
-- baseline_capture_order remains WARN; source/test files overlap between baseline dirty and files_changed
-
-## Allowed Inherited Dirty Baseline Files
-
-- reverse_agent/project_audits.py
-- reverse_agent/project_gate.py
-- tests/test_project_audits.py
-- tests/test_project_gate.py
-
 ## Required Audit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

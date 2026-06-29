@@ -3,33 +3,23 @@
   "artifact_name": "round_baseline.json",
   "decision_id": "decision_20260629_audit_inventory_gate_v1",
   "round_id": "round_20260629_audit_inventory_gate_v1",
-  "head_commit": "df0d17d20de1",
+  "head_commit": "1662d5ad4ce4",
   "baseline_git_status_short": [
     " M project_state/gates/command_plan.json",
-    " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py",
-    "?? project_state/gates/audit_inventory_result.json",
-    "?? reverse_agent/project_audits.py",
-    "?? tests/test_project_audits.py"
+    " M project_state/gates/preflight_result.json",
+    " D project_state/gates/round_baseline.json"
   ],
   "baseline_git_diff_name_only": [
     "project_state/gates/command_plan.json",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json"
   ],
   "baseline_dirty_files": [
-    "project_state/gates/audit_inventory_result.json",
     "project_state/gates/command_plan.json",
-    "reverse_agent/project_audits.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_audits.py",
-    "tests/test_project_gate.py"
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json"
   ],
-  "baseline_untracked_files": [
-    "project_state/gates/audit_inventory_result.json",
-    "reverse_agent/project_audits.py",
-    "tests/test_project_audits.py"
-  ],
-  "baseline_has_untracked_implementation_files": true,
-  "generated_at": "2026-06-29T07:53:02.428716Z"
+  "baseline_untracked_files": [],
+  "baseline_has_untracked_implementation_files": false,
+  "generated_at": "2026-06-29T09:24:21.231529Z"
 }

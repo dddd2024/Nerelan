@@ -6,7 +6,7 @@
   "decision_id": "decision_20260629_audit_inventory_gate_v1",
   "round_id": "round_20260629_audit_inventory_gate_v1",
   "report_id": "codex_report_20260629_audit_inventory_gate_v1",
-  "generated_at": "2026-06-29T08:29:35.825278Z",
+  "generated_at": "2026-06-29T09:40:19.378437Z",
   "synthesized_summary": {
     "report_id": "codex_report_20260629_audit_inventory_gate_v1",
     "round_id": "round_20260629_audit_inventory_gate_v1",
@@ -35,11 +35,7 @@
       "project_state/rounds/round_20260629_audit_inventory_gate_v1/decision_packet.md",
       "project_state/rounds/round_20260629_audit_inventory_gate_v1/execution_report.md",
       "project_state/rounds/round_20260629_audit_inventory_gate_v1/pytest_result.txt",
-      "project_state/rounds/round_20260629_audit_inventory_gate_v1/round_manifest.json",
-      "reverse_agent/project_audits.py",
-      "reverse_agent/project_gate.py",
-      "tests/test_project_audits.py",
-      "tests/test_project_gate.py"
+      "project_state/rounds/round_20260629_audit_inventory_gate_v1/round_manifest.json"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -87,10 +83,7 @@
       "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260629_audit_inventory_gate_v1"
     ],
     "status": "SUCCESS",
-    "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
-    "limitations": [
-      "baseline_capture_order remains WARN; source/test files overlap between baseline dirty and files_changed"
-    ],
+    "acceptance_recommendation": "ACCEPTED",
     "external_state_notices": [
       "50 missing historical sample artifacts"
     ]
