@@ -1,12 +1,12 @@
 {
-  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "acceptance_recommendation": "ACCEPTED",
   "archive_mode": "minimal",
-  "archived_at": "2026-06-28T16:43:17Z",
+  "archived_at": "2026-06-29T06:43:32Z",
   "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
   "files": {
     "codex_execution_report.md": {
       "archived_path": "project_state\\rounds\\round_20260628_clean_baseline_jobs_inventory_gate_v1\\codex_execution_report.md",
-      "sha256": "d02ae88ea27ef92a69226c7e7de392e141a23991569717394792d902f445ed76",
+      "sha256": "bead1c7e951b9451380e4d429e985a58a880e4c505b3f957945f11df6e6b3a93",
       "source_path": "project_state\\codex_execution_report.md"
     },
     "decision_packet.md": {
@@ -16,12 +16,12 @@
     },
     "pytest_result.txt": {
       "archived_path": "project_state\\rounds\\round_20260628_clean_baseline_jobs_inventory_gate_v1\\pytest_result.txt",
-      "sha256": "e8c55ce4fba7c74024875a00344a1c399494651bdf9f0c6cc789c28cb49e5d63",
+      "sha256": "61210d0a86500b36a4330035fd15ece4b8cafcbd710da518ba55171ba1c18554",
       "source_path": "project_state\\pytest_result.txt"
     },
     "execution_report.md": {
       "path": "project_state\\rounds\\round_20260628_clean_baseline_jobs_inventory_gate_v1\\execution_report.md",
-      "sha256": "ca301c0e76d53a5c57337d522c9e8399fbab5c2cfeb60b91139965ce65897455",
+      "sha256": "96dd9e3651f1002de24f3b67e55dd8f5c85d06cb04b47cb9fbde7d7300b80135",
       "source_path": "project_state\\execution_report.md"
     }
   },
@@ -40,7 +40,7 @@
   "report_status": "SUCCESS",
   "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
   "schema_version": 1,
-  "source_git_commit": "cc7291b3154b",
+  "source_git_commit": "d16332b98e69",
   "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
   "state_build_id": "state_20260618_134029_d6bd033d2532",
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",

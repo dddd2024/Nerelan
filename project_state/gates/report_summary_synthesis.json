@@ -6,7 +6,7 @@
   "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
   "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
   "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
-  "generated_at": "2026-06-28T16:43:56.769634Z",
+  "generated_at": "2026-06-29T06:44:07.186835Z",
   "synthesized_summary": {
     "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
     "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
@@ -84,10 +84,7 @@
       "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1"
     ],
     "status": "SUCCESS",
-    "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
-    "limitations": [
-      "baseline_capture_order remains WARN; source/test files overlap between baseline dirty and files_changed"
-    ],
+    "acceptance_recommendation": "ACCEPTED",
     "external_state_notices": [
       "50 missing historical sample artifacts"
     ]

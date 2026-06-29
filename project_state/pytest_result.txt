@@ -4,7 +4,7 @@
   "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
   "report_id": "codex_report_20260628_clean_baseline_jobs_inventory_gate_v1",
   "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
-  "generated_at": "2026-06-28T16:22:12.344809Z",
+  "generated_at": "2026-06-29T06:31:48.451379Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
@@ -44,11 +44,7 @@ F:/reverse-agent
 ===== EXIT: 0 =====
 
 ===== COMMAND: git status --short =====
- M project_state/gates/command_plan.json
- M project_state/pytest_result.txt
- M reverse_agent/project_gate.py
- M tests/test_project_gate.py
-?? project_state/gates/jobs_inventory_result.json
+ D project_state/gates/round_baseline.json
 
 ===== EXIT: 0 =====
 
@@ -65,13 +61,13 @@ F:/reverse-agent
 ........................................................................ [ 57%]
 ........................................................................ [ 63%]
 ........................................................................ [ 69%]
-........................................................................ [ 75%]
+........................................................................ [ 74%]
 ........................................................................ [ 80%]
 ........................................................................ [ 86%]
 ........................................................................ [ 92%]
-........................................................................ [ 98%]
-........................                                                 [100%]
-1248 passed in 252.57s (0:04:12)
+........................................................................ [ 97%]
+..........................                                               [100%]
+1250 passed in 229.99s (0:03:49)
 
 ===== EXIT: 0 =====
 
@@ -91,7 +87,7 @@ recommended_next_action: python -m reverse_agent.project_gate run-closeout --sta
   "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
   "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-28T16:26:25.475921Z",
+  "generated_at": "2026-06-29T06:35:46.120927Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -395,7 +391,7 @@ reason: self-invocation guard: run-round must not invoke itself recursively
 
 ===== COMMAND: python -m pytest tests/test_project_jobs.py -q =====
 ...................                                                      [100%]
-19 passed in 0.14s
+19 passed in 0.13s
 
 ===== EXIT: 0 =====
 
@@ -417,8 +413,8 @@ reason: self-invocation guard: run-round must not invoke itself recursively
 ........................................................................ [ 85%]
 ........................................................................ [ 90%]
 ........................................................................ [ 96%]
-...........................................                              [100%]
-1267 passed in 249.91s (0:04:09)
+.............................................                            [100%]
+1269 passed in 225.51s (0:03:45)
 
 ===== EXIT: 0 =====
 
@@ -429,20 +425,19 @@ round_id: round_20260628_clean_baseline_jobs_inventory_gate_v1
 recommended_next_action: no_action_required
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
-decision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1
-report_id: codex_report_20260628_clean_baseline_jobs_inventory_gate_v1
-round_id: round_20260628_clean_baseline_jobs_inventory_gate_v1
-post_execute_decision_result_refresh: applied
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
-
 ===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260628_clean_baseline_jobs_inventory_gate_v1 =====
 run-closeout: PASSED
 decision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1
 round_id: round_20260628_clean_baseline_jobs_inventory_gate_v1
 artifact: project_state/gates/run_closeout_result.json
+recommended_next_action: no_action_required
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
+final-check: PASSED
+decision_id: decision_20260628_clean_baseline_jobs_inventory_gate_v1
+report_id: codex_report_20260628_clean_baseline_jobs_inventory_gate_v1
+round_id: round_20260628_clean_baseline_jobs_inventory_gate_v1
 recommended_next_action: no_action_required
 ===== EXIT: 0 =====
 

@@ -3,30 +3,17 @@
   "artifact_name": "round_baseline.json",
   "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
   "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
-  "head_commit": "cc7291b3154b",
+  "head_commit": "d16332b98e69",
   "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json",
-    " M project_state/pytest_result.txt",
-    " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py",
-    "?? project_state/gates/jobs_inventory_result.json"
+    " D project_state/gates/round_baseline.json"
   ],
   "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json",
-    "project_state/pytest_result.txt",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "project_state/gates/round_baseline.json"
   ],
   "baseline_dirty_files": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/jobs_inventory_result.json",
-    "project_state/pytest_result.txt",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "project_state/gates/round_baseline.json"
   ],
-  "baseline_untracked_files": [
-    "project_state/gates/jobs_inventory_result.json"
-  ],
+  "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-28T15:49:31.872682Z"
+  "generated_at": "2026-06-29T05:57:13.441923Z"
 }

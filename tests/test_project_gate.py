@@ -1403,6 +1403,66 @@ def test_refresh_report_writes_neutral_execution_report_alias(
     assert "# EXECUTION_REPORT" in neutral_text
 
 
+def test_report_summary_synthesis_matches_refresh_for_deleted_archive_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    archive_paths = _archive_paths("round_gate")
+    shutil.rmtree(state_dir / "rounds" / "round_gate")
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_changed_files",
+        lambda _repo_root: list(archive_paths),
+    )
+
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+    )
+
+    summary = _read_execution_report_summary(state_dir)
+    assert set(archive_paths).issubset(set(summary["files_changed"]))
+    assert set(archive_paths).issubset(set(summary["generated_artifacts"]))
+
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+    synthesized = synthesis["synthesized_summary"]
+    assert set(archive_paths).issubset(set(synthesized["generated_artifacts"]))
+    assert not any(diff["field"] == "generated_artifacts" for diff in synthesis["diffs"])
+
+
+def test_report_summary_synthesis_files_changed_includes_current_wrapper_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    monkeypatch.setattr("reverse_agent.project_gate._git_changed_files", lambda _repo_root: [])
+    _write_json(state_dir / "gates" / "execute_decision_result.json", {
+        "schema_version": 1,
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "generated_artifacts": ["project_state/gates/run_round_result.json"],
+    })
+    _write_json(state_dir / "gates" / "run_round_result.json", {
+        "schema_version": 1,
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+    })
+
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+
+    files_changed = set(synthesis["synthesized_summary"]["files_changed"])
+    assert "project_state/gates/execute_decision_result.json" in files_changed
+    assert "project_state/gates/run_round_result.json" in files_changed
+
+
 def test_final_check_uses_neutral_report_summary_wording(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

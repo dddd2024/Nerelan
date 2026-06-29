@@ -7479,15 +7479,19 @@ def build_report_summary_synthesis(
     # archive).  This matches _refresh_codex_report_for_closeout which adds
     # archive paths when closeout_allowed is True.  When close-round is not
     # active, the archive doesn't exist yet and should not be expected.
-    elif closeout_allowed is True:
+    archive_pending_without_active_close_round = False
+    if closeout_allowed is True:
         _archive_dir = state_dir / "rounds" / round_id
-        if not _archive_dir.exists() and not active_close_round:
-            archive_paths = set()
+        archive_pending_without_active_close_round = (
+            not _archive_dir.exists() and not active_close_round
+        )
     round_delta_files = _string_set(
         delta_summary.get("new_dirty_files_since_baseline")
         if delta_summary.get("baseline_available")
         else delta_summary.get("final_dirty_files")
     )
+    if archive_pending_without_active_close_round and not (archive_paths & round_delta_files):
+        archive_paths = set()
     lifecycle_checks = _baseline_lifecycle_checks(
         delta_summary=delta_summary,
         decision_text=decision_text,
@@ -7597,6 +7601,8 @@ def build_report_summary_synthesis(
         | ({REPORT_AUTO_SUMMARY_OUTPUT_PATH} if (state_dir / "gates" / REPORT_AUTO_SUMMARY_RESULT_NAME).exists() else set())
         | ({NEUTRAL_REPORT_AUTO_SUMMARY_OUTPUT_PATH} if (state_dir / "gates" / NEUTRAL_REPORT_AUTO_SUMMARY_RESULT_NAME).exists() else set())
         | ({ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH} if include_close_snapshot else set())
+        | ({RUN_ROUND_OUTPUT_PATH} if run_round_matches_current else set())
+        | ({EXECUTE_DECISION_OUTPUT_PATH} if execute_decision_matches_current else set())
     )
     generated_artifact_set = {
         LEGACY_EXECUTION_REPORT_PATH,

@@ -6,7 +6,7 @@
   "decision_id": "decision_20260628_clean_baseline_jobs_inventory_gate_v1",
   "round_id": "round_20260628_clean_baseline_jobs_inventory_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-28T16:26:25.792771Z",
+  "generated_at": "2026-06-29T06:35:46.430841Z",
   "inventory_validation_status": "PASSED",
   "job_count": 1,
   "status_counts": {
