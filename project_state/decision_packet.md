@@ -4,7 +4,7 @@
   "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
   "round_id": "round_20260630_required_audit_alignment_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
-  "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
