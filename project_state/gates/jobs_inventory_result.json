@@ -3,10 +3,10 @@
   "artifact_name": "jobs_inventory_result.json",
   "gate_name": "jobs-inventory",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-  "round_id": "round_20260630_hygiene_handoff_rework_v1",
+  "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+  "round_id": "round_20260630_required_audit_alignment_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-30T12:46:57.033641Z",
+  "generated_at": "2026-06-30T14:27:50.278168Z",
   "inventory_validation_status": "PASSED",
   "job_count": 5,
   "status_counts": {

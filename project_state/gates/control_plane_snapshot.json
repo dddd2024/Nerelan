@@ -3,32 +3,32 @@
   "artifact_name": "control_plane_snapshot.json",
   "gate_name": "control-plane-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-  "round_id": "round_20260630_hygiene_handoff_rework_v1",
+  "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+  "round_id": "round_20260630_required_audit_alignment_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-30T12:46:57.052455Z",
+  "generated_at": "2026-06-30T14:27:50.300194Z",
   "artifact_path": "project_state/gates/control_plane_snapshot.json",
   "snapshot_mode": "current_state",
   "active_decision": {
-    "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-    "round_id": "round_20260630_hygiene_handoff_rework_v1",
+    "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+    "round_id": "round_20260630_required_audit_alignment_rework_v1",
     "status": "APPROVED",
     "mainline": "engineering_branch",
     "skill_profiles": [
       "reverse-agent-iteration@v2"
     ],
-    "consumed_by_matching_report": true,
+    "consumed_by_matching_report": false,
     "task_contract_path": "project_state/decision_packet.md"
   },
   "execution_status": {
     "snapshot_mode": "current_state",
     "final_state_complete": false,
     "report_id": "codex_report_20260630_hygiene_handoff_rework_v1",
-    "expected_report_id": "codex_report_20260630_hygiene_handoff_rework_v1",
-    "report_status": "FAILED",
-    "acceptance_recommendation": "REWORK_REQUIRED",
+    "expected_report_id": "codex_report_20260630_required_audit_alignment_rework_v1",
+    "report_status": "SUCCESS",
+    "acceptance_recommendation": "ACCEPTED",
     "pytest_status": "PASSED",
-    "final_gate_status": "FAILED",
+    "final_gate_status": "PASSED",
     "closeout_status": "IN_PROGRESS",
     "close_round_status": "MISSING",
     "command_plan_status": "PASSED",
@@ -36,7 +36,14 @@
     "warnings": [
       "audit inventory is historical_nonblocking"
     ],
-    "blocking_reasons": []
+    "blocking_reasons": [
+      "report round_id mismatch",
+      "report report_id mismatch",
+      "report based_on_decision_id mismatch",
+      "final_gate decision_id mismatch",
+      "final_gate round_id mismatch",
+      "final_gate report_id mismatch"
+    ]
   },
   "inventory_status": {
     "audit_inventory": {
@@ -63,8 +70,8 @@
       "status": "PASSED",
       "is_current": true,
       "nonblocking": false,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_name": "jobs-inventory",
       "gate_status": "PASSED",
       "inventory_validation_status": "PASSED",
@@ -84,13 +91,13 @@
       "status": "PASSED",
       "is_current": true,
       "nonblocking": false,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_name": "job-orchestration",
       "gate_status": "PASSED",
-      "job_id": "job_20260630_hygiene_handoff_rework_v1",
+      "job_id": "job_20260630_required_audit_alignment_rework_v1",
       "job_status": "DRAFT",
-      "job_artifact_path": "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+      "job_artifact_path": "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
       "dispatch_enabled": false,
       "dispatch_safety_status": "PASSED"
     },
@@ -98,27 +105,27 @@
       "status": "PASSED",
       "is_current": true,
       "nonblocking": false,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_name": "runner-contract",
       "gate_status": "PASSED",
-      "contract_id": "runner_contract_20260630_hygiene_handoff_rework_v1",
+      "contract_id": "runner_contract_20260630_required_audit_alignment_rework_v1",
       "contract_validation_status": "PASSED",
       "dispatch_enabled": false,
       "executable": false,
-      "allowed_command_count": 22,
+      "allowed_command_count": 24,
       "forbidden_command_count": 0
     },
     "agent_runner_dry_run": {
       "status": "PASSED",
       "is_current": true,
       "nonblocking": false,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_name": "agent-runner-dry-run",
       "gate_status": "PASSED",
       "dry_run_status": "PASSED",
-      "planned_command_count": 22,
+      "planned_command_count": 24,
       "forbidden_command_count": 0,
       "omitted_command_count": 0,
       "commands_executed": false,
@@ -131,8 +138,8 @@
       "status": "PASSED",
       "is_current": true,
       "nonblocking": false,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_name": "agent-runner-handoff-bundle",
       "gate_status": "PASSED",
       "handoff_status": "PASSED",
@@ -147,8 +154,8 @@
       "status": "PASSED",
       "is_current": true,
       "nonblocking": false,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_name": "agent-runner-handoff-validate",
       "gate_status": "PASSED",
       "validation_status": "PASSED",
@@ -174,7 +181,7 @@
       "REWORK_REQUIRED": 0,
       "RUNNING": 0
     },
-    "current_job_id": "job_20260630_hygiene_handoff_rework_v1",
+    "current_job_id": "job_20260630_required_audit_alignment_rework_v1",
     "current_job_status": "DRAFT",
     "ready_or_running_job_count": 0,
     "dispatch_safety_status": "PASSED"
@@ -205,9 +212,16 @@
     "snapshot_role": "read_only_status_output"
   },
   "ui_summary": {
-    "headline": "Control plane snapshot ready with warnings",
-    "next_action": "review_warnings_before_dispatch",
-    "blocking_reasons": [],
+    "headline": "Control plane has blocking state",
+    "next_action": "resolve_blocking_reasons_before_dispatch",
+    "blocking_reasons": [
+      "report round_id mismatch",
+      "report report_id mismatch",
+      "report based_on_decision_id mismatch",
+      "final_gate decision_id mismatch",
+      "final_gate round_id mismatch",
+      "final_gate report_id mismatch"
+    ],
     "warnings": [
       "audit inventory is historical_nonblocking"
     ]

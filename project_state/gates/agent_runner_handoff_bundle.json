@@ -5,64 +5,64 @@
   "gate_name": "agent-runner-handoff-bundle",
   "gate_status": "PASSED",
   "handoff_status": "PASSED",
-  "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-  "round_id": "round_20260630_hygiene_handoff_rework_v1",
+  "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+  "round_id": "round_20260630_required_audit_alignment_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-30T12:46:57.046827Z",
+  "generated_at": "2026-06-30T14:27:50.293673Z",
   "repo_root": "F:/reverse-agent",
   "sealed_inputs": {
     "decision_packet": {
       "path": "project_state/decision_packet.md",
       "exists": true,
-      "sha256": "a966db61a85b231e144acc1a13dc6e80e2142feec281b956df13087c21884646",
-      "size_bytes": 27690,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "sha256": "135eab86d500b38e5672a41f034ba7b94a68d9d81743773524524e2ac02a5a5d",
+      "size_bytes": 28451,
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_status": "APPROVED"
     },
     "job_artifact": {
-      "path": "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+      "path": "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
       "exists": true,
-      "sha256": "c120c9fba6c616f1f7c8bcf10e6be53b36fa515c8e1afff64c1b8dee45642482",
-      "size_bytes": 1467,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "sha256": "a1a07f909520220e4840b7f2acf39b5f954bdab8e28a0b6afc46ae2072c8a1d8",
+      "size_bytes": 1503,
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_status": "DRAFT"
     },
     "command_plan": {
       "path": "project_state/gates/command_plan.json",
       "exists": true,
-      "sha256": "35209fac848f6523c95c94a3e37b28113994a76e91b734bd32702009b530e915",
-      "size_bytes": 9695,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "sha256": "1c9ec898d2ef4fc60357eae79ba5dd6f262b0d32cf1d220ce448faa3e6e52fc9",
+      "size_bytes": 10509,
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_status": "PASSED"
     },
     "runner_contract": {
       "path": "project_state/gates/runner_contract_result.json",
       "exists": true,
-      "sha256": "82a6e4f6886420a5ea8f9c861dd60524e5ea30ac5d63a945c07503ca2fde11a1",
-      "size_bytes": 7930,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "sha256": "91fd77cff5f53d71ce036478f8c271f3a9b15577612431617cf8a860c5289430",
+      "size_bytes": 8532,
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_status": "PASSED"
     },
     "agent_runner_dry_run": {
       "path": "project_state/gates/agent_runner_dry_run_result.json",
       "exists": true,
-      "sha256": "1efba3da4613b7dae51817d73f284d631df3407ecd30b9d4528add22228f2843",
-      "size_bytes": 10772,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "sha256": "b2aea4bf7413919bd42b49cbacc23ee4a34dc8c017947f061f2817e9416bd882",
+      "size_bytes": 11610,
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_status": "PASSED"
     },
     "control_plane_snapshot": {
       "path": "project_state/gates/control_plane_snapshot.json",
       "exists": true,
-      "sha256": "ee3819938cb1a89920e5f90a45916e55394719026fda333024fa23d284c2b3fe",
-      "size_bytes": 8032,
-      "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "round_id": "round_20260630_hygiene_handoff_rework_v1",
+      "sha256": "c9d532883dd79802e10e766b9c146ed3d7071130b514d5cc5db62bfe2329ed36",
+      "size_bytes": 9129,
+      "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "round_id": "round_20260630_required_audit_alignment_rework_v1",
       "gate_status": "PASSED"
     }
   },
@@ -150,7 +150,7 @@
         "index": 7,
         "kind": "preflight",
         "phase": "preflight",
-        "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+        "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "expected_exit_codes": [
           0
         ],
@@ -182,7 +182,7 @@
         "index": 10,
         "kind": "pytest",
         "phase": "test",
-        "command": "python -m pytest tests/test_project_gate.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_state.py -q",
+        "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "expected_exit_codes": [
           0
         ],
@@ -190,9 +190,9 @@
       },
       {
         "index": 11,
-        "kind": "command-plan",
-        "phase": "gate",
-        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "kind": "pytest",
+        "phase": "test",
+        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_state.py -q",
         "expected_exit_codes": [
           0
         ],
@@ -202,7 +202,7 @@
         "index": 12,
         "kind": "command-plan",
         "phase": "gate",
-        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "expected_exit_codes": [
           0
         ],
@@ -210,6 +210,26 @@
       },
       {
         "index": 13,
+        "kind": "command-plan",
+        "phase": "gate",
+        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "expected_exit_codes": [
+          0
+        ],
+        "required": true
+      },
+      {
+        "index": 14,
+        "kind": "preflight",
+        "phase": "preflight",
+        "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+        "expected_exit_codes": [
+          0
+        ],
+        "required": true
+      },
+      {
+        "index": 15,
         "kind": "jobs-inventory",
         "phase": "gate",
         "command": "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
@@ -219,7 +239,7 @@
         "required": true
       },
       {
-        "index": 14,
+        "index": 16,
         "kind": "job-orchestration",
         "phase": "gate",
         "command": "python -m reverse_agent.project_gate job-orchestration --state-dir project_state",
@@ -229,7 +249,7 @@
         "required": true
       },
       {
-        "index": 15,
+        "index": 17,
         "kind": "runner-contract",
         "phase": "gate",
         "command": "python -m reverse_agent.project_gate runner-contract --state-dir project_state",
@@ -239,7 +259,7 @@
         "required": true
       },
       {
-        "index": 16,
+        "index": 18,
         "kind": "agent-runner-dry-run",
         "phase": "gate",
         "command": "python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state",
@@ -249,7 +269,7 @@
         "required": true
       },
       {
-        "index": 17,
+        "index": 19,
         "kind": "agent-runner-handoff-bundle",
         "phase": "gate",
         "command": "python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state",
@@ -259,7 +279,7 @@
         "required": true
       },
       {
-        "index": 18,
+        "index": 20,
         "kind": "agent-runner-handoff-validate",
         "phase": "gate",
         "command": "python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state",
@@ -269,7 +289,7 @@
         "required": true
       },
       {
-        "index": 19,
+        "index": 21,
         "kind": "control-plane-snapshot",
         "phase": "gate",
         "command": "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
@@ -280,17 +300,17 @@
         "required": true
       },
       {
-        "index": 20,
+        "index": 22,
         "kind": "execute-decision",
         "phase": "gate",
-        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1 --mode execute",
+        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_required_audit_alignment_rework_v1 --mode execute",
         "expected_exit_codes": [
           0
         ],
         "required": true
       },
       {
-        "index": 21,
+        "index": 23,
         "kind": "execution-log",
         "phase": "gate",
         "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
@@ -301,10 +321,10 @@
         "required": true
       },
       {
-        "index": 22,
+        "index": 24,
         "kind": "run-closeout",
         "phase": "gate",
-        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1",
+        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_required_audit_alignment_rework_v1",
         "expected_exit_codes": [
           0
         ],
@@ -318,12 +338,14 @@
       "git rev-parse --show-toplevel",
       "git status --short",
       "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m pytest tests/test_project_gate.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_state.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
       "python -m reverse_agent.project_gate job-orchestration --state-dir project_state",
       "python -m reverse_agent.project_gate runner-contract --state-dir project_state",
@@ -331,9 +353,9 @@
       "python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state",
       "python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state",
       "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
-      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1 --mode execute",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_required_audit_alignment_rework_v1 --mode execute",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_required_audit_alignment_rework_v1"
     ],
     "dry_run_command_texts": [
       "Set-Location F:\\reverse-agent",
@@ -342,12 +364,14 @@
       "git rev-parse --show-toplevel",
       "git status --short",
       "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m pytest tests/test_project_gate.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_state.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
       "python -m reverse_agent.project_gate job-orchestration --state-dir project_state",
       "python -m reverse_agent.project_gate runner-contract --state-dir project_state",
@@ -355,9 +379,9 @@
       "python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state",
       "python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state",
       "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
-      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1 --mode execute",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_required_audit_alignment_rework_v1 --mode execute",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_required_audit_alignment_rework_v1"
     ],
     "forbidden_commands": [],
     "omitted_commands": []
@@ -369,7 +393,7 @@
       "project_state/gates/control_plane_snapshot.json",
       "project_state/gates/job_orchestration_result.json",
       "project_state/gates/runner_contract_result.json",
-      "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+      "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
       "project_state/pytest_result.txt"
     ],
     "generated_artifacts": [
@@ -389,6 +413,6 @@
   ],
   "seal": {
     "algorithm": "sha256-canonical-json",
-    "bundle_fingerprint": "654867b3f3b2a7f740f2fbb8be3743156df43666d6c4a559c91afbea98117d35"
+    "bundle_fingerprint": "4f3be874fefbe856af3cffdc09a8b657fc4650e3cdcfde113d888f35b0ff852b"
   }
 }

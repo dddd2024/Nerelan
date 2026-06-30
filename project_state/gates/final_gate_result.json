@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-  "report_id": "codex_report_20260630_hygiene_handoff_rework_v1",
-  "round_id": "round_20260630_hygiene_handoff_rework_v1",
-  "generated_at": "2026-06-30T12:50:46.724053Z",
+  "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+  "report_id": "codex_report_20260630_required_audit_alignment_rework_v1",
+  "round_id": "round_20260630_required_audit_alignment_rework_v1",
+  "generated_at": "2026-06-30T14:36:06.721555Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -64,7 +64,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260630_hygiene_handoff_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260630_required_audit_alignment_rework_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -121,16 +121,15 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/runner_contract_result.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+        "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -156,16 +155,15 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/runner_contract_result.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+        "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ]
     },
     {
@@ -203,16 +201,15 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/runner_contract_result.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+        "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -238,16 +235,15 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/runner_contract_result.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+        "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "inherited_dirty_files": []
     },
@@ -256,9 +252,9 @@
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
-        "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+        "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "claimed_source_test_paths": []
     },
@@ -281,17 +277,12 @@
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "allowed_inherited_dirty_files": [
-        "reverse_agent/project_agent_runner.py",
-        "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "tests/test_project_agent_runner.py",
-        "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_reports.py",
-        "tests/test_project_state.py"
+        "tests/test_project_reports.py"
       ],
       "generated_or_archive_baseline_dirty_files": [],
       "close_worktree_clean": false,
@@ -303,14 +294,9 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
-        "reverse_agent/project_agent_runner.py",
-        "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "tests/test_project_agent_runner.py",
-        "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_reports.py",
-        "tests/test_project_state.py"
+        "tests/test_project_reports.py"
       ],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
@@ -477,17 +463,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "closeout_log_round_id": "round_20260630_hygiene_handoff_rework_v1",
-      "expected_decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "expected_round_id": "round_20260630_hygiene_handoff_rework_v1"
+      "closeout_log_decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "closeout_log_round_id": "round_20260630_required_audit_alignment_rework_v1",
+      "expected_decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "expected_round_id": "round_20260630_required_audit_alignment_rework_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260630_hygiene_handoff_rework_v1",
-      "expected_report_id": "codex_report_20260630_hygiene_handoff_rework_v1"
+      "execution_log_report_id": "codex_report_20260630_required_audit_alignment_rework_v1",
+      "expected_report_id": "codex_report_20260630_required_audit_alignment_rework_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -513,8 +499,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "command_plan_round_id": "round_20260630_hygiene_handoff_rework_v1"
+      "command_plan_decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "command_plan_round_id": "round_20260630_required_audit_alignment_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -700,6 +686,10 @@
         {
           "path": "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
           "validation_status": "PASSED"
+        },
+        {
+          "path": "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
+          "validation_status": "PASSED"
         }
       ],
       "job_file_errors": []
@@ -745,9 +735,9 @@
       "artifact": "project_state/gates/job_orchestration_result.json",
       "errors": [],
       "gate_status": "PASSED",
-      "job_id": "job_20260630_hygiene_handoff_rework_v1",
+      "job_id": "job_20260630_required_audit_alignment_rework_v1",
       "job_status": "DRAFT",
-      "job_artifact_path": "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+      "job_artifact_path": "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
       "job_validation_status": "PASSED",
       "jobs_inventory_validation_status": "PASSED",
       "dispatch_safety_status": "PASSED"
@@ -760,12 +750,12 @@
       "artifact": "project_state/gates/runner_contract_result.json",
       "errors": [],
       "gate_status": "PASSED",
-      "contract_id": "runner_contract_20260630_hygiene_handoff_rework_v1",
+      "contract_id": "runner_contract_20260630_required_audit_alignment_rework_v1",
       "contract_validation_status": "PASSED",
-      "job_id": "job_20260630_hygiene_handoff_rework_v1",
+      "job_id": "job_20260630_required_audit_alignment_rework_v1",
       "dispatch_enabled": false,
       "executable": false,
-      "allowed_command_count": 22,
+      "allowed_command_count": 24,
       "forbidden_command_count": 0
     },
     {
@@ -777,7 +767,7 @@
       "errors": [],
       "gate_status": "PASSED",
       "dry_run_status": "PASSED",
-      "planned_command_count": 22,
+      "planned_command_count": 24,
       "forbidden_command_count": 0,
       "omitted_command_count": 0,
       "local_dry_run_readiness": true,
@@ -839,7 +829,14 @@
       "artifact": "project_state/gates/control_plane_snapshot.json",
       "errors": [],
       "gate_status": "PASSED",
-      "blocking_reasons": [],
+      "blocking_reasons": [
+        "report round_id mismatch",
+        "report report_id mismatch",
+        "report based_on_decision_id mismatch",
+        "final_gate decision_id mismatch",
+        "final_gate round_id mismatch",
+        "final_gate report_id mismatch"
+      ],
       "warnings": [
         "audit inventory is historical_nonblocking"
       ]
@@ -859,7 +856,7 @@
       "name": "artifact_role_taxonomy",
       "status": "PASS",
       "detail": "report summary separates generated, referenced, historical, and archived artifacts",
-      "required": true,
+      "required": false,
       "missing_fields": [],
       "generated_mismatch": [],
       "historical_overlap": [],
@@ -889,13 +886,13 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
+        "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/round_manifest.json"
       ],
       "historical_nonblocking_artifacts": [
         "project_state/gates/audit_inventory_result.json",
@@ -907,11 +904,11 @@
         "project_state/gates/state_hygiene_inventory.json"
       ],
       "archived_artifacts": [
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/round_manifest.json"
       ]
     },
     {
@@ -928,14 +925,14 @@
       "errors": [],
       "mode": "plan-validation",
       "transcript_parity_status": "NOT_APPLICABLE_PLAN_ONLY",
-      "command_count": 22
+      "command_count": 24
     },
     {
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-      "gate_profile_round_id": "round_20260630_hygiene_handoff_rework_v1"
+      "gate_profile_decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+      "gate_profile_round_id": "round_20260630_required_audit_alignment_rework_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -968,7 +965,7 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 30 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 31 Required Audit items with substantive aligned answers",
       "required_audit_items": [
         "Did the first five recorded commands exactly confirm `F:\\reverse-agent`, repository root, and `git status --short`?",
         "Was `startup-snapshot` the immediate sixth recorded command and the first project gate command?",
@@ -979,25 +976,26 @@
         "Does final-check block SUCCESS/ACCEPTED when preflight or any gate appears before startup-snapshot?",
         "Is decision metadata valid: APPROVED, engineering_branch, active `reverse-agent-iteration@v2`?",
         "Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?",
-        "Were the failed-round issues explicitly addressed rather than hidden by allowlist fields?",
+        "Did this round repair the previous Required Audit answer misalignment rather than only reporting generic pass status?",
         "Does report taxonomy include generated/updated, referenced, historical_nonblocking, and archived artifacts or equivalent fields?",
         "Are `phase1_completion_result.json`, `policy_impact_audit.json`, `policy_lint_result.json`, `state_hygiene_inventory.json`, `audit_inventory_result.json`, and `naming_migration_plan.json` excluded from generated/generated_or_updated unless actually regenerated in this round with current IDs?",
         "Does report-summary synthesis validate taxonomy and report no diffs?",
         "Does final-check detect stale/historical-only artifacts being placed in generated/current artifact lists?",
         "Does final-check or report-summary detect Required Audit placeholder/template/misaligned answers?",
         "Are Required Audit answers in `codex_execution_report.md` directly aligned with their question and evidence?",
-        "Is existing `agent_runner_dry_run_result.json` current, PASSED, non-executing, and non-dispatching?",
-        "Is existing handoff bundle evidence current, non-executing, and non-dispatching if regenerated this round?",
-        "Is existing handoff replay validation current and PASSED if regenerated this round?",
+        "Was `tests/test_project_reports.py` included in the focused pytest command recorded in `pytest_result.txt`?",
+        "Did focused pytest exit 0 and include report/alignment tests?",
+        "Are existing dry-run, handoff bundle, and replay validation artifacts still current, local, non-executing, and non-dispatching if regenerated this round?",
         "Did the rework avoid adding any new real runner, dispatch, external invocation, model API, Web/API/DB/queue/scheduler, GitHub Actions mutation, runtime probe, or reverse-solving capability?",
         "Did the implementation stay within allowed source/test files?",
         "Were preserve-only and forbidden files not modified?",
-        "Did required pytest commands exit 0, with pass counts recorded in `pytest_result.txt`?",
+        "Did required top-level commands exit with expected codes, with pass/fail counts recorded in `pytest_result.txt`?",
         "Did `report_summary_fields_match_synthesis` pass with no diffs?",
         "Did `execute_decision_contract` pass?",
         "Did `execution_log` provenance remain current-round aligned?",
         "Did `run-closeout` exit 0 with `closeout_status: PASSED` and close-round `CLOSED`?",
         "Did final-check pass after archive/closeout, not only before archive?",
+        "If any internal final-check command exits `1` while status is treated as PASSED, is the expected-exit and non-blocking semantics explicitly documented and validated?",
         "Did `closeout_nested_failures_absent` pass?",
         "Does `codex_report_summary` match `pytest_result.txt`, artifact taxonomy, generated/updated artifacts, changed files, decision ID, and round ID?"
       ],
@@ -1010,16 +1008,14 @@
       "status": "PASS",
       "detail": "policy impact coverage satisfied or no policy-sensitive changes",
       "policy_sensitive_files": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_gate.py"
       ],
       "impacted_domains": [
         "command_plan",
         "final_check",
         "policy_lint",
         "report_status_schema",
-        "report_summary",
-        "tests"
+        "report_summary"
       ],
       "missing_report_topics": []
     },
