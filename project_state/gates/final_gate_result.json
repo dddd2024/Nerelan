@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-  "report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1",
-  "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
-  "generated_at": "2026-06-30T05:15:03.929600Z",
+  "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+  "report_id": "codex_report_20260630_hygiene_and_handoff_bundle_v1",
+  "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+  "generated_at": "2026-06-30T10:01:12.864288Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -64,7 +64,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260630_local_runner_dry_run_foundation_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260630_hygiene_and_handoff_bundle_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -97,51 +97,52 @@
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
       "inherited_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ],
-      "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/codex_report_auto_summary.json",
-        "project_state/gates/control_plane_snapshot.json",
-        "project_state/gates/execute_decision_result.json",
+        "project_state/gates/command_plan.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
+      ],
+      "new_dirty_files_since_baseline": [
+        "project_state/gates/agent_runner_dry_run_result.json",
+        "project_state/gates/agent_runner_handoff_bundle.json",
+        "project_state/gates/agent_runner_handoff_validation.json",
+        "project_state/gates/control_plane_snapshot.json",
+        "project_state/gates/execute_decision_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/job_orchestration_result.json",
         "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_closeout_execution_log.json",
-        "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/execution_report.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/round_manifest.json",
+        "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/round_manifest.json",
         "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_runner_contract.py",
         "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_runner_contract.py"
+        "tests/test_project_gate.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/agent_runner_dry_run_result.json",
+        "project_state/gates/agent_runner_handoff_bundle.json",
+        "project_state/gates/agent_runner_handoff_validation.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
@@ -159,24 +160,21 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
+        "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/execution_report.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/round_manifest.json",
         "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_runner_contract.py",
         "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_runner_contract.py"
+        "tests/test_project_gate.py"
       ]
     },
     {
@@ -184,7 +182,19 @@
       "status": "PASS",
       "detail": "files_changed excludes inherited baseline dirty files",
       "inherited_dirty_files": [
-        "project_state/gates/command_plan.json"
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
       ]
     },
     {
@@ -196,6 +206,8 @@
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/agent_runner_dry_run_result.json",
+        "project_state/gates/agent_runner_handoff_bundle.json",
+        "project_state/gates/agent_runner_handoff_validation.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
@@ -213,66 +225,62 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
+        "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/execution_report.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/round_manifest.json",
         "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_runner_contract.py",
         "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_runner_contract.py"
+        "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/execution_report.md",
         "project_state/gates/agent_runner_dry_run_result.json",
-        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/agent_runner_handoff_bundle.json",
+        "project_state/gates/agent_runner_handoff_validation.json",
         "project_state/gates/control_plane_snapshot.json",
         "project_state/gates/execute_decision_result.json",
-        "project_state/gates/execution_log.json",
-        "project_state/gates/execution_report_auto_summary.json",
-        "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/job_orchestration_result.json",
         "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_closeout_execution_log.json",
-        "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/decision_packet.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/execution_report.md",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/round_manifest.json",
+        "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/round_manifest.json",
         "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_runner_contract.py",
         "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_runner_contract.py"
+        "tests/test_project_gate.py"
       ],
       "inherited_dirty_files": [
-        "project_state/gates/command_plan.json"
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
       ]
     },
     {
@@ -280,15 +288,13 @@
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
-        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
+        "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
         "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_runner_contract.py",
         "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_runner_contract.py"
+        "tests/test_project_gate.py"
       ],
       "claimed_source_test_paths": []
     },
@@ -313,26 +319,35 @@
         "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_runner_contract.py",
         "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_runner_contract.py"
+        "tests/test_project_gate.py"
       ],
       "allowed_inherited_dirty_files": [
         "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
         "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
-        "tests/test_project_runner_contract.py"
+        "tests/test_project_reports.py",
+        "tests/test_project_runner_contract.py",
+        "tests/test_project_state.py"
       ],
       "generated_or_archive_baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
+        "project_state/codex_execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
       ],
       "close_worktree_clean": false,
       "close_snapshot_available": true
@@ -342,7 +357,19 @@
       "status": "PASS",
       "detail": "no source/test inherited baseline explanation is required",
       "inherited_dirty_files": [
-        "project_state/gates/command_plan.json"
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
       ]
     },
     {
@@ -354,13 +381,13 @@
         "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
         "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
-        "tests/test_project_runner_contract.py"
+        "tests/test_project_reports.py",
+        "tests/test_project_runner_contract.py",
+        "tests/test_project_state.py"
       ],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
@@ -387,6 +414,8 @@
       "live_paths": [
         "project_state/codex_execution_report.md",
         "project_state/gates/agent_runner_dry_run_result.json",
+        "project_state/gates/agent_runner_handoff_bundle.json",
+        "project_state/gates/agent_runner_handoff_validation.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
@@ -406,7 +435,6 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
-        "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/gates/state_hygiene_inventory.json",
@@ -471,10 +499,44 @@
     {
       "name": "startup_baseline_consistency",
       "status": "PASS",
-      "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
-      "startup_source_test_dirty": [],
+      "detail": "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
+      "startup_source_test_dirty": [
+        "reverse_agent/project_agent_runner.py",
+        "reverse_agent/project_control_plane.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_agent_runner.py",
+        "tests/test_project_control_plane.py",
+        "tests/test_project_gate.py"
+      ],
       "baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
+      ],
+      "inherited_dirty_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
       ],
       "missing_from_baseline": []
     },
@@ -491,6 +553,8 @@
       "missing_artifacts": [],
       "existing_gate_artifacts": [
         "project_state/gates/agent_runner_dry_run_result.json",
+        "project_state/gates/agent_runner_handoff_bundle.json",
+        "project_state/gates/agent_runner_handoff_validation.json",
         "project_state/gates/audit_inventory_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
@@ -517,24 +581,30 @@
         "project_state/gates/state_hygiene_inventory.json"
       ],
       "referenced_artifacts": [
-        "project_state/gates/audit_inventory_result.json"
+        "project_state/gates/audit_inventory_result.json",
+        "project_state/gates/run_round_result.json"
+      ],
+      "historical_nonblocking_artifacts": [
+        "project_state/gates/audit_inventory_result.json",
+        "project_state/gates/naming_migration_plan.json",
+        "project_state/gates/run_round_result.json"
       ]
     },
     {
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-      "closeout_log_round_id": "round_20260630_local_runner_dry_run_foundation_v1",
-      "expected_decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-      "expected_round_id": "round_20260630_local_runner_dry_run_foundation_v1"
+      "closeout_log_decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "closeout_log_round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+      "expected_decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "expected_round_id": "round_20260630_hygiene_and_handoff_bundle_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1",
-      "expected_report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1"
+      "execution_log_report_id": "codex_report_20260630_hygiene_and_handoff_bundle_v1",
+      "expected_report_id": "codex_report_20260630_hygiene_and_handoff_bundle_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -542,7 +612,8 @@
       "detail": "no required closeout artifacts declared in decision",
       "required_closeout_artifacts": [],
       "referenced_artifacts": [
-        "project_state/gates/audit_inventory_result.json"
+        "project_state/gates/audit_inventory_result.json",
+        "project_state/gates/run_round_result.json"
       ],
       "uncovered_artifacts": []
     },
@@ -558,8 +629,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-      "command_plan_round_id": "round_20260630_local_runner_dry_run_foundation_v1"
+      "command_plan_decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "command_plan_round_id": "round_20260630_hygiene_and_handoff_bundle_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -650,6 +721,29 @@
       "detail": "report body prose is consistent with structured JSON summary"
     },
     {
+      "name": "startup_snapshot_immediate_after_startup_status",
+      "status": "PASS",
+      "detail": "startup-snapshot is recorded immediately after the five startup status commands",
+      "required": true,
+      "expected_first_six": [
+        "set-location",
+        "pwd",
+        "test-path",
+        "git rev-parse",
+        "git status",
+        "startup-snapshot"
+      ],
+      "actual_first_six": [
+        "set-location",
+        "pwd",
+        "test-path",
+        "git rev-parse",
+        "git status",
+        "startup-snapshot"
+      ],
+      "preflight_before_snapshot": []
+    },
+    {
       "name": "startup_snapshot_artifact",
       "status": "PASS",
       "detail": "startup snapshot is current and source/test clean",
@@ -668,10 +762,34 @@
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
       "startup_dirty_files": [
-        "project_state/gates/command_plan.json"
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
       ],
       "baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
       ]
     },
     {
@@ -716,6 +834,10 @@
           "validation_status": "PASSED"
         },
         {
+          "path": "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
+          "validation_status": "PASSED"
+        },
+        {
           "path": "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
           "validation_status": "PASSED"
         }
@@ -731,14 +853,14 @@
       "errors": [],
       "gate_status": "PASSED",
       "inventory_validation_status": "PASSED",
-      "job_count": 3,
+      "job_count": 4,
       "status_counts": {
         "ACCEPTED": 0,
         "ACCEPTED_WITH_LIMITATIONS": 0,
         "AUDITED": 0,
         "BLOCKED": 0,
         "DONE": 0,
-        "DRAFT": 3,
+        "DRAFT": 4,
         "FINAL_CHECKED": 0,
         "READY": 0,
         "REWORK_REQUIRED": 0,
@@ -747,6 +869,7 @@
       "validated_paths": [
         "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json",
         "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+        "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
         "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json"
       ],
       "duplicate_job_errors": [],
@@ -757,13 +880,13 @@
       "name": "job_orchestration_artifact",
       "status": "PASS",
       "detail": "job orchestration artifact is current, validated, and non-dispatching",
-      "required": true,
+      "required": false,
       "artifact": "project_state/gates/job_orchestration_result.json",
       "errors": [],
       "gate_status": "PASSED",
-      "job_id": "job_20260630_local_runner_dry_run_foundation_v1",
+      "job_id": "job_20260630_hygiene_and_handoff_bundle_v1",
       "job_status": "DRAFT",
-      "job_artifact_path": "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
+      "job_artifact_path": "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
       "job_validation_status": "PASSED",
       "jobs_inventory_validation_status": "PASSED",
       "dispatch_safety_status": "PASSED"
@@ -772,16 +895,16 @@
       "name": "runner_contract_artifact",
       "status": "PASS",
       "detail": "runner contract artifact is current, non-executable, and command-plan bounded",
-      "required": true,
+      "required": false,
       "artifact": "project_state/gates/runner_contract_result.json",
       "errors": [],
       "gate_status": "PASSED",
-      "contract_id": "runner_contract_20260630_local_runner_dry_run_foundation_v1",
+      "contract_id": "runner_contract_20260630_hygiene_and_handoff_bundle_v1",
       "contract_validation_status": "PASSED",
-      "job_id": "job_20260630_local_runner_dry_run_foundation_v1",
+      "job_id": "job_20260630_hygiene_and_handoff_bundle_v1",
       "dispatch_enabled": false,
       "executable": false,
-      "allowed_command_count": 21,
+      "allowed_command_count": 22,
       "forbidden_command_count": 0
     },
     {
@@ -793,11 +916,33 @@
       "errors": [],
       "gate_status": "PASSED",
       "dry_run_status": "PASSED",
-      "planned_command_count": 21,
+      "planned_command_count": 22,
       "forbidden_command_count": 0,
       "omitted_command_count": 0,
       "local_dry_run_readiness": true,
       "can_dispatch": false
+    },
+    {
+      "name": "agent_runner_handoff_bundle_artifact",
+      "status": "PASS",
+      "detail": "agent runner handoff bundle is sealed, current, and non-executing",
+      "required": true,
+      "artifact": "project_state/gates/agent_runner_handoff_bundle.json",
+      "errors": [],
+      "gate_status": "PASSED",
+      "handoff_status": "PASSED",
+      "handoff_bundle_ready": true,
+      "real_dispatch_readiness": false
+    },
+    {
+      "name": "agent_runner_handoff_validation_artifact",
+      "status": "PASS",
+      "detail": "agent runner handoff replay validation passed",
+      "required": true,
+      "artifact": "project_state/gates/agent_runner_handoff_validation.json",
+      "errors": [],
+      "gate_status": "PASSED",
+      "validation_status": "PASSED"
     },
     {
       "name": "audit_inventory_gate_artifact",
@@ -850,6 +995,64 @@
       "detail": "decision_contract has no required artifact/file constraints"
     },
     {
+      "name": "artifact_role_taxonomy",
+      "status": "PASS",
+      "detail": "report summary separates generated, referenced, historical, and archived artifacts",
+      "required": true,
+      "missing_fields": [],
+      "generated_mismatch": [],
+      "historical_overlap": [],
+      "generated_or_updated_artifacts": [
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/agent_runner_dry_run_result.json",
+        "project_state/gates/agent_runner_handoff_bundle.json",
+        "project_state/gates/agent_runner_handoff_validation.json",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/control_plane_snapshot.json",
+        "project_state/gates/execute_decision_result.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/job_orchestration_result.json",
+        "project_state/gates/jobs_inventory_result.json",
+        "project_state/gates/phase1_completion_result.json",
+        "project_state/gates/policy_impact_audit.json",
+        "project_state/gates/policy_lint_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/runner_contract_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/gates/state_hygiene_inventory.json",
+        "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/round_manifest.json"
+      ],
+      "historical_nonblocking_artifacts": [
+        "project_state/gates/audit_inventory_result.json",
+        "project_state/gates/naming_migration_plan.json",
+        "project_state/gates/run_round_result.json"
+      ],
+      "archived_artifacts": [
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/execution_report.md",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_hygiene_and_handoff_bundle_v1/round_manifest.json"
+      ]
+    },
+    {
       "name": "decision_contract_status_hardening",
       "status": "PASS",
       "detail": "decision_contract status hardening requirements satisfied"
@@ -863,14 +1066,14 @@
       "errors": [],
       "mode": "plan-validation",
       "transcript_parity_status": "NOT_APPLICABLE_PLAN_ONLY",
-      "command_count": 21
+      "command_count": 22
     },
     {
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-      "gate_profile_round_id": "round_20260630_local_runner_dry_run_foundation_v1"
+      "gate_profile_decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "gate_profile_round_id": "round_20260630_hygiene_and_handoff_bundle_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -903,39 +1106,40 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 31 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 32 Required Audit items with substantive aligned answers",
       "required_audit_items": [
-        "Did startup checks run first and confirm `F:\\reverse-agent` as repository root?",
-        "Was startup source/test baseline clean before implementation?",
+        "Did the first five recorded commands exactly confirm `F:\\reverse-agent`, repository root, and `git status --short`?",
+        "Was `startup-snapshot` the immediate sixth recorded command and the first project gate command?",
+        "Was `preflight` absent before startup-snapshot?",
+        "Did startup snapshot report `source_test_clean_start: true` before implementation?",
         "Is decision metadata valid: APPROVED, engineering_branch, active `reverse-agent-iteration@v2`?",
-        "Did Codex treat `decision_packet.md` as the only execution authority and treat `task_packet.json` as background only?",
-        "Was the narrower `decision_20260630_runner_contract_command_coverage_v1` treated as superseded rather than independently executed?",
-        "Were existing job/runner/control-plane/gate capabilities reused instead of reimplemented from scratch?",
-        "Was a local dry-run AgentRunner module or equivalent implementation added with no external runner invocation?",
-        "Does the dry-run consume decision metadata, job artifact, command-plan evidence, and runner contract evidence?",
-        "Does the dry-run artifact include current `decision_id` and `round_id`?",
-        "Does the dry-run artifact explicitly state that no commands were executed?",
-        "Does the dry-run artifact expose allowed commands, forbidden commands, omitted commands, allowed write paths, and blocked execution reasons?",
-        "Does runner contract validation fail when any required command-plan command is absent from `allowed_commands`?",
-        "Does runner contract validation fail when `allowed_commands` contains a command outside command-plan?",
-        "Does runner contract validation fail when omitted commands appear in `allowed_commands`?",
-        "Are omitted commands preserved as forbidden commands with enough reason/provenance for audit?",
-        "Does runner contract validation reject unrelated write paths such as source, tests, workflows, prompt docs, skills, solve_reports, absolute paths, parent traversal, URLs, or remote mutation paths?",
-        "Does job lifecycle validation remain backward-compatible with older job artifacts?",
-        "If a dry-run lifecycle state is introduced, is it local/evidence-only and non-executable?",
-        "Does `project_gate.py` expose an `agent-runner-dry-run` gate or equivalent current-round gate check?",
-        "Does final-check fail when `agent_runner_dry_run_result.json` is missing, stale, executable, dispatch-enabled, externally invoking, command-incomplete, or write-scope widened?",
-        "Does control-plane evidence distinguish dry-run readiness from real dispatch readiness?",
-        "Do all dispatch/executable/external invocation flags remain false?",
-        "Were forbidden files and preserve-only files not modified?",
+        "Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?",
+        "Were the two prior audit limitations explicitly fixed?",
+        "Did final-check fail or become capable of failing when startup-snapshot is delayed behind preflight or any other gate?",
+        "Did report summaries include artifact role taxonomy with generated/updated, referenced, historical_nonblocking, and archived artifacts or equivalent fields?",
+        "Are stale/historical-only gate artifacts excluded from current generated artifacts unless actually regenerated?",
+        "Does report-summary synthesis check the new artifact taxonomy and report no diffs?",
+        "Was the existing dry-run runner reused rather than replaced with an external runner?",
+        "Is `agent_runner_dry_run_result.json` current, PASSED, non-executing, and non-dispatching?",
+        "Was a handoff bundle artifact generated with current decision/round IDs?",
+        "Does the handoff bundle include stable fingerprints or digests for consumed inputs?",
+        "Does the handoff bundle include non-execution policy, dispatch prohibition, allowed commands, forbidden/omitted command evidence, allowed write paths, and readiness summary?",
+        "Was a replay validation artifact generated and did it pass?",
+        "Does replay validation fail closed on stale IDs, digest mismatch, missing input artifact, executable/dispatch flags, external invocation flags, unsafe write paths, or command-plan mismatch?",
+        "Does final-check block missing/stale/invalid handoff bundle or replay validation artifacts?",
+        "Does control-plane distinguish local_dry_run_ready, handoff_bundle_ready, handoff_replay_validated, and real_dispatch_readiness?",
+        "Are all dispatch/executable/external invocation/model/GitHub Actions/remote mutation flags false?",
+        "Did the implementation stay within allowed source/test files?",
+        "Were preserve-only and forbidden files not modified?",
         "Were full solve_reports scans, runtime probes, reverse-solving, Web/API/DB/queue/scheduler work, GitHub Actions mutation, and remote mutation avoided?",
         "Did required pytest commands exit 0, with pass counts recorded in `pytest_result.txt`?",
         "Did `report_summary_fields_match_synthesis` pass with no diffs?",
         "Did `execute_decision_contract` pass?",
-        "Did `execution_log` provenance remain non-derived-only and current-round aligned?",
-        "Did `run-closeout` exit 0 with `closeout_status: PASSED` and `close_round_result.close_status: CLOSED`?",
+        "Did `execution_log` provenance remain current-round aligned and non-derived-only where required?",
+        "Did `run-closeout` exit 0 with `closeout_status: PASSED` and close-round `CLOSED`?",
+        "Did final-check pass after archive/closeout, not only before archive?",
         "Did `closeout_nested_failures_absent` pass?",
-        "Does `codex_report_summary` match `pytest_result.txt`, generated artifacts, changed files, decision ID, and round ID?"
+        "Does `codex_report_summary` match `pytest_result.txt`, generated/updated artifacts, changed files, decision ID, and round ID?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],

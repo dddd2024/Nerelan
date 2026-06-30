@@ -3,7 +3,11 @@ from pathlib import Path
 
 from reverse_agent.project_agent_runner import (
     ARTIFACT_PATH,
+    HANDOFF_BUNDLE_ARTIFACT_PATH,
+    HANDOFF_VALIDATION_ARTIFACT_PATH,
     build_agent_runner_dry_run,
+    build_agent_runner_handoff_bundle,
+    validate_agent_runner_handoff_bundle,
 )
 from reverse_agent.project_jobs import build_planned_job_payload, planned_job_artifact_path
 from reverse_agent.project_runner_contract import build_runner_contract_payload
@@ -142,3 +146,69 @@ def test_agent_runner_dry_run_fails_closed_on_executable_contract(tmp_path: Path
     assert result["gate_status"] == "FAILED"
     assert any("executable" in error for error in result["errors"])
     assert any("external invocations" in error for error in result["errors"])
+
+
+def test_agent_runner_handoff_bundle_and_validation_are_sealed(tmp_path: Path) -> None:
+    state_dir = _make_state(tmp_path)
+    dry_run = build_agent_runner_dry_run(state_dir=state_dir, repo_root=tmp_path)
+    _write_json(
+        state_dir / "gates" / "control_plane_snapshot.json",
+        {
+            "schema_version": 1,
+            "gate_name": "control-plane-snapshot",
+            "gate_status": "PASSED",
+            "decision_id": "decision_agent_runner",
+            "round_id": "round_agent_runner",
+            "runner_readiness": {
+                "local_dry_run_ready": True,
+                "real_dispatch_readiness": False,
+            },
+        },
+    )
+
+    bundle = build_agent_runner_handoff_bundle(state_dir=state_dir, repo_root=tmp_path)
+    validation = validate_agent_runner_handoff_bundle(state_dir=state_dir, repo_root=tmp_path)
+
+    assert dry_run["gate_status"] == "PASSED"
+    assert bundle["gate_status"] == "PASSED"
+    assert bundle["non_execution_policy"]["allow_agent_dispatch"] is False
+    assert bundle["readiness"]["handoff_bundle_ready"] is True
+    assert bundle["readiness"]["real_dispatch_readiness"] is False
+    assert HANDOFF_BUNDLE_ARTIFACT_PATH in bundle["generated_artifacts"]
+    assert validation["gate_status"] == "PASSED"
+    assert HANDOFF_VALIDATION_ARTIFACT_PATH in validation["generated_artifacts"]
+
+
+def test_agent_runner_handoff_validation_fails_on_digest_drift(tmp_path: Path) -> None:
+    state_dir = _make_state(tmp_path)
+    build_agent_runner_dry_run(state_dir=state_dir, repo_root=tmp_path)
+    _write_json(
+        state_dir / "gates" / "control_plane_snapshot.json",
+        {
+            "schema_version": 1,
+            "gate_name": "control-plane-snapshot",
+            "gate_status": "PASSED",
+            "decision_id": "decision_agent_runner",
+            "round_id": "round_agent_runner",
+            "runner_readiness": {"real_dispatch_readiness": False},
+        },
+    )
+    build_agent_runner_handoff_bundle(state_dir=state_dir, repo_root=tmp_path)
+    command_plan_path = state_dir / "gates" / "command_plan.json"
+    command_plan = json.loads(command_plan_path.read_text(encoding="utf-8"))
+    command_plan["commands"].append(
+        {
+            "index": 3,
+            "kind": "report-summary",
+            "phase": "gate",
+            "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+            "expected_exit_codes": [0],
+            "required": True,
+        }
+    )
+    _write_json(command_plan_path, command_plan)
+
+    validation = validate_agent_runner_handoff_bundle(state_dir=state_dir, repo_root=tmp_path)
+
+    assert validation["gate_status"] == "FAILED"
+    assert any("digest matches current artifact" in error for error in validation["errors"])

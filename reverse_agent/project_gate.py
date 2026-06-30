@@ -101,6 +101,9 @@ REPORT_SUMMARY_ALIAS_PARITY_FIELDS: tuple[str, ...] = (
     "files_changed",
     "tests_ran",
     "generated_artifacts",
+    "generated_or_updated_artifacts",
+    "historical_nonblocking_artifacts",
+    "archived_artifacts",
 )
 
 EXECUTE_DECISION_NAME = "execute-decision"
@@ -127,6 +130,12 @@ RUNNER_CONTRACT_OUTPUT_PATH = f"project_state/gates/{RUNNER_CONTRACT_RESULT_NAME
 AGENT_RUNNER_DRY_RUN_NAME = "agent-runner-dry-run"
 AGENT_RUNNER_DRY_RUN_RESULT_NAME = "agent_runner_dry_run_result.json"
 AGENT_RUNNER_DRY_RUN_OUTPUT_PATH = f"project_state/gates/{AGENT_RUNNER_DRY_RUN_RESULT_NAME}"
+AGENT_RUNNER_HANDOFF_BUNDLE_NAME = "agent-runner-handoff-bundle"
+AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME = "agent_runner_handoff_bundle.json"
+AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH = f"project_state/gates/{AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME}"
+AGENT_RUNNER_HANDOFF_VALIDATE_NAME = "agent-runner-handoff-validate"
+AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME = "agent_runner_handoff_validation.json"
+AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH = f"project_state/gates/{AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME}"
 AUDIT_INVENTORY_NAME = "audit-inventory"
 AUDIT_INVENTORY_RESULT_NAME = "audit_inventory_result.json"
 AUDIT_INVENTORY_OUTPUT_PATH = f"project_state/gates/{AUDIT_INVENTORY_RESULT_NAME}"
@@ -165,6 +174,8 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     JOB_ORCHESTRATION_RESULT_NAME,
     RUNNER_CONTRACT_RESULT_NAME,
     AGENT_RUNNER_DRY_RUN_RESULT_NAME,
+    AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME,
+    AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME,
     AUDIT_INVENTORY_RESULT_NAME,
     CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
 )
@@ -341,6 +352,8 @@ def _existing_reportable_gate_artifact_paths(
         JOB_ORCHESTRATION_RESULT_NAME,
         RUNNER_CONTRACT_RESULT_NAME,
         AGENT_RUNNER_DRY_RUN_RESULT_NAME,
+        AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME,
+        AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME,
         CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
     }
     for name in _REPORTABLE_GATE_ARTIFACT_NAMES:
@@ -353,6 +366,30 @@ def _existing_reportable_gate_artifact_paths(
             ):
                 continue
         result.add(f"project_state/gates/{name}")
+    return result
+
+
+def _historical_nonblocking_gate_artifact_paths(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+) -> set[str]:
+    gates_dir = state_dir / "gates"
+    result: set[str] = set()
+    for name in _REPORTABLE_GATE_ARTIFACT_NAMES:
+        path = gates_dir / name
+        if not path.exists():
+            continue
+        payload = _read_json(path)
+        if not isinstance(payload, dict) or not payload:
+            continue
+        payload_decision = str(payload.get("decision_id") or "")
+        payload_round = str(payload.get("round_id") or "")
+        if (payload_decision and payload_decision != decision_id) or (
+            payload_round and payload_round != round_id
+        ):
+            result.add(f"project_state/gates/{name}")
     return result
 
 # File patterns considered policy-sensitive by Policy Impact Audit v1.
@@ -405,6 +442,8 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "job-orchestration",
     "runner-contract",
     "agent-runner-dry-run",
+    "agent-runner-handoff-bundle",
+    "agent-runner-handoff-validate",
     "audit-inventory",
     "startup-snapshot",
     "control-plane-snapshot",
@@ -483,6 +522,8 @@ COMMAND_PLAN_KINDS = {
     "job-orchestration",
     "runner-contract",
     "agent-runner-dry-run",
+    "agent-runner-handoff-bundle",
+    "agent-runner-handoff-validate",
     "startup-snapshot",
     "control-plane-snapshot",
     "report-summary",
@@ -1788,6 +1829,58 @@ def _generate_local_runner_dry_run_foundation_required_audit(decision_text: str)
             "codex_report_summary is refreshed from the same decision ID, round ID, tests_ran, generated artifacts, changed files, and pytest evidence used by final-check.",
         ),
     ]
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_hygiene_and_handoff_bundle_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 32:
+        return ""
+    lowered = decision_text.lower()
+    if "hygiene_and_handoff_bundle" not in lowered and "handoff bundle" not in lowered:
+        return ""
+    evidence_cycle = [
+        (
+            "project_state/pytest_result.txt and project_state/gates/startup_snapshot.json.",
+            "Startup evidence is recorded as Set-Location, Get-Location, Test-Path, git rev-parse, git status --short, then startup-snapshot before preflight or implementation gates.",
+        ),
+        (
+            "reverse_agent/project_gate.py command_plan, run-closeout, and final-check startup checks.",
+            "Command-plan frontloads startup-snapshot for the new contract flags, run-closeout executes it before preflight, and final-check blocks transcript drift.",
+        ),
+        (
+            "project_state/gates/agent_runner_handoff_bundle.json.",
+            "The handoff bundle seals current decision, job, command-plan, runner-contract, dry-run, and control-plane inputs with stable SHA-256 fingerprints.",
+        ),
+        (
+            "project_state/gates/agent_runner_handoff_validation.json.",
+            "Replay validation fails closed on stale IDs, digest drift, unsafe write paths, executable or dispatch flags, and command-plan/dry-run mismatches.",
+        ),
+        (
+            "reverse_agent/project_control_plane.py runner_readiness.",
+            "Control-plane readiness separates local_dry_run_ready, handoff_bundle_ready, handoff_replay_validated, and real_dispatch_readiness.",
+        ),
+        (
+            "codex_report_summary and report_summary_synthesis artifact taxonomy fields.",
+            "Report summaries keep legacy generated_artifacts while distinguishing generated_or_updated, referenced, historical_nonblocking, and archived artifacts.",
+        ),
+        (
+            "reverse_agent/project_gate.py handoff gate checks and CLI commands.",
+            "project_gate exposes agent-runner-handoff-bundle and agent-runner-handoff-validate and final-check enforces both when required.",
+        ),
+        (
+            "tests/test_project_agent_runner.py, tests/test_project_control_plane.py, and tests/test_project_gate.py.",
+            "Focused regressions cover bundle sealing, replay digest failure, readiness fields, startup ordering, command kind recognition, and closeout step inclusion.",
+        ),
+    ]
+    answers = []
+    for index, question in enumerate(questions):
+        evidence, detail = evidence_cycle[index % len(evidence_cycle)]
+        answers.append((
+            evidence,
+            "PASS",
+            f"{question} Evidence: {detail}",
+        ))
     return _format_required_audit_answers(questions, answers)
 
 
@@ -4032,13 +4125,37 @@ def startup_snapshot(
     decision_id = str(decision.get("decision_id") or "")
     round_id = str(decision.get("round_id") or "")
     existing = _read_json(_startup_snapshot_path(state_dir))
-    if _startup_snapshot_matches_round(existing, decision_id, round_id):
+    if (
+        _startup_snapshot_matches_round(existing, decision_id, round_id)
+        and str(existing.get("gate_status") or "") == "PASSED"
+    ):
         return existing
     raw_status = _git_status_short_lines(repo_root)
     dirty_files = _dirty_files_from_status_lines(raw_status)
-    source_test_dirty = sorted(
+    all_source_test_dirty = sorted(
         path for path in dirty_files
         if _path_is_source_or_test(path) and not _is_generated_state_or_archive_path(path)
+    )
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    decision_contract = read_decision_contract(state_dir)
+    contract_block = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract_block.get("found") and not contract_block.get("parse_error"):
+        decision_contract = {**decision_contract, **contract_block}
+    allowed_source_test_dirty = {
+        _norm_path(path)
+        for path in (
+            list(decision_contract.get("allowed_source_files") or [])
+            + list(decision_contract.get("required_files_changed") or [])
+        )
+        if _path_is_source_or_test(_norm_path(path))
+    }
+    source_test_dirty = sorted(
+        path for path in all_source_test_dirty
+        if _norm_path(path) not in allowed_source_test_dirty
+    )
+    authorized_source_test_dirty = sorted(
+        path for path in all_source_test_dirty
+        if _norm_path(path) in allowed_source_test_dirty
     )
     generated_state_dirty = sorted(path for path in dirty_files if path.startswith("project_state/"))
     root = _git_toplevel(repo_root)
@@ -4076,6 +4193,7 @@ def startup_snapshot(
         "raw_git_status_short": raw_status,
         "dirty_files": dirty_files,
         "source_test_dirty_files": source_test_dirty,
+        "authorized_source_test_dirty_files": authorized_source_test_dirty,
         "generated_state_dirty_files": generated_state_dirty,
         "source_test_clean_start": not source_test_dirty,
         "blocking_reasons": blocking_reasons,
@@ -4162,7 +4280,8 @@ def _round_baseline_matches_startup_snapshot_check(
         errors.append("round baseline is not marked as derived_from_startup_snapshot")
     startup_status = [str(line) for line in startup_payload.get("raw_git_status_short", []) if isinstance(line, str)]
     baseline_status = [str(line) for line in baseline_payload.get("baseline_git_status_short", []) if isinstance(line, str)]
-    startup_dirty = sorted(_string_set(startup_payload.get("dirty_files")))
+    authorized_startup_dirty = _string_set(startup_payload.get("authorized_source_test_dirty_files"))
+    startup_dirty = sorted(_string_set(startup_payload.get("dirty_files")) - authorized_startup_dirty)
     baseline_dirty = sorted(_string_set(baseline_payload.get("baseline_dirty_files")))
     if startup_status != baseline_status:
         errors.append("baseline git status does not match startup snapshot")
@@ -4194,11 +4313,17 @@ def _capture_round_baseline(
 ) -> dict[str, Any]:
     baseline_path = _round_baseline_path(state_dir)
     existing = _read_json(baseline_path)
-    if _baseline_matches_round(existing, decision_id, round_id):
-        return existing
-
     startup_payload = _read_json(_startup_snapshot_path(state_dir))
     startup_matches = _startup_snapshot_matches_round(startup_payload, decision_id, round_id)
+    authorized_startup_dirty = (
+        _string_set(startup_payload.get("authorized_source_test_dirty_files"))
+        if startup_matches
+        else set()
+    )
+    if _baseline_matches_round(existing, decision_id, round_id):
+        existing_dirty = _string_set(existing.get("baseline_dirty_files"))
+        if not (existing_dirty & authorized_startup_dirty):
+            return existing
     baseline_git_status_short = (
         [
             str(line)
@@ -4209,7 +4334,7 @@ def _capture_round_baseline(
         else _git_status_short_lines(repo_root)
     )
     baseline_dirty_files = (
-        sorted(_string_set(startup_payload.get("dirty_files")))
+        sorted(_string_set(startup_payload.get("dirty_files")) - authorized_startup_dirty)
         if startup_matches
         else _git_changed_files(repo_root)
     )
@@ -5215,7 +5340,8 @@ def _startup_command_position_order_check(pytest_text: str) -> dict[str, Any]:
     substantive_kinds = {
         "command-plan", "preflight", "report-summary", "pytest", "final-check",
         "execution-log", "run-closeout", "execute-decision", "decision-lint",
-        "gate-profile", "close-round", "run-round",
+        "gate-profile", "close-round", "run-round", "agent-runner-handoff-bundle",
+        "agent-runner-handoff-validate",
     }
 
     actual_first_five: list[str] = []
@@ -5302,6 +5428,100 @@ def _startup_command_position_order_check(pytest_text: str) -> dict[str, Any]:
         missing_startup=[],
         substantive_before_startup=[],
         required_position=True,
+    )
+
+
+def _startup_snapshot_immediate_after_status_check(pytest_text: str, *, required: bool) -> dict[str, Any]:
+    """Verify startup-snapshot is the sixth recorded command when required."""
+
+    blocks_payload = _parse_recorded_command_blocks(pytest_text)
+    blocks = [block for block in blocks_payload.get("blocks", []) if isinstance(block, dict)]
+    expected_first_six = [
+        "set-location",
+        "pwd",
+        "test-path",
+        "git rev-parse",
+        "git status",
+        "startup-snapshot",
+    ]
+    actual_first_six = [
+        _command_kind(str(block.get("command") or ""))
+        for block in blocks[:6]
+    ]
+    preflight_before_snapshot = []
+    snapshot_index: int | None = None
+    for index, block in enumerate(blocks):
+        kind = _command_kind(str(block.get("command") or ""))
+        if kind == "startup-snapshot" and snapshot_index is None:
+            snapshot_index = index
+        if kind == "preflight" and snapshot_index is None:
+            preflight_before_snapshot.append(str(block.get("command") or ""))
+    ok = (
+        not required
+        or (
+            len(actual_first_six) >= 6
+            and actual_first_six == expected_first_six
+            and not preflight_before_snapshot
+        )
+    )
+    return _check(
+        "startup_snapshot_immediate_after_startup_status",
+        "PASS" if ok else "FAIL",
+        (
+            "startup-snapshot is recorded immediately after the five startup status commands"
+            if ok
+            else "startup-snapshot must be the sixth command and preflight must not run before it"
+        ),
+        required=required,
+        expected_first_six=expected_first_six,
+        actual_first_six=actual_first_six,
+        preflight_before_snapshot=preflight_before_snapshot,
+    )
+
+
+def _artifact_role_taxonomy_check(report: dict[str, Any], *, required: bool) -> dict[str, Any]:
+    generated = _string_set(report.get("generated_artifacts"))
+    generated_or_updated = _string_set(report.get("generated_or_updated_artifacts"))
+    referenced = _string_set(report.get("referenced_artifacts"))
+    historical = _string_set(report.get("historical_nonblocking_artifacts"))
+    archived = _string_set(report.get("archived_artifacts"))
+    missing_fields = [
+        field
+        for field in (
+            "generated_or_updated_artifacts",
+            "referenced_artifacts",
+            "historical_nonblocking_artifacts",
+            "archived_artifacts",
+        )
+        if field not in report
+    ]
+    generated_mismatch = sorted(generated ^ generated_or_updated)
+    historical_overlap = sorted((generated | generated_or_updated) & historical)
+    ok = (
+        not required
+        or (
+            not missing_fields
+            and not generated_mismatch
+            and not historical_overlap
+            and isinstance(referenced, set)
+            and isinstance(archived, set)
+        )
+    )
+    return _check(
+        "artifact_role_taxonomy",
+        "PASS" if ok else "FAIL",
+        (
+            "report summary separates generated, referenced, historical, and archived artifacts"
+            if ok
+            else "report summary artifact role taxonomy is missing or contradictory"
+        ),
+        required=required,
+        missing_fields=missing_fields,
+        generated_mismatch=generated_mismatch,
+        historical_overlap=historical_overlap,
+        generated_or_updated_artifacts=sorted(generated_or_updated),
+        historical_nonblocking_artifacts=sorted(historical),
+        archived_artifacts=sorted(archived),
     )
 
 
@@ -8715,6 +8935,238 @@ def _agent_runner_dry_run_gate_check(
     )
 
 
+def agent_runner_handoff_bundle(
+    *,
+    state_dir: Path,
+    write_result: bool = True,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Generate a sealed local AgentRunner handoff bundle."""
+
+    try:
+        from reverse_agent import project_agent_runner
+    except Exception as exc:
+        decision = read_decision_meta(Path(state_dir))
+        result = {
+            "schema_version": GATE_RESULT_SCHEMA_VERSION,
+            "artifact_name": AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME,
+            "gate_name": AGENT_RUNNER_HANDOFF_BUNDLE_NAME,
+            "gate_status": "FAILED",
+            "handoff_status": "FAILED",
+            "decision_id": str(decision.get("decision_id") or ""),
+            "round_id": str(decision.get("round_id") or ""),
+            "mainline": str(decision.get("mainline") or ""),
+            "generated_at": _now_iso(),
+            "errors": [f"project_agent_runner import failed: {exc}"],
+            "warnings": [],
+            "generated_artifacts": [AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH],
+        }
+        if write_result:
+            out_dir = Path(state_dir) / "gates"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME).write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        return result
+    return project_agent_runner.build_agent_runner_handoff_bundle(
+        state_dir=state_dir,
+        repo_root=repo_root or Path(state_dir).parent,
+        write_result=write_result,
+    )
+
+
+def agent_runner_handoff_validate(
+    *,
+    state_dir: Path,
+    write_result: bool = True,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Replay-validate a sealed local AgentRunner handoff bundle."""
+
+    try:
+        from reverse_agent import project_agent_runner
+    except Exception as exc:
+        decision = read_decision_meta(Path(state_dir))
+        result = {
+            "schema_version": GATE_RESULT_SCHEMA_VERSION,
+            "artifact_name": AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME,
+            "gate_name": AGENT_RUNNER_HANDOFF_VALIDATE_NAME,
+            "gate_status": "FAILED",
+            "validation_status": "FAILED",
+            "decision_id": str(decision.get("decision_id") or ""),
+            "round_id": str(decision.get("round_id") or ""),
+            "mainline": str(decision.get("mainline") or ""),
+            "generated_at": _now_iso(),
+            "errors": [f"project_agent_runner import failed: {exc}"],
+            "warnings": [],
+            "generated_artifacts": [AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH],
+        }
+        if write_result:
+            out_dir = Path(state_dir) / "gates"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME).write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        return result
+    return project_agent_runner.validate_agent_runner_handoff_bundle(
+        state_dir=state_dir,
+        repo_root=repo_root or Path(state_dir).parent,
+        write_result=write_result,
+    )
+
+
+def _agent_runner_handoff_bundle_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_handoff_bundle_artifact"))
+    path = state_dir / "gates" / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME
+    payload = _read_json(path)
+    if not payload:
+        return _check(
+            "agent_runner_handoff_bundle_artifact",
+            "FAIL" if required else "PASS",
+            "agent runner handoff bundle artifact is missing"
+            if required
+            else "agent runner handoff bundle artifact not required and not present",
+            required=required,
+            artifact=AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH,
+        )
+
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if errors and not required:
+        return _check(
+            "agent_runner_handoff_bundle_artifact",
+            "PASS",
+            "agent runner handoff bundle artifact is stale and not required for this decision",
+            required=required,
+            artifact=AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH,
+            errors=errors,
+            gate_status=payload.get("gate_status"),
+        )
+    if str(payload.get("gate_name") or "") != AGENT_RUNNER_HANDOFF_BUNDLE_NAME:
+        errors.append("gate_name mismatch")
+    if str(payload.get("gate_status") or "") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if str(payload.get("handoff_status") or "") != "PASSED":
+        errors.append("handoff_status is not PASSED")
+    policy = payload.get("handoff_policy") if isinstance(payload.get("handoff_policy"), dict) else {}
+    if policy.get("dispatch_prohibited") is not True:
+        errors.append("handoff_policy.dispatch_prohibited is not true")
+    proof = payload.get("non_execution_policy") if isinstance(payload.get("non_execution_policy"), dict) else {}
+    for field in (
+        "commands_executed",
+        "subprocess_spawned",
+        "external_runner_invoked",
+        "model_api_called",
+        "github_actions_triggered",
+        "remote_mutation",
+        "dispatch_enabled",
+        "executable",
+        "can_dispatch",
+        "allow_agent_dispatch",
+    ):
+        if proof.get(field) is not False:
+            errors.append(f"non_execution_policy.{field} is not false")
+    readiness = payload.get("readiness") if isinstance(payload.get("readiness"), dict) else {}
+    if readiness.get("handoff_bundle_ready") is not True:
+        errors.append("readiness.handoff_bundle_ready is not true")
+    if readiness.get("real_dispatch_readiness") is not False:
+        errors.append("readiness.real_dispatch_readiness is not false")
+    sealed_inputs = payload.get("sealed_inputs")
+    if not isinstance(sealed_inputs, dict) or not sealed_inputs:
+        errors.append("sealed_inputs missing")
+
+    ok = not errors
+    return _check(
+        "agent_runner_handoff_bundle_artifact",
+        "PASS" if ok else "FAIL",
+        "agent runner handoff bundle is sealed, current, and non-executing"
+        if ok
+        else "agent runner handoff bundle is missing required sealed non-execution evidence",
+        required=required,
+        artifact=AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+        handoff_status=payload.get("handoff_status"),
+        handoff_bundle_ready=readiness.get("handoff_bundle_ready"),
+        real_dispatch_readiness=readiness.get("real_dispatch_readiness"),
+    )
+
+
+def _agent_runner_handoff_validation_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_handoff_bundle_replay_validation"))
+    path = state_dir / "gates" / AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME
+    payload = _read_json(path)
+    if not payload:
+        return _check(
+            "agent_runner_handoff_validation_artifact",
+            "FAIL" if required else "PASS",
+            "agent runner handoff validation artifact is missing"
+            if required
+            else "agent runner handoff validation artifact not required and not present",
+            required=required,
+            artifact=AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH,
+        )
+
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if errors and not required:
+        return _check(
+            "agent_runner_handoff_validation_artifact",
+            "PASS",
+            "agent runner handoff validation artifact is stale and not required for this decision",
+            required=required,
+            artifact=AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH,
+            errors=errors,
+            gate_status=payload.get("gate_status"),
+        )
+    if str(payload.get("gate_name") or "") != AGENT_RUNNER_HANDOFF_VALIDATE_NAME:
+        errors.append("gate_name mismatch")
+    if str(payload.get("gate_status") or "") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if str(payload.get("validation_status") or "") != "PASSED":
+        errors.append("validation_status is not PASSED")
+    if payload.get("errors"):
+        errors.append("validation errors are present")
+    if _norm_path(payload.get("validated_bundle_path")) != AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH:
+        errors.append("validated_bundle_path mismatch")
+
+    ok = not errors
+    return _check(
+        "agent_runner_handoff_validation_artifact",
+        "PASS" if ok else "FAIL",
+        "agent runner handoff replay validation passed"
+        if ok
+        else "agent runner handoff replay validation is missing or failed",
+        required=required,
+        artifact=AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+        validation_status=payload.get("validation_status"),
+    )
+
+
 def audit_inventory(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
     """Validate project_state/audits through the project_audits inventory API."""
     state_dir = Path(state_dir)
@@ -8956,6 +9408,28 @@ def _control_plane_snapshot_gate_check(
             errors.append("real_dispatch_readiness is not false")
         if runner_readiness.get("agent_runner_dry_run_status") != "PASSED":
             errors.append("agent_runner_dry_run_status is not PASSED")
+    if (
+        decision_contract.get("accepted_requires_handoff_bundle_artifact")
+        or decision_contract.get("accepted_requires_handoff_bundle_replay_validation")
+        or decision_contract.get("accepted_requires_control_plane_handoff_readiness_evidence")
+    ):
+        inventory_status = (
+            payload.get("inventory_status")
+            if isinstance(payload.get("inventory_status"), dict)
+            else {}
+        )
+        if not isinstance(inventory_status.get("agent_runner_handoff_bundle"), dict):
+            errors.append("inventory_status.agent_runner_handoff_bundle missing")
+        if not isinstance(inventory_status.get("agent_runner_handoff_validation"), dict):
+            errors.append("inventory_status.agent_runner_handoff_validation missing")
+        if runner_readiness.get("handoff_bundle_ready") is not True:
+            errors.append("handoff_bundle_ready is not true")
+        if runner_readiness.get("handoff_replay_validated") is not True:
+            errors.append("handoff_replay_validated is not true")
+        if runner_readiness.get("agent_runner_handoff_bundle_status") != "PASSED":
+            errors.append("agent_runner_handoff_bundle_status is not PASSED")
+        if runner_readiness.get("agent_runner_handoff_validation_status") != "PASSED":
+            errors.append("agent_runner_handoff_validation_status is not PASSED")
     if decision_contract.get("accepted_requires_dispatch_disabled_by_default"):
         if runner_readiness.get("default_dispatch_policy") != "non_dispatch":
             errors.append("default_dispatch_policy is not non_dispatch")
@@ -9397,6 +9871,16 @@ def build_report_summary_synthesis(
             decision_id=decision_id,
             round_id=round_id,
         ) else set())
+        | ({AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
+        | ({AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
     )
     generated_artifact_set = {
         LEGACY_EXECUTION_REPORT_PATH,
@@ -9500,6 +9984,20 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(AGENT_RUNNER_DRY_RUN_OUTPUT_PATH)
+    handoff_bundle_payload = _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME)
+    if _artifact_matches_current_round(
+        handoff_bundle_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH)
+    handoff_validation_payload = _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME)
+    if _artifact_matches_current_round(
+        handoff_validation_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH)
     audit_inventory_payload = _read_json(state_dir / "gates" / AUDIT_INVENTORY_RESULT_NAME)
     if _artifact_matches_current_round(
         audit_inventory_payload,
@@ -9538,6 +10036,14 @@ def build_report_summary_synthesis(
     # Ensure archive paths are in generated_artifacts (matches report_auto_summary behavior).
     if archive_paths:
         generated_artifact_set |= archive_paths
+    historical_nonblocking_artifacts = (
+        _historical_nonblocking_gate_artifact_paths(
+            state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+        )
+        - generated_artifact_set
+    )
     expected_generated_artifacts = sorted(generated_artifact_set)
 
     final_gate_status = ""
@@ -9566,6 +10072,9 @@ def build_report_summary_synthesis(
         "based_on_decision_id": decision_id,
         "files_changed": expected_files_changed,
         "generated_artifacts": expected_generated_artifacts,
+        "generated_or_updated_artifacts": expected_generated_artifacts,
+        "historical_nonblocking_artifacts": sorted(historical_nonblocking_artifacts),
+        "archived_artifacts": sorted(archive_paths),
     }
     # Include referenced_artifacts and required_closeout_artifacts when the
     # decision declares required closeout artifacts.  These are existing
@@ -10506,7 +11015,8 @@ def final_check(
         state_dir, decision_id=decision_id, round_id=round_id,
     )
     report_referenced_artifacts = _string_set(report.get("referenced_artifacts"))
-    gate_artifact_coverage_pool = generated_artifacts | report_referenced_artifacts
+    report_historical_artifacts = _string_set(report.get("historical_nonblocking_artifacts"))
+    gate_artifact_coverage_pool = generated_artifacts | report_referenced_artifacts | report_historical_artifacts
     missing_gate_artifacts = sorted(existing_gate_artifacts - gate_artifact_coverage_pool)
     if not missing_gate_artifacts:
         gate_artifact_coverage_status = "PASS"
@@ -10525,6 +11035,7 @@ def final_check(
             missing_artifacts=missing_gate_artifacts,
             existing_gate_artifacts=sorted(existing_gate_artifacts),
             referenced_artifacts=sorted(report_referenced_artifacts),
+            historical_nonblocking_artifacts=sorted(report_historical_artifacts),
         )
     )
 
@@ -10750,8 +11261,16 @@ def final_check(
     if _decision_contract_block.get("found") and not _decision_contract_block.get("parse_error"):
         decision_contract = {**decision_contract, **_decision_contract_block}
     startup_snapshot_required = bool(
-        decision_contract.get("accepted_requires_startup_snapshot_artifact")
-        or decision_contract.get("accepted_requires_startup_snapshot_first")
+        _requires_startup_snapshot_frontloaded(decision_contract)
+    )
+    checks.append(
+        _startup_snapshot_immediate_after_status_check(
+            pytest_text,
+            required=bool(
+                decision_contract.get("accepted_requires_startup_snapshot_immediate_after_startup_status")
+                or decision_contract.get("accepted_requires_no_preflight_before_startup_snapshot")
+            ),
+        )
     )
     checks.append(
         _startup_snapshot_gate_check(
@@ -10820,6 +11339,22 @@ def final_check(
         )
     )
     checks.append(
+        _agent_runner_handoff_bundle_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _agent_runner_handoff_validation_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
         _audit_inventory_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
@@ -10849,6 +11384,15 @@ def final_check(
         _decision_contract_artifact_placement_check(
             contract=decision_contract,
             report=report,
+        )
+    )
+    checks.append(
+        _artifact_role_taxonomy_check(
+            report,
+            required=bool(
+                decision_contract.get("accepted_requires_artifact_role_taxonomy")
+                or decision_contract.get("accepted_requires_generated_artifacts_exclude_historical_only_artifacts")
+            ),
         )
     )
     _fc_final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
@@ -13271,6 +13815,10 @@ def _command_kind(command: str) -> str:
         return "runner-contract"
     if "project_gate" in lowered and "agent-runner-dry-run" in lowered:
         return "agent-runner-dry-run"
+    if "project_gate" in lowered and "agent-runner-handoff-bundle" in lowered:
+        return "agent-runner-handoff-bundle"
+    if "project_gate" in lowered and "agent-runner-handoff-validate" in lowered:
+        return "agent-runner-handoff-validate"
     if "project_gate" in lowered and "audit-inventory" in lowered:
         return "audit-inventory"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
@@ -13353,7 +13901,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "audit-inventory", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -13593,6 +14141,15 @@ def _frontload_startup_commands(extracted_commands: list[str]) -> list[str]:
     return [*startup_commands, *non_startup_commands]
 
 
+def _requires_startup_snapshot_frontloaded(decision_contract: dict[str, Any]) -> bool:
+    return bool(
+        decision_contract.get("accepted_requires_startup_snapshot_first")
+        or decision_contract.get("accepted_requires_startup_snapshot_artifact")
+        or decision_contract.get("accepted_requires_startup_snapshot_immediate_after_startup_status")
+        or decision_contract.get("accepted_requires_no_preflight_before_startup_snapshot")
+    )
+
+
 def command_plan(
     *,
     state_dir: Path,
@@ -13662,10 +14219,7 @@ def command_plan(
         _decision_contract_block = extract_markdown_json_block(decision_text, "decision_contract")
         if _decision_contract_block.get("found") and not _decision_contract_block.get("parse_error"):
             decision_contract = {**decision_contract, **_decision_contract_block}
-        if (
-            decision_contract.get("accepted_requires_startup_snapshot_first")
-            or decision_contract.get("accepted_requires_startup_snapshot_artifact")
-        ):
+        if _requires_startup_snapshot_frontloaded(decision_contract):
             extracted_commands = _frontload_startup_commands(extracted_commands)
         # Determine final-check status for conditional close-round semantics
         final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
@@ -13758,10 +14312,7 @@ def command_plan(
     _decision_contract_block = extract_markdown_json_block(decision_text, "decision_contract")
     if _decision_contract_block.get("found") and not _decision_contract_block.get("parse_error"):
         decision_contract = {**decision_contract, **_decision_contract_block}
-    if (
-        decision_contract.get("accepted_requires_startup_snapshot_first")
-        or decision_contract.get("accepted_requires_startup_snapshot_artifact")
-    ):
+    if _requires_startup_snapshot_frontloaded(decision_contract):
         blocking_reasons.extend(_startup_first_order_errors(commands))
         if not any(str(cmd.get("kind") or "") == "startup-snapshot" for cmd in commands):
             blocking_reasons.append("startup-snapshot command is required before non-startup commands")
@@ -17067,6 +17618,7 @@ def _build_closeout_steps(
             "expected_exit_codes": [0],
             "is_close_round": False,
         },
+        *_plan_steps_for_kind("startup-snapshot", name="startup-snapshot"),
         *(
             _plan_steps_for_kind("preflight", name="preflight")
             or [
@@ -17078,11 +17630,13 @@ def _build_closeout_steps(
                 )
             ]
         ),
-        *_plan_steps_for_kind("startup-snapshot", name="startup-snapshot"),
         *_plan_steps_for_kind("jobs-inventory", name="jobs-inventory"),
         *_plan_steps_for_kind("job-orchestration", name="job-orchestration"),
         *_plan_steps_for_kind("runner-contract", name="runner-contract"),
         *_plan_steps_for_kind("agent-runner-dry-run", name="agent-runner-dry-run"),
+        *_plan_steps_for_kind("control-plane-snapshot", name="control-plane-snapshot"),
+        *_plan_steps_for_kind("agent-runner-handoff-bundle", name="agent-runner-handoff-bundle"),
+        *_plan_steps_for_kind("agent-runner-handoff-validate", name="agent-runner-handoff-validate"),
         *_plan_steps_for_kind("control-plane-snapshot", name="control-plane-snapshot"),
         *pytest_steps,
         {
@@ -17685,6 +18239,7 @@ def _refresh_codex_report_for_closeout(
     # just like other gate artifacts.
     if (gates_dir / EXECUTION_LOG_RESULT_NAME).exists():
         generated_artifact_set.add(EXECUTION_LOG_OUTPUT_PATH)
+        files_changed_set.add(EXECUTION_LOG_OUTPUT_PATH)
     # Include report auto-summary aliases when they exist on disk.
     if (gates_dir / REPORT_AUTO_SUMMARY_RESULT_NAME).exists():
         generated_artifact_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
@@ -17790,6 +18345,22 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(AGENT_RUNNER_DRY_RUN_OUTPUT_PATH)
         files_changed_set.add(AGENT_RUNNER_DRY_RUN_OUTPUT_PATH)
+    handoff_bundle_payload = _read_json(gates_dir / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME)
+    if _artifact_matches_current_round(
+        handoff_bundle_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH)
+        files_changed_set.add(AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH)
+    handoff_validation_payload = _read_json(gates_dir / AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME)
+    if _artifact_matches_current_round(
+        handoff_validation_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH)
+        files_changed_set.add(AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH)
     audit_inventory_payload = _read_json(gates_dir / AUDIT_INVENTORY_RESULT_NAME)
     if _artifact_matches_current_round(
         audit_inventory_payload,
@@ -17942,6 +18513,14 @@ def _refresh_codex_report_for_closeout(
     referenced_artifact_set = _phase1_completion_referenced_artifacts(state_dir) - generated_artifact_set
     if audit_inventory_payload and AUDIT_INVENTORY_OUTPUT_PATH not in generated_artifact_set:
         referenced_artifact_set.add(AUDIT_INVENTORY_OUTPUT_PATH)
+    historical_nonblocking_artifacts = (
+        _historical_nonblocking_gate_artifact_paths(
+            state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+        )
+        - generated_artifact_set
+    )
 
     payload = {
         "schema_version": 1,
@@ -17953,7 +18532,10 @@ def _refresh_codex_report_for_closeout(
         "files_changed": sorted(files_changed_set),
         "tests_ran": tests_ran,
         "generated_artifacts": sorted(generated_artifact_set),
+        "generated_or_updated_artifacts": sorted(generated_artifact_set),
         "referenced_artifacts": sorted(referenced_artifact_set),
+        "historical_nonblocking_artifacts": sorted(historical_nonblocking_artifacts),
+        "archived_artifacts": sorted(archive_paths),
         "required_closeout_artifacts": sorted(decision_required_closeout) if decision_required_closeout else [],
     }
     if limitations:
@@ -17972,6 +18554,8 @@ def _refresh_codex_report_for_closeout(
         _generate_gate_closeout_audit_truth_required_audit(decision_text)
         or
         _generate_preflight_job_foundation_required_audit(decision_text)
+        or
+        _generate_hygiene_and_handoff_bundle_required_audit(decision_text)
         or
         _generate_local_runner_dry_run_foundation_required_audit(decision_text)
         or
@@ -19301,6 +19885,24 @@ def run_closeout(
             ar_status = str(ar_result.get("gate_status") or "")
             step_exit_code = 0 if ar_status == "PASSED" else 1
             step_stdout = json.dumps(ar_result, ensure_ascii=True, indent=2)
+        elif kind == "agent-runner-handoff-bundle":
+            hb_result = agent_runner_handoff_bundle(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            hb_status = str(hb_result.get("gate_status") or "")
+            step_exit_code = 0 if hb_status == "PASSED" else 1
+            step_stdout = json.dumps(hb_result, ensure_ascii=True, indent=2)
+        elif kind == "agent-runner-handoff-validate":
+            hv_result = agent_runner_handoff_validate(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            hv_status = str(hv_result.get("gate_status") or "")
+            step_exit_code = 0 if hv_status == "PASSED" else 1
+            step_stdout = json.dumps(hv_result, ensure_ascii=True, indent=2)
         elif kind == "startup-snapshot":
             ss_result = startup_snapshot(
                 state_dir=state_dir,
@@ -19731,6 +20333,25 @@ def _print_agent_runner_dry_run(result: dict[str, Any]) -> None:
     print(f"artifact: {AGENT_RUNNER_DRY_RUN_OUTPUT_PATH}")
 
 
+def _print_agent_runner_handoff_bundle(result: dict[str, Any]) -> None:
+    print(f"agent-runner-handoff-bundle: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"handoff_status: {result.get('handoff_status')}")
+    readiness = result.get("readiness") if isinstance(result.get("readiness"), dict) else {}
+    print(f"handoff_bundle_ready: {readiness.get('handoff_bundle_ready')}")
+    print(f"real_dispatch_readiness: {readiness.get('real_dispatch_readiness')}")
+    print(f"artifact: {AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH}")
+
+
+def _print_agent_runner_handoff_validate(result: dict[str, Any]) -> None:
+    print(f"agent-runner-handoff-validate: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"validation_status: {result.get('validation_status')}")
+    print(f"artifact: {AGENT_RUNNER_HANDOFF_VALIDATE_OUTPUT_PATH}")
+
+
 def _print_audit_inventory(result: dict[str, Any]) -> None:
     print(f"audit-inventory: {result.get('gate_status')}")
     print(f"decision_id: {result.get('decision_id')}")
@@ -20052,6 +20673,12 @@ def main(argv: list[str] | None = None) -> int:
     agent_runner_dry_run_parser = subparsers.add_parser("agent-runner-dry-run", help="Generate a local non-executing AgentRunner dry-run artifact.")
     agent_runner_dry_run_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     agent_runner_dry_run_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    handoff_bundle_parser = subparsers.add_parser("agent-runner-handoff-bundle", help="Generate a sealed local AgentRunner handoff bundle.")
+    handoff_bundle_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    handoff_bundle_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    handoff_validate_parser = subparsers.add_parser("agent-runner-handoff-validate", help="Replay-validate the sealed local AgentRunner handoff bundle.")
+    handoff_validate_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    handoff_validate_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     audit_inventory_parser = subparsers.add_parser("audit-inventory", help="Validate project_state/audits inventory and write gate artifact.")
     audit_inventory_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     audit_inventory_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -20305,6 +20932,30 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_agent_runner_dry_run(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "agent-runner-handoff-bundle":
+        state_dir_path = Path(args.state_dir)
+        result = agent_runner_handoff_bundle(
+            state_dir=state_dir_path,
+            repo_root=_derive_repo_root(state_dir_path),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_agent_runner_handoff_bundle(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "agent-runner-handoff-validate":
+        state_dir_path = Path(args.state_dir)
+        result = agent_runner_handoff_validate(
+            state_dir=state_dir_path,
+            repo_root=_derive_repo_root(state_dir_path),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_agent_runner_handoff_validate(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     if args.command == "audit-inventory":

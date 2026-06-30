@@ -3,23 +3,23 @@
   "artifact_name": "job_orchestration_result.json",
   "gate_name": "job-orchestration",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-  "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
+  "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+  "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-30T05:10:05.417574Z",
-  "job_id": "job_20260630_local_runner_dry_run_foundation_v1",
+  "generated_at": "2026-06-30T09:55:18.473035Z",
+  "job_id": "job_20260630_hygiene_and_handoff_bundle_v1",
   "job_status": "DRAFT",
-  "job_artifact_path": "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
+  "job_artifact_path": "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
   "job_validation_status": "PASSED",
   "jobs_inventory_validation_status": "PASSED",
-  "job_count": 3,
+  "job_count": 4,
   "status_counts": {
     "ACCEPTED": 0,
     "ACCEPTED_WITH_LIMITATIONS": 0,
     "AUDITED": 0,
     "BLOCKED": 0,
     "DONE": 0,
-    "DRAFT": 3,
+    "DRAFT": 4,
     "FINAL_CHECKED": 0,
     "READY": 0,
     "REWORK_REQUIRED": 0,
@@ -28,6 +28,7 @@
   "validated_paths": [
     "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json",
     "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+    "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
     "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json"
   ],
   "dispatch_enabled": false,
@@ -37,6 +38,6 @@
   "warnings": [],
   "generated_artifacts": [
     "project_state/gates/job_orchestration_result.json",
-    "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json"
+    "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json"
   ]
 }

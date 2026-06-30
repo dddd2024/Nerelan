@@ -267,6 +267,56 @@ def test_control_plane_snapshot_separates_local_dry_run_from_real_dispatch(tmp_p
     assert dry_run["real_dispatch_readiness"] is False
     assert result["runner_readiness"]["local_dry_run_ready"] is True
     assert result["runner_readiness"]["real_dispatch_readiness"] is False
+
+
+def test_control_plane_snapshot_reports_handoff_readiness(tmp_path: Path) -> None:
+    state_dir = _make_state(
+        tmp_path,
+        decision_id="decision_handoff",
+        round_id="round_handoff",
+    )
+    _write_json(
+        state_dir / "gates" / "agent_runner_handoff_bundle.json",
+        {
+            "schema_version": 1,
+            "gate_name": "agent-runner-handoff-bundle",
+            "gate_status": "PASSED",
+            "handoff_status": "PASSED",
+            "decision_id": "decision_handoff",
+            "round_id": "round_handoff",
+            "handoff_policy": {"dispatch_prohibited": True},
+            "non_execution_policy": {
+                "commands_executed": False,
+                "external_runner_invoked": False,
+                "dispatch_enabled": False,
+                "executable": False,
+            },
+            "readiness": {
+                "handoff_bundle_ready": True,
+                "real_dispatch_readiness": False,
+            },
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "agent_runner_handoff_validation.json",
+        {
+            "schema_version": 1,
+            "gate_name": "agent-runner-handoff-validate",
+            "gate_status": "PASSED",
+            "validation_status": "PASSED",
+            "decision_id": "decision_handoff",
+            "round_id": "round_handoff",
+            "validated_bundle_path": "project_state/gates/agent_runner_handoff_bundle.json",
+        },
+    )
+
+    result = build_control_plane_snapshot(state_dir=state_dir, write_result=False)
+
+    assert result["inventory_status"]["agent_runner_handoff_bundle"]["status"] == "PASSED"
+    assert result["inventory_status"]["agent_runner_handoff_validation"]["validation_status"] == "PASSED"
+    assert result["runner_readiness"]["handoff_bundle_ready"] is True
+    assert result["runner_readiness"]["handoff_replay_validated"] is True
+    assert result["runner_readiness"]["real_dispatch_readiness"] is False
     assert result["runner_readiness"]["can_dispatch_next_decision"] is False
 
 

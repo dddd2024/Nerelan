@@ -211,6 +211,8 @@ def build_control_plane_snapshot(
     job_orchestration = _read_json(gates_dir / "job_orchestration_result.json")
     runner_contract = _read_json(gates_dir / "runner_contract_result.json")
     agent_runner_dry_run = _read_json(gates_dir / "agent_runner_dry_run_result.json")
+    agent_runner_handoff_bundle = _read_json(gates_dir / "agent_runner_handoff_bundle.json")
+    agent_runner_handoff_validation = _read_json(gates_dir / "agent_runner_handoff_validation.json")
     execution_log = _read_json(gates_dir / "execution_log.json")
 
     decision_id = str(decision.get("decision_id") or "")
@@ -369,12 +371,66 @@ def build_control_plane_snapshot(
             "real_dispatch_readiness": dry_run_policy.get("real_dispatch_readiness", False),
         }
     )
+    handoff_bundle_entry = _status_payload(
+        agent_runner_handoff_bundle,
+        expected_decision_id=decision_id,
+        expected_round_id=round_id,
+        required=False,
+    )
+    handoff_policy = (
+        agent_runner_handoff_bundle.get("handoff_policy")
+        if isinstance(agent_runner_handoff_bundle.get("handoff_policy"), dict)
+        else {}
+    )
+    handoff_non_exec = (
+        agent_runner_handoff_bundle.get("non_execution_policy")
+        if isinstance(agent_runner_handoff_bundle.get("non_execution_policy"), dict)
+        else {}
+    )
+    handoff_readiness = (
+        agent_runner_handoff_bundle.get("readiness")
+        if isinstance(agent_runner_handoff_bundle.get("readiness"), dict)
+        else {}
+    )
+    handoff_bundle_entry.update(
+        {
+            "gate_name": agent_runner_handoff_bundle.get("gate_name") if agent_runner_handoff_bundle else "",
+            "gate_status": agent_runner_handoff_bundle.get("gate_status") if agent_runner_handoff_bundle else "MISSING",
+            "handoff_status": agent_runner_handoff_bundle.get("handoff_status") if agent_runner_handoff_bundle else "MISSING",
+            "dispatch_prohibited": handoff_policy.get("dispatch_prohibited", False),
+            "commands_executed": handoff_non_exec.get("commands_executed", False),
+            "dispatch_enabled": handoff_non_exec.get("dispatch_enabled", False),
+            "executable": handoff_non_exec.get("executable", False),
+            "handoff_bundle_ready": handoff_readiness.get("handoff_bundle_ready", False),
+            "real_dispatch_readiness": handoff_readiness.get("real_dispatch_readiness", False),
+        }
+    )
+    handoff_validation_entry = _status_payload(
+        agent_runner_handoff_validation,
+        expected_decision_id=decision_id,
+        expected_round_id=round_id,
+        required=False,
+    )
+    handoff_validation_entry.update(
+        {
+            "gate_name": agent_runner_handoff_validation.get("gate_name") if agent_runner_handoff_validation else "",
+            "gate_status": agent_runner_handoff_validation.get("gate_status") if agent_runner_handoff_validation else "MISSING",
+            "validation_status": agent_runner_handoff_validation.get("validation_status")
+            if agent_runner_handoff_validation
+            else "MISSING",
+            "validated_bundle_path": agent_runner_handoff_validation.get("validated_bundle_path")
+            if agent_runner_handoff_validation
+            else "",
+        }
+    )
     for name, entry in (
         ("audit inventory", audit_entry),
         ("jobs inventory", jobs_entry),
         ("job orchestration", job_orchestration_entry),
         ("runner contract", runner_contract_entry),
         ("agent runner dry-run", agent_runner_dry_run_entry),
+        ("agent runner handoff bundle", handoff_bundle_entry),
+        ("agent runner handoff validation", handoff_validation_entry),
     ):
         if entry.get("status") in {"historical_nonblocking", "missing_optional"}:
             warnings.append(f"{name} is {entry.get('status')}")
@@ -460,6 +516,23 @@ def build_control_plane_snapshot(
         and dry_run_policy.get("local_dry_run_readiness") is True
         and dry_run_policy.get("real_dispatch_readiness") is False
     )
+    handoff_bundle_ready = bool(
+        handoff_bundle_entry.get("is_current")
+        and agent_runner_handoff_bundle.get("gate_status") == "PASSED"
+        and agent_runner_handoff_bundle.get("handoff_status") == "PASSED"
+        and handoff_policy.get("dispatch_prohibited") is True
+        and handoff_non_exec.get("commands_executed") is False
+        and handoff_non_exec.get("external_runner_invoked") is False
+        and handoff_non_exec.get("dispatch_enabled") is False
+        and handoff_non_exec.get("executable") is False
+        and handoff_readiness.get("handoff_bundle_ready") is True
+        and handoff_readiness.get("real_dispatch_readiness") is False
+    )
+    handoff_replay_validated = bool(
+        handoff_validation_entry.get("is_current")
+        and agent_runner_handoff_validation.get("gate_status") == "PASSED"
+        and agent_runner_handoff_validation.get("validation_status") == "PASSED"
+    )
     can_dispatch = False
 
     if blocking_reasons:
@@ -515,6 +588,8 @@ def build_control_plane_snapshot(
             "job_orchestration": job_orchestration_entry,
             "runner_contract": runner_contract_entry,
             "agent_runner_dry_run": agent_runner_dry_run_entry,
+            "agent_runner_handoff_bundle": handoff_bundle_entry,
+            "agent_runner_handoff_validation": handoff_validation_entry,
             "round_archive_inventory": {
                 "status": "not_implemented",
                 "nonblocking": True,
@@ -539,10 +614,14 @@ def build_control_plane_snapshot(
             "job_orchestration_ready": job_orchestration_ready,
             "runner_contract_ready": runner_contract_ready,
             "local_dry_run_ready": local_dry_run_ready,
+            "handoff_bundle_ready": handoff_bundle_ready,
+            "handoff_replay_validated": handoff_replay_validated,
             "real_dispatch_readiness": False,
             "job_orchestration_status": str(job_orchestration.get("gate_status") or "MISSING"),
             "runner_contract_status": str(runner_contract.get("gate_status") or "MISSING"),
             "agent_runner_dry_run_status": str(agent_runner_dry_run.get("gate_status") or "MISSING"),
+            "agent_runner_handoff_bundle_status": str(agent_runner_handoff_bundle.get("gate_status") or "MISSING"),
+            "agent_runner_handoff_validation_status": str(agent_runner_handoff_validation.get("gate_status") or "MISSING"),
             "runner_contract_executable": runner_contract.get("executable")
             if runner_contract
             else False,

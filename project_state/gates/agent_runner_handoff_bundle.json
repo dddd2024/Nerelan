@@ -1,29 +1,91 @@
 {
   "schema_version": 1,
-  "artifact_name": "agent_runner_dry_run_result.json",
-  "gate_name": "agent-runner-dry-run",
+  "artifact_name": "agent_runner_handoff_bundle.json",
+  "artifact_path": "project_state/gates/agent_runner_handoff_bundle.json",
+  "gate_name": "agent-runner-handoff-bundle",
   "gate_status": "PASSED",
-  "dry_run_status": "PASSED",
+  "handoff_status": "PASSED",
   "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
   "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-30T09:55:18.477155Z",
-  "artifact_path": "project_state/gates/agent_runner_dry_run_result.json",
+  "generated_at": "2026-06-30T09:55:18.483668Z",
   "repo_root": "F:/reverse-agent",
-  "inputs_consumed": {
-    "decision_packet": "project_state/decision_packet.md",
-    "job_artifact": "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
-    "command_plan": "project_state/gates/command_plan.json",
-    "runner_contract": "project_state/gates/runner_contract_result.json"
+  "sealed_inputs": {
+    "decision_packet": {
+      "path": "project_state/decision_packet.md",
+      "exists": true,
+      "sha256": "65bdd98634dc53c3b8bb0d5e11421093722fbb4b7577984f9be20979297749a3",
+      "size_bytes": 28275,
+      "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+      "gate_status": "APPROVED"
+    },
+    "job_artifact": {
+      "path": "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
+      "exists": true,
+      "sha256": "6234ead228af1d26e0f479bde7a2f776bd1baf7767195a3c6a3812cc1ba3ba3c",
+      "size_bytes": 1483,
+      "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+      "gate_status": "DRAFT"
+    },
+    "command_plan": {
+      "path": "project_state/gates/command_plan.json",
+      "exists": true,
+      "sha256": "5357eef72c11026121951bbab2dda7791bf2c8b22658e58e84dbf7fa4d7d6191",
+      "size_bytes": 9753,
+      "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+      "gate_status": "PASSED"
+    },
+    "runner_contract": {
+      "path": "project_state/gates/runner_contract_result.json",
+      "exists": true,
+      "sha256": "283810b529758c84145f29502a602bfd352344b9fcf66bf8276a719ecacaee17",
+      "size_bytes": 8000,
+      "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+      "gate_status": "PASSED"
+    },
+    "agent_runner_dry_run": {
+      "path": "project_state/gates/agent_runner_dry_run_result.json",
+      "exists": true,
+      "sha256": "b368d91f98eb8b56d66a3926d822c998998ced17261f0e230b4d543468ef38ca",
+      "size_bytes": 10880,
+      "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+      "gate_status": "PASSED"
+    },
+    "control_plane_snapshot": {
+      "path": "project_state/gates/control_plane_snapshot.json",
+      "exists": true,
+      "sha256": "3929da03a9f29b86866dbf7b7900c962533960859acc7ddaceaf6c064b480588",
+      "size_bytes": 8046,
+      "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+      "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+      "gate_status": "PASSED"
+    }
   },
-  "input_validation": {
-    "job_validation_status": "PASSED",
-    "runner_contract_validation_status": "PASSED",
-    "command_plan_status": "PASSED"
+  "handoff_policy": {
+    "policy_name": "local_non_executing_handoff",
+    "dispatch_prohibited": true,
+    "external_calls_prohibited": true,
+    "write_scope": "project_state_only"
   },
-  "execution_preview": {
-    "planned_command_count": 22,
-    "planned_commands": [
+  "non_execution_policy": {
+    "commands_executed": false,
+    "subprocess_spawned": false,
+    "external_runner_invoked": false,
+    "model_api_called": false,
+    "github_actions_triggered": false,
+    "remote_mutation": false,
+    "dispatch_enabled": false,
+    "executable": false,
+    "can_dispatch": false,
+    "allow_agent_dispatch": false
+  },
+  "commands": {
+    "allowed_commands": [
       {
         "index": 1,
         "kind": "set-location",
@@ -249,7 +311,7 @@
         "required": true
       }
     ],
-    "planned_command_texts": [
+    "allowed_command_texts": [
       "Set-Location F:\\reverse-agent",
       "Get-Location",
       "Test-Path F:\\reverse-agent",
@@ -273,10 +335,34 @@
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_and_handoff_bundle_v1"
     ],
-    "forbidden_command_count": 0,
+    "dry_run_command_texts": [
+      "Set-Location F:\\reverse-agent",
+      "Get-Location",
+      "Test-Path F:\\reverse-agent",
+      "git rev-parse --show-toplevel",
+      "git status --short",
+      "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
+      "python -m reverse_agent.project_gate job-orchestration --state-dir project_state",
+      "python -m reverse_agent.project_gate runner-contract --state-dir project_state",
+      "python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state",
+      "python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state",
+      "python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state",
+      "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
+      "python -m pytest tests/test_project_agent_runner.py tests/test_project_runner_contract.py tests/test_project_control_plane.py tests/test_project_gate.py tests/test_project_state.py -q",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_hygiene_and_handoff_bundle_v1 --mode execute",
+      "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_and_handoff_bundle_v1"
+    ],
     "forbidden_commands": [],
-    "omitted_command_count": 0,
-    "omitted_commands": [],
+    "omitted_commands": []
+  },
+  "write_paths": {
     "allowed_write_paths": [
       "project_state/codex_execution_report.md",
       "project_state/gates/agent_runner_dry_run_result.json",
@@ -285,45 +371,24 @@
       "project_state/gates/runner_contract_result.json",
       "project_state/jobs/job_20260630_hygiene_and_handoff_bundle_v1.json",
       "project_state/pytest_result.txt"
+    ],
+    "generated_artifacts": [
+      "project_state/gates/agent_runner_handoff_bundle.json"
     ]
   },
-  "non_execution_proof": {
-    "commands_executed": false,
-    "subprocess_spawned": false,
-    "external_runner_invoked": false,
-    "model_api_called": false,
-    "github_actions_triggered": false,
-    "remote_mutation": false,
-    "dispatch_enabled": false,
-    "executable": false,
-    "reason": "local AgentRunner dry-run previews the handoff only"
-  },
-  "lifecycle_preview": {
-    "current_job_status": "DRAFT",
-    "proposed_job_status": "READY",
-    "local_dry_run_state": "DRY_RUN_PLANNED",
-    "state_is_evidence_only": true,
-    "job_status_mutated": false,
-    "transition_validation": {
-      "validation_status": "PASSED",
-      "errors": [],
-      "from_status": "DRAFT",
-      "to_status": "READY",
-      "allowed_to": [
-        "BLOCKED",
-        "READY"
-      ],
-      "terminal_from_status": false
-    }
-  },
-  "dispatch_policy": {
-    "can_dispatch": false,
-    "real_dispatch_readiness": false,
-    "local_dry_run_readiness": true
+  "readiness": {
+    "local_dry_run_ready": true,
+    "handoff_bundle_ready": true,
+    "handoff_replay_validated": false,
+    "real_dispatch_readiness": false
   },
   "errors": [],
   "warnings": [],
   "generated_artifacts": [
-    "project_state/gates/agent_runner_dry_run_result.json"
-  ]
+    "project_state/gates/agent_runner_handoff_bundle.json"
+  ],
+  "seal": {
+    "algorithm": "sha256-canonical-json",
+    "bundle_fingerprint": "767b5b79bd9859f303f74540796ba4e3fe7f14c5f8a0b793c28aec22ad94dfa5"
+  }
 }

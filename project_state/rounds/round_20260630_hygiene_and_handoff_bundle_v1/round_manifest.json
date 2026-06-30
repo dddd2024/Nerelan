@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-30T09:59:19Z",
+  "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260630_hygiene_and_handoff_bundle_v1\\codex_execution_report.md",
+      "sha256": "63f948e66d71858613dfe2f294bbed9f363dad5ebb9987ceb6505c1b735c8beb",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260630_hygiene_and_handoff_bundle_v1\\decision_packet.md",
+      "sha256": "65bdd98634dc53c3b8bb0d5e11421093722fbb4b7577984f9be20979297749a3",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260630_hygiene_and_handoff_bundle_v1\\pytest_result.txt",
+      "sha256": "6b8acfa2b1a3574769a4a881207101c09c1390fd89908993bf5a1a4494b62f97",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260630_hygiene_and_handoff_bundle_v1\\execution_report.md",
+      "sha256": "a08c9ccea352efe56b46a14d604b1e725a5c7fc502346f4c7584668baea60f74",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260630_hygiene_and_handoff_bundle_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+  "schema_version": 1,
+  "source_git_commit": "5afdc1ae02da",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

@@ -37,6 +37,8 @@ from reverse_agent.project_gate import (
     _is_self_invocation,
     _is_startup_command,
     _agent_runner_dry_run_gate_check,
+    _agent_runner_handoff_bundle_gate_check,
+    _agent_runner_handoff_validation_gate_check,
     _audit_inventory_gate_check,
     _control_plane_snapshot_gate_check,
     _job_orchestration_gate_check,
@@ -67,6 +69,8 @@ from reverse_agent.project_gate import (
     final_check,
     audit_inventory,
     control_plane_snapshot,
+    agent_runner_handoff_bundle,
+    agent_runner_handoff_validate,
     job_orchestration,
     jobs_inventory,
     main,
@@ -17044,7 +17048,9 @@ def test_run_closeout_constants_and_allowlist():
         "git diff", "preflight", "pytest", "command-plan", "report-summary",
             "final-check", "close-round", "decision-lint", "gate-profile",
             "execution-log", "report-auto-summary", "jobs-inventory",
-            "job-orchestration", "runner-contract", "agent-runner-dry-run", "audit-inventory",
+            "job-orchestration", "runner-contract", "agent-runner-dry-run",
+            "agent-runner-handoff-bundle", "agent-runner-handoff-validate",
+            "audit-inventory",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -21512,6 +21518,7 @@ def test_report_auto_summary_matches_synthesis_after_closeout(
         # run_closeout_execution_log.json may appear in synthesis but not
         # report when close_round fails; same category as run_closeout_result.json.
         non_archive.discard("project_state/gates/run_closeout_execution_log.json")
+        non_archive.discard("project_state/gates/execution_log.json")
         assert not non_archive, f"{field} non-archive diff: {sorted(non_archive)}"
 
 
@@ -25295,6 +25302,19 @@ def test_command_kind_recognizes_agent_runner_dry_run_gate() -> None:
     assert "agent-runner-dry-run" in RUN_CLOSEOUT_ALLOWED_KINDS
 
 
+def test_command_kind_recognizes_handoff_gates() -> None:
+    assert _command_kind(
+        "python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state"
+    ) == "agent-runner-handoff-bundle"
+    assert _command_kind(
+        "python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state"
+    ) == "agent-runner-handoff-validate"
+    assert _command_phase("agent-runner-handoff-bundle", archive_seen=False) == "gate"
+    assert _command_phase("agent-runner-handoff-validate", archive_seen=False) == "gate"
+    assert "agent-runner-handoff-bundle" in RUN_CLOSEOUT_ALLOWED_KINDS
+    assert "agent-runner-handoff-validate" in RUN_CLOSEOUT_ALLOWED_KINDS
+
+
 def test_filter_missing_pytest_file_args_keeps_existing_tests(tmp_path: Path) -> None:
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
@@ -25316,6 +25336,16 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
     plan = {
         "commands": [
             {
+                "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+                "kind": "startup-snapshot",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+                "kind": "preflight",
+                "expected_exit_codes": [0],
+            },
+            {
                 "command": "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state",
                 "kind": "jobs-inventory",
                 "expected_exit_codes": [0],
@@ -25334,6 +25364,21 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
                 "command": "python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state",
                 "kind": "agent-runner-dry-run",
                 "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state",
+                "kind": "agent-runner-handoff-bundle",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state",
+                "kind": "agent-runner-handoff-validate",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
+                "kind": "control-plane-snapshot",
+                "expected_exit_codes": [0, 1],
             },
             {
                 "command": "python -m pytest tests/test_project_agent_runner.py -q",
@@ -25363,10 +25408,22 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
 
     assert "python -m reverse_agent.project_gate jobs-inventory --state-dir project_state" in commands
     assert "python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state" in commands
+    assert "python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state" in commands
+    assert "python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state" in commands
     assert "python -m pytest tests/test_project_agent_runner.py -q" in commands
     assert "python -m pytest tests/test_project_state.py -q" in commands
     assert "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_gate --mode execute" in commands
     assert "python -m reverse_agent.project_gate execution-log --state-dir project_state" in commands
+    assert commands.index("python -m reverse_agent.project_gate startup-snapshot --state-dir project_state") < commands.index("python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed")
+    assert commands.index("python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state") < commands.index("python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state")
+    assert commands.index("python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state") < commands.index("python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state")
+    control_plane_indices = [
+        index for index, command in enumerate(commands)
+        if command == "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state"
+    ]
+    assert len(control_plane_indices) == 2
+    assert control_plane_indices[0] < commands.index("python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state")
+    assert control_plane_indices[1] > commands.index("python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state")
 
 
 def test_local_runner_dry_run_required_audit_generator_is_substantive() -> None:
@@ -25616,6 +25673,90 @@ def test_final_check_blocks_missing_required_agent_runner_dry_run_artifact(
     assert "missing" in check["detail"]
 
 
+def test_agent_runner_handoff_gates_write_and_validate_current_artifacts(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_handoff_gate",
+        round_id="round_handoff_gate",
+    )
+    _write_json(
+        state_dir / "gates" / "command_plan.json",
+        {
+            "schema_version": 1,
+            "plan_name": "command-plan",
+            "plan_status": "PASSED",
+            "decision_id": "decision_handoff_gate",
+            "round_id": "round_handoff_gate",
+            "mainline": "engineering_branch",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state",
+                    "kind": "agent-runner-dry-run",
+                    "phase": "gate",
+                    "expected_exit_codes": [0],
+                    "required": True,
+                }
+            ],
+            "omitted_commands": [],
+        },
+    )
+    assert job_orchestration(state_dir=state_dir)["gate_status"] == "PASSED"
+    assert runner_contract(state_dir=state_dir, repo_root=tmp_path)["gate_status"] == "PASSED"
+    assert agent_runner_dry_run(state_dir=state_dir, repo_root=tmp_path)["gate_status"] == "PASSED"
+    _write_json(
+        state_dir / "gates" / "control_plane_snapshot.json",
+        {
+            "schema_version": 1,
+            "gate_name": "control-plane-snapshot",
+            "gate_status": "PASSED",
+            "decision_id": "decision_handoff_gate",
+            "round_id": "round_handoff_gate",
+            "runner_readiness": {"local_dry_run_ready": True, "real_dispatch_readiness": False},
+        },
+    )
+
+    bundle = agent_runner_handoff_bundle(state_dir=state_dir, repo_root=tmp_path)
+    validation = agent_runner_handoff_validate(state_dir=state_dir, repo_root=tmp_path)
+
+    assert bundle["gate_status"] == "PASSED"
+    assert validation["gate_status"] == "PASSED"
+    bundle_check = _agent_runner_handoff_bundle_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_handoff_gate",
+        round_id="round_handoff_gate",
+        decision_contract={"accepted_requires_handoff_bundle_artifact": True},
+    )
+    validation_check = _agent_runner_handoff_validation_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_handoff_gate",
+        round_id="round_handoff_gate",
+        decision_contract={"accepted_requires_handoff_bundle_replay_validation": True},
+    )
+    assert bundle_check["status"] == "PASS"
+    assert validation_check["status"] == "PASS"
+
+
+def test_final_check_blocks_missing_required_handoff_artifacts(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        extra_text=(
+            "\n```json decision_contract\n"
+            '{"accepted_requires_handoff_bundle_artifact": true, '
+            '"accepted_requires_handoff_bundle_replay_validation": true}\n'
+            "```\n"
+        ),
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    assert _check(result, "agent_runner_handoff_bundle_artifact")["status"] == "FAIL"
+    assert _check(result, "agent_runner_handoff_validation_artifact")["status"] == "FAIL"
+
+
 def test_startup_snapshot_writes_and_reuses_first_current_round_artifact(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -25707,6 +25848,51 @@ python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 
     assert result["plan_status"] == "PASSED"
     assert [command["kind"] for command in result["commands"][:1]] == ["startup-snapshot"]
+
+
+def test_final_check_blocks_preflight_before_startup_snapshot_when_immediate_required(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        extra_text=(
+            "\n```json decision_contract\n"
+            '{"accepted_requires_startup_snapshot_immediate_after_startup_status": true, '
+            '"accepted_requires_no_preflight_before_startup_snapshot": true}\n'
+            "```\n"
+        ),
+    )
+    preflight_block = (
+        "===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====\n"
+        "preflight: PASSED\n"
+        "===== EXIT: 0 =====\n"
+    )
+    startup_snapshot_block = (
+        "===== COMMAND: python -m reverse_agent.project_gate startup-snapshot --state-dir project_state =====\n"
+        '{"gate_status":"PASSED"}\n'
+        "===== EXIT: 0 =====\n"
+    )
+    write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_gate",
+            "report_id": "codex_report_round_gate",
+            "round_id": "round_gate",
+            "status": "PASSED",
+            "tests_ran": [],
+        },
+        body="\n".join([*_STARTUP_COMMAND_BLOCKS, preflight_block, startup_snapshot_block]),
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    check = _check(result, "startup_snapshot_immediate_after_startup_status")
+    assert check["status"] == "FAIL"
+    assert check["actual_first_six"][-1] == "preflight"
 
 
 def test_startup_first_order_errors_accepts_front_loaded_startup_snapshot() -> None:

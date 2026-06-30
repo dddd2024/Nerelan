@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "artifact_name": "agent_runner_handoff_validation.json",
+  "artifact_path": "project_state/gates/agent_runner_handoff_validation.json",
+  "gate_name": "agent-runner-handoff-validate",
+  "gate_status": "PASSED",
+  "validation_status": "PASSED",
+  "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+  "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-30T09:55:18.486139Z",
+  "validated_bundle_path": "project_state/gates/agent_runner_handoff_bundle.json",
+  "checks": [
+    {
+      "name": "bundle_present",
+      "status": "PASS",
+      "detail": "handoff bundle is present"
+    },
+    {
+      "name": "bundle_decision_id_current",
+      "status": "PASS",
+      "detail": "bundle decision_id matches current decision"
+    },
+    {
+      "name": "bundle_round_id_current",
+      "status": "PASS",
+      "detail": "bundle round_id matches current round"
+    },
+    {
+      "name": "bundle_gate_status_passed",
+      "status": "PASS",
+      "detail": "bundle gate_status is PASSED"
+    },
+    {
+      "name": "bundle_fingerprint_matches",
+      "status": "PASS",
+      "detail": "bundle canonical fingerprint matches payload"
+    },
+    {
+      "name": "decision_packet_digest_current",
+      "status": "PASS",
+      "detail": "decision_packet digest matches current artifact"
+    },
+    {
+      "name": "decision_packet_decision_id_current",
+      "status": "PASS",
+      "detail": "decision_packet decision_id is current"
+    },
+    {
+      "name": "decision_packet_round_id_current",
+      "status": "PASS",
+      "detail": "decision_packet round_id is current"
+    },
+    {
+      "name": "job_artifact_digest_current",
+      "status": "PASS",
+      "detail": "job_artifact digest matches current artifact"
+    },
+    {
+      "name": "job_artifact_decision_id_current",
+      "status": "PASS",
+      "detail": "job_artifact decision_id is current"
+    },
+    {
+      "name": "job_artifact_round_id_current",
+      "status": "PASS",
+      "detail": "job_artifact round_id is current"
+    },
+    {
+      "name": "command_plan_digest_current",
+      "status": "PASS",
+      "detail": "command_plan digest matches current artifact"
+    },
+    {
+      "name": "command_plan_decision_id_current",
+      "status": "PASS",
+      "detail": "command_plan decision_id is current"
+    },
+    {
+      "name": "command_plan_round_id_current",
+      "status": "PASS",
+      "detail": "command_plan round_id is current"
+    },
+    {
+      "name": "runner_contract_digest_current",
+      "status": "PASS",
+      "detail": "runner_contract digest matches current artifact"
+    },
+    {
+      "name": "runner_contract_decision_id_current",
+      "status": "PASS",
+      "detail": "runner_contract decision_id is current"
+    },
+    {
+      "name": "runner_contract_round_id_current",
+      "status": "PASS",
+      "detail": "runner_contract round_id is current"
+    },
+    {
+      "name": "agent_runner_dry_run_digest_current",
+      "status": "PASS",
+      "detail": "agent_runner_dry_run digest matches current artifact"
+    },
+    {
+      "name": "agent_runner_dry_run_decision_id_current",
+      "status": "PASS",
+      "detail": "agent_runner_dry_run decision_id is current"
+    },
+    {
+      "name": "agent_runner_dry_run_round_id_current",
+      "status": "PASS",
+      "detail": "agent_runner_dry_run round_id is current"
+    },
+    {
+      "name": "control_plane_snapshot_digest_current",
+      "status": "PASS",
+      "detail": "control_plane_snapshot digest matches current artifact"
+    },
+    {
+      "name": "control_plane_snapshot_decision_id_current",
+      "status": "PASS",
+      "detail": "control_plane_snapshot decision_id is current"
+    },
+    {
+      "name": "control_plane_snapshot_round_id_current",
+      "status": "PASS",
+      "detail": "control_plane_snapshot round_id is current"
+    },
+    {
+      "name": "non_execution_commands_executed",
+      "status": "PASS",
+      "detail": "non_execution_policy.commands_executed is false"
+    },
+    {
+      "name": "non_execution_subprocess_spawned",
+      "status": "PASS",
+      "detail": "non_execution_policy.subprocess_spawned is false"
+    },
+    {
+      "name": "non_execution_external_runner_invoked",
+      "status": "PASS",
+      "detail": "non_execution_policy.external_runner_invoked is false"
+    },
+    {
+      "name": "non_execution_model_api_called",
+      "status": "PASS",
+      "detail": "non_execution_policy.model_api_called is false"
+    },
+    {
+      "name": "non_execution_github_actions_triggered",
+      "status": "PASS",
+      "detail": "non_execution_policy.github_actions_triggered is false"
+    },
+    {
+      "name": "non_execution_remote_mutation",
+      "status": "PASS",
+      "detail": "non_execution_policy.remote_mutation is false"
+    },
+    {
+      "name": "non_execution_dispatch_enabled",
+      "status": "PASS",
+      "detail": "non_execution_policy.dispatch_enabled is false"
+    },
+    {
+      "name": "non_execution_executable",
+      "status": "PASS",
+      "detail": "non_execution_policy.executable is false"
+    },
+    {
+      "name": "non_execution_can_dispatch",
+      "status": "PASS",
+      "detail": "non_execution_policy.can_dispatch is false"
+    },
+    {
+      "name": "non_execution_allow_agent_dispatch",
+      "status": "PASS",
+      "detail": "non_execution_policy.allow_agent_dispatch is false"
+    },
+    {
+      "name": "real_dispatch_not_ready",
+      "status": "PASS",
+      "detail": "real dispatch readiness remains false"
+    },
+    {
+      "name": "handoff_bundle_ready",
+      "status": "PASS",
+      "detail": "handoff bundle readiness is true"
+    },
+    {
+      "name": "command_plan_texts_match",
+      "status": "PASS",
+      "detail": "bundle command texts match command_plan"
+    },
+    {
+      "name": "dry_run_texts_match",
+      "status": "PASS",
+      "detail": "bundle dry-run texts match dry-run artifact"
+    },
+    {
+      "name": "allowed_write_paths_safe",
+      "status": "PASS",
+      "detail": "allowed write paths stay under project_state"
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "generated_artifacts": [
+    "project_state/gates/agent_runner_handoff_validation.json"
+  ]
+}

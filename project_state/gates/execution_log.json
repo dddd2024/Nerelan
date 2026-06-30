@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-  "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
-  "report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1",
-  "generated_at": "2026-06-30T05:14:50.616122Z",
+  "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+  "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+  "report_id": "codex_report_20260630_hygiene_and_handoff_bundle_v1",
+  "generated_at": "2026-06-30T09:59:32.012239Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-    "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
-    "report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1",
+    "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+    "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+    "report_id": "codex_report_20260630_hygiene_and_handoff_bundle_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "8607333f005358ebb26a1c91ca777743ae6dfb08819e85fd8477cc5f6dfee9e7",
-        "size_bytes": 45016,
-        "command_block_count": 21
+        "sha256": "6b8acfa2b1a3574769a4a881207101c09c1390fd89908993bf5a1a4494b62f97",
+        "size_bytes": 73099,
+        "command_block_count": 22
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "cda6a39323513cf5587346c660f6af854860c274e8fe7c4b6de26904bf1e0562",
-        "size_bytes": 9263,
-        "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-        "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
+        "sha256": "ae906c6b9c37c74bd438bb4412fa5e24583a321aae512e5a7b0230f60a667fbb",
+        "size_bytes": 9753,
+        "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+        "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
         "plan_status": "PASSED",
-        "command_count": 21
+        "command_count": 22
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "f3feb20e3296b239b33111ba631b1d072a5c7bbd12519e73cf32155de1d3a7a6",
-        "size_bytes": 65349,
-        "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
-        "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
-        "command_block_count": 20
+        "sha256": "cde97a277380a08005b9eaa0cff1c8deaf0c6eed6edcb026bb3a963078bba9c2",
+        "size_bytes": 104827,
+        "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+        "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+        "command_block_count": 22
       }
     },
-    "command_count": 21,
-    "command_digest": "64ee960455fd405e0f9f660d29402daad6b2cb06e8df7bf2b7ac02b0f9f296b6"
+    "command_count": 22,
+    "command_digest": "418ba6f47e4defa1c1ea686465b4620eb7ab17c9cfa1f028c9de7293fc18233f"
   },
   "commands": [
     {
@@ -107,9 +107,9 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "phase": "preflight",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "kind": "startup-snapshot",
+      "phase": "gate",
       "expected_exit_codes": [
         0
       ],
@@ -118,9 +118,9 @@
     },
     {
       "index": 7,
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "kind": "startup-snapshot",
-      "phase": "gate",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
       "expected_exit_codes": [
         0
       ],
@@ -173,6 +173,28 @@
     },
     {
       "index": 12,
+      "command": "python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state",
+      "kind": "agent-runner-handoff-bundle",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state",
+      "kind": "agent-runner-handoff-validate",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 14,
       "command": "python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state",
       "kind": "control-plane-snapshot",
       "phase": "gate",
@@ -184,29 +206,18 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
-      "command": "python -m pytest tests/test_project_agent_runner.py tests/test_project_runner_contract.py tests/test_project_jobs.py tests/test_project_control_plane.py tests/test_project_gate.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 14,
-      "command": "python -m pytest tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
       "index": 15,
+      "command": "python -m pytest tests/test_project_agent_runner.py tests/test_project_runner_contract.py tests/test_project_control_plane.py tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -217,7 +228,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -228,7 +239,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -240,8 +251,8 @@
       "status": "PASSED"
     },
     {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_local_runner_dry_run_foundation_v1 --mode execute",
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_hygiene_and_handoff_bundle_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -251,7 +262,7 @@
       "status": "PASSED"
     },
     {
-      "index": 19,
+      "index": 20,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -263,7 +274,7 @@
       "status": "PASSED"
     },
     {
-      "index": 20,
+      "index": 21,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -275,8 +286,8 @@
       "status": "PASSED"
     },
     {
-      "index": 21,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_local_runner_dry_run_foundation_v1",
+      "index": 22,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_and_handoff_bundle_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
