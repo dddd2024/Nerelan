@@ -1,10 +1,10 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
-  "round_id": "round_20260630_hygiene_handoff_rework_v1",
+  "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+  "round_id": "round_20260630_required_audit_alignment_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
-  "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -13,20 +13,19 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
-  "previous_round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+  "previous_decision_id": "decision_20260630_hygiene_handoff_rework_v1",
+  "previous_round_id": "round_20260630_hygiene_handoff_rework_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "phase_label": "phase_2_22_hygiene_handoff_rework",
-  "primary_goal": "Rework the hygiene and handoff bundle round by hard-blocking dirty source/test startup baselines, fixing artifact taxonomy semantics, and repairing Required Audit answer alignment without expanding runner capabilities.",
+  "phase_label": "phase_2_23_required_audit_alignment_rework",
+  "primary_goal": "Repair Required Audit answer alignment, enforce report tests coverage, and clarify final-check exit semantics without expanding runner, handoff, artifact, or control-plane capabilities.",
   "command_plan_authority_required": true,
-  "accepted_requires_startup_snapshot_immediate_after_startup_status": true,
-  "accepted_requires_source_test_clean_start_hard_block": true,
-  "accepted_requires_no_authorized_source_test_dirty_override": true,
-  "accepted_requires_no_preflight_before_startup_snapshot": true,
-  "accepted_requires_artifact_role_taxonomy": true,
-  "accepted_requires_generated_artifacts_exclude_historical_only_artifacts": true,
   "accepted_requires_required_audit_answer_alignment": true,
-  "accepted_requires_existing_handoff_bundle_validation_preserved": true,
+  "accepted_requires_tests_project_reports_py": true,
+  "accepted_requires_required_audit_alignment_negative_test": true,
+  "accepted_requires_final_check_exit_semantics_clean": true,
+  "accepted_requires_startup_snapshot_immediate_after_startup_status": true,
+  "accepted_requires_source_test_clean_start_hard_block_preserved": true,
+  "accepted_requires_artifact_role_taxonomy_preserved": true,
   "accepted_requires_no_new_runner_capability": true,
   "accepted_requires_report_summary_fields_match_synthesis": true,
   "accepted_requires_execute_decision_contract_passed": true,
@@ -34,20 +33,20 @@
   "accepted_requires_closeout_nested_failures_absent": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_agent_runner.py",
-    "reverse_agent/project_control_plane.py",
     "tests/test_project_gate.py",
-    "tests/test_project_agent_runner.py",
-    "tests/test_project_control_plane.py",
-    "tests/test_project_reports.py",
-    "tests/test_project_state.py"
+    "tests/test_project_reports.py"
   ],
   "preserve_only_files": [
+    "reverse_agent/project_agent_runner.py",
+    "reverse_agent/project_control_plane.py",
     "reverse_agent/project_jobs.py",
     "reverse_agent/project_runner_contract.py",
     "reverse_agent/project_audits.py",
     "reverse_agent/project_rounds.py",
     "reverse_agent/project_state.py",
+    "tests/test_project_agent_runner.py",
+    "tests/test_project_control_plane.py",
+    "tests/test_project_state.py",
     "docs/prompts/codex_execution_prompt.md",
     "docs/prompts/project_workspace_prompt.md",
     "docs/prompts/README.md",
@@ -82,8 +81,8 @@
     "project_state/gates/run_round_result.json",
     "project_state/gates/runner_contract_result.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json",
-    "project_state/rounds/round_20260630_hygiene_handoff_rework_v1/*"
+    "project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json",
+    "project_state/rounds/round_20260630_required_audit_alignment_rework_v1/*"
   ],
   "historical_artifacts_must_not_be_generated_unless_current_round_rebuilt": [
     "project_state/gates/phase1_completion_result.json",
@@ -114,38 +113,35 @@
 
 ## 1. Goal
 
-Implement **Hygiene Handoff Rework v1**.
+Implement **Required Audit Alignment Rework v1**.
 
-This is a rework-only round after the audit of `decision_20260630_hygiene_and_handoff_bundle_v1` returned `REWORK_REQUIRED`. Do not advance new runner functionality. Preserve the existing local non-executing handoff bundle and replay validation capabilities only insofar as needed to keep current tests and final-check coherent.
+This is a narrow rework round after the audit of `decision_20260630_hygiene_handoff_rework_v1` returned `REWORK_REQUIRED`. Do not advance new runner, handoff, artifact, control-plane, Web, API, database, queue, scheduler, CI, or reverse-solving capability.
 
 Primary goals:
 
-1. Fix startup baseline enforcement. If the startup `git status --short` contains any dirty `reverse_agent/` or `tests/` path, startup-snapshot must not report a clean source/test start. The accepted state must be blocked rather than converted into an authorized inherited dirty baseline.
-2. Enforce startup command order as a hard acceptance rule. The first six recorded command blocks must be:
-   - `Set-Location F:\reverse-agent`
-   - `Get-Location`
-   - `Test-Path F:\reverse-agent`
-   - `git rev-parse --show-toplevel`
-   - `git status --short`
-   - `python -m reverse_agent.project_gate startup-snapshot --state-dir project_state`
-3. Prevent any project gate command, including `preflight`, from appearing before startup-snapshot in an accepted transcript.
-4. Fix artifact taxonomy. `generated_artifacts` and `generated_or_updated_artifacts` must contain only artifacts actually generated or updated in the current round. Historical or stale gate artifacts must be moved to `referenced_artifacts` or `historical_nonblocking_artifacts`, unless they are explicitly regenerated in this round with current decision/round provenance.
-5. Fix Required Audit answer alignment. Every Required Audit item must answer its own question with directly related evidence. Template cycling or mismatched evidence must be rejected by final-check or a report-summary/Required Audit alignment check.
-6. Preserve but do not expand the existing local handoff bundle/replay validation feature from the failed round. The rework may keep `agent_runner_handoff_bundle.json` and `agent_runner_handoff_validation.json` current, but it must not implement real execution, external dispatch, background runner, API calls, or Web/DB/queue/scheduler work.
+1. Rewrite `project_state/codex_execution_report.md` and `project_state/execution_report.md` Required Audit answers so every item directly answers its own question with item-specific evidence.
+2. Harden final-check or report-summary validation so it rejects the exact failure pattern seen in the previous round: cyclic/template answers where a startup question is answered with artifact taxonomy evidence, a taxonomy question is answered with decision metadata evidence, or a Required Audit alignment question is answered with generic closeout evidence.
+3. Ensure `tests/test_project_reports.py` is actually included in the focused pytest command and recorded in `project_state/pytest_result.txt`.
+4. Add or update negative tests for Required Audit answer alignment so mismatched evidence/template-cycled answers fail.
+5. Clarify final-check CLI exit semantics. If `final-check` or `final-check-after-close` writes a PASSED artifact but exits `1`, the accepted report must explain why the exit code is expected and non-blocking, or final-check must exit `0` in accepted state. Silent exit-code ambiguity is not acceptable.
+6. Preserve the prior improvements:
+   - startup source/test baseline is clean and hard-blocked if dirty;
+   - startup-snapshot is immediate after the five startup commands;
+   - artifact taxonomy excludes historical-only artifacts from generated/current lists;
+   - handoff bundle and replay validation remain local, non-executing, and non-dispatching.
 
 Preferred final outcome:
 
 - `codex_report_summary.status: SUCCESS`.
 - `acceptance_recommendation: ACCEPTED`.
 - `pytest_result_summary.status: PASSED`.
-- Startup source/test baseline is clean in actual startup `git status --short`, not just reclassified by code.
-- `startup_snapshot.source_test_clean_start: true` only when no dirty `reverse_agent/` or `tests/` paths exist at startup.
-- `final-check` fails accepted reports when startup source/test is dirty.
-- `generated_artifacts` excludes historical-only artifacts.
-- `required_audit_coverage` or equivalent rejects placeholder or mismatched audit answers.
+- Focused pytest includes `tests/test_project_reports.py`.
+- Required Audit answers are item-specific and no longer template-cycled.
+- `required_audit_coverage` or equivalent reports no missing, placeholder, or alignment failures and is credible under manual review.
 - `report_summary_fields_match_synthesis: PASS`.
 - `execute_decision_contract: PASS`.
-- `run-closeout: PASSED`, close-round `CLOSED`, and no nested active FAIL/FAILED states.
+- `run-closeout: PASSED`, close-round `CLOSED`, no nested active FAIL/FAILED states.
+- final-check after archive/closeout is unambiguous: either CLI exit `0`, or exit `1` is explicitly expected and accompanied by a PASS artifact plus a documented non-blocking reason.
 
 ## 2. Current Evidence
 
@@ -153,31 +149,28 @@ Mainline: `engineering_branch`.
 
 The current task is controlled by this `project_state/decision_packet.md`. `project_state/task_packet.json` remains background only and still refers to an older `samplereverse` sample state. It must not drive this engineering rework.
 
-The latest audited execution was `decision_20260630_hygiene_and_handoff_bundle_v1` / `round_20260630_hygiene_and_handoff_bundle_v1`. Its audit conclusion was `REWORK_REQUIRED` for the following concrete reasons:
+The latest audited execution was `decision_20260630_hygiene_handoff_rework_v1` / `round_20260630_hygiene_handoff_rework_v1`. Its audit conclusion was `REWORK_REQUIRED` for these reasons:
 
-1. Startup `git status --short` already showed dirty source/test files before startup-snapshot:
-   - `reverse_agent/project_agent_runner.py`
-   - `reverse_agent/project_control_plane.py`
-   - `reverse_agent/project_gate.py`
-   - `tests/test_project_agent_runner.py`
-   - `tests/test_project_control_plane.py`
-   - `tests/test_project_gate.py`
-2. `startup_snapshot.json` still recorded `source_test_clean_start: true`, while separately listing those source/test paths under an authorization-style field. This violates the decision requirement that dirty source/test startup baselines must block execution.
-3. `final_gate_result.json` marked startup baseline consistency as PASS even though it recognized source/test dirty files.
-4. `codex_report_summary.generated_artifacts` and `generated_or_updated_artifacts` still included historical or generic gate artifacts, including `phase1_completion_result.json`, `policy_impact_audit.json`, `policy_lint_result.json`, and `state_hygiene_inventory.json`.
-5. `report_summary_synthesis.json` reproduced the same artifact taxonomy issue.
-6. `codex_execution_report.md` Required Audit answers were misaligned with their questions. Several answers used unrelated evidence, such as using handoff bundle fingerprints to answer startup ordering, or replay validation to answer startup source/test cleanliness.
+1. Startup baseline and startup ordering were improved. `git status --short` was empty, startup-snapshot was immediate after the five startup commands, and `source_test_clean_start` matched the clean state.
+2. Artifact taxonomy was improved. Historical-only artifacts such as `phase1_completion_result.json`, `policy_impact_audit.json`, `policy_lint_result.json`, and `state_hygiene_inventory.json` were moved out of generated/current lists.
+3. However, Required Audit answers remained misaligned. Examples from the failed round:
+   - the item asking whether startup `git status --short` showed no dirty `reverse_agent/` or `tests/` files was answered with artifact taxonomy evidence;
+   - the item asking whether `startup_snapshot.source_test_clean_start` matched actual source/test dirtiness was answered with Required Audit validator evidence;
+   - the item asking whether final-check blocks dirty source/test startup was answered with handoff bundle evidence;
+   - the item asking whether report taxonomy exists was answered with decision/task/skill metadata;
+   - the item asking whether Required Audit answers are aligned was answered with generic closeout/pytest/final-check status.
+4. `tests/test_project_reports.py` was required by the decision but was missing from the focused pytest command actually recorded in `pytest_result.txt`.
+5. `run_closeout_result.json` showed internal `final-check` and `final-check-after-close` commands exiting `1` while being marked `PASSED`. This may be a known diagnostic convention, but the accepted report did not explain the semantics sufficiently.
 
-Current existing capability to preserve:
+Current capability to preserve, not expand:
 
-- `project_agent_runner.py` already contains local non-executing dry-run and handoff/replay validation work from the failed round.
-- `project_gate.py` already exposes or can expose startup-snapshot, command-plan, report-summary, final-check, run-closeout, agent-runner-dry-run, agent-runner-handoff-bundle, and agent-runner-handoff-validate gates.
-- `project_control_plane.py` already has readiness fields that can distinguish dry-run/handoff readiness from real dispatch readiness.
-- Runner execution, dispatch, external invocation, model API calls, GitHub Actions mutation, Web UI, database, queue, scheduler, reverse-solving, and runtime probes remain forbidden.
+- `project_gate.py` now contains stricter startup ordering, startup dirty baseline, artifact taxonomy, and Required Audit coverage logic.
+- `project_agent_runner.py`, `project_runner_contract.py`, and `project_control_plane.py` contain local non-executing runner/dry-run/handoff evidence support from earlier rounds. This round must not expand them.
+- `report_summary_synthesis.json` and final-check already enforce many report consistency checks, but Required Audit alignment remains too permissive.
 
 Artifact freshness:
 
-- New current-round artifacts must carry `decision_20260630_hygiene_handoff_rework_v1` and `round_20260630_hygiene_handoff_rework_v1`.
+- Current-round artifacts must carry `decision_20260630_required_audit_alignment_rework_v1` and `round_20260630_required_audit_alignment_rework_v1`.
 - Historical gate artifacts may be referenced only as historical/nonblocking unless regenerated in this round with current IDs and current provenance.
 - Existing missing sample artifacts in `artifact_index.json` remain nonblocking historical backlog for this engineering rework.
 
@@ -190,17 +183,15 @@ Command-plan policy:
 
 - `command-plan` is the command execution authority.
 - Codex may only execute commands authorized by command-plan.
-- However, command-plan must not weaken these hard requirements: startup-snapshot immediacy, dirty source/test startup blocking, no preflight before startup-snapshot, artifact role taxonomy, no real execution, no dispatch, final-check convergence, and closeout convergence.
+- Command-plan must not weaken these hard requirements: focused pytest must include `tests/test_project_reports.py`; Required Audit alignment must be fixed; startup-snapshot immediacy and clean startup baseline must be preserved; artifact taxonomy must remain fixed; final-check/closeout exit semantics must be explicit; no real execution or dispatch is allowed.
 
 ## 3. Do Not Do
 
-Do not implement new runner features beyond this rework.
+Do not implement new runner, handoff, control-plane, job orchestration, Web, API, database, queue, scheduler, CI, or reverse-solving capability.
 
-Do not implement real AgentRunner execution.
+Do not modify `reverse_agent/project_agent_runner.py`, `reverse_agent/project_control_plane.py`, `reverse_agent/project_jobs.py`, `reverse_agent/project_runner_contract.py`, `reverse_agent/project_audits.py`, `reverse_agent/project_rounds.py`, or `reverse_agent/project_state.py` unless this decision is explicitly revised.
 
 Do not execute handoff bundle commands.
-
-Do not spawn subprocesses from `project_agent_runner.py`, handoff bundle code, replay validation code, final-check code, or report-summary code except through explicit user/command-plan top-level commands that are recorded in `pytest_result.txt`.
 
 Do not call Codex CLI, Trae, Claude Code, Aider, model APIs, browser automation, GitHub Actions, remote services, or external runners.
 
@@ -210,15 +201,15 @@ Do not create a Web UI, API Planner, API Auditor, database, queue daemon, schedu
 
 Do not modify GitHub workflows, prompt docs, `.codex-skills/`, `current_state.json`, `task_packet.json`, `artifact_index.json`, or `negative_results.json`.
 
-Do not read full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or full `project_state/rounds/`.
+Do not read full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or full historical round directories.
 
 Do not perform reverse-solving, sample execution, runtime probe, dynamic debugging, emulator execution, hook execution, or binary analysis.
 
-Do not treat `authorized_source_test_dirty_files` or any similarly named field as a substitute for a clean startup baseline. Source/test dirty at startup is blocking.
+Do not accept Required Audit answers that are generic, template-cycled, mismatched with their question, or supported by unrelated evidence.
 
-Do not treat historical artifacts as generated current-round artifacts unless the current round actually generated them with current decision/round provenance.
+Do not omit `tests/test_project_reports.py` from the focused pytest run.
 
-Do not write `SUCCESS` when Required Audit answers are mismatched, generic, template-cycled, or unrelated to the question.
+Do not silently accept `final-check` exit code `1` in an accepted closeout without a documented non-blocking semantics check.
 
 Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly instructs the executor to upload execution results.
 
@@ -239,13 +230,16 @@ Read first:
 Inspect implementation and tests:
 
 1. `reverse_agent/project_gate.py`
-2. `reverse_agent/project_agent_runner.py`
-3. `reverse_agent/project_control_plane.py`
-4. `tests/test_project_gate.py`
-5. `tests/test_project_agent_runner.py`
-6. `tests/test_project_control_plane.py`
-7. `tests/test_project_reports.py`
-8. `tests/test_project_state.py`
+2. `tests/test_project_gate.py`
+3. `tests/test_project_reports.py`
+
+Inspect only as preserve/read-only context if needed:
+
+1. `reverse_agent/project_agent_runner.py`
+2. `reverse_agent/project_control_plane.py`
+3. `tests/test_project_agent_runner.py`
+4. `tests/test_project_control_plane.py`
+5. `tests/test_project_state.py`
 
 Inspect bounded gate artifacts:
 
@@ -264,14 +258,14 @@ Inspect bounded gate artifacts:
 
 Create/update if needed:
 
-1. `project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json`
-2. `project_state/rounds/round_20260630_hygiene_handoff_rework_v1/*`
+1. `project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json`
+2. `project_state/rounds/round_20260630_required_audit_alignment_rework_v1/*`
 
 Do not scan full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or full historical round directories.
 
 ## 5. Required Audit
 
-The execution report must answer every item below with `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`, with direct evidence for that exact item. A generic answer or unrelated evidence is a failure.
+The execution report must answer every item below with `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`, with direct evidence for that exact item. The answer text must be specific to the question and must not be copied from another item.
 
 1. Did the first five recorded commands exactly confirm `F:\reverse-agent`, repository root, and `git status --short`?
 2. Was `startup-snapshot` the immediate sixth recorded command and the first project gate command?
@@ -282,48 +276,49 @@ The execution report must answer every item below with `PASS`, `FAIL`, `BLOCKED`
 7. Does final-check block SUCCESS/ACCEPTED when preflight or any gate appears before startup-snapshot?
 8. Is decision metadata valid: APPROVED, engineering_branch, active `reverse-agent-iteration@v2`?
 9. Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?
-10. Were the failed-round issues explicitly addressed rather than hidden by allowlist fields?
+10. Did this round repair the previous Required Audit answer misalignment rather than only reporting generic pass status?
 11. Does report taxonomy include generated/updated, referenced, historical_nonblocking, and archived artifacts or equivalent fields?
 12. Are `phase1_completion_result.json`, `policy_impact_audit.json`, `policy_lint_result.json`, `state_hygiene_inventory.json`, `audit_inventory_result.json`, and `naming_migration_plan.json` excluded from generated/generated_or_updated unless actually regenerated in this round with current IDs?
 13. Does report-summary synthesis validate taxonomy and report no diffs?
 14. Does final-check detect stale/historical-only artifacts being placed in generated/current artifact lists?
 15. Does final-check or report-summary detect Required Audit placeholder/template/misaligned answers?
 16. Are Required Audit answers in `codex_execution_report.md` directly aligned with their question and evidence?
-17. Is existing `agent_runner_dry_run_result.json` current, PASSED, non-executing, and non-dispatching?
-18. Is existing handoff bundle evidence current, non-executing, and non-dispatching if regenerated this round?
-19. Is existing handoff replay validation current and PASSED if regenerated this round?
+17. Was `tests/test_project_reports.py` included in the focused pytest command recorded in `pytest_result.txt`?
+18. Did focused pytest exit 0 and include report/alignment tests?
+19. Are existing dry-run, handoff bundle, and replay validation artifacts still current, local, non-executing, and non-dispatching if regenerated this round?
 20. Did the rework avoid adding any new real runner, dispatch, external invocation, model API, Web/API/DB/queue/scheduler, GitHub Actions mutation, runtime probe, or reverse-solving capability?
 21. Did the implementation stay within allowed source/test files?
 22. Were preserve-only and forbidden files not modified?
-23. Did required pytest commands exit 0, with pass counts recorded in `pytest_result.txt`?
+23. Did required top-level commands exit with expected codes, with pass/fail counts recorded in `pytest_result.txt`?
 24. Did `report_summary_fields_match_synthesis` pass with no diffs?
 25. Did `execute_decision_contract` pass?
 26. Did `execution_log` provenance remain current-round aligned?
 27. Did `run-closeout` exit 0 with `closeout_status: PASSED` and close-round `CLOSED`?
 28. Did final-check pass after archive/closeout, not only before archive?
-29. Did `closeout_nested_failures_absent` pass?
-30. Does `codex_report_summary` match `pytest_result.txt`, artifact taxonomy, generated/updated artifacts, changed files, decision ID, and round ID?
+29. If any internal final-check command exits `1` while status is treated as PASSED, is the expected-exit and non-blocking semantics explicitly documented and validated?
+30. Did `closeout_nested_failures_absent` pass?
+31. Does `codex_report_summary` match `pytest_result.txt`, artifact taxonomy, generated/updated artifacts, changed files, decision ID, and round ID?
 
 ## 6. Implementation Scope
 
 Allowed source/test changes:
 
 - `reverse_agent/project_gate.py`
-- `reverse_agent/project_agent_runner.py`
-- `reverse_agent/project_control_plane.py`
 - `tests/test_project_gate.py`
-- `tests/test_project_agent_runner.py`
-- `tests/test_project_control_plane.py`
 - `tests/test_project_reports.py`
-- `tests/test_project_state.py`
 
 Preserve-only files:
 
+- `reverse_agent/project_agent_runner.py`
+- `reverse_agent/project_control_plane.py`
 - `reverse_agent/project_jobs.py`
 - `reverse_agent/project_runner_contract.py`
 - `reverse_agent/project_audits.py`
 - `reverse_agent/project_rounds.py`
 - `reverse_agent/project_state.py`
+- `tests/test_project_agent_runner.py`
+- `tests/test_project_control_plane.py`
+- `tests/test_project_state.py`
 - `docs/prompts/codex_execution_prompt.md`
 - `docs/prompts/project_workspace_prompt.md`
 - `docs/prompts/README.md`
@@ -336,7 +331,7 @@ Allowed generated or updated artifacts:
 - `project_state/codex_execution_report.md`
 - `project_state/execution_report.md`
 - `project_state/pytest_result.txt`
-- `project_state/jobs/job_20260630_hygiene_handoff_rework_v1.json`
+- `project_state/jobs/job_20260630_required_audit_alignment_rework_v1.json`
 - `project_state/gates/agent_runner_dry_run_result.json`
 - `project_state/gates/agent_runner_handoff_bundle.json`
 - `project_state/gates/agent_runner_handoff_validation.json`
@@ -360,20 +355,24 @@ Allowed generated or updated artifacts:
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/runner_contract_result.json`
 - `project_state/gates/startup_snapshot.json`
-- `project_state/rounds/round_20260630_hygiene_handoff_rework_v1/*`
+- `project_state/rounds/round_20260630_required_audit_alignment_rework_v1/*`
 
 Required implementation behavior:
 
-1. Update startup-snapshot/final-check logic so dirty `reverse_agent/` or `tests/` paths at startup are blocking.
-2. Remove or neutralize any acceptance path that treats dirty source/test startup paths as clean because they are in an allowed or inherited list.
-3. Add startup transcript order validation that requires startup-snapshot to be command block 6 and first project gate.
-4. Add or update tests for dirty source/test startup blocking.
-5. Add or update tests for preflight-before-startup-snapshot blocking.
-6. Fix artifact taxonomy synthesis and validation.
-7. Add or update tests that historical-only artifacts cannot appear in generated/generated_or_updated lists unless current-round regenerated.
-8. Add Required Audit answer alignment validation that catches repeated template answers, mismatched evidence labels, placeholder answers, or answers that do not mention the question-specific evidence.
-9. Rewrite `codex_execution_report.md` Required Audit answers with direct item-specific evidence.
-10. Preserve existing handoff bundle/replay validation behavior but do not expand it into execution or dispatch.
+1. Improve `_required_audit_alignment_failures()` or equivalent logic so it catches cross-topic/template-cycled answers.
+2. Add explicit mapping from each Required Audit question to required evidence terms or artifact classes.
+3. Reject answers that use evidence from an unrelated category. For example:
+   - startup dirty questions must cite startup transcript or startup snapshot fields;
+   - taxonomy questions must cite report summary taxonomy or synthesis fields;
+   - decision authority questions must cite decision/task/registry evidence;
+   - handoff questions must cite dry-run/handoff validation artifacts;
+   - closeout questions must cite run-closeout/final-check artifacts.
+4. Rewrite all Required Audit answers in the execution report to be item-specific.
+5. Ensure focused pytest includes `tests/test_project_reports.py` and that this is recorded in both `codex_report_summary.tests_ran` and `pytest_result_summary.tests_ran`.
+6. Add a test that fails on the previous report pattern where Required Audit answers rotate among unrelated evidence templates.
+7. Add or update tests for final-check exit semantics so accepted closeout cannot silently treat unexplained final-check exit `1` as fully passed.
+8. Preserve startup baseline and artifact taxonomy fixes from the prior round.
+9. Preserve existing local non-executing handoff evidence without expanding functionality.
 
 ## 7. Tests
 
@@ -394,19 +393,21 @@ Hard startup rules:
 - No `command-plan`, `final-check`, `jobs-inventory`, `job-orchestration`, `runner-contract`, `agent-runner-dry-run`, `agent-runner-handoff-*`, `control-plane-snapshot`, `report-summary`, `execution-log`, or `run-closeout` command may appear before startup-snapshot.
 - If startup `git status --short` shows any dirty `reverse_agent/` or `tests/` path, stop with `BLOCKED` before implementation and do not write `SUCCESS`.
 
-Required focused tests must include the equivalent of:
+Required focused pytest command must include `tests/test_project_reports.py`:
 
 ```powershell
-python -m pytest tests/test_project_gate.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_reports.py tests/test_project_state.py -q
+python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_state.py -q
 ```
 
-The focused tests must cover at least:
+Focused tests must cover at least:
 
-- `test_startup_snapshot_fails_on_source_test_dirty`
-- `test_final_check_blocks_source_test_dirty_startup`
-- `test_final_check_blocks_preflight_before_startup_snapshot`
-- `test_report_summary_taxonomy_excludes_historical_from_generated`
-- `test_required_audit_answer_alignment_rejects_template_mismatch`
+- Required Audit item-to-evidence alignment;
+- rejection of template-cycled Required Audit answers;
+- rejection of startup questions answered with taxonomy or handoff evidence;
+- rejection of taxonomy questions answered with decision metadata evidence;
+- rejection of Required Audit alignment questions answered only with generic closeout evidence;
+- inclusion of `tests/test_project_reports.py` in the recorded pytest command;
+- final-check exit semantics for accepted closeout.
 
 Then run command-plan-authorized validation. At minimum include the equivalent of:
 
@@ -422,10 +423,10 @@ python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir pro
 python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state
 python -m reverse_agent.project_gate control-plane-snapshot --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
-python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1 --mode execute
+python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_required_audit_alignment_rework_v1 --mode execute
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_required_audit_alignment_rework_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -447,25 +448,26 @@ Stop immediately with `BLOCKED` if:
 
 Stop with `REWORK_REQUIRED` if:
 
+- Required Audit answers are generic, placeholder, repeated from a template, copied from another item, or mismatched with their questions;
+- final-check cannot detect the previous round's Required Audit template-cycling pattern;
+- `tests/test_project_reports.py` is missing from the focused pytest command or from `pytest_result.txt`;
+- required pytest commands fail;
+- final-check CLI exit semantics remain ambiguous in accepted closeout;
 - startup source/test dirty files are reclassified as authorized rather than blocking;
 - `startup_snapshot.source_test_clean_start` does not match actual startup source/test dirtiness;
 - final-check accepts dirty startup source/test evidence;
-- startup ordering is still not enforced by final-check or closeout-relevant validation;
+- startup ordering regresses;
 - `generated_artifacts` or `generated_or_updated_artifacts` includes stale/historical-only artifacts as current generated artifacts;
 - artifact taxonomy fields are missing from summaries or not checked by report-summary synthesis;
-- Required Audit answers are generic, placeholder, repeated from a template, or mismatched with their questions;
-- final-check cannot detect Required Audit answer misalignment;
 - existing handoff bundle or validation artifacts regress if regenerated;
-- control-plane readiness conflates handoff readiness with real dispatch readiness;
 - any runner/handoff code executes commands, spawns subprocesses, calls external services, or mutates remote state;
 - stale sample or historical gate artifacts are treated as current accepted evidence;
 - `codex_execution_report.md` omits Required Audit answers;
 - `pytest_result.txt` does not match actual commands or exit codes;
-- required pytest commands fail;
 - `report_summary_fields_match_synthesis` fails;
 - `execute_decision_contract` fails;
 - `execution_log` provenance regresses;
 - `run-closeout` exits nonzero or close status is not CLOSED;
-- final-check after archive/closeout does not pass;
+- final-check after archive/closeout does not pass or has unexplained expected exit behavior;
 - nested failure scan finds active FAILED/FAIL states;
 - Codex modifies workflows, prompts, skills, task/current/artifact/negative state, solve_reports, or remote state.
