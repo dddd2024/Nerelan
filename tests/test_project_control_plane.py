@@ -225,6 +225,51 @@ def test_control_plane_snapshot_summarizes_job_and_runner_readiness(tmp_path: Pa
     assert result["runner_readiness"]["can_dispatch_next_decision"] is False
 
 
+def test_control_plane_snapshot_separates_local_dry_run_from_real_dispatch(tmp_path: Path) -> None:
+    state_dir = _make_state(
+        tmp_path,
+        decision_id="decision_dry_run",
+        round_id="round_dry_run",
+    )
+    _write_json(
+        state_dir / "gates" / "agent_runner_dry_run_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "agent-runner-dry-run",
+            "gate_status": "PASSED",
+            "dry_run_status": "PASSED",
+            "decision_id": "decision_dry_run",
+            "round_id": "round_dry_run",
+            "execution_preview": {
+                "planned_command_count": 2,
+                "forbidden_command_count": 1,
+                "omitted_command_count": 1,
+            },
+            "non_execution_proof": {
+                "commands_executed": False,
+                "external_runner_invoked": False,
+                "dispatch_enabled": False,
+                "executable": False,
+            },
+            "dispatch_policy": {
+                "local_dry_run_readiness": True,
+                "real_dispatch_readiness": False,
+                "can_dispatch": False,
+            },
+        },
+    )
+
+    result = build_control_plane_snapshot(state_dir=state_dir, write_result=False)
+
+    dry_run = result["inventory_status"]["agent_runner_dry_run"]
+    assert dry_run["status"] == "PASSED"
+    assert dry_run["local_dry_run_readiness"] is True
+    assert dry_run["real_dispatch_readiness"] is False
+    assert result["runner_readiness"]["local_dry_run_ready"] is True
+    assert result["runner_readiness"]["real_dispatch_readiness"] is False
+    assert result["runner_readiness"]["can_dispatch_next_decision"] is False
+
+
 def test_control_plane_snapshot_records_hard_identity_mismatch(tmp_path: Path) -> None:
     state_dir = _make_state(tmp_path)
     _write_json(

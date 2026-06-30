@@ -210,6 +210,7 @@ def build_control_plane_snapshot(
     jobs_inventory = _read_json(gates_dir / "jobs_inventory_result.json")
     job_orchestration = _read_json(gates_dir / "job_orchestration_result.json")
     runner_contract = _read_json(gates_dir / "runner_contract_result.json")
+    agent_runner_dry_run = _read_json(gates_dir / "agent_runner_dry_run_result.json")
     execution_log = _read_json(gates_dir / "execution_log.json")
 
     decision_id = str(decision.get("decision_id") or "")
@@ -332,11 +333,48 @@ def build_control_plane_snapshot(
             else 0,
         }
     )
+    agent_runner_dry_run_entry = _status_payload(
+        agent_runner_dry_run,
+        expected_decision_id=decision_id,
+        expected_round_id=round_id,
+        required=False,
+    )
+    dry_run_preview = (
+        agent_runner_dry_run.get("execution_preview")
+        if isinstance(agent_runner_dry_run.get("execution_preview"), dict)
+        else {}
+    )
+    dry_run_proof = (
+        agent_runner_dry_run.get("non_execution_proof")
+        if isinstance(agent_runner_dry_run.get("non_execution_proof"), dict)
+        else {}
+    )
+    dry_run_policy = (
+        agent_runner_dry_run.get("dispatch_policy")
+        if isinstance(agent_runner_dry_run.get("dispatch_policy"), dict)
+        else {}
+    )
+    agent_runner_dry_run_entry.update(
+        {
+            "gate_name": agent_runner_dry_run.get("gate_name") if agent_runner_dry_run else "",
+            "gate_status": agent_runner_dry_run.get("gate_status") if agent_runner_dry_run else "MISSING",
+            "dry_run_status": agent_runner_dry_run.get("dry_run_status") if agent_runner_dry_run else "MISSING",
+            "planned_command_count": dry_run_preview.get("planned_command_count", 0),
+            "forbidden_command_count": dry_run_preview.get("forbidden_command_count", 0),
+            "omitted_command_count": dry_run_preview.get("omitted_command_count", 0),
+            "commands_executed": dry_run_proof.get("commands_executed", False),
+            "dispatch_enabled": dry_run_proof.get("dispatch_enabled", False),
+            "executable": dry_run_proof.get("executable", False),
+            "local_dry_run_readiness": dry_run_policy.get("local_dry_run_readiness", False),
+            "real_dispatch_readiness": dry_run_policy.get("real_dispatch_readiness", False),
+        }
+    )
     for name, entry in (
         ("audit inventory", audit_entry),
         ("jobs inventory", jobs_entry),
         ("job orchestration", job_orchestration_entry),
         ("runner contract", runner_contract_entry),
+        ("agent runner dry-run", agent_runner_dry_run_entry),
     ):
         if entry.get("status") in {"historical_nonblocking", "missing_optional"}:
             warnings.append(f"{name} is {entry.get('status')}")
@@ -411,6 +449,17 @@ def build_control_plane_snapshot(
         and runner_contract.get("dispatch_enabled") is False
         and runner_contract.get("executable") is False
     )
+    local_dry_run_ready = bool(
+        agent_runner_dry_run_entry.get("is_current")
+        and agent_runner_dry_run.get("gate_status") == "PASSED"
+        and agent_runner_dry_run.get("dry_run_status") == "PASSED"
+        and dry_run_proof.get("commands_executed") is False
+        and dry_run_proof.get("external_runner_invoked") is False
+        and dry_run_proof.get("dispatch_enabled") is False
+        and dry_run_proof.get("executable") is False
+        and dry_run_policy.get("local_dry_run_readiness") is True
+        and dry_run_policy.get("real_dispatch_readiness") is False
+    )
     can_dispatch = False
 
     if blocking_reasons:
@@ -465,6 +514,7 @@ def build_control_plane_snapshot(
             "jobs_inventory": jobs_entry,
             "job_orchestration": job_orchestration_entry,
             "runner_contract": runner_contract_entry,
+            "agent_runner_dry_run": agent_runner_dry_run_entry,
             "round_archive_inventory": {
                 "status": "not_implemented",
                 "nonblocking": True,
@@ -488,8 +538,11 @@ def build_control_plane_snapshot(
             "ready_or_running_job_count": len(ready_or_running),
             "job_orchestration_ready": job_orchestration_ready,
             "runner_contract_ready": runner_contract_ready,
+            "local_dry_run_ready": local_dry_run_ready,
+            "real_dispatch_readiness": False,
             "job_orchestration_status": str(job_orchestration.get("gate_status") or "MISSING"),
             "runner_contract_status": str(runner_contract.get("gate_status") or "MISSING"),
+            "agent_runner_dry_run_status": str(agent_runner_dry_run.get("gate_status") or "MISSING"),
             "runner_contract_executable": runner_contract.get("executable")
             if runner_contract
             else False,

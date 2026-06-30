@@ -13,6 +13,7 @@ from .project_state import read_decision_meta
 RUNNER_CONTRACT_SCHEMA_VERSION = 1
 RUNNER_CONTRACT_ARTIFACT_NAME = "runner_contract_result.json"
 RUNNER_CONTRACT_ARTIFACT_PATH = f"project_state/gates/{RUNNER_CONTRACT_ARTIFACT_NAME}"
+AGENT_RUNNER_DRY_RUN_ARTIFACT_PATH = "project_state/gates/agent_runner_dry_run_result.json"
 
 
 def _norm_path(value: object) -> str:
@@ -73,6 +74,48 @@ def _omitted_entries(command_plan: Mapping[str, Any]) -> list[dict[str, Any]]:
     return entries
 
 
+def _unsafe_write_path_reason(path: str, *, round_id: str = "") -> str:
+    text = _norm_path(path)
+    lowered = text.lower()
+    if not text:
+        return "empty write path"
+    if "://" in lowered or lowered.startswith(("http:", "https:", "ssh:", "git:")):
+        return "URL or remote write path"
+    if lowered.startswith("/") or re_match_windows_abs(text):
+        return "absolute write path"
+    parts = [part for part in lowered.split("/") if part]
+    if ".." in parts:
+        return "parent traversal write path"
+    forbidden_prefixes = (
+        "reverse_agent/",
+        "tests/",
+        ".github/",
+        "docs/prompts/",
+        ".codex-skills/",
+        "solve_reports/",
+    )
+    if lowered.startswith(forbidden_prefixes):
+        return "source, test, workflow, prompt, skill, or solve_reports write path"
+    if lowered in {
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/pytest_result.txt",
+    }:
+        return ""
+    if lowered.startswith("project_state/gates/") and lowered.endswith(".json"):
+        return ""
+    if lowered.startswith("project_state/jobs/") and lowered.endswith(".json"):
+        return ""
+    round_prefix = f"project_state/rounds/{_norm_path(round_id).lower()}/"
+    if round_id and lowered.startswith(round_prefix):
+        return ""
+    return "write path is outside approved job/gate/report artifacts"
+
+
+def re_match_windows_abs(path: str) -> bool:
+    return len(path) >= 3 and path[1:3] in {":/", ":\\"} and path[0].isalpha()
+
+
 def load_command_plan(state_dir: str | Path) -> dict[str, Any]:
     return _read_json(Path(state_dir) / "gates" / "command_plan.json")
 
@@ -103,6 +146,7 @@ def build_runner_contract_payload(
         {
             *job_outputs,
             RUNNER_CONTRACT_ARTIFACT_PATH,
+            AGENT_RUNNER_DRY_RUN_ARTIFACT_PATH,
             "project_state/gates/job_orchestration_result.json",
             "project_state/gates/control_plane_snapshot.json",
         }
@@ -179,8 +223,35 @@ def validate_runner_contract_payload(
     }
     if allowed_command_text - command_plan_commands:
         errors.append("allowed_commands include commands outside command-plan")
+    missing_required = sorted(command_plan_commands - allowed_command_text)
+    if missing_required:
+        errors.append("allowed_commands missing required command-plan commands")
     if allowed_command_text & omitted_commands:
         errors.append("allowed_commands include omitted command-plan commands")
+    forbidden_commands = payload.get("forbidden_commands")
+    if not isinstance(forbidden_commands, list):
+        errors.append("forbidden_commands must be a list")
+        forbidden_commands = []
+    forbidden_command_text = {
+        str(command.get("command") or "")
+        for command in forbidden_commands
+        if isinstance(command, Mapping) and str(command.get("command") or "")
+    }
+    missing_forbidden = sorted(omitted_commands - forbidden_command_text)
+    if missing_forbidden:
+        errors.append("forbidden_commands do not preserve omitted command-plan commands")
+    allowed_write_paths = payload.get("allowed_write_paths")
+    if not isinstance(allowed_write_paths, list):
+        errors.append("allowed_write_paths must be a list")
+        allowed_write_paths = []
+    unsafe_write_paths = [
+        {"path": _norm_path(path), "reason": reason}
+        for path in allowed_write_paths
+        for reason in [_unsafe_write_path_reason(str(path), round_id=str(payload.get("round_id") or ""))]
+        if reason
+    ]
+    if unsafe_write_paths:
+        errors.append("allowed_write_paths include unsafe or out-of-scope paths")
     if str(payload.get("schema_version") or "") != str(RUNNER_CONTRACT_SCHEMA_VERSION):
         errors.append(f"schema_version must be {RUNNER_CONTRACT_SCHEMA_VERSION}")
     if str(payload.get("contract_status") or "") != "READY":
@@ -223,6 +294,9 @@ def validate_runner_contract_payload(
         "executable": False,
         "allowed_command_count": len(allowed_command_text),
         "forbidden_command_count": len(omitted_commands),
+        "missing_required_commands": missing_required,
+        "missing_forbidden_commands": missing_forbidden,
+        "unsafe_write_paths": unsafe_write_paths,
     }
 
 

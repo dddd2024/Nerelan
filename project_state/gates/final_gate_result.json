@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260629_job_orchestration_foundation_v1",
-  "report_id": "codex_report_20260629_job_orchestration_foundation_v1",
-  "round_id": "round_20260629_job_orchestration_foundation_v1",
-  "generated_at": "2026-06-29T16:47:22.292574Z",
+  "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
+  "report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1",
+  "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
+  "generated_at": "2026-06-30T05:15:03.929600Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -64,7 +64,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260629_job_orchestration_foundation_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260630_local_runner_dry_run_foundation_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -96,12 +96,14 @@
       "detail": "round delta summary is baseline-aware",
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
-      "inherited_dirty_files": [],
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
+        "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/codex_report_auto_summary.json",
-        "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
@@ -120,25 +122,26 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/decision_packet.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/execution_report.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/round_manifest.json",
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_runner_contract.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
+        "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
@@ -159,20 +162,20 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/decision_packet.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/execution_report.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/round_manifest.json",
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_runner_contract.py"
       ]
     },
@@ -180,7 +183,9 @@
       "name": "files_changed_excludes_inherited_dirty_files",
       "status": "PASS",
       "detail": "files_changed excludes inherited baseline dirty files",
-      "inherited_dirty_files": []
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -190,6 +195,7 @@
       "git_changed_files": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
+        "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
@@ -210,27 +216,27 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/decision_packet.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/execution_report.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/round_manifest.json",
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_runner_contract.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
+        "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/codex_report_auto_summary.json",
-        "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
         "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
@@ -249,37 +255,39 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/decision_packet.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/execution_report.md",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/round_manifest.json",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/round_manifest.json",
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_runner_contract.py"
       ],
-      "inherited_dirty_files": []
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "files_changed_covers_substantive_changes",
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
-        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_runner_contract.py"
       ],
       "claimed_source_test_paths": []
@@ -302,28 +310,40 @@
       "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_runner_contract.py"
       ],
       "allowed_inherited_dirty_files": [
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
         "tests/test_project_jobs.py",
         "tests/test_project_runner_contract.py"
       ],
-      "generated_or_archive_baseline_dirty_files": [],
+      "generated_or_archive_baseline_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ],
       "close_worktree_clean": false,
       "close_snapshot_available": true
+    },
+    {
+      "name": "baseline_inherited_allowlist_explained",
+      "status": "PASS",
+      "detail": "no source/test inherited baseline explanation is required",
+      "inherited_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "baseline_capture_order",
@@ -331,10 +351,12 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_jobs.py",
         "reverse_agent/project_runner_contract.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
         "tests/test_project_jobs.py",
@@ -364,6 +386,7 @@
       "detail": "all live project_state/ generated artifact paths exist on disk",
       "live_paths": [
         "project_state/codex_execution_report.md",
+        "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
@@ -450,7 +473,9 @@
       "status": "PASS",
       "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
       "startup_source_test_dirty": [],
-      "baseline_dirty_files": [],
+      "baseline_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ],
       "missing_from_baseline": []
     },
     {
@@ -465,6 +490,7 @@
       "detail": "generated_artifacts or referenced_artifacts cover all existing gate artifacts",
       "missing_artifacts": [],
       "existing_gate_artifacts": [
+        "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/audit_inventory_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
@@ -498,17 +524,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260629_job_orchestration_foundation_v1",
-      "closeout_log_round_id": "round_20260629_job_orchestration_foundation_v1",
-      "expected_decision_id": "decision_20260629_job_orchestration_foundation_v1",
-      "expected_round_id": "round_20260629_job_orchestration_foundation_v1"
+      "closeout_log_decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
+      "closeout_log_round_id": "round_20260630_local_runner_dry_run_foundation_v1",
+      "expected_decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
+      "expected_round_id": "round_20260630_local_runner_dry_run_foundation_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260629_job_orchestration_foundation_v1",
-      "expected_report_id": "codex_report_20260629_job_orchestration_foundation_v1"
+      "execution_log_report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1",
+      "expected_report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -532,8 +558,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260629_job_orchestration_foundation_v1",
-      "command_plan_round_id": "round_20260629_job_orchestration_foundation_v1"
+      "command_plan_decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
+      "command_plan_round_id": "round_20260630_local_runner_dry_run_foundation_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -641,8 +667,12 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [],
-      "baseline_dirty_files": []
+      "startup_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ],
+      "baseline_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "github_ci_state_gate_workflows",
@@ -684,6 +714,10 @@
         {
           "path": "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
           "validation_status": "PASSED"
+        },
+        {
+          "path": "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
+          "validation_status": "PASSED"
         }
       ],
       "job_file_errors": []
@@ -697,14 +731,14 @@
       "errors": [],
       "gate_status": "PASSED",
       "inventory_validation_status": "PASSED",
-      "job_count": 2,
+      "job_count": 3,
       "status_counts": {
         "ACCEPTED": 0,
         "ACCEPTED_WITH_LIMITATIONS": 0,
         "AUDITED": 0,
         "BLOCKED": 0,
         "DONE": 0,
-        "DRAFT": 2,
+        "DRAFT": 3,
         "FINAL_CHECKED": 0,
         "READY": 0,
         "REWORK_REQUIRED": 0,
@@ -712,7 +746,8 @@
       },
       "validated_paths": [
         "project_state/jobs/job_20260628_clean_baseline_job_inventory_v1.json",
-        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json"
+        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json"
       ],
       "duplicate_job_errors": [],
       "invalid_file_errors": [],
@@ -726,9 +761,9 @@
       "artifact": "project_state/gates/job_orchestration_result.json",
       "errors": [],
       "gate_status": "PASSED",
-      "job_id": "job_20260629_job_orchestration_foundation_v1",
+      "job_id": "job_20260630_local_runner_dry_run_foundation_v1",
       "job_status": "DRAFT",
-      "job_artifact_path": "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+      "job_artifact_path": "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
       "job_validation_status": "PASSED",
       "jobs_inventory_validation_status": "PASSED",
       "dispatch_safety_status": "PASSED"
@@ -741,13 +776,28 @@
       "artifact": "project_state/gates/runner_contract_result.json",
       "errors": [],
       "gate_status": "PASSED",
-      "contract_id": "runner_contract_20260629_job_orchestration_foundation_v1",
+      "contract_id": "runner_contract_20260630_local_runner_dry_run_foundation_v1",
       "contract_validation_status": "PASSED",
-      "job_id": "job_20260629_job_orchestration_foundation_v1",
+      "job_id": "job_20260630_local_runner_dry_run_foundation_v1",
       "dispatch_enabled": false,
       "executable": false,
-      "allowed_command_count": 22,
+      "allowed_command_count": 21,
       "forbidden_command_count": 0
+    },
+    {
+      "name": "agent_runner_dry_run_artifact",
+      "status": "PASS",
+      "detail": "agent runner dry-run artifact is current, local, and non-executing",
+      "required": true,
+      "artifact": "project_state/gates/agent_runner_dry_run_result.json",
+      "errors": [],
+      "gate_status": "PASSED",
+      "dry_run_status": "PASSED",
+      "planned_command_count": 21,
+      "forbidden_command_count": 0,
+      "omitted_command_count": 0,
+      "local_dry_run_readiness": true,
+      "can_dispatch": false
     },
     {
       "name": "audit_inventory_gate_artifact",
@@ -811,16 +861,16 @@
       "path": "project_state/gates/execute_decision_result.json",
       "required": false,
       "errors": [],
-      "mode": "execute",
-      "transcript_parity_status": "PASSED",
-      "command_count": 22
+      "mode": "plan-validation",
+      "transcript_parity_status": "NOT_APPLICABLE_PLAN_ONLY",
+      "command_count": 21
     },
     {
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260629_job_orchestration_foundation_v1",
-      "gate_profile_round_id": "round_20260629_job_orchestration_foundation_v1"
+      "gate_profile_decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
+      "gate_profile_round_id": "round_20260630_local_runner_dry_run_foundation_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -853,30 +903,39 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 22 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 31 Required Audit items with substantive aligned answers",
       "required_audit_items": [
-        "Was startup snapshot generated first and was startup source/test baseline clean?",
-        "Did the round preserve startup snapshot hard gate and startup-first command-plan behavior?",
-        "What existing job validation behavior was reused from `project_jobs.py` rather than reimplemented?",
-        "What new job orchestration helper/gate was added, and where is it implemented?",
-        "Does `job_orchestration_result.json` exist, carry current decision/round IDs, and report PASSED?",
-        "Was at most one local job artifact created for this round, and is it DRAFT or READY-safe without dispatch?",
-        "Does the job artifact validate required inputs, required outputs, permissions, budgets, status, runner, lock/lease, and transitions?",
-        "Does job orchestration reject invalid transitions, duplicate job IDs, missing required fields, unsafe permissions, or dispatch-enabled runners?",
-        "What runner contract builder/validator was added, and where is it implemented?",
-        "Does `runner_contract_result.json` exist, carry current decision/round IDs, and report PASSED?",
-        "Does the runner contract package decision ID, round ID, repo path, command-plan path, allowed commands, allowed write paths, permission profile, budget profile, and dispatch-disabled policy?",
-        "Does the runner contract refuse commands not present in command-plan and preserve `omitted_commands` as forbidden?",
-        "Does the runner contract remain non-executable and avoid invoking Codex, Trae, Claude Code, Aider, GitHub Actions, local scripts, or external services?",
-        "Does control-plane snapshot summarize job queue status, runner contract readiness, and dispatch safety without enabling dispatch?",
-        "Are stale optional inventory artifacts labeled historical/nonblocking rather than current?",
-        "Did required pytest commands exit 0, and what are their pass counts?",
+        "Did startup checks run first and confirm `F:\\reverse-agent` as repository root?",
+        "Was startup source/test baseline clean before implementation?",
+        "Is decision metadata valid: APPROVED, engineering_branch, active `reverse-agent-iteration@v2`?",
+        "Did Codex treat `decision_packet.md` as the only execution authority and treat `task_packet.json` as background only?",
+        "Was the narrower `decision_20260630_runner_contract_command_coverage_v1` treated as superseded rather than independently executed?",
+        "Were existing job/runner/control-plane/gate capabilities reused instead of reimplemented from scratch?",
+        "Was a local dry-run AgentRunner module or equivalent implementation added with no external runner invocation?",
+        "Does the dry-run consume decision metadata, job artifact, command-plan evidence, and runner contract evidence?",
+        "Does the dry-run artifact include current `decision_id` and `round_id`?",
+        "Does the dry-run artifact explicitly state that no commands were executed?",
+        "Does the dry-run artifact expose allowed commands, forbidden commands, omitted commands, allowed write paths, and blocked execution reasons?",
+        "Does runner contract validation fail when any required command-plan command is absent from `allowed_commands`?",
+        "Does runner contract validation fail when `allowed_commands` contains a command outside command-plan?",
+        "Does runner contract validation fail when omitted commands appear in `allowed_commands`?",
+        "Are omitted commands preserved as forbidden commands with enough reason/provenance for audit?",
+        "Does runner contract validation reject unrelated write paths such as source, tests, workflows, prompt docs, skills, solve_reports, absolute paths, parent traversal, URLs, or remote mutation paths?",
+        "Does job lifecycle validation remain backward-compatible with older job artifacts?",
+        "If a dry-run lifecycle state is introduced, is it local/evidence-only and non-executable?",
+        "Does `project_gate.py` expose an `agent-runner-dry-run` gate or equivalent current-round gate check?",
+        "Does final-check fail when `agent_runner_dry_run_result.json` is missing, stale, executable, dispatch-enabled, externally invoking, command-incomplete, or write-scope widened?",
+        "Does control-plane evidence distinguish dry-run readiness from real dispatch readiness?",
+        "Do all dispatch/executable/external invocation flags remain false?",
+        "Were forbidden files and preserve-only files not modified?",
+        "Were full solve_reports scans, runtime probes, reverse-solving, Web/API/DB/queue/scheduler work, GitHub Actions mutation, and remote mutation avoided?",
+        "Did required pytest commands exit 0, with pass counts recorded in `pytest_result.txt`?",
         "Did `report_summary_fields_match_synthesis` pass with no diffs?",
         "Did `execute_decision_contract` pass?",
-        "Did `run-closeout` exit 0, with `closeout_status: PASSED` and `close_round_result.close_status: CLOSED`?",
-        "Did `closeout_nested_failures_absent` pass with no active nested FAILED/FAIL states?",
-        "Did hybrid execution-log provenance remain valid and non-derived-only?",
-        "Were forbidden paths, preserve-only files, full solve_reports scans, Web/AgentRunner/DB/queue/scheduler scope, GitHub Actions mutation, and remote mutation avoided?"
+        "Did `execution_log` provenance remain non-derived-only and current-round aligned?",
+        "Did `run-closeout` exit 0 with `closeout_status: PASSED` and `close_round_result.close_status: CLOSED`?",
+        "Did `closeout_nested_failures_absent` pass?",
+        "Does `codex_report_summary` match `pytest_result.txt`, generated artifacts, changed files, decision ID, and round ID?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
@@ -930,11 +989,8 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "recorded final-check stdout matches gate_status",
-      "expected_gate_status": "PASSED",
-      "recorded_stdout_status": "PASSED",
-      "conservative_warn_accepted": false,
-      "conservative_pass_accepted": false
+      "detail": "no recorded final-check stdout status to compare",
+      "required": false
     },
     {
       "name": "execution_log_consistency",

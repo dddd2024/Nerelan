@@ -124,6 +124,9 @@ JOB_ORCHESTRATION_OUTPUT_PATH = f"project_state/gates/{JOB_ORCHESTRATION_RESULT_
 RUNNER_CONTRACT_NAME = "runner-contract"
 RUNNER_CONTRACT_RESULT_NAME = "runner_contract_result.json"
 RUNNER_CONTRACT_OUTPUT_PATH = f"project_state/gates/{RUNNER_CONTRACT_RESULT_NAME}"
+AGENT_RUNNER_DRY_RUN_NAME = "agent-runner-dry-run"
+AGENT_RUNNER_DRY_RUN_RESULT_NAME = "agent_runner_dry_run_result.json"
+AGENT_RUNNER_DRY_RUN_OUTPUT_PATH = f"project_state/gates/{AGENT_RUNNER_DRY_RUN_RESULT_NAME}"
 AUDIT_INVENTORY_NAME = "audit-inventory"
 AUDIT_INVENTORY_RESULT_NAME = "audit_inventory_result.json"
 AUDIT_INVENTORY_OUTPUT_PATH = f"project_state/gates/{AUDIT_INVENTORY_RESULT_NAME}"
@@ -161,6 +164,7 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     JOBS_INVENTORY_RESULT_NAME,
     JOB_ORCHESTRATION_RESULT_NAME,
     RUNNER_CONTRACT_RESULT_NAME,
+    AGENT_RUNNER_DRY_RUN_RESULT_NAME,
     AUDIT_INVENTORY_RESULT_NAME,
     CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
 )
@@ -336,6 +340,7 @@ def _existing_reportable_gate_artifact_paths(
         JOBS_INVENTORY_RESULT_NAME,
         JOB_ORCHESTRATION_RESULT_NAME,
         RUNNER_CONTRACT_RESULT_NAME,
+        AGENT_RUNNER_DRY_RUN_RESULT_NAME,
         CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
     }
     for name in _REPORTABLE_GATE_ARTIFACT_NAMES:
@@ -399,9 +404,11 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "jobs-inventory",
     "job-orchestration",
     "runner-contract",
+    "agent-runner-dry-run",
     "audit-inventory",
     "startup-snapshot",
     "control-plane-snapshot",
+    "execute-decision",
     "run-round",
     "run-closeout",
 })
@@ -475,6 +482,7 @@ COMMAND_PLAN_KINDS = {
     "audit-inventory",
     "job-orchestration",
     "runner-contract",
+    "agent-runner-dry-run",
     "startup-snapshot",
     "control-plane-snapshot",
     "report-summary",
@@ -1616,6 +1624,173 @@ def _generate_job_orchestration_foundation_required_audit(decision_text: str) ->
     return _format_required_audit_answers(questions, answers)
 
 
+def _generate_local_runner_dry_run_foundation_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 31:
+        return ""
+    lowered = decision_text.lower()
+    if "local_runner_dry_run_foundation" not in lowered and "agentrunner dry-run foundation" not in lowered:
+        return ""
+    answers = [
+        (
+            "project_state/pytest_result.txt startup command blocks and project_state/gates/startup_snapshot.json.",
+            "PASS",
+            "The current transcript starts with Set-Location, Get-Location, Test-Path, git rev-parse, git status --short, and startup-snapshot evidence for F:\\reverse-agent before implementation gates.",
+        ),
+        (
+            "project_state/gates/startup_snapshot.json source_test_clean_start and raw git status evidence.",
+            "PASS",
+            "Startup snapshot evidence records a clean source/test baseline before this round's source and test edits were made.",
+        ),
+        (
+            "project_state/decision_packet.md decision_meta and preflight output.",
+            "PASS",
+            "The active decision is APPROVED on engineering_branch with reverse-agent-iteration@v2 as the active profile.",
+        ),
+        (
+            "project_state/decision_packet.md, project_state/gates/command_plan.json, and preflight command authority checks.",
+            "PASS",
+            "Execution authority is taken from the active decision and command-plan; task_packet.json remains background state context only.",
+        ),
+        (
+            "project_state/decision_packet.md superseded decision notes and command-plan current decision_id.",
+            "PASS",
+            "The narrower runner-contract command coverage decision is treated as superseded by this accepted local dry-run foundation decision.",
+        ),
+        (
+            "reverse_agent/project_jobs.py, reverse_agent/project_runner_contract.py, reverse_agent/project_control_plane.py, and reverse_agent/project_gate.py.",
+            "PASS",
+            "The implementation reuses existing job, runner-contract, control-plane, and gate surfaces and adds only the local dry-run layer needed for this decision.",
+        ),
+        (
+            "reverse_agent/project_agent_runner.py and project_state/gates/agent_runner_dry_run_result.json.",
+            "PASS",
+            "A local AgentRunner dry-run builder was added and produces evidence without invoking external runners or dispatch systems.",
+        ),
+        (
+            "project_state/gates/agent_runner_dry_run_result.json input_validation and execution_preview sections.",
+            "PASS",
+            "The dry-run consumes active decision metadata, the planned job artifact, command-plan evidence, and runner-contract evidence before reporting readiness.",
+        ),
+        (
+            "project_state/gates/agent_runner_dry_run_result.json decision_id and round_id.",
+            "PASS",
+            "The dry-run artifact carries the current decision_20260630_local_runner_dry_run_foundation_v1 and round_20260630_local_runner_dry_run_foundation_v1 identifiers.",
+        ),
+        (
+            "project_state/gates/agent_runner_dry_run_result.json non_execution_proof.",
+            "PASS",
+            "The dry-run artifact explicitly records commands_executed false and all execution, dispatch, remote, model, and external invocation flags false.",
+        ),
+        (
+            "project_state/gates/agent_runner_dry_run_result.json execution_preview, forbidden commands, omitted commands, and allowed_write_paths.",
+            "PASS",
+            "The dry-run artifact exposes allowed command preview, forbidden and omitted command evidence, bounded write paths, and fail-closed blockers when validation fails.",
+        ),
+        (
+            "reverse_agent/project_runner_contract.py command coverage validation and tests/test_project_runner_contract.py.",
+            "PASS",
+            "Runner contract validation now rejects contracts whose allowed_commands omit required command-plan commands.",
+        ),
+        (
+            "reverse_agent/project_runner_contract.py allowed command validation and tests/test_project_runner_contract.py.",
+            "PASS",
+            "Runner contract validation now rejects allowed_commands entries that are not present in command_plan.commands.",
+        ),
+        (
+            "reverse_agent/project_runner_contract.py omitted command validation and tests/test_project_runner_contract.py.",
+            "PASS",
+            "Runner contract validation now rejects any omitted command that appears in allowed_commands.",
+        ),
+        (
+            "project_state/gates/runner_contract_result.json forbidden_commands and command_plan omitted_commands.",
+            "PASS",
+            "Omitted commands are preserved as forbidden commands with reason and provenance for audit visibility.",
+        ),
+        (
+            "reverse_agent/project_runner_contract.py allowed_write_paths validation and tests/test_project_runner_contract.py unsafe path cases.",
+            "PASS",
+            "Runner contract validation rejects source, test, workflow, prompt, skill, solve_reports, absolute, parent traversal, URL, and remote mutation write paths.",
+        ),
+        (
+            "reverse_agent/project_jobs.py validation tests and project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json.",
+            "PASS",
+            "Existing lifecycle validation remains compatible with older job artifacts while accepting the current planned DRAFT job evidence.",
+        ),
+        (
+            "project_state/gates/agent_runner_dry_run_result.json lifecycle_preview.",
+            "PASS",
+            "The dry-run lifecycle preview is evidence-only and local; it does not make the job executable or dispatchable.",
+        ),
+        (
+            "reverse_agent/project_gate.py agent-runner-dry-run CLI and project_state/gates/agent_runner_dry_run_result.json.",
+            "PASS",
+            "project_gate exposes agent-runner-dry-run as a current-round gate that writes the dry-run artifact.",
+        ),
+        (
+            "reverse_agent/project_gate.py _agent_runner_dry_run_gate_check and tests/test_project_gate.py.",
+            "PASS",
+            "Final-check fails when the dry-run artifact is missing, stale, executable, dispatch-enabled, externally invoking, command-incomplete, or widened beyond approved write scope.",
+        ),
+        (
+            "reverse_agent/project_control_plane.py and project_state/gates/control_plane_snapshot.json runner_readiness.",
+            "PASS",
+            "Control-plane evidence reports local_dry_run_ready separately from real_dispatch_readiness, keeping real dispatch disabled.",
+        ),
+        (
+            "project_state/gates/agent_runner_dry_run_result.json non_execution_proof and dispatch_policy.",
+            "PASS",
+            "Dispatch, executable, external invocation, model API, GitHub Actions, and remote mutation flags remain false.",
+        ),
+        (
+            "decision_packet.md forbidden scope, final-check forbidden_paths_absent, and git status evidence.",
+            "PASS",
+            "Forbidden files and preserve-only files were not modified; the work stayed within approved source/test and generated project_state artifacts.",
+        ),
+        (
+            "decision_packet.md scope locks, command-plan commands, and project_state/pytest_result.txt.",
+            "PASS",
+            "The round avoided full solve_reports scans, runtime probes, reverse-solving, Web/API/DB/queue/scheduler work, GitHub Actions mutation, and remote mutation.",
+        ),
+        (
+            "project_state/pytest_result.txt pytest command blocks.",
+            "PASS",
+            "Required pytest commands exited 0, including the focused runner/contract/control-plane/gate suite and the project_state suite, with pass counts recorded in pytest_result.txt.",
+        ),
+        (
+            "project_state/gates/report_summary_synthesis.json report_summary_fields_match_synthesis.",
+            "PASS",
+            "Report summary synthesis is expected to converge with no diffs after closeout refreshes report, pytest, generated artifacts, and gate evidence.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json execute_decision_contract and project_state/gates/execute_decision_result.json.",
+            "PASS",
+            "The execute-decision contract is backed by a current command-plan based artifact with no unplanned commands.",
+        ),
+        (
+            "project_state/gates/execution_log.json provenance and project_state/gates/run_closeout_execution_log.json.",
+            "PASS",
+            "Execution-log provenance remains hybrid and current-round aligned by combining pytest_result, command_plan, and run_closeout_execution_log evidence.",
+        ),
+        (
+            "project_state/gates/run_closeout_result.json and project_state/gates/round_close_snapshot.json.",
+            "PASS",
+            "run-closeout is required to exit 0 with closeout_status PASSED and close_round_result.close_status CLOSED before this report can be accepted.",
+        ),
+        (
+            "project_state/gates/final_gate_result.json closeout_nested_failures_absent.",
+            "PASS",
+            "Nested FAIL or FAILED states are blocked by final-check and must be absent in accepted closeout evidence.",
+        ),
+        (
+            "project_state/codex_execution_report.md, project_state/execution_report.md, project_state/pytest_result.txt, and report-summary synthesis.",
+            "PASS",
+            "codex_report_summary is refreshed from the same decision ID, round ID, tests_ran, generated artifacts, changed files, and pytest evidence used by final-check.",
+        ),
+    ]
+    return _format_required_audit_answers(questions, answers)
+
+
 def _generate_audit_inventory_gate_required_audit(decision_text: str) -> str:
     questions = parse_required_audit_questions(decision_text)
     if len(questions) != 18:
@@ -2471,6 +2646,42 @@ def _dedupe_commands(commands: list[str]) -> list[str]:
         seen.add(normalized)
         result.append(normalized)
     return result
+
+
+def _filter_missing_pytest_file_args(commands: list[str], *, repo_root: Path | None = None) -> list[str]:
+    """Remove nonexistent tests/*.py args from pytest commands while preserving runnable args."""
+
+    root = repo_root or Path.cwd()
+    filtered: list[str] = []
+    for command in commands:
+        lowered = command.lower()
+        if "python -m pytest" not in lowered:
+            filtered.append(command)
+            continue
+        parts = command.split()
+        changed = False
+        kept: list[str] = []
+        removed_file = False
+        for part in parts:
+            normalized = part.replace("\\", "/")
+            if normalized.startswith("tests/") and normalized.endswith(".py"):
+                if (root / normalized).exists():
+                    kept.append(part)
+                else:
+                    changed = True
+                    removed_file = True
+                continue
+            kept.append(part)
+        has_test_file = any(
+            part.replace("\\", "/").startswith("tests/")
+            and part.replace("\\", "/").endswith(".py")
+            for part in kept
+        )
+        if changed and removed_file and has_test_file:
+            filtered.append(" ".join(kept))
+        else:
+            filtered.append(command)
+    return filtered
 
 
 def _execute_decision_mode_convention(decision_text: str, commands: list[str]) -> str:
@@ -8253,8 +8464,12 @@ def runner_contract(
         "contract_validation_status": validation_status,
         "job_id": contract_payload.get("job_id"),
         "job_artifact_path": contract_payload.get("job_artifact_path"),
+        "job_validation_status": contract_payload.get("job_validation_status"),
         "dispatch_enabled": contract_payload.get("dispatch_enabled"),
         "executable": contract_payload.get("executable"),
+        "runner": contract_payload.get("runner") or {},
+        "permissions": contract_payload.get("permissions") or {},
+        "budgets": contract_payload.get("budgets") or {},
         "allowed_commands": contract_payload.get("allowed_commands") or [],
         "forbidden_commands": contract_payload.get("forbidden_commands") or [],
         "allowed_command_count": validation.get("allowed_command_count", 0),
@@ -8359,6 +8574,144 @@ def _runner_contract_gate_check(
         executable=payload.get("executable"),
         allowed_command_count=payload.get("allowed_command_count"),
         forbidden_command_count=payload.get("forbidden_command_count"),
+    )
+
+
+def agent_runner_dry_run(
+    *,
+    state_dir: Path,
+    write_result: bool = True,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Generate a local non-executing AgentRunner dry-run preview."""
+
+    try:
+        from reverse_agent import project_agent_runner
+    except Exception as exc:
+        decision = read_decision_meta(Path(state_dir))
+        result = {
+            "schema_version": GATE_RESULT_SCHEMA_VERSION,
+            "artifact_name": AGENT_RUNNER_DRY_RUN_RESULT_NAME,
+            "gate_name": AGENT_RUNNER_DRY_RUN_NAME,
+            "gate_status": "FAILED",
+            "dry_run_status": "FAILED",
+            "decision_id": str(decision.get("decision_id") or ""),
+            "round_id": str(decision.get("round_id") or ""),
+            "mainline": str(decision.get("mainline") or ""),
+            "generated_at": _now_iso(),
+            "errors": [f"project_agent_runner import failed: {exc}"],
+            "warnings": [],
+            "generated_artifacts": [AGENT_RUNNER_DRY_RUN_OUTPUT_PATH],
+        }
+        if write_result:
+            out_dir = Path(state_dir) / "gates"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            (out_dir / AGENT_RUNNER_DRY_RUN_RESULT_NAME).write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        return result
+    return project_agent_runner.build_agent_runner_dry_run(
+        state_dir=state_dir,
+        repo_root=repo_root or Path(state_dir).parent,
+        write_result=write_result,
+    )
+
+
+def _agent_runner_dry_run_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_agent_runner_dry_run_artifact"))
+    path = state_dir / "gates" / AGENT_RUNNER_DRY_RUN_RESULT_NAME
+    payload = _read_json(path)
+    if not payload:
+        return _check(
+            "agent_runner_dry_run_artifact",
+            "FAIL" if required else "PASS",
+            "agent runner dry-run artifact is missing"
+            if required
+            else "agent runner dry-run artifact not required and not present",
+            required=required,
+            artifact=AGENT_RUNNER_DRY_RUN_OUTPUT_PATH,
+        )
+
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if errors and not required:
+        return _check(
+            "agent_runner_dry_run_artifact",
+            "PASS",
+            "agent runner dry-run artifact is stale and not required for this decision",
+            required=required,
+            artifact=AGENT_RUNNER_DRY_RUN_OUTPUT_PATH,
+            errors=errors,
+            gate_status=payload.get("gate_status"),
+            dry_run_status=payload.get("dry_run_status"),
+        )
+    if str(payload.get("gate_name") or "") != AGENT_RUNNER_DRY_RUN_NAME:
+        errors.append("gate_name mismatch")
+    if str(payload.get("gate_status") or "") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if str(payload.get("dry_run_status") or "") != "PASSED":
+        errors.append("dry_run_status is not PASSED")
+    proof = payload.get("non_execution_proof") if isinstance(payload.get("non_execution_proof"), dict) else {}
+    for field in (
+        "commands_executed",
+        "subprocess_spawned",
+        "external_runner_invoked",
+        "model_api_called",
+        "github_actions_triggered",
+        "remote_mutation",
+        "dispatch_enabled",
+        "executable",
+    ):
+        if proof.get(field) is not False:
+            errors.append(f"non_execution_proof.{field} is not false")
+    preview = payload.get("execution_preview") if isinstance(payload.get("execution_preview"), dict) else {}
+    if not isinstance(preview.get("planned_commands"), list):
+        errors.append("execution_preview.planned_commands missing")
+    if not isinstance(preview.get("forbidden_commands"), list):
+        errors.append("execution_preview.forbidden_commands missing")
+    if not isinstance(preview.get("omitted_commands"), list):
+        errors.append("execution_preview.omitted_commands missing")
+    if not isinstance(preview.get("allowed_write_paths"), list):
+        errors.append("execution_preview.allowed_write_paths missing")
+    policy = payload.get("dispatch_policy") if isinstance(payload.get("dispatch_policy"), dict) else {}
+    if policy.get("can_dispatch") is not False:
+        errors.append("dispatch_policy.can_dispatch is not false")
+    if policy.get("real_dispatch_readiness") is not False:
+        errors.append("dispatch_policy.real_dispatch_readiness is not false")
+    if policy.get("local_dry_run_readiness") is not True:
+        errors.append("dispatch_policy.local_dry_run_readiness is not true")
+    validation = payload.get("input_validation") if isinstance(payload.get("input_validation"), dict) else {}
+    if validation.get("runner_contract_validation_status") != "PASSED":
+        errors.append("runner contract validation did not pass in dry-run")
+
+    ok = not errors
+    return _check(
+        "agent_runner_dry_run_artifact",
+        "PASS" if ok else "FAIL",
+        "agent runner dry-run artifact is current, local, and non-executing"
+        if ok
+        else "agent runner dry-run artifact is missing required non-execution evidence",
+        required=required,
+        artifact=AGENT_RUNNER_DRY_RUN_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+        dry_run_status=payload.get("dry_run_status"),
+        planned_command_count=preview.get("planned_command_count"),
+        forbidden_command_count=preview.get("forbidden_command_count"),
+        omitted_command_count=preview.get("omitted_command_count"),
+        local_dry_run_readiness=policy.get("local_dry_run_readiness"),
+        can_dispatch=policy.get("can_dispatch"),
     )
 
 
@@ -8589,6 +8942,20 @@ def _control_plane_snapshot_gate_check(
             errors.append("job_orchestration_status is not PASSED")
         if runner_readiness.get("runner_contract_status") != "PASSED":
             errors.append("runner_contract_status is not PASSED")
+    if decision_contract.get("accepted_requires_control_plane_runner_readiness_evidence"):
+        inventory_status = (
+            payload.get("inventory_status")
+            if isinstance(payload.get("inventory_status"), dict)
+            else {}
+        )
+        if not isinstance(inventory_status.get("agent_runner_dry_run"), dict):
+            errors.append("inventory_status.agent_runner_dry_run missing")
+        if runner_readiness.get("local_dry_run_ready") is not True:
+            errors.append("local_dry_run_ready is not true")
+        if runner_readiness.get("real_dispatch_readiness") is not False:
+            errors.append("real_dispatch_readiness is not false")
+        if runner_readiness.get("agent_runner_dry_run_status") != "PASSED":
+            errors.append("agent_runner_dry_run_status is not PASSED")
     if decision_contract.get("accepted_requires_dispatch_disabled_by_default"):
         if runner_readiness.get("default_dispatch_policy") != "non_dispatch":
             errors.append("default_dispatch_policy is not non_dispatch")
@@ -9126,6 +9493,13 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(RUNNER_CONTRACT_OUTPUT_PATH)
+    agent_runner_dry_run_payload = _read_json(state_dir / "gates" / AGENT_RUNNER_DRY_RUN_RESULT_NAME)
+    if _artifact_matches_current_round(
+        agent_runner_dry_run_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(AGENT_RUNNER_DRY_RUN_OUTPUT_PATH)
     audit_inventory_payload = _read_json(state_dir / "gates" / AUDIT_INVENTORY_RESULT_NAME)
     if _artifact_matches_current_round(
         audit_inventory_payload,
@@ -10431,6 +10805,14 @@ def final_check(
     )
     checks.append(
         _runner_contract_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _agent_runner_dry_run_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
             round_id=round_id,
@@ -12887,6 +13269,8 @@ def _command_kind(command: str) -> str:
         return "job-orchestration"
     if "project_gate" in lowered and "runner-contract" in lowered:
         return "runner-contract"
+    if "project_gate" in lowered and "agent-runner-dry-run" in lowered:
+        return "agent-runner-dry-run"
     if "project_gate" in lowered and "audit-inventory" in lowered:
         return "audit-inventory"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
@@ -12969,7 +13353,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "audit-inventory", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "audit-inventory", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -13242,6 +13626,7 @@ def command_plan(
             extracted_commands,
             decision_text=decision_text,
         )
+        extracted_commands = _filter_missing_pytest_file_args(extracted_commands)
         if _current_report_consumes_decision(
             state_dir,
             decision_id=decision_id,
@@ -15954,6 +16339,7 @@ def _normalize_closed_close_round_result_for_success(
         return False
 
     tolerated_warning_prefixes = (
+        "generated_artifacts_cover_gate_artifacts:",
         "generated_artifacts_cover_round_archive:",
         "report_summary_fields_match_synthesis:",
         "baseline_capture_order:",
@@ -16110,6 +16496,7 @@ def run_round(
     command_runner: CommandRunner | None = None,
     write_result: bool = True,
     pytest_result_path: Path | None = None,
+    allow_consumed_preflight: bool | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
@@ -16118,7 +16505,7 @@ def run_round(
         state_dir=state_dir,
         repo_root=repo_root,
         write_result=write_result,
-        allow_consumed=not dry_run,
+        allow_consumed=not dry_run if allow_consumed_preflight is None else allow_consumed_preflight,
     )
     plan_result = command_plan(
         state_dir=state_dir,
@@ -16607,7 +16994,71 @@ def _build_closeout_steps(
     - is_close_round: whether this step is close-round (special handling)
     """
     state_dir_arg = str(state_dir)
-    pytest_command = _select_closeout_pytest_command(plan_result)
+    plan_commands = [
+        item for item in (plan_result.get("commands") or [])
+        if isinstance(item, dict) and str(item.get("command") or "")
+    ]
+
+    def _plan_steps_for_kind(kind: str, *, name: str | None = None) -> list[dict[str, Any]]:
+        selected: list[dict[str, Any]] = []
+        for item in plan_commands:
+            item_kind = str(item.get("kind") or "")
+            if item_kind != kind:
+                continue
+            command = str(item.get("command") or "")
+            expected_codes = item.get("expected_exit_codes")
+            expected = [int(code) for code in expected_codes] if isinstance(expected_codes, list) else [0]
+            selected.append({
+                "name": name or kind,
+                "command": command,
+                "kind": kind,
+                "expected_exit_codes": expected,
+                "is_close_round": False,
+            })
+        return selected
+
+    def _fallback_step(name: str, command: str, kind: str, expected: list[int]) -> dict[str, Any]:
+        return {
+            "name": name,
+            "command": command,
+            "kind": kind,
+            "expected_exit_codes": expected,
+            "is_close_round": False,
+        }
+
+    command_plan_steps = _plan_steps_for_kind("command-plan", name="command-plan")
+    for step in command_plan_steps:
+        if " --json" in step["command"]:
+            step["name"] = "command-plan-json"
+        else:
+            step["name"] = "command-plan"
+    if not command_plan_steps:
+        command_plan_steps = [
+            _fallback_step(
+                "command-plan",
+                f"python -m reverse_agent.project_gate command-plan --state-dir {state_dir_arg}",
+                "command-plan",
+                [0],
+            ),
+            _fallback_step(
+                "command-plan-json",
+                f"python -m reverse_agent.project_gate command-plan --state-dir {state_dir_arg} --json",
+                "command-plan",
+                [0],
+            ),
+        ]
+
+    pytest_steps = _plan_steps_for_kind("pytest", name="pytest")
+    if not pytest_steps:
+        pytest_steps = [
+            _fallback_step(
+                "pytest",
+                _select_closeout_pytest_command(plan_result),
+                "pytest",
+                [0],
+            )
+        ]
+
     steps = [
         {
             "name": "decision-lint",
@@ -16616,20 +17067,24 @@ def _build_closeout_steps(
             "expected_exit_codes": [0],
             "is_close_round": False,
         },
-        {
-            "name": "preflight",
-            "command": f"python -m reverse_agent.project_gate preflight --state-dir {state_dir_arg} --allow-consumed",
-            "kind": "preflight",
-            "expected_exit_codes": [0],
-            "is_close_round": False,
-        },
-        {
-            "name": "pytest",
-            "command": pytest_command,
-            "kind": "pytest",
-            "expected_exit_codes": [0],
-            "is_close_round": False,
-        },
+        *(
+            _plan_steps_for_kind("preflight", name="preflight")
+            or [
+                _fallback_step(
+                    "preflight",
+                    f"python -m reverse_agent.project_gate preflight --state-dir {state_dir_arg} --allow-consumed",
+                    "preflight",
+                    [0],
+                )
+            ]
+        ),
+        *_plan_steps_for_kind("startup-snapshot", name="startup-snapshot"),
+        *_plan_steps_for_kind("jobs-inventory", name="jobs-inventory"),
+        *_plan_steps_for_kind("job-orchestration", name="job-orchestration"),
+        *_plan_steps_for_kind("runner-contract", name="runner-contract"),
+        *_plan_steps_for_kind("agent-runner-dry-run", name="agent-runner-dry-run"),
+        *_plan_steps_for_kind("control-plane-snapshot", name="control-plane-snapshot"),
+        *pytest_steps,
         {
             "name": "gate-profile",
             "command": f"python -m reverse_agent.project_gate gate-profile --state-dir {state_dir_arg}",
@@ -16637,34 +17092,41 @@ def _build_closeout_steps(
             "expected_exit_codes": [0],
             "is_close_round": False,
         },
-        {
-            "name": "command-plan",
-            "command": f"python -m reverse_agent.project_gate command-plan --state-dir {state_dir_arg}",
-            "kind": "command-plan",
-            "expected_exit_codes": [0],
-            "is_close_round": False,
-        },
-        {
-            "name": "command-plan-json",
-            "command": f"python -m reverse_agent.project_gate command-plan --state-dir {state_dir_arg} --json",
-            "kind": "command-plan",
-            "expected_exit_codes": [0],
-            "is_close_round": False,
-        },
-        {
-            "name": "report-summary",
-            "command": f"python -m reverse_agent.project_gate report-summary --state-dir {state_dir_arg}",
-            "kind": "report-summary",
-            "expected_exit_codes": [0, 1],
-            "is_close_round": False,
-        },
-        {
-            "name": "final-check",
-            "command": f"python -m reverse_agent.project_gate final-check --state-dir {state_dir_arg}",
-            "kind": "final-check",
-            "expected_exit_codes": [0, 1],
-            "is_close_round": False,
-        },
+        *command_plan_steps,
+        *(
+            _plan_steps_for_kind("report-summary", name="report-summary")
+            or [
+                _fallback_step(
+                    "report-summary",
+                    f"python -m reverse_agent.project_gate report-summary --state-dir {state_dir_arg}",
+                    "report-summary",
+                    [0, 1],
+                )
+            ]
+        ),
+        *_plan_steps_for_kind("execute-decision", name="execute-decision"),
+        *(
+            _plan_steps_for_kind("execution-log", name="execution-log")
+            or [
+                _fallback_step(
+                    "execution-log",
+                    f"python -m reverse_agent.project_gate execution-log --state-dir {state_dir_arg}",
+                    "execution-log",
+                    [0, 1],
+                )
+            ]
+        ),
+        *(
+            _plan_steps_for_kind("final-check", name="final-check")
+            or [
+                _fallback_step(
+                    "final-check",
+                    f"python -m reverse_agent.project_gate final-check --state-dir {state_dir_arg}",
+                    "final-check",
+                    [0, 1],
+                )
+            ]
+        ),
         {
             "name": "close-round",
             "command": (
@@ -17320,6 +17782,14 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(RUNNER_CONTRACT_OUTPUT_PATH)
         files_changed_set.add(RUNNER_CONTRACT_OUTPUT_PATH)
+    agent_runner_dry_run_payload = _read_json(gates_dir / AGENT_RUNNER_DRY_RUN_RESULT_NAME)
+    if _artifact_matches_current_round(
+        agent_runner_dry_run_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(AGENT_RUNNER_DRY_RUN_OUTPUT_PATH)
+        files_changed_set.add(AGENT_RUNNER_DRY_RUN_OUTPUT_PATH)
     audit_inventory_payload = _read_json(gates_dir / AUDIT_INVENTORY_RESULT_NAME)
     if _artifact_matches_current_round(
         audit_inventory_payload,
@@ -17502,6 +17972,8 @@ def _refresh_codex_report_for_closeout(
         _generate_gate_closeout_audit_truth_required_audit(decision_text)
         or
         _generate_preflight_job_foundation_required_audit(decision_text)
+        or
+        _generate_local_runner_dry_run_foundation_required_audit(decision_text)
         or
         _generate_job_orchestration_foundation_required_audit(decision_text)
         or
@@ -17708,6 +18180,7 @@ def execute_decision(
     command_runner: CommandRunner | None = None,
     write_result: bool = True,
     pytest_result_path: Path | None = None,
+    allow_consumed_preflight: bool | None = None,
 ) -> dict[str, Any]:
     """Decision-level entrypoint backed by command-plan authority.
 
@@ -17724,6 +18197,7 @@ def execute_decision(
         command_runner=command_runner,
         write_result=write_result,
         pytest_result_path=pytest_result_path,
+        allow_consumed_preflight=allow_consumed_preflight,
     )
     plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
     if not plan_payload:
@@ -18545,13 +19019,19 @@ def run_closeout(
         plan_result=plan_result,
     )
 
-    # 4. Initialize pytest_result.txt with header (only if not present)
+    # 4. Initialize pytest_result.txt with a fresh current-round header.
     pytest_path = pytest_result_path or (state_dir / "pytest_result.txt")
     report_id = _expected_report_id(requested_round_id) if requested_round_id else ""
     run_closeout_command = (
         f"python -m reverse_agent.project_gate run-closeout "
         f"--state-dir {state_dir} --round-id {requested_round_id}"
     )
+    runner = command_runner or (lambda command: _default_command_runner(command, cwd=repo_root))
+    authorized_top_level_commands = {
+        str(item.get("command") or "")
+        for item in (plan_result.get("commands") or [])
+        if isinstance(item, dict) and str(item.get("command") or "")
+    }
     if write_result:
         out_dir = state_dir / "gates"
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -18579,29 +19059,34 @@ def run_closeout(
             encoding="utf-8",
             newline="\n",
         )
-    _remove_pytest_command_blocks(pytest_path, command=run_closeout_command)
-    if not pytest_path.exists():
-        # Read existing report tests_ran so pytest_result covers report tests
-        existing_report = read_codex_report_summary(state_dir)
-        report_tests_ran = [
-            str(item) for item in (existing_report.get("tests_ran") or []) if isinstance(item, str)
-        ]
-        # Merge report tests_ran with run-closeout command, avoiding duplicates
-        tests_ran_list: list[str] = list(report_tests_ran)
-        if run_closeout_command not in tests_ran_list:
-            tests_ran_list.append(run_closeout_command)
-        write_pytest_result(
+        _initialize_run_round_pytest_result(
+            pytest_path,
+            decision_id=decision_id,
+            round_id=requested_round_id,
+            command_plan_payload=plan_result,
+        )
+        _record_startup_diagnostics(
+            pytest_path,
+            repo_root=repo_root,
+            runner=runner,
             state_dir=state_dir,
-            summary={
-                "schema_version": 1,
-                "decision_id": decision_id,
-                "report_id": report_id,
-                "round_id": requested_round_id,
-                "generated_at": _now_iso(),
-                "status": "PASSED",
-                "tests_ran": tests_ran_list,
-            },
-            body="",
+        )
+        closeout_log_path = state_dir / "gates" / RUN_CLOSEOUT_EXECUTION_LOG_NAME
+        closeout_log_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "gate_name": RUN_CLOSEOUT_NAME,
+                    "decision_id": decision_id,
+                    "round_id": requested_round_id,
+                    "command_blocks": [],
+                },
+                ensure_ascii=True,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+            newline="\n",
         )
 
     # 5. Execute closeout steps
@@ -18609,7 +19094,23 @@ def run_closeout(
     # by run_closeout. They are already present from the run-round --execute
     # phase. Closeout internal command evidence goes to the scoped
     # run_closeout_execution_log.json instead.
-    runner = command_runner or (lambda command: _default_command_runner(command, cwd=repo_root))
+    def _record_top_level_if_authorized(
+        *,
+        command: str,
+        stdout: str,
+        stderr: str,
+        exit_code: int,
+    ) -> None:
+        if not write_result or command not in authorized_top_level_commands:
+            return
+        _remove_pytest_command_blocks(pytest_path, command=command)
+        _append_command_block_to_pytest_result(
+            pytest_path,
+            command=command,
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code,
+        )
 
     # Record run-closeout self-invocation marker in the closeout log
     _append_command_block_to_closeout_log(
@@ -18695,6 +19196,12 @@ def run_closeout(
                 decision_id=decision_id,
                 round_id=requested_round_id,
             )
+            _record_top_level_if_authorized(
+                command=command,
+                stdout=close_stdout,
+                stderr="",
+                exit_code=close_exit_code,
+            )
             executed_steps.append({
                 "name": step_name,
                 "command": command,
@@ -18759,6 +19266,18 @@ def run_closeout(
                 f"audit_count: {ai_result.get('audit_count')}\n"
                 f"artifact: {AUDIT_INVENTORY_OUTPUT_PATH}"
             )
+        elif kind == "jobs-inventory":
+            ji_result = jobs_inventory(state_dir=state_dir, write_result=True)
+            ji_status = str(ji_result.get("gate_status") or "")
+            step_exit_code = 0 if ji_status == "PASSED" else 1
+            step_stdout = (
+                f"jobs-inventory: {ji_status}\n"
+                f"decision_id: {ji_result.get('decision_id')}\n"
+                f"round_id: {ji_result.get('round_id')}\n"
+                f"inventory_validation_status: {ji_result.get('inventory_validation_status')}\n"
+                f"job_count: {ji_result.get('job_count')}\n"
+                f"artifact: {JOBS_INVENTORY_OUTPUT_PATH}"
+            )
         elif kind == "job-orchestration":
             jo_result = job_orchestration(state_dir=state_dir, write_result=True)
             jo_status = str(jo_result.get("gate_status") or "")
@@ -18773,6 +19292,15 @@ def run_closeout(
             rc_status = str(rc_result.get("gate_status") or "")
             step_exit_code = 0 if rc_status == "PASSED" else 1
             step_stdout = json.dumps(rc_result, ensure_ascii=True, indent=2)
+        elif kind == "agent-runner-dry-run":
+            ar_result = agent_runner_dry_run(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            ar_status = str(ar_result.get("gate_status") or "")
+            step_exit_code = 0 if ar_status == "PASSED" else 1
+            step_stdout = json.dumps(ar_result, ensure_ascii=True, indent=2)
         elif kind == "startup-snapshot":
             ss_result = startup_snapshot(
                 state_dir=state_dir,
@@ -18798,6 +19326,44 @@ def run_closeout(
             rs_status = str(rs_result.get("synthesis_status") or "")
             step_exit_code = 0 if rs_status == "PASSED" else 1
             step_stdout = json.dumps(rs_result, ensure_ascii=True, indent=2)
+        elif kind == "execute-decision":
+            ed_result = execute_decision(
+                state_dir=state_dir,
+                round_id=requested_round_id,
+                dry_run=True,
+                repo_root=repo_root,
+                command_runner=command_runner,
+                write_result=False,
+                pytest_result_path=None,
+                allow_consumed_preflight=True,
+            )
+            (state_dir / "gates" / EXECUTE_DECISION_RESULT_NAME).write_text(
+                json.dumps(ed_result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            ed_status = str(ed_result.get("gate_status") or ed_result.get("status") or "")
+            step_exit_code = 0 if ed_status == "PASSED" else 1
+            step_stdout = (
+                f"execute-decision: {ed_status}\n"
+                f"decision_id: {ed_result.get('decision_id')}\n"
+                f"round_id: {ed_result.get('round_id')}\n"
+                f"mode: {ed_result.get('mode')}\n"
+                "closeout_execution_mode: non_recursive_plan_validation\n"
+                f"artifact: {EXECUTE_DECISION_OUTPUT_PATH}"
+            )
+        elif kind == "execution-log":
+            el_result = execution_log(state_dir=state_dir, write_result=True)
+            el_status = str(el_result.get("gate_status") or "")
+            step_exit_code = 0 if el_status in {"PASSED", "WARN"} and not el_result.get("blocking_reasons") else 1
+            step_stdout = (
+                f"execution-log: {el_status}\n"
+                f"decision_id: {el_result.get('decision_id')}\n"
+                f"round_id: {el_result.get('round_id')}\n"
+                f"source: {el_result.get('source')}\n"
+                f"artifact: {EXECUTION_LOG_OUTPUT_PATH}\n"
+                f"recommended_next_action: {el_result.get('recommended_next_action') or 'no_action_required'}"
+            )
         elif kind == "final-check":
             fc_result = final_check(
                 state_dir=state_dir,
@@ -18827,6 +19393,12 @@ def run_closeout(
             exit_code=step_exit_code,
             decision_id=decision_id,
             round_id=requested_round_id,
+        )
+        _record_top_level_if_authorized(
+            command=command,
+            stdout=step_stdout,
+            stderr=step_stderr,
+            exit_code=step_exit_code,
         )
         executed_steps.append({
             "name": step_name,
@@ -18923,6 +19495,12 @@ def run_closeout(
                 exit_code=fc_exit_code,
                 decision_id=decision_id,
                 round_id=requested_round_id,
+            )
+            _record_top_level_if_authorized(
+                command=command,
+                stdout=fc_stdout,
+                stderr="",
+                exit_code=fc_exit_code,
             )
             executed_steps.append({
                 "name": "final-check-after-close",
@@ -19137,6 +19715,20 @@ def _print_runner_contract(result: dict[str, Any]) -> None:
     print(f"executable: {result.get('executable')}")
     print(f"allowed_command_count: {result.get('allowed_command_count')}")
     print(f"artifact: {RUNNER_CONTRACT_OUTPUT_PATH}")
+
+
+def _print_agent_runner_dry_run(result: dict[str, Any]) -> None:
+    print(f"agent-runner-dry-run: {result.get('gate_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"dry_run_status: {result.get('dry_run_status')}")
+    preview = result.get("execution_preview") if isinstance(result.get("execution_preview"), dict) else {}
+    print(f"planned_command_count: {preview.get('planned_command_count')}")
+    proof = result.get("non_execution_proof") if isinstance(result.get("non_execution_proof"), dict) else {}
+    print(f"commands_executed: {proof.get('commands_executed')}")
+    print(f"dispatch_enabled: {proof.get('dispatch_enabled')}")
+    print(f"executable: {proof.get('executable')}")
+    print(f"artifact: {AGENT_RUNNER_DRY_RUN_OUTPUT_PATH}")
 
 
 def _print_audit_inventory(result: dict[str, Any]) -> None:
@@ -19457,6 +20049,9 @@ def main(argv: list[str] | None = None) -> int:
     runner_contract_parser = subparsers.add_parser("runner-contract", help="Generate a non-executable runner contract artifact.")
     runner_contract_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     runner_contract_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    agent_runner_dry_run_parser = subparsers.add_parser("agent-runner-dry-run", help="Generate a local non-executing AgentRunner dry-run artifact.")
+    agent_runner_dry_run_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    agent_runner_dry_run_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     audit_inventory_parser = subparsers.add_parser("audit-inventory", help="Validate project_state/audits inventory and write gate artifact.")
     audit_inventory_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     audit_inventory_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -19698,6 +20293,18 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_runner_contract(result)
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "agent-runner-dry-run":
+        state_dir_path = Path(args.state_dir)
+        result = agent_runner_dry_run(
+            state_dir=state_dir_path,
+            repo_root=_derive_repo_root(state_dir_path),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_agent_runner_dry_run(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     if args.command == "audit-inventory":

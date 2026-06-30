@@ -157,6 +157,61 @@ def test_runner_contract_rejects_omitted_command_as_allowed(tmp_path: Path) -> N
     assert "allowed_commands include omitted command-plan commands" in result["errors"]
 
 
+def test_runner_contract_rejects_missing_command_plan_command(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    decision = _write_decision(state_dir)
+    job_payload = build_planned_job_payload(decision)
+    payload = build_runner_contract_payload(
+        state_dir=state_dir,
+        job_payload=job_payload,
+        command_plan_payload=_command_plan(),
+        repo_root=tmp_path,
+    )
+    payload["allowed_commands"] = payload["allowed_commands"][:1]
+
+    result = validate_runner_contract_payload(
+        payload,
+        command_plan_payload=_command_plan(),
+        job_payload=job_payload,
+    )
+
+    assert result["validation_status"] == "FAILED"
+    assert "allowed_commands missing required command-plan commands" in result["errors"]
+
+
+def test_runner_contract_rejects_unbounded_write_paths(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    decision = _write_decision(state_dir)
+    job_payload = build_planned_job_payload(decision)
+    payload = build_runner_contract_payload(
+        state_dir=state_dir,
+        job_payload=job_payload,
+        command_plan_payload=_command_plan(),
+        repo_root=tmp_path,
+    )
+    payload["allowed_write_paths"].extend([
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py",
+        ".github/workflows/ci.yml",
+        "docs/prompts/README.md",
+        ".codex-skills/registry.json",
+        "solve_reports/output.json",
+        "../outside.json",
+        "https://example.com/out.json",
+        "C:/tmp/out.json",
+    ])
+
+    result = validate_runner_contract_payload(
+        payload,
+        command_plan_payload=_command_plan(),
+        job_payload=job_payload,
+    )
+
+    assert result["validation_status"] == "FAILED"
+    assert "allowed_write_paths include unsafe or out-of-scope paths" in result["errors"]
+    assert len(result["unsafe_write_paths"]) == 9
+
+
 def test_runner_contract_rejects_executable_contract(tmp_path: Path) -> None:
     state_dir = tmp_path / "project_state"
     decision = _write_decision(state_dir)

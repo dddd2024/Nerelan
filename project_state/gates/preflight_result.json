@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260629_job_orchestration_foundation_v1",
-  "round_id": "round_20260629_job_orchestration_foundation_v1",
+  "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
+  "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T16:43:11.802442Z",
+  "generated_at": "2026-06-30T05:10:05.409794Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -25,8 +25,12 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [],
-      "baseline_dirty_files": []
+      "startup_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ],
+      "baseline_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "decision_not_dirty_in_baseline",
@@ -75,9 +79,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260629_job_orchestration_foundation_v1"
+      "detail": "decision consumption allowed for closeout",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260630_local_runner_dry_run_foundation_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -95,9 +99,12 @@
         ".github/workflows/ci.yml",
         ".github/workflows/decision-preflight.yml",
         ".github/workflows/state-gate.yml",
+        "docs/prompts/README.md",
         "docs/prompts/codex_execution_prompt.md",
+        "docs/prompts/project_workspace_prompt.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
+        "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/control_plane_snapshot.json",
@@ -107,6 +114,7 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/job_orchestration_result.json",
+        "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -117,21 +125,21 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/state_hygiene_inventory.json",
-        "project_state/jobs/job_20260629_job_orchestration_foundation_v1.json",
+        "project_state/jobs/job_20260630_local_runner_dry_run_foundation_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260629_job_orchestration_foundation_v1/*",
+        "project_state/rounds/round_20260630_local_runner_dry_run_foundation_v1/*",
+        "reverse_agent/project_agent_runner.py",
         "reverse_agent/project_audits.py",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_jobs.py",
         "reverse_agent/project_rounds.py",
         "reverse_agent/project_runner_contract.py",
-        "tests/test_project_audits.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_agent_runner.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
         "tests/test_project_jobs.py",
-        "tests/test_project_rounds.py",
         "tests/test_project_runner_contract.py"
       ]
     },
@@ -184,13 +192,15 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [],
-    "head_commit": "c0f71f69913d"
+    "baseline_dirty_files": [
+      "project_state/gates/command_plan.json"
+    ],
+    "head_commit": "4c2a997ac17b"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"
