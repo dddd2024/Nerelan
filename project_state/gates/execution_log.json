@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
-  "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
-  "report_id": "codex_report_20260630_hygiene_and_handoff_bundle_v1",
-  "generated_at": "2026-06-30T09:59:32.012239Z",
+  "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
+  "round_id": "round_20260630_hygiene_handoff_rework_v1",
+  "report_id": "codex_report_20260630_hygiene_handoff_rework_v1",
+  "generated_at": "2026-06-30T12:50:45.850916Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
-    "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
-    "report_id": "codex_report_20260630_hygiene_and_handoff_bundle_v1",
+    "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
+    "round_id": "round_20260630_hygiene_handoff_rework_v1",
+    "report_id": "codex_report_20260630_hygiene_handoff_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "6b8acfa2b1a3574769a4a881207101c09c1390fd89908993bf5a1a4494b62f97",
-        "size_bytes": 73099,
+        "sha256": "e1aaea51b3e4250f3023865fd64c47e3c91dca57f1f78402be22926851c1c3ab",
+        "size_bytes": 67873,
         "command_block_count": 22
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "ae906c6b9c37c74bd438bb4412fa5e24583a321aae512e5a7b0230f60a667fbb",
-        "size_bytes": 9753,
-        "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
-        "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+        "sha256": "28a937dfbb38d5c1dea84dc918b3d14937ba0c51bb3492c73b6693ac97d82413",
+        "size_bytes": 9695,
+        "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
+        "round_id": "round_20260630_hygiene_handoff_rework_v1",
         "plan_status": "PASSED",
         "command_count": 22
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "cde97a277380a08005b9eaa0cff1c8deaf0c6eed6edcb026bb3a963078bba9c2",
-        "size_bytes": 104827,
-        "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
-        "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+        "sha256": "1693deefa6d6ac997d416ac49eb714d735881414c7b5e93d0aec06bbecd19d75",
+        "size_bytes": 99620,
+        "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
+        "round_id": "round_20260630_hygiene_handoff_rework_v1",
         "command_block_count": 22
       }
     },
     "command_count": 22,
-    "command_digest": "418ba6f47e4defa1c1ea686465b4620eb7ab17c9cfa1f028c9de7293fc18233f"
+    "command_digest": "f611f24213ddb455984289b318c45c396b800980de4dadd6e73c9987f33a152c"
   },
   "commands": [
     {
@@ -207,7 +207,7 @@
     },
     {
       "index": 15,
-      "command": "python -m pytest tests/test_project_agent_runner.py tests/test_project_runner_contract.py tests/test_project_control_plane.py tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_agent_runner.py tests/test_project_control_plane.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -252,7 +252,7 @@
     },
     {
       "index": 19,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_hygiene_and_handoff_bundle_v1 --mode execute",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1 --mode execute",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -287,7 +287,7 @@
     },
     {
       "index": 22,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_and_handoff_bundle_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_hygiene_handoff_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
