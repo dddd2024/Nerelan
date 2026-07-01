@@ -32,8 +32,7 @@
     "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/pytest_result.txt",
     "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_reports.py"
+    "tests/test_project_gate.py"
   ],
   "tests_ran": [
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
@@ -146,9 +145,63 @@ SUCCESS
 
 - reverse_agent/project_gate.py
 - tests/test_project_gate.py
-- tests/test_project_reports.py
 
 ## Required Audit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

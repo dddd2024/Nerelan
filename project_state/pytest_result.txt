@@ -4,7 +4,7 @@
   "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
   "report_id": "codex_report_20260630_final_check_exit_and_audit_readiness_v1",
   "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-  "generated_at": "2026-06-30T17:20:11.034638Z",
+  "generated_at": "2026-07-01T05:01:31.595447Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
@@ -119,14 +119,14 @@ preflight: PASSED
 ........................................................................ [ 55%]
 ........................................................................ [ 60%]
 ........................................................................ [ 66%]
-........................................................................ [ 72%]
+........................................................................ [ 71%]
 ........................................................................ [ 77%]
-........................................................................ [ 83%]
+........................................................................ [ 82%]
 ........................................................................ [ 88%]
 ........................................................................ [ 94%]
 ........................................................................ [ 99%]
-...                                                                      [100%]
-1299 passed in 259.64s (0:04:19)
+......                                                                   [100%]
+1302 passed in 315.90s (0:05:15)
 
 ===== EXIT: 0 =====
 
@@ -149,8 +149,8 @@ preflight: PASSED
 ........................................................................ [ 88%]
 ........................................................................ [ 93%]
 ........................................................................ [ 99%]
-.......                                                                  [100%]
-1303 passed in 250.05s (0:04:10)
+..........                                                               [100%]
+1306 passed in 324.11s (0:05:24)
 
 ===== EXIT: 0 =====
 
@@ -167,7 +167,7 @@ command-plan: PASSED
   "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
   "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-30T17:28:55.236347Z",
+  "generated_at": "2026-07-01T05:12:20.561710Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -185,6 +185,13 @@ command-plan: PASSED
       "final-check",
       "close-round"
     ]
+  },
+  "execution_order_policy": {
+    "mode": "coverage_expected_exit_not_strict_wall_clock",
+    "strict_wall_clock_order": false,
+    "coverage_authority": true,
+    "expected_exit_authority": true,
+    "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
   },
   "omitted_commands": [],
   "commands": [
@@ -456,10 +463,7 @@ artifact: project_state/gates/audit_readiness_packet.json
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 final-check: PASSED
-decision_id: decision_20260630_final_check_exit_and_audit_readiness_v1
-report_id: codex_report_20260630_final_check_exit_and_audit_readiness_v1
-round_id: round_20260630_final_check_exit_and_audit_readiness_v1
-recommended_next_action: no_action_required
+
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_final_check_exit_and_audit_readiness_v1 =====

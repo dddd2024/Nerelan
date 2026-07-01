@@ -600,6 +600,12 @@ def _make_gate_state(
         ],
         "warnings": [],
         "blocking_reasons": [],
+        "execution_order_policy": {
+            "mode": "coverage_expected_exit_not_strict_wall_clock",
+            "strict_wall_clock_order": False,
+            "coverage_authority": True,
+            "expected_exit_authority": True,
+        },
         "profile_meta": {
             "profile": "full",
             "profile_reason": "test fixture",
@@ -23168,6 +23174,8 @@ class TestFinalCheckExitAndAuditReadiness:
         final_checks = [item for item in commands if item["kind"] == "final-check"]
 
         assert result["plan_status"] == "PASSED"
+        assert result["execution_order_policy"]["mode"] == "coverage_expected_exit_not_strict_wall_clock"
+        assert result["execution_order_policy"]["strict_wall_clock_order"] is False
         assert any(item["kind"] == "audit-readiness-packet" for item in commands)
         assert "execute-decision" in kinds
         assert "execution-log" in kinds
@@ -23203,6 +23211,123 @@ class TestFinalCheckExitAndAuditReadiness:
         assert packet["can_execute"] is False
         assert packet["mutates_state"] is False
         assert readiness_check["status"] == "PASS"
+
+    def test_audit_readiness_packet_ready_after_successful_closeout(self, tmp_path: Path) -> None:
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        _write_json(
+            state_dir / "gates" / "final_gate_result.json",
+            {
+                "schema_version": 1,
+                "gate_name": "final-check",
+                "gate_status": "FAILED",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+            },
+        )
+        _write_json(
+            state_dir / "gates" / "run_closeout_result.json",
+            {
+                "schema_version": 1,
+                "gate_name": "run-closeout",
+                "closeout_status": "PASSED",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "close_round_result": {"close_status": "CLOSED"},
+                "status_summary": {
+                    "report_status": "SUCCESS",
+                    "report_acceptance_recommendation": "ACCEPTED",
+                },
+                "executed_steps": [
+                    {
+                        "name": "final-check-after-close",
+                        "status": "PASSED",
+                        "exit_code": 0,
+                        "expected_exit_codes": [0],
+                    },
+                ],
+                "blocking_reasons": [],
+                "warnings": [],
+            },
+        )
+
+        packet = audit_readiness_packet(state_dir=state_dir, write_result=False)
+
+        assert packet["readiness_status"] == "READY"
+        assert packet["closeout_status"]["status"] == "PASSED"
+        assert packet["limitations"] == []
+        assert packet["next_action"] == "no_action_required"
+
+    def test_final_check_rejects_stale_audit_readiness_after_closeout_passed(
+        self, tmp_path: Path
+    ) -> None:
+        state_dir = _make_gate_state(tmp_path)
+        with (state_dir / "decision_packet.md").open("a", encoding="utf-8") as handle:
+            handle.write(
+                "\n```json decision_contract\n"
+                + json.dumps(
+                    {
+                        "accepted_requires_audit_readiness_packet": True,
+                        "accepted_requires_final_check_exit_zero": True,
+                    }
+                )
+                + "\n```\n"
+            )
+        _write_json(
+            state_dir / "gates" / "run_closeout_result.json",
+            {
+                "schema_version": 1,
+                "gate_name": "run-closeout",
+                "closeout_status": "PASSED",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "close_round_result": {"close_status": "CLOSED"},
+                "blocking_reasons": [],
+                "warnings": [],
+            },
+        )
+        stale_packet = audit_readiness_packet(state_dir=state_dir, write_result=False)
+        stale_packet["readiness_status"] = "PENDING"
+        stale_packet["closeout_status"] = {
+            "status": "IN_PROGRESS",
+            "artifact": "project_state/gates/run_closeout_result.json",
+        }
+        stale_packet["limitations"] = ["closeout has not passed for current IDs"]
+        stale_packet["next_action"] = "complete_closeout_and_rerun_final_check"
+        _write_json(state_dir / "gates" / "audit_readiness_packet.json", stale_packet)
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        readiness_check = _check(result, "audit_readiness_packet_valid")
+
+        assert readiness_check["status"] == "FAIL"
+        assert any("closeout_status.status" in error for error in readiness_check["errors"])
+        assert any("readiness_status" in error for error in readiness_check["errors"])
+
+    def test_final_check_requires_command_plan_order_policy_for_current_contract(
+        self, tmp_path: Path
+    ) -> None:
+        state_dir = _make_gate_state(tmp_path)
+        with (state_dir / "decision_packet.md").open("a", encoding="utf-8") as handle:
+            handle.write(
+                "\n```json decision_contract\n"
+                + json.dumps(
+                    {
+                        "accepted_requires_audit_readiness_packet": True,
+                        "accepted_requires_final_check_exit_zero": True,
+                    }
+                )
+                + "\n```\n"
+            )
+        audit_readiness_packet(state_dir=state_dir, write_result=True)
+        command_plan_path = state_dir / "gates" / "command_plan.json"
+        command_plan_payload = json.loads(command_plan_path.read_text(encoding="utf-8"))
+        command_plan_payload.pop("execution_order_policy", None)
+        _write_json(command_plan_path, command_plan_payload)
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        policy_check = _check(result, "command_plan_execution_order_policy")
+
+        assert policy_check["status"] == "FAIL"
+        assert any("mode" in error for error in policy_check["errors"])
 
     def test_final_check_rejects_dirty_startup_source_test_evidence(self, tmp_path: Path) -> None:
         state_dir = _make_gate_state(

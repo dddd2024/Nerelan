@@ -5974,12 +5974,46 @@ def audit_readiness_packet(*, state_dir: Path, write_result: bool = True) -> dic
         decision_id=decision_id,
         round_id=round_id,
     )
+    closeout_summary = closeout.get("status_summary") if isinstance(closeout.get("status_summary"), dict) else {}
+    closeout_report_status = str(closeout_summary.get("report_status") or "")
+    closeout_acceptance = str(closeout_summary.get("report_acceptance_recommendation") or "")
+    closeout_success = closeout_current and str(closeout.get("closeout_status") or "") == "PASSED"
+    closeout_steps = closeout.get("executed_steps") if isinstance(closeout.get("executed_steps"), list) else []
+    closeout_final_check_passed = any(
+        str(step.get("name") or "") in {
+            "final-check",
+            "final-check-after-close",
+            "final-check-after-audit-readiness",
+        }
+        and str(step.get("status") or "") == "PASSED"
+        and int(step.get("exit_code") if step.get("exit_code") is not None else -1)
+        in {
+            int(code)
+            for code in (
+                step.get("expected_exit_codes")
+                if isinstance(step.get("expected_exit_codes"), list)
+                else [0]
+            )
+        }
+        for step in closeout_steps
+        if isinstance(step, dict)
+    )
+    final_check_passed = (
+        final_gate_current and str(final_gate.get("gate_status") or "") == "PASSED"
+    ) or (closeout_success and closeout_final_check_passed)
+    closeout_accepts_report = closeout_success and (
+        closeout_report_status in {"SUCCESS", "ACCEPTED_WITH_LIMITATIONS"}
+        or closeout_acceptance in {"ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
+    )
+    report_status = str(report.get("status") or "")
+    report_accepted = report_status in {"SUCCESS", "ACCEPTED_WITH_LIMITATIONS"} or closeout_accepts_report
+
     readiness_status = "READY"
     limitations: list[str] = []
-    if str(report.get("status") or "") not in {"SUCCESS", "ACCEPTED_WITH_LIMITATIONS"}:
+    if not report_accepted:
         readiness_status = "PENDING"
         limitations.append("report is not yet accepted")
-    if not final_gate_current or str(final_gate.get("gate_status") or "") != "PASSED":
+    if not final_check_passed:
         readiness_status = "PENDING"
         limitations.append("final-check has not passed for current IDs")
     if closeout and (not closeout_current or str(closeout.get("closeout_status") or "") != "PASSED"):
@@ -6018,6 +6052,7 @@ def audit_readiness_packet(*, state_dir: Path, write_result: bool = True) -> dic
         "final_check_policy": {
             "accepted_requires_exit_zero": True,
             "final_gate_status": final_gate.get("gate_status"),
+            "closeout_final_check_passed": closeout_final_check_passed,
             "final_gate_artifact": SELF_OUTPUT_PATH,
         },
         "closeout_status": {
@@ -6085,6 +6120,41 @@ def _audit_readiness_packet_gate_check(
         errors.append("final_check_policy.accepted_requires_exit_zero is not true")
     if required and str(payload.get("readiness_status") or "") not in {"READY", "PENDING"}:
         errors.append("readiness_status is invalid")
+    closeout = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    closeout_current = _artifact_matches_current_round(
+        closeout,
+        decision_id=decision_id,
+        round_id=round_id,
+    )
+    closeout_status = str(closeout.get("closeout_status") or "") if closeout_current else ""
+    packet_closeout = payload.get("closeout_status") if isinstance(payload.get("closeout_status"), dict) else {}
+    packet_closeout_status = str(packet_closeout.get("status") or "")
+    final_gate = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+    final_gate_current = _artifact_matches_current_round(
+        final_gate,
+        decision_id=decision_id,
+        round_id=round_id,
+    )
+    final_gate_status = str(final_gate.get("gate_status") or "") if final_gate_current else ""
+    readiness_status = str(payload.get("readiness_status") or "")
+    next_action = str(payload.get("next_action") or "")
+    limitations = [str(item) for item in (payload.get("limitations") or [])]
+    if closeout_current and closeout_status != packet_closeout_status:
+        errors.append(
+            f"closeout_status.status {packet_closeout_status or '<missing>'} "
+            f"does not match run_closeout_result.closeout_status {closeout_status}"
+        )
+    if closeout_current and closeout_status == "PASSED" and final_gate_status == "PASSED":
+        if readiness_status != "READY":
+            errors.append("readiness_status must be READY after successful closeout and final-check")
+        if next_action != "no_action_required":
+            errors.append("next_action must be no_action_required after successful closeout and final-check")
+        stale_limitations = [
+            item for item in limitations
+            if "closeout has not passed" in item or "final-check has not passed" in item
+        ]
+        if stale_limitations:
+            errors.append("limitations contain stale closeout/final-check blockers")
     return _check(
         "audit_readiness_packet_valid",
         "PASS" if not errors else "FAIL",
@@ -6092,6 +6162,8 @@ def _audit_readiness_packet_gate_check(
         required=required,
         errors=errors,
         readiness_status=payload.get("readiness_status"),
+        closeout_status=packet_closeout_status,
+        next_action=payload.get("next_action"),
         artifact=AUDIT_READINESS_PACKET_OUTPUT_PATH,
     )
 
@@ -6887,6 +6959,44 @@ def _validate_command_plan_consistency(
             plan_status=command_plan_payload.get("plan_status"),
             command_plan_decision_id=command_plan_payload.get("decision_id"),
             command_plan_round_id=command_plan_payload.get("round_id"),
+        )
+    )
+    decision_contract = read_decision_contract(state_dir)
+    contract_block = extract_markdown_json_block(
+        _read_text(state_dir / "decision_packet.md"),
+        "decision_contract",
+    )
+    if contract_block.get("found") and not contract_block.get("parse_error"):
+        decision_contract = {**decision_contract, **contract_block}
+    order_policy_required = bool(
+        decision_contract.get("accepted_requires_audit_readiness_packet")
+        or decision_contract.get("accepted_requires_final_check_exit_zero")
+    )
+    order_policy = (
+        command_plan_payload.get("execution_order_policy")
+        if isinstance(command_plan_payload.get("execution_order_policy"), dict)
+        else {}
+    )
+    order_policy_errors: list[str] = []
+    if order_policy_required or order_policy:
+        if order_policy.get("mode") != "coverage_expected_exit_not_strict_wall_clock":
+            order_policy_errors.append("execution_order_policy.mode is missing or invalid")
+        if order_policy.get("strict_wall_clock_order") is not False:
+            order_policy_errors.append("execution_order_policy.strict_wall_clock_order must be false")
+        if order_policy.get("coverage_authority") is not True:
+            order_policy_errors.append("execution_order_policy.coverage_authority must be true")
+        if order_policy.get("expected_exit_authority") is not True:
+            order_policy_errors.append("execution_order_policy.expected_exit_authority must be true")
+    checks.append(
+        _check(
+            "command_plan_execution_order_policy",
+            "PASS" if not order_policy_errors else "FAIL",
+            "command-plan explicitly documents coverage/expected-exit authority rather than strict wall-clock order"
+            if not order_policy_errors
+            else "command-plan execution order policy is missing or invalid",
+            required=order_policy_required,
+            errors=order_policy_errors,
+            policy=order_policy or None,
         )
     )
 
@@ -15182,6 +15292,17 @@ def command_plan(
         "mainline": mainline,
         "generated_at": _now_iso(),
         "profile_meta": profile_meta,
+        "execution_order_policy": {
+            "mode": "coverage_expected_exit_not_strict_wall_clock",
+            "strict_wall_clock_order": False,
+            "coverage_authority": True,
+            "expected_exit_authority": True,
+            "rationale": (
+                "command-plan authorizes required command coverage and expected exits; "
+                "pytest_result/execution_log preserve observed transcript order, and "
+                "startup/closeout order is validated by dedicated final-check checks"
+            ),
+        },
         "omitted_commands": omitted_commands,
         "commands": commands,
         "warnings": warnings,
@@ -17865,16 +17986,65 @@ def _refresh_post_run_closeout_evidence(
                 repo_root=repo_root,
                 write_result=True,
             )
+            if include_close_snapshot:
+                _recopy_report_to_archive(state_dir=state_dir, round_id=round_id_text)
+                _refresh_manifest_status(state_dir=state_dir, round_id=round_id_text)
+            audit_readiness_packet(state_dir=state_dir, write_result=True)
         except Exception:
             pass
         try:
             final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
         except Exception:
             pass
+        try:
+            audit_readiness_packet(state_dir=state_dir, write_result=True)
+        except Exception:
+            pass
+        try:
+            _refresh_codex_report_for_closeout(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                decision_id=decision_id_text,
+                round_id=round_id_text,
+                include_close_snapshot=include_close_snapshot,
+            )
+            report_auto_summary(state_dir=state_dir, write_result=True)
+            _sync_auto_summary_to_report(state_dir)
+            build_report_summary_synthesis(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            if include_close_snapshot:
+                _recopy_report_to_archive(state_dir=state_dir, round_id=round_id_text)
+                _refresh_manifest_status(state_dir=state_dir, round_id=round_id_text)
+        except Exception:
+            pass
         _refresh_run_closeout_result_after_self_record(
             state_dir=state_dir,
             repo_root=repo_root,
         )
+        try:
+            audit_readiness_packet(state_dir=state_dir, write_result=True)
+        except Exception:
+            pass
+        try:
+            _refresh_codex_report_for_closeout(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                decision_id=decision_id_text,
+                round_id=round_id_text,
+                include_close_snapshot=include_close_snapshot,
+            )
+            report_auto_summary(state_dir=state_dir, write_result=True)
+            _sync_auto_summary_to_report(state_dir)
+            build_report_summary_synthesis(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+        except Exception:
+            pass
         _rewrite_post_closeout_diagnostic_pytest_blocks(
             state_dir=state_dir,
             repo_root=repo_root,
@@ -19087,6 +19257,8 @@ def _refresh_codex_report_for_closeout(
     # in expected_files_changed.  _git_changed_files excludes it from the raw
     # git diff, so it must be added explicitly here.
     files_changed_set.add(ROUND_DELTA_OUTPUT_PATH)
+    if (state_dir / "gates" / ROUND_BASELINE_RESULT_NAME).exists():
+        files_changed_set.add(ROUND_BASELINE_OUTPUT_PATH)
     # REPORT_AUTO_SUMMARY_OUTPUT_PATH is added by report_auto_summary() to
     # files_changed_set unconditionally.  The synthesis includes it in
     # expected_files_changed only when the artifact exists on disk.  Adding it

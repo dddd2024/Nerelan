@@ -6,7 +6,7 @@
   "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
   "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
   "report_id": "codex_report_20260630_final_check_exit_and_audit_readiness_v1",
-  "generated_at": "2026-06-30T17:29:12.889600Z",
+  "generated_at": "2026-07-01T05:20:05.768802Z",
   "synthesized_summary": {
     "report_id": "codex_report_20260630_final_check_exit_and_audit_readiness_v1",
     "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
@@ -37,8 +37,7 @@
       "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/pytest_result.txt",
       "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/round_manifest.json",
       "reverse_agent/project_gate.py",
-      "tests/test_project_gate.py",
-      "tests/test_project_reports.py"
+      "tests/test_project_gate.py"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",

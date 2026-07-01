@@ -6,7 +6,7 @@
   "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
   "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
   "report_id": "codex_report_20260630_final_check_exit_and_audit_readiness_v1",
-  "generated_at": "2026-06-30T17:29:12.277624Z",
+  "generated_at": "2026-07-01T05:12:39.466823Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
@@ -22,15 +22,15 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "8d53143260a398aebb3433822111ece5d2104ba33747402c6d41aecd26662316",
-        "size_bytes": 17375,
+        "sha256": "19ce8226497367028a306b7d532bd8ddf7f6676140ec5c19a8249305f4f83d81",
+        "size_bytes": 17550,
         "command_block_count": 17
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "863b36a65236bd91a06732e27a4bbef6d03cccfcb0da241d3e12fabd195a5432",
-        "size_bytes": 7586,
+        "sha256": "745be418c070a71765c373e15173f2622f5b30e7730901d7908a8f4f35511c1c",
+        "size_bytes": 8013,
         "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
         "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
         "plan_status": "PASSED",
@@ -39,8 +39,8 @@
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "809283e8168a1ea4942c9f46801aad4ed3f7cafa94bb8672fe89658c5cdfdbae",
-        "size_bytes": 34213,
+        "sha256": "cf24889ace8cafbe0277c181492f4733df6b6c7c789a80e2ccac72483e69a4e2",
+        "size_bytes": 36949,
         "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
         "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
         "command_block_count": 17

@@ -1,12 +1,12 @@
 {
   "acceptance_recommendation": "ACCEPTED",
   "archive_mode": "minimal",
-  "archived_at": "2026-06-30T17:28:59Z",
+  "archived_at": "2026-07-01T05:12:25Z",
   "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
   "files": {
     "codex_execution_report.md": {
       "archived_path": "project_state\\rounds\\round_20260630_final_check_exit_and_audit_readiness_v1\\codex_execution_report.md",
-      "sha256": "5abf6cd4eff118677b7a24a70335624c159fd15fec328cdb2f53596ddfd37613",
+      "sha256": "4291a9fbe0eeed2b81208cee94579d4addbf8cb311119b746e63c61979620d32",
       "source_path": "project_state\\codex_execution_report.md"
     },
     "decision_packet.md": {
@@ -16,12 +16,12 @@
     },
     "pytest_result.txt": {
       "archived_path": "project_state\\rounds\\round_20260630_final_check_exit_and_audit_readiness_v1\\pytest_result.txt",
-      "sha256": "8d53143260a398aebb3433822111ece5d2104ba33747402c6d41aecd26662316",
+      "sha256": "19ce8226497367028a306b7d532bd8ddf7f6676140ec5c19a8249305f4f83d81",
       "source_path": "project_state\\pytest_result.txt"
     },
     "execution_report.md": {
       "path": "project_state\\rounds\\round_20260630_final_check_exit_and_audit_readiness_v1\\execution_report.md",
-      "sha256": "f88161b5c0a07e8a2638a6d2abb64ee9afb74c4ab7e96b683f1743350167ecad",
+      "sha256": "82117f51817f2159d17d4360c284eef3eed990aca998c8f3a49e11a326cb79aa",
       "source_path": "project_state\\execution_report.md"
     }
   },
@@ -40,7 +40,7 @@
   "report_status": "SUCCESS",
   "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
   "schema_version": 1,
-  "source_git_commit": "919507115c46",
+  "source_git_commit": "066ca3d3bece",
   "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
   "state_build_id": "state_20260618_134029_d6bd033d2532",
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
