@@ -6760,6 +6760,19 @@ def _current_handoff_packet_gate_check(
     audit_readiness = payload.get("audit_readiness_status") if isinstance(payload.get("audit_readiness_status"), dict) else {}
     if audit_readiness.get("current") is not True:
         errors.append("audit_readiness_status.current is not true")
+    readiness_payload = _read_json(state_dir / "gates" / AUDIT_READINESS_PACKET_RESULT_NAME)
+    if not readiness_payload:
+        errors.append("audit_readiness_packet.json is missing")
+    else:
+        for field in (
+            "readiness_status",
+            "recommendation",
+            "next_action",
+            "decision_id",
+            "round_id",
+        ):
+            if audit_readiness.get(field) != readiness_payload.get(field):
+                errors.append(f"audit_readiness_status.{field} does not match audit_readiness_packet.json")
 
     ok = not errors
     return _check(
@@ -18869,6 +18882,7 @@ def _refresh_post_run_closeout_evidence(
                 _recopy_report_to_archive(state_dir=state_dir, round_id=round_id_text)
                 _refresh_manifest_status(state_dir=state_dir, round_id=round_id_text)
             audit_readiness_packet(state_dir=state_dir, write_result=True)
+            current_handoff_packet(state_dir=state_dir, write_result=True)
         except Exception:
             pass
         try:
@@ -18898,6 +18912,7 @@ def _refresh_post_run_closeout_evidence(
                 _refresh_manifest_status(state_dir=state_dir, round_id=round_id_text)
             final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
             audit_readiness_packet(state_dir=state_dir, write_result=True)
+            current_handoff_packet(state_dir=state_dir, write_result=True)
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
                 repo_root=repo_root,
@@ -18923,6 +18938,7 @@ def _refresh_post_run_closeout_evidence(
             pass
         try:
             audit_readiness_packet(state_dir=state_dir, write_result=True)
+            current_handoff_packet(state_dir=state_dir, write_result=True)
         except Exception:
             pass
         try:
@@ -18951,6 +18967,7 @@ def _refresh_post_run_closeout_evidence(
         )
         try:
             audit_readiness_packet(state_dir=state_dir, write_result=True)
+            current_handoff_packet(state_dir=state_dir, write_result=True)
         except Exception:
             pass
         try:
@@ -19001,6 +19018,7 @@ def _refresh_post_run_closeout_evidence(
                 _refresh_manifest_status(state_dir=state_dir, round_id=round_id_text)
             final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
             audit_readiness_packet(state_dir=state_dir, write_result=True)
+            current_handoff_packet(state_dir=state_dir, write_result=True)
             final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
         except Exception:
             pass
@@ -22271,6 +22289,7 @@ def run_closeout(
                 round_id=requested_round_id,
                 include_close_snapshot=True,
             )
+            current_handoff_packet(state_dir=state_dir, write_result=True)
             report_auto_summary(state_dir=state_dir, write_result=True)
             _sync_auto_summary_to_report(state_dir)
             execution_log(state_dir=state_dir, write_result=True)

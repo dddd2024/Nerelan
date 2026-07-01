@@ -4,7 +4,7 @@
   "decision_id": "decision_20260701_current_handoff_packet_v1",
   "report_id": "codex_report_20260701_current_handoff_packet_v1",
   "round_id": "round_20260701_current_handoff_packet_v1",
-  "generated_at": "2026-07-01T12:08:09.774555Z",
+  "generated_at": "2026-07-01T15:09:01.626219Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
@@ -127,8 +127,8 @@ preflight: PASSED
 ........................................................................ [ 87%]
 ........................................................................ [ 93%]
 ........................................................................ [ 98%]
-................                                                         [100%]
-1312 passed in 464.06s (0:07:44)
+.................                                                        [100%]
+1313 passed in 362.23s (0:06:02)
 
 ===== EXIT: 0 =====
 
@@ -147,12 +147,12 @@ preflight: PASSED
 ........................................................................ [ 65%]
 ........................................................................ [ 71%]
 ........................................................................ [ 76%]
-........................................................................ [ 82%]
+........................................................................ [ 81%]
 ........................................................................ [ 87%]
 ........................................................................ [ 92%]
 ........................................................................ [ 98%]
-.....................                                                    [100%]
-1317 passed in 456.51s (0:07:36)
+......................                                                   [100%]
+1318 passed in 348.10s (0:05:48)
 
 ===== EXIT: 0 =====
 
@@ -169,7 +169,7 @@ command-plan: PASSED
   "decision_id": "decision_20260701_current_handoff_packet_v1",
   "round_id": "round_20260701_current_handoff_packet_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-01T12:23:38.476860Z",
+  "generated_at": "2026-07-01T15:21:04.026217Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -461,7 +461,7 @@ audit-inventory: PASSED
 decision_id: decision_20260701_current_handoff_packet_v1
 round_id: round_20260701_current_handoff_packet_v1
 inventory_validation_status: PASSED
-audit_count: 3
+audit_count: 4
 artifact: project_state/gates/audit_inventory_result.json
 
 ===== EXIT: 0 =====

@@ -6,7 +6,7 @@
   "decision_id": "decision_20260701_current_handoff_packet_v1",
   "round_id": "round_20260701_current_handoff_packet_v1",
   "report_id": "codex_report_20260701_current_handoff_packet_v1",
-  "generated_at": "2026-07-01T12:24:11.410843Z",
+  "generated_at": "2026-07-01T15:21:32.017050Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
@@ -22,14 +22,14 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "b3c8f245c1dd9db8a3f11999f538bde95097b6836c7e1d4fe53ce7f57918a6a0",
+        "sha256": "75636d9a4215111302f1ae9e1e7cdec424fc1d7e40254134bdb1519fb7ce9a99",
         "size_bytes": 18404,
         "command_block_count": 18
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "0db447da38b9165a762669d675cd969d3e651e0efc07502e95d441b474f3aed0",
+        "sha256": "eecd8c541e22fe3a28d35b4027c7e0243ed350552a9e9727b8ba73e714b2e4a4",
         "size_bytes": 8741,
         "decision_id": "decision_20260701_current_handoff_packet_v1",
         "round_id": "round_20260701_current_handoff_packet_v1",
@@ -39,8 +39,8 @@
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "ef358d7c81d6ae48275860f48ee261cc62147816f30869b53d4e34889543d11d",
-        "size_bytes": 36028,
+        "sha256": "48f76c8f57448f2fabb37b0c4c8dc361eee843bd02f30c56dd4bbac5fefd90c9",
+        "size_bytes": 38032,
         "decision_id": "decision_20260701_current_handoff_packet_v1",
         "round_id": "round_20260701_current_handoff_packet_v1",
         "command_block_count": 19

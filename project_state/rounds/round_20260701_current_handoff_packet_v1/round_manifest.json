@@ -1,12 +1,12 @@
 {
   "acceptance_recommendation": "ACCEPTED",
   "archive_mode": "minimal",
-  "archived_at": "2026-07-01T12:23:45Z",
+  "archived_at": "2026-07-01T15:21:09Z",
   "decision_id": "decision_20260701_current_handoff_packet_v1",
   "files": {
     "codex_execution_report.md": {
       "archived_path": "project_state\\rounds\\round_20260701_current_handoff_packet_v1\\codex_execution_report.md",
-      "sha256": "7f8e97b8f860bb597d8f2ecbe7ab91c821fe916cc11d6175c68a3953b15aa19c",
+      "sha256": "56209bea13fe8f81fee71781e1b42587abc342696e669225893999cf8e364d77",
       "source_path": "project_state\\codex_execution_report.md"
     },
     "decision_packet.md": {
@@ -16,12 +16,12 @@
     },
     "pytest_result.txt": {
       "archived_path": "project_state\\rounds\\round_20260701_current_handoff_packet_v1\\pytest_result.txt",
-      "sha256": "b3c8f245c1dd9db8a3f11999f538bde95097b6836c7e1d4fe53ce7f57918a6a0",
+      "sha256": "75636d9a4215111302f1ae9e1e7cdec424fc1d7e40254134bdb1519fb7ce9a99",
       "source_path": "project_state\\pytest_result.txt"
     },
     "execution_report.md": {
       "path": "project_state\\rounds\\round_20260701_current_handoff_packet_v1\\execution_report.md",
-      "sha256": "fa9a6f9d8a77bcdffc4ba12b46ee832b9082fdc20ffd86371d9cae12ba1b08e9",
+      "sha256": "73d72f9834f920fa3412c9b96ecab071b817068a9e2f6cf145ad0d2d7eaf59ae",
       "source_path": "project_state\\execution_report.md"
     }
   },
@@ -40,7 +40,7 @@
   "report_status": "SUCCESS",
   "round_id": "round_20260701_current_handoff_packet_v1",
   "schema_version": 1,
-  "source_git_commit": "f697a174f2b2",
+  "source_git_commit": "b9b832083286",
   "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
   "state_build_id": "state_20260618_134029_d6bd033d2532",
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",

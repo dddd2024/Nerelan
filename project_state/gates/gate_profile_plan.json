@@ -5,7 +5,7 @@
   "decision_id": "decision_20260701_current_handoff_packet_v1",
   "round_id": "round_20260701_current_handoff_packet_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-01T12:23:38.436134Z",
+  "generated_at": "2026-07-01T15:21:03.992131Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [

@@ -26379,6 +26379,9 @@ def test_current_handoff_packet_writes_current_non_dispatching_artifact(tmp_path
     assert payload["can_execute"] is False
     assert payload["mutates_state"] is False
     assert payload["command_plan_authority"]["packet_can_override_command_plan"] is False
+    assert payload["audit_readiness_status"]["readiness_status"] == "READY"
+    assert payload["audit_readiness_status"]["recommendation"] == "ACCEPTED"
+    assert payload["audit_readiness_status"]["next_action"] == "no_action_required"
     assert check["status"] == "PASS"
 
 
@@ -26406,6 +26409,41 @@ def test_current_handoff_packet_gate_check_rejects_stale_or_executable_packet(
     assert "decision_id mismatch" in check["errors"]
     assert "can_execute is not false" in check["errors"]
     assert "command_plan_authority.path is not command_plan.json" in check["errors"]
+
+
+def test_current_handoff_packet_gate_check_rejects_stale_readiness_summary(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _add_current_handoff_supporting_artifacts(state_dir)
+    payload = current_handoff_packet(state_dir=state_dir, write_result=False)
+    payload["audit_readiness_status"]["readiness_status"] = "PENDING"
+    payload["audit_readiness_status"]["recommendation"] = "REWORK_REQUIRED"
+    payload["audit_readiness_status"]["next_action"] = "complete_closeout_and_rerun_final_check"
+    _write_json(state_dir / "gates" / "current_handoff_packet.json", payload)
+
+    check = _current_handoff_packet_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_current_handoff_packet": True},
+        decision_text="current handoff packet",
+    )
+
+    assert check["status"] == "FAIL"
+    assert (
+        "audit_readiness_status.readiness_status does not match audit_readiness_packet.json"
+        in check["errors"]
+    )
+    assert (
+        "audit_readiness_status.recommendation does not match audit_readiness_packet.json"
+        in check["errors"]
+    )
+    assert (
+        "audit_readiness_status.next_action does not match audit_readiness_packet.json"
+        in check["errors"]
+    )
 
 
 def test_command_plan_injects_current_handoff_packet_gate(tmp_path: Path) -> None:

@@ -6,7 +6,7 @@
   "decision_id": "decision_20260701_current_handoff_packet_v1",
   "round_id": "round_20260701_current_handoff_packet_v1",
   "report_id": "codex_report_20260701_current_handoff_packet_v1",
-  "generated_at": "2026-07-01T12:24:14.097340Z",
+  "generated_at": "2026-07-01T15:21:34.355082Z",
   "readiness_status": "READY",
   "recommendation": "ACCEPTED",
   "evidence_only": true,
