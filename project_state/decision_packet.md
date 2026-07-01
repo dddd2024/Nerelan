@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
-  "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+  "decision_id": "decision_20260701_current_handoff_packet_v1",
+  "round_id": "round_20260701_current_handoff_packet_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,16 +13,17 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-  "previous_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
-  "phase_label": "phase_2_25_status_policy_and_audit_inventory",
-  "primary_goal": "Fix status-policy warning/source inconsistency and advance audit inventory into a current gate artifact.",
+  "previous_decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+  "previous_round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+  "previous_audit_outcome": "ACCEPTED",
+  "phase_label": "phase_2_26_current_handoff_packet",
+  "primary_goal": "Create a current, non-dispatching Codex handoff packet that packages the active decision, command-plan authority, required startup checks, allowed scope, test contract, and audit readiness evidence for manual/local executor use.",
   "command_plan_authority_required": true,
-  "accepted_requires_status_policy_no_false_failed_report_warning": true,
-  "accepted_requires_current_audit_inventory": true,
+  "accepted_requires_current_handoff_packet": true,
+  "accepted_requires_no_duplicate_runner_or_dispatcher": true,
+  "accepted_requires_existing_audit_inventory_not_regressed": true,
   "accepted_requires_existing_audit_readiness_packet_not_regressed": true,
-  "accepted_requires_command_plan_order_policy_preserved": true,
+  "accepted_requires_command_plan_authority_preserved": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py",
@@ -47,7 +48,7 @@
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260701_status_policy_and_audit_inventory_v1/*"
+    "project_state/rounds/round_20260701_current_handoff_packet_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -66,18 +67,16 @@
 
 ## 1. Goal
 
-Implement **Status Policy Cleanup and Current Audit Inventory v1**.
+Implement **Current Handoff Packet v1**.
 
-This round deliberately combines one repair and one bounded engineering advance.
+This round advances the engineering branch from validated audit/readiness artifacts to a bounded, current handoff artifact for manual or local Codex execution.
 
-Repair task:
+Primary objective:
 
-1. Fix the `status_policy_valid` false/inconsistent warning where final-check can report current-round artifacts complete while still embedding `report_status is FAILED` or `doctor status is WARN` even though the live report summary is `SUCCESS` and `ACCEPTED`.
-
-Engineering advance:
-
-2. Promote audit inventory from historical/nonblocking context into a current, bounded gate artifact for this round.
-3. The current audit inventory must validate `project_state/audits/*.md` files, including the latest uploaded audit result, and report outcome counts without using stale historical IDs as current evidence.
+1. Produce `project_state/gates/current_handoff_packet.json` as the single current evidence packet an executor can read before work.
+2. The packet must summarize the active decision, command-plan authority, required startup sequence, allowed and forbidden paths, test contract, expected generated artifacts, audit inventory status, audit readiness status, closeout expectations, and stop conditions.
+3. The packet must be evidence-only and non-dispatching. It must not start Codex, call model APIs, run commands, schedule work, or mutate remote state.
+4. If an older handoff artifact or runner bundle already exists, inspect it and reuse its schema ideas where safe, but do not revive stale IDs as current evidence and do not implement a new runner/dispatcher.
 
 Target outcome:
 
@@ -87,53 +86,69 @@ Target outcome:
 - `final-check`: `PASSED`.
 - `run-closeout`: `PASSED`.
 - `close-round`: `CLOSED`.
-- `audit_readiness_packet.json`: remains `READY`, `PASSED`, `no_action_required`, evidence-only.
-- `status_policy_valid`: no false `report_status is FAILED` warning when the canonical report summary is `SUCCESS`.
-- `audit_inventory_result.json`: current decision ID, current round ID, valid audit count, valid outcome counts, no duplicate audit IDs.
+- `current_handoff_packet.json`: current decision ID, current round ID, current report ID, evidence-only, non-dispatching, command-plan aligned.
+- `audit_inventory_result.json`: remains current and validated.
+- `audit_readiness_packet.json`: remains `READY`, `PASSED`, `no_action_required`.
+- No Web/API/CI/runner/database/scheduler expansion.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-`project_state/decision_packet.md` controls the current round. `project_state/task_packet.json` remains background only.
+`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only.
 
-Previous accepted-with-limitations evidence:
+Previous round: `decision_20260701_status_policy_and_audit_inventory_v1` / `round_20260701_status_policy_and_audit_inventory_v1`.
 
-- `audit_readiness_packet.json` was repaired to `readiness_status: READY`.
-- `audit_readiness_packet.closeout_status.status` is now `PASSED`.
-- `audit_readiness_packet.limitations` is empty.
-- `audit_readiness_packet.next_action` is `no_action_required`.
-- final-check validates `audit_readiness_packet_valid`.
-- pytest passed with expanded counts.
-- run-closeout passed and close-round is closed.
-- command-plan now explicitly documents `execution_order_policy.mode = coverage_expected_exit_not_strict_wall_clock`.
+Previous audit outcome: `ACCEPTED`.
 
-Remaining limitation:
+Accepted evidence from previous round:
 
-- `final_gate_result.json` still contains a `status_policy_valid` warning with stale/inconsistent text such as `report_status is FAILED` even though report summary synthesis and final status summary show `SUCCESS` / `ACCEPTED`.
-- `audit_inventory_result.json` is still treated as stale/historical in final-check and does not provide a current-round inventory of `project_state/audits/*.md`.
+- `codex_execution_report.md` matched the current decision and reported `SUCCESS` / `ACCEPTED`.
+- `pytest_result.txt` was current and `PASSED`.
+- focused pytest included `tests/test_project_reports.py` and passed.
+- `status_policy_valid` was repaired to `PASS`, with canonical source `execution_report_summary`.
+- `audit_inventory_result.json` became current, validated three audit files, and was evidence-only.
+- `audit_readiness_packet.json` remained `READY`, `PASSED`, evidence-only, and `no_action_required`.
+- `run_closeout_result.json` passed and close-round was `CLOSED`.
+
+Engineering gap now being addressed:
+
+- Current decision/report/gate evidence is valid, but executor handoff is still distributed across multiple state files.
+- Historical handoff or runner artifacts exist in `project_state/gates/` as stale/nonblocking evidence. They must be inspected before implementation and either reused conceptually or explicitly left stale.
+- The project needs one current, bounded, non-dispatching packet for Codex/operator use before any future execution.
 
 Artifact freshness policy:
 
-- Current-round gate artifacts must carry `decision_20260701_status_policy_and_audit_inventory_v1` and `round_20260701_status_policy_and_audit_inventory_v1`.
-- Historical artifacts may be referenced but not listed as generated/current unless rebuilt in this round.
+- Current-round gate artifacts must carry `decision_20260701_current_handoff_packet_v1` and `round_20260701_current_handoff_packet_v1`.
+- Historical artifacts may be referenced only as historical/nonblocking unless rebuilt this round with current IDs.
 - Missing historical sample artifacts remain nonblocking background.
-- The uploaded audit result under `project_state/audits/` should be treated as input evidence for audit inventory, not as a generated artifact of this new round unless Codex modifies it.
+- The handoff packet is generated state, not a long-term skill.
 
 Command-plan policy:
 
-- `command-plan` is the execution authority.
-- Codex may only run command-plan authorized commands.
-- Existing execution order policy may remain coverage/expected-exit based, but it must be explicit and final-check validated.
-- Startup order and closeout order checks must remain strict.
+- `command-plan` remains the command authority.
+- Codex may only execute command-plan authorized commands.
+- The handoff packet may summarize allowed commands, but it must not override command-plan.
+- Startup order remains strict: the five startup commands, then `startup-snapshot` as the first project gate.
+- Existing `execution_order_policy` may remain coverage/expected-exit based, but it must stay explicit and validated.
 
 ## 3. Do Not Do
 
-Do not expand runner, handoff, control-plane, job, round, Web, API, CI, scheduler, database, or external integration modules.
+Do not create or modify a real runner, dispatcher, scheduler, service, queue, database, Web/API layer, CI workflow, or external integration.
+
+Do not modify these preserve-only modules unless a future decision explicitly authorizes that work:
+
+- `reverse_agent/project_agent_runner.py`
+- `reverse_agent/project_control_plane.py`
+- `reverse_agent/project_jobs.py`
+- `reverse_agent/project_runner_contract.py`
+- `reverse_agent/project_audits.py`
+- `reverse_agent/project_rounds.py`
+- `reverse_agent/project_state.py`
 
 Do not perform reverse solving, sample solving, runtime probing, dynamic debugging, emulator work, IDA/Ghidra/OllyDbg execution, or heavy historical scanning.
 
-Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+Do not read full `solve_reports/`, full historical round directories, or full `PROJECT_PROGRESS_LOG.txt`.
 
 Do not modify:
 
@@ -145,11 +160,11 @@ Do not modify:
 - `.github/workflows/*`
 - `docs/prompts/*`
 
-Do not create a new audit verdict file unless explicitly required by a generated artifact policy. This round should validate audit inventory, not write a new human audit.
+Do not put dynamic run-specific facts, artifact freshness, runtime metrics, local paths beyond the existing `F:\reverse-agent` startup contract, or single-round conclusions into `.codex-skills/`.
 
-Do not weaken final-check merely to silence warnings. The fix must make status-policy sources consistent.
+Do not make the handoff packet executable. It must not include any field that implies it can launch commands or mutate state.
 
-Do not change report status schema values or introduce unsupported status names.
+Do not weaken audit inventory, audit readiness, final-check, command-plan, startup, or closeout checks merely to produce a clean packet.
 
 Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly asks the executor to upload results.
 
@@ -167,16 +182,23 @@ Read first:
 8. `project_state/pytest_result.txt`
 9. `.codex-skills/registry.json`
 
-Inspect bounded gate artifacts:
+Inspect bounded current gate artifacts:
 
-1. `project_state/gates/final_gate_result.json`
-2. `project_state/gates/report_summary_synthesis.json`
-3. `project_state/gates/audit_readiness_packet.json`
-4. `project_state/gates/audit_inventory_result.json` if present
-5. `project_state/gates/command_plan.json`
+1. `project_state/gates/command_plan.json`
+2. `project_state/gates/final_gate_result.json`
+3. `project_state/gates/report_summary_synthesis.json`
+4. `project_state/gates/audit_inventory_result.json`
+5. `project_state/gates/audit_readiness_packet.json`
 6. `project_state/gates/execution_log.json`
 7. `project_state/gates/run_closeout_result.json`
 8. `project_state/gates/round_delta_summary.json`
+
+Inspect existing handoff/runner artifacts before implementation:
+
+1. `project_state/gates/agent_runner_handoff_bundle.json` if present
+2. `project_state/gates/agent_runner_handoff_validation.json` if present
+3. `project_state/gates/agent_runner_dry_run_result.json` if present
+4. `project_state/gates/runner_contract_result.json` if present
 
 Inspect implementation and tests:
 
@@ -184,14 +206,11 @@ Inspect implementation and tests:
 2. `tests/test_project_gate.py`
 3. `tests/test_project_reports.py`
 
-Inspect audit inputs only:
-
-1. `project_state/audits/*.md`
-
 Read-only context if needed:
 
-1. `reverse_agent/project_audits.py`
-2. `reverse_agent/project_rounds.py`
+1. `reverse_agent/project_agent_runner.py`
+2. `reverse_agent/project_runner_contract.py`
+3. `tests/test_project_agent_runner.py`
 
 Do not scan full `solve_reports/`, full historical round directories, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -204,29 +223,29 @@ The execution report must answer these items with direct evidence:
 3. Did `decision_meta` remain valid and APPROVED on `engineering_branch`?
 4. Did `reverse-agent-iteration@v2` remain active in `.codex-skills/registry.json`?
 5. Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?
-6. Did the implementation stay within allowed source/test files?
+6. Did implementation stay within allowed source/test files?
 7. Were preserve-only and forbidden files not modified?
-8. Did the status-policy repair remove false `report_status is FAILED` warning when canonical report summary is `SUCCESS`?
-9. Does final-check now use one canonical status source, or explicitly reconcile report summary, report body, report-summary synthesis, and final status summary?
-10. Is there a regression test where stale `FAILED` status-policy data would have produced the old warning and now fails or normalizes correctly?
-11. Did `audit_inventory_result.json` get regenerated with the current decision ID and round ID?
-12. Does audit inventory validate all `project_state/audits/*.md` files in bounded form?
-13. Does audit inventory include the latest uploaded `audit_20260701_rework_required_audit_readiness_packet.md` file or otherwise explain why it is excluded?
-14. Does audit inventory report outcome counts and duplicate audit ID errors?
-15. Does final-check distinguish stale historical audit inventory from current audit inventory?
-16. Does final-check reject current audit inventory with stale decision/round IDs if this round requires current inventory?
-17. Did audit inventory remain evidence-only and non-dispatching?
-18. Did `audit_readiness_packet.json` remain `READY`, `PASSED`, evidence-only, and `no_action_required`?
-19. Did command-plan retain explicit `execution_order_policy`?
-20. Did final-check continue validating command-plan coverage, expected exits, and startup/closeout ordering?
-21. Did report-summary synthesis pass with no diffs?
-22. Did focused pytest include `tests/test_project_reports.py` and exit 0?
-23. Did `execution-log` provenance remain current-round aligned?
-24. Did `run-closeout` exit 0?
-25. Did close-round become `CLOSED`?
-26. Did post-closeout final-check pass with exit 0?
-27. Did closeout nested failure scan pass?
-28. Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, audit inventory status, and audit readiness packet status?
+8. Did Codex inspect existing handoff/runner artifacts or code before adding the current handoff packet?
+9. Did implementation avoid creating a new runner, dispatcher, scheduler, queue, service, Web/API layer, CI workflow, or external integration?
+10. Does `current_handoff_packet.json` exist with current decision ID, round ID, and report ID?
+11. Does the handoff packet identify `decision_packet.md` as the decision authority?
+12. Does the handoff packet identify `command_plan.json` as the command execution authority?
+13. Does the handoff packet include the required startup sequence and startup-snapshot-first rule?
+14. Does the handoff packet summarize allowed source/test paths and forbidden paths from the decision contract?
+15. Does the handoff packet summarize required tests and the pytest command including `tests/test_project_reports.py`?
+16. Does the handoff packet include expected generated artifacts and artifact freshness policy?
+17. Does the handoff packet summarize current `audit_inventory_result.json` status?
+18. Does the handoff packet summarize current `audit_readiness_packet.json` status?
+19. Does the handoff packet summarize closeout expectations and stop conditions?
+20. Is the handoff packet evidence-only, non-dispatching, non-executable, and non-mutating?
+21. Does final-check validate handoff packet freshness, evidence-only fields, and command-plan alignment?
+22. Does final-check reject stale handoff packet IDs when current handoff is required?
+23. Does final-check reject a handoff packet that claims authority over command-plan or omits command-plan authority?
+24. Did command-plan include the handoff packet gate and preserve explicit `execution_order_policy`?
+25. Did audit inventory remain current and validated?
+26. Did audit readiness remain `READY`, `PASSED`, and `no_action_required`?
+27. Did report-summary synthesis pass with no diffs?
+28. Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, current handoff status, audit inventory status, and audit readiness status?
 
 ## 6. Implementation Scope
 
@@ -242,34 +261,47 @@ Allowed generated or updated artifacts:
 - `project_state/execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260701_status_policy_and_audit_inventory_v1/*`
+- `project_state/rounds/round_20260701_current_handoff_packet_v1/*`
 
 Required behavior:
 
-1. `status_policy_valid` must not report `report_status is FAILED` when canonical report summary and final status summary are `SUCCESS` / `ACCEPTED`.
-2. If multiple report status sources disagree, final-check must either:
-   - fail with explicit source mismatch; or
-   - normalize through a documented canonical source and record the noncanonical source as stale/nonblocking only.
-3. Add a regression test for the stale status-policy warning case.
-4. Add or update an `audit-inventory` gate function if already present in `project_gate.py`, or repair its current-round integration if the function already exists.
-5. `audit_inventory_result.json` must include:
+1. Add or repair a bounded project gate that writes `project_state/gates/current_handoff_packet.json`.
+2. If an equivalent existing handoff packet generator already exists, reuse/extend it instead of creating a duplicate concept.
+3. `current_handoff_packet.json` must include:
    - schema_version;
    - artifact_name;
    - gate_name;
    - gate_status;
    - decision_id;
    - round_id;
+   - report_id;
+   - mainline;
    - generated_at;
-   - audit_count;
-   - outcome_counts;
-   - validated_paths;
-   - duplicate_audit_id_errors;
-   - invalid_file_errors;
-   - evidence_only or equivalent non-dispatching marker.
-6. final-check must validate current audit inventory when this decision contract requires it.
-7. Existing audit readiness packet behavior must not regress.
-8. Existing command-plan execution order policy must not regress.
-9. Existing artifact taxonomy separation must not regress.
+   - decision_authority;
+   - command_plan_authority;
+   - startup_contract;
+   - allowed_scope;
+   - forbidden_scope;
+   - required_tests;
+   - expected_artifacts;
+   - artifact_freshness_policy;
+   - audit_inventory_status;
+   - audit_readiness_status;
+   - closeout_expectations;
+   - stop_conditions;
+   - evidence_only;
+   - executable;
+   - can_execute;
+   - mutates_state;
+   - warnings;
+   - errors.
+4. The packet must not contain secrets, local-only runtime metrics, bulky solve report content, command outputs beyond references, or generated candidate data.
+5. final-check must validate the packet when the decision contract requires it.
+6. command-plan must include the handoff packet gate if the gate is required for acceptance.
+7. report-summary synthesis must include current handoff packet status in generated artifacts and summary matching.
+8. Existing audit inventory behavior must not regress.
+9. Existing audit readiness behavior must not regress.
+10. Existing command-plan authority and startup/closeout order checks must not regress.
 
 ## 7. Tests
 
@@ -297,25 +329,29 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 python -m reverse_agent.project_gate audit-inventory --state-dir project_state
+python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
+python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
-python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_status_policy_and_audit_inventory_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_current_handoff_packet_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-If the exact CLI name for audit inventory differs, use the existing project_gate subcommand and record the actual command in `pytest_result.txt`.
+If the exact CLI name differs, use the existing project_gate subcommand and record the actual command in `pytest_result.txt`.
 
 Required regression coverage:
 
-- stale `report_status is FAILED` warning is removed or becomes a blocking source mismatch;
-- current audit inventory carries current decision/round IDs;
-- audit inventory validates every bounded audit file;
-- duplicate audit IDs fail;
-- invalid audit summary blocks fail;
-- stale audit inventory is not accepted as current when current inventory is required;
-- audit readiness packet remains READY/PASSED/no_action_required;
+- stale handoff packet IDs fail final-check when current handoff is required;
+- packet missing command-plan authority fails;
+- packet claiming it can execute or mutate state fails;
+- packet missing startup contract fails;
+- packet missing allowed/forbidden scope fails;
+- packet missing audit inventory or audit readiness status fails;
+- packet omitting required tests fails;
+- current packet passes with current IDs and evidence-only fields;
+- audit inventory remains current and validated;
+- audit readiness remains READY/PASSED/no_action_required;
 - command-plan execution_order_policy remains explicit;
 - final-check and closeout exit 0.
 
@@ -332,19 +368,20 @@ Stop with `BLOCKED` if:
 - decision metadata or skill profile is invalid;
 - command-plan is missing or unsafe;
 - implementation requires preserve-only or forbidden paths;
-- repair requires changing workflow, runner, Web/API, database, project state builder, or remote state.
+- implementation requires real runner, dispatcher, scheduler, Web/API, database, workflow, external service, or remote state changes.
 
 Stop with `REWORK_REQUIRED` if:
 
-- `status_policy_valid` still reports false `report_status is FAILED` while canonical report status is `SUCCESS`;
-- status sources disagree and final-check neither fails nor documents a safe canonical source;
-- `audit_inventory_result.json` is missing, stale, malformed, or not current-round aligned;
-- audit inventory omits the uploaded audit result without explanation;
-- duplicate audit IDs or invalid audit summaries are not detected;
-- audit readiness packet regresses from READY/PASSED/no_action_required;
-- command-plan execution order policy disappears or becomes implicit again;
+- `current_handoff_packet.json` is missing, stale, malformed, or not current-round aligned;
+- handoff packet is executable, dispatching, mutating, or claims authority over command-plan;
+- final-check does not validate handoff packet freshness and evidence-only fields;
+- final-check accepts stale handoff IDs when current handoff is required;
+- command-plan omits the required handoff packet gate;
+- audit inventory regresses or becomes stale;
+- audit readiness regresses from READY/PASSED/no_action_required;
+- status-policy false warning regresses;
 - focused pytest omits `tests/test_project_reports.py`;
-- pytest, report-summary, execution-log, audit-inventory, final-check, audit-readiness, run-closeout, or post-closeout final-check fails;
+- pytest, report-summary, execution-log, audit-inventory, audit-readiness, current-handoff-packet, final-check, run-closeout, or post-closeout final-check fails;
 - close-round is not CLOSED;
 - closeout nested failure scan finds active failures;
 - forbidden files are modified.
