@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260701_current_handoff_packet_v1",
-  "round_id": "round_20260701_current_handoff_packet_v1",
+  "decision_id": "decision_20260701_codex_prompt_packet_v1",
+  "round_id": "round_20260701_codex_prompt_packet_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,17 +13,18 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
-  "previous_round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+  "previous_decision_id": "decision_20260701_current_handoff_packet_v1",
+  "previous_round_id": "round_20260701_current_handoff_packet_v1",
   "previous_audit_outcome": "ACCEPTED",
-  "phase_label": "phase_2_26_current_handoff_packet",
-  "primary_goal": "Create a current, non-dispatching Codex handoff packet that packages the active decision, command-plan authority, required startup checks, allowed scope, test contract, and audit readiness evidence for manual/local executor use.",
+  "phase_label": "phase_2_27_codex_prompt_packet",
+  "primary_goal": "Create a current, non-dispatching Codex execution prompt packet derived from current_handoff_packet.json so a human operator can copy a bounded local execution prompt without reading scattered state files.",
   "command_plan_authority_required": true,
-  "accepted_requires_current_handoff_packet": true,
-  "accepted_requires_no_duplicate_runner_or_dispatcher": true,
+  "accepted_requires_current_codex_prompt_packet": true,
+  "accepted_requires_prompt_packet_derived_from_current_handoff": true,
+  "accepted_requires_no_runner_or_dispatcher": true,
+  "accepted_requires_existing_current_handoff_not_regressed": true,
   "accepted_requires_existing_audit_inventory_not_regressed": true,
-  "accepted_requires_existing_audit_readiness_packet_not_regressed": true,
-  "accepted_requires_command_plan_authority_preserved": true,
+  "accepted_requires_existing_audit_readiness_not_regressed": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py",
@@ -48,7 +49,7 @@
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260701_current_handoff_packet_v1/*"
+    "project_state/rounds/round_20260701_codex_prompt_packet_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -67,16 +68,17 @@
 
 ## 1. Goal
 
-Implement **Current Handoff Packet v1**.
+Implement **Codex Prompt Packet v1**.
 
-This round advances the engineering branch from validated audit/readiness artifacts to a bounded, current handoff artifact for manual or local Codex execution.
+This round advances the engineering branch from a current machine-readable handoff packet to a bounded, copyable Codex execution prompt packet.
 
 Primary objective:
 
-1. Produce `project_state/gates/current_handoff_packet.json` as the single current evidence packet an executor can read before work.
-2. The packet must summarize the active decision, command-plan authority, required startup sequence, allowed and forbidden paths, test contract, expected generated artifacts, audit inventory status, audit readiness status, closeout expectations, and stop conditions.
-3. The packet must be evidence-only and non-dispatching. It must not start Codex, call model APIs, run commands, schedule work, or mutate remote state.
-4. If an older handoff artifact or runner bundle already exists, inspect it and reuse its schema ideas where safe, but do not revive stale IDs as current evidence and do not implement a new runner/dispatcher.
+1. Produce `project_state/gates/codex_prompt_packet.json` as a current, non-dispatching prompt packet derived from `project_state/gates/current_handoff_packet.json`.
+2. The prompt packet must contain a complete local execution prompt that a human operator can copy into Codex or another local executor.
+3. The prompt must preserve the project contract: `F:\reverse-agent`, startup checks, `decision_packet.md` as the only decision authority, `command-plan` as the only command execution authority, no remote mutation, allowed scope, forbidden scope, required tests, required artifacts, stop conditions, and report-writing requirements.
+4. The prompt packet must be evidence-only. It must not execute commands, call model APIs, create jobs, schedule work, dispatch Codex, mutate remote state, or introduce a runner.
+5. The prompt packet must be generated from current evidence and must reject stale or mismatched handoff/readiness/audit inventory data.
 
 Target outcome:
 
@@ -86,10 +88,11 @@ Target outcome:
 - `final-check`: `PASSED`.
 - `run-closeout`: `PASSED`.
 - `close-round`: `CLOSED`.
-- `current_handoff_packet.json`: current decision ID, current round ID, current report ID, evidence-only, non-dispatching, command-plan aligned.
+- `current_handoff_packet.json`: remains current, evidence-only, non-dispatching, and command-plan aligned.
+- `codex_prompt_packet.json`: current decision ID, current round ID, current report ID, derived from current handoff packet, copyable prompt present, evidence-only, non-executable, non-dispatching.
 - `audit_inventory_result.json`: remains current and validated.
-- `audit_readiness_packet.json`: remains `READY`, `PASSED`, `no_action_required`.
-- No Web/API/CI/runner/database/scheduler expansion.
+- `audit_readiness_packet.json`: remains `READY`, `PASSED`, `ACCEPTED`, `no_action_required`.
+- No runner, dispatcher, scheduler, Web/API layer, database, CI workflow, or external integration changes.
 
 ## 2. Current Evidence
 
@@ -97,40 +100,43 @@ Mainline: `engineering_branch`.
 
 `project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only.
 
-Previous round: `decision_20260701_status_policy_and_audit_inventory_v1` / `round_20260701_status_policy_and_audit_inventory_v1`.
+Previous round: `decision_20260701_current_handoff_packet_v1` / `round_20260701_current_handoff_packet_v1`.
 
 Previous audit outcome: `ACCEPTED`.
 
 Accepted evidence from previous round:
 
-- `codex_execution_report.md` matched the current decision and reported `SUCCESS` / `ACCEPTED`.
-- `pytest_result.txt` was current and `PASSED`.
-- focused pytest included `tests/test_project_reports.py` and passed.
-- `status_policy_valid` was repaired to `PASS`, with canonical source `execution_report_summary`.
-- `audit_inventory_result.json` became current, validated three audit files, and was evidence-only.
-- `audit_readiness_packet.json` remained `READY`, `PASSED`, evidence-only, and `no_action_required`.
+- `current_handoff_packet.json` exists with current decision/round/report IDs.
+- It identifies `decision_packet.md` as decision authority.
+- It identifies `command_plan.json` as command execution authority and states the packet cannot override command-plan.
+- It includes startup contract, allowed scope, forbidden scope, required tests, expected artifacts, artifact freshness policy, audit inventory status, audit readiness status, closeout expectations, stop conditions, and historical handoff artifacts inspected.
+- It is evidence-only, non-executable, non-dispatching, and non-mutating.
+- The prior readiness mismatch was repaired: handoff readiness now matches `audit_readiness_packet.json` with `READY` / `ACCEPTED` / `no_action_required`.
+- `audit_inventory_result.json` is current and includes four audit files.
+- `audit_readiness_packet.json` is current and `READY` / `ACCEPTED` / `no_action_required`.
+- `final_gate_result.json` passed with no blocking reasons or warnings.
 - `run_closeout_result.json` passed and close-round was `CLOSED`.
 
 Engineering gap now being addressed:
 
-- Current decision/report/gate evidence is valid, but executor handoff is still distributed across multiple state files.
-- Historical handoff or runner artifacts exist in `project_state/gates/` as stale/nonblocking evidence. They must be inspected before implementation and either reused conceptually or explicitly left stale.
-- The project needs one current, bounded, non-dispatching packet for Codex/operator use before any future execution.
+- `current_handoff_packet.json` is structured evidence, but a human still needs to manually convert it into a safe Codex execution prompt.
+- This round should generate that prompt as a controlled artifact without implementing execution or dispatch.
+- The prompt packet should reduce copy/paste mistakes while preserving the command-plan authority boundary.
 
 Artifact freshness policy:
 
-- Current-round gate artifacts must carry `decision_20260701_current_handoff_packet_v1` and `round_20260701_current_handoff_packet_v1`.
-- Historical artifacts may be referenced only as historical/nonblocking unless rebuilt this round with current IDs.
-- Missing historical sample artifacts remain nonblocking background.
-- The handoff packet is generated state, not a long-term skill.
+- Current-round gate artifacts must carry `decision_20260701_codex_prompt_packet_v1` and `round_20260701_codex_prompt_packet_v1`.
+- Historical artifacts may be referenced only as historical/nonblocking unless rebuilt with current IDs in this round.
+- `codex_prompt_packet.json` is generated state, not a long-term skill.
+- The prompt packet may include a prompt text string, but it must not write to `docs/prompts/*`.
 
 Command-plan policy:
 
 - `command-plan` remains the command authority.
-- Codex may only execute command-plan authorized commands.
-- The handoff packet may summarize allowed commands, but it must not override command-plan.
-- Startup order remains strict: the five startup commands, then `startup-snapshot` as the first project gate.
-- Existing `execution_order_policy` may remain coverage/expected-exit based, but it must stay explicit and validated.
+- Codex may only execute commands authorized by command-plan.
+- The generated prompt may tell the local executor to run command-plan and then obey it, but the prompt itself does not authorize commands.
+- Existing execution order policy may remain `coverage_expected_exit_not_strict_wall_clock`, but it must remain explicit and final-check validated.
+- Startup order remains strict: five startup commands, then `startup-snapshot` as the first project gate.
 
 ## 3. Do Not Do
 
@@ -146,6 +152,10 @@ Do not modify these preserve-only modules unless a future decision explicitly au
 - `reverse_agent/project_rounds.py`
 - `reverse_agent/project_state.py`
 
+Do not write or modify `docs/prompts/*`.
+
+Do not put this prompt into `.codex-skills/`; it is a current dynamic artifact, not a long-term stable skill.
+
 Do not perform reverse solving, sample solving, runtime probing, dynamic debugging, emulator work, IDA/Ghidra/OllyDbg execution, or heavy historical scanning.
 
 Do not read full `solve_reports/`, full historical round directories, or full `PROJECT_PROGRESS_LOG.txt`.
@@ -160,11 +170,9 @@ Do not modify:
 - `.github/workflows/*`
 - `docs/prompts/*`
 
-Do not put dynamic run-specific facts, artifact freshness, runtime metrics, local paths beyond the existing `F:\reverse-agent` startup contract, or single-round conclusions into `.codex-skills/`.
+Do not make the prompt packet executable. It must not include fields implying it can launch commands, dispatch Codex, schedule work, call APIs, or mutate state.
 
-Do not make the handoff packet executable. It must not include any field that implies it can launch commands or mutate state.
-
-Do not weaken audit inventory, audit readiness, final-check, command-plan, startup, or closeout checks merely to produce a clean packet.
+Do not weaken handoff, audit inventory, audit readiness, final-check, command-plan, startup, or closeout checks merely to produce a clean prompt packet.
 
 Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly asks the executor to upload results.
 
@@ -184,16 +192,17 @@ Read first:
 
 Inspect bounded current gate artifacts:
 
-1. `project_state/gates/command_plan.json`
-2. `project_state/gates/final_gate_result.json`
-3. `project_state/gates/report_summary_synthesis.json`
-4. `project_state/gates/audit_inventory_result.json`
-5. `project_state/gates/audit_readiness_packet.json`
-6. `project_state/gates/execution_log.json`
-7. `project_state/gates/run_closeout_result.json`
-8. `project_state/gates/round_delta_summary.json`
+1. `project_state/gates/current_handoff_packet.json`
+2. `project_state/gates/command_plan.json`
+3. `project_state/gates/final_gate_result.json`
+4. `project_state/gates/report_summary_synthesis.json`
+5. `project_state/gates/audit_inventory_result.json`
+6. `project_state/gates/audit_readiness_packet.json`
+7. `project_state/gates/execution_log.json`
+8. `project_state/gates/run_closeout_result.json`
+9. `project_state/gates/round_delta_summary.json`
 
-Inspect existing handoff/runner artifacts before implementation:
+Inspect existing handoff/runner artifacts only as bounded historical evidence:
 
 1. `project_state/gates/agent_runner_handoff_bundle.json` if present
 2. `project_state/gates/agent_runner_handoff_validation.json` if present
@@ -225,27 +234,27 @@ The execution report must answer these items with direct evidence:
 5. Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?
 6. Did implementation stay within allowed source/test files?
 7. Were preserve-only and forbidden files not modified?
-8. Did Codex inspect existing handoff/runner artifacts or code before adding the current handoff packet?
-9. Did implementation avoid creating a new runner, dispatcher, scheduler, queue, service, Web/API layer, CI workflow, or external integration?
-10. Does `current_handoff_packet.json` exist with current decision ID, round ID, and report ID?
-11. Does the handoff packet identify `decision_packet.md` as the decision authority?
-12. Does the handoff packet identify `command_plan.json` as the command execution authority?
-13. Does the handoff packet include the required startup sequence and startup-snapshot-first rule?
-14. Does the handoff packet summarize allowed source/test paths and forbidden paths from the decision contract?
-15. Does the handoff packet summarize required tests and the pytest command including `tests/test_project_reports.py`?
-16. Does the handoff packet include expected generated artifacts and artifact freshness policy?
-17. Does the handoff packet summarize current `audit_inventory_result.json` status?
-18. Does the handoff packet summarize current `audit_readiness_packet.json` status?
-19. Does the handoff packet summarize closeout expectations and stop conditions?
-20. Is the handoff packet evidence-only, non-dispatching, non-executable, and non-mutating?
-21. Does final-check validate handoff packet freshness, evidence-only fields, and command-plan alignment?
-22. Does final-check reject stale handoff packet IDs when current handoff is required?
-23. Does final-check reject a handoff packet that claims authority over command-plan or omits command-plan authority?
-24. Did command-plan include the handoff packet gate and preserve explicit `execution_order_policy`?
-25. Did audit inventory remain current and validated?
-26. Did audit readiness remain `READY`, `PASSED`, and `no_action_required`?
-27. Did report-summary synthesis pass with no diffs?
-28. Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, current handoff status, audit inventory status, and audit readiness status?
+8. Did implementation avoid creating a runner, dispatcher, scheduler, service, Web/API layer, CI workflow, queue, database, or external integration?
+9. Did Codex inspect `current_handoff_packet.json` before generating the prompt packet?
+10. Does `codex_prompt_packet.json` exist with current decision ID, round ID, and report ID?
+11. Does the prompt packet declare it is derived from current `current_handoff_packet.json`?
+12. Does the prompt packet include a complete copyable prompt string or structured prompt sections?
+13. Does the prompt tell the executor to start in `F:\reverse-agent` and run the five startup commands before project gates?
+14. Does the prompt state that `decision_packet.md` is the only decision authority and `task_packet.json` is background only?
+15. Does the prompt state that `command-plan` is the only command execution authority?
+16. Does the prompt forbid commands not authorized by command-plan?
+17. Does the prompt preserve allowed source/test scope and forbidden path scope?
+18. Does the prompt include required pytest commands, including `tests/test_project_reports.py`?
+19. Does the prompt require `pytest_result.txt` and `codex_execution_report.md` updates?
+20. Does the prompt require audit inventory, audit readiness, current handoff packet, prompt packet, final-check, run-closeout, and post-closeout final-check evidence?
+21. Is the prompt packet evidence-only, non-executable, non-dispatching, and non-mutating?
+22. Does final-check validate prompt packet freshness and derivation from current handoff packet?
+23. Does final-check reject stale prompt packet IDs when current prompt packet is required?
+24. Does final-check reject a prompt packet that claims authority over command-plan or permits unauthorized commands?
+25. Does final-check reject a prompt packet that omits startup, decision authority, command-plan authority, required tests, or forbidden scope?
+26. Did audit inventory remain current and validated?
+27. Did audit readiness remain `READY`, `PASSED`, `ACCEPTED`, and `no_action_required`?
+28. Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, current handoff status, prompt packet status, audit inventory status, and audit readiness status?
 
 ## 6. Implementation Scope
 
@@ -261,13 +270,13 @@ Allowed generated or updated artifacts:
 - `project_state/execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260701_current_handoff_packet_v1/*`
+- `project_state/rounds/round_20260701_codex_prompt_packet_v1/*`
 
 Required behavior:
 
-1. Add or repair a bounded project gate that writes `project_state/gates/current_handoff_packet.json`.
-2. If an equivalent existing handoff packet generator already exists, reuse/extend it instead of creating a duplicate concept.
-3. `current_handoff_packet.json` must include:
+1. Add or repair a bounded project gate that writes `project_state/gates/codex_prompt_packet.json`.
+2. If an equivalent existing prompt packet generator already exists, reuse or extend it instead of creating a duplicate concept.
+3. `codex_prompt_packet.json` must include:
    - schema_version;
    - artifact_name;
    - gate_name;
@@ -277,31 +286,36 @@ Required behavior:
    - report_id;
    - mainline;
    - generated_at;
+   - source_handoff_packet;
+   - source_handoff_digest or equivalent content hash if available;
+   - prompt_title;
+   - prompt_text or prompt_sections;
+   - startup_contract;
    - decision_authority;
    - command_plan_authority;
-   - startup_contract;
    - allowed_scope;
    - forbidden_scope;
    - required_tests;
-   - expected_artifacts;
-   - artifact_freshness_policy;
-   - audit_inventory_status;
-   - audit_readiness_status;
-   - closeout_expectations;
+   - required_artifacts;
+   - required_report_updates;
    - stop_conditions;
    - evidence_only;
    - executable;
    - can_execute;
    - mutates_state;
+   - can_dispatch;
+   - remote_mutation_allowed;
    - warnings;
    - errors.
-4. The packet must not contain secrets, local-only runtime metrics, bulky solve report content, command outputs beyond references, or generated candidate data.
-5. final-check must validate the packet when the decision contract requires it.
-6. command-plan must include the handoff packet gate if the gate is required for acceptance.
-7. report-summary synthesis must include current handoff packet status in generated artifacts and summary matching.
-8. Existing audit inventory behavior must not regress.
-9. Existing audit readiness behavior must not regress.
-10. Existing command-plan authority and startup/closeout order checks must not regress.
+4. The prompt text must be deterministic from current decision/handoff evidence and must not include secrets, tokens, credentials, bulky solve report content, runtime metrics, or candidate data.
+5. The prompt packet must not write to `docs/prompts/*` or `.codex-skills/*`.
+6. final-check must validate the prompt packet when the decision contract requires it.
+7. command-plan must include the prompt packet gate if the gate is required for acceptance.
+8. report-summary synthesis must include current prompt packet status in generated artifacts and summary matching.
+9. Existing current handoff behavior must not regress.
+10. Existing audit inventory behavior must not regress.
+11. Existing audit readiness behavior must not regress.
+12. Existing command-plan authority and startup/closeout checks must not regress.
 
 ## 7. Tests
 
@@ -331,10 +345,11 @@ python -m reverse_agent.project_gate preflight --state-dir project_state --allow
 python -m reverse_agent.project_gate audit-inventory --state-dir project_state
 python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
 python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state
+python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_current_handoff_packet_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_codex_prompt_packet_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -342,16 +357,21 @@ If the exact CLI name differs, use the existing project_gate subcommand and reco
 
 Required regression coverage:
 
-- stale handoff packet IDs fail final-check when current handoff is required;
-- packet missing command-plan authority fails;
-- packet claiming it can execute or mutate state fails;
-- packet missing startup contract fails;
-- packet missing allowed/forbidden scope fails;
-- packet missing audit inventory or audit readiness status fails;
-- packet omitting required tests fails;
-- current packet passes with current IDs and evidence-only fields;
+- stale prompt packet IDs fail final-check when current prompt packet is required;
+- prompt packet missing current handoff source fails;
+- prompt packet derived from stale handoff fails;
+- prompt packet missing startup contract fails;
+- prompt packet missing decision authority fails;
+- prompt packet missing command-plan authority fails;
+- prompt packet claiming it can override command-plan fails;
+- prompt packet allowing unauthorized commands fails;
+- prompt packet missing required pytest with `tests/test_project_reports.py` fails;
+- prompt packet missing forbidden scope fails;
+- prompt packet executable/dispatching/mutating fields fail;
+- current valid prompt packet passes;
+- current handoff remains current and valid;
 - audit inventory remains current and validated;
-- audit readiness remains READY/PASSED/no_action_required;
+- audit readiness remains READY/PASSED/ACCEPTED/no_action_required;
 - command-plan execution_order_policy remains explicit;
 - final-check and closeout exit 0.
 
@@ -368,20 +388,24 @@ Stop with `BLOCKED` if:
 - decision metadata or skill profile is invalid;
 - command-plan is missing or unsafe;
 - implementation requires preserve-only or forbidden paths;
-- implementation requires real runner, dispatcher, scheduler, Web/API, database, workflow, external service, or remote state changes.
+- implementation requires a real runner, dispatcher, scheduler, Web/API layer, database, workflow, external service, or remote state changes.
 
 Stop with `REWORK_REQUIRED` if:
 
-- `current_handoff_packet.json` is missing, stale, malformed, or not current-round aligned;
-- handoff packet is executable, dispatching, mutating, or claims authority over command-plan;
-- final-check does not validate handoff packet freshness and evidence-only fields;
-- final-check accepts stale handoff IDs when current handoff is required;
-- command-plan omits the required handoff packet gate;
+- `codex_prompt_packet.json` is missing, stale, malformed, or not current-round aligned;
+- prompt packet is executable, dispatching, mutating, or claims authority over command-plan;
+- prompt packet omits current handoff source or derives from stale handoff data;
+- prompt packet omits startup contract, decision authority, command-plan authority, required tests, allowed scope, forbidden scope, report update requirements, or stop conditions;
+- prompt packet allows unauthorized commands or remote mutation;
+- final-check does not validate prompt packet freshness, derivation, and evidence-only fields;
+- final-check accepts stale prompt IDs when current prompt packet is required;
+- command-plan omits the required prompt packet gate;
+- current handoff packet regresses or becomes stale;
 - audit inventory regresses or becomes stale;
-- audit readiness regresses from READY/PASSED/no_action_required;
+- audit readiness regresses from READY/PASSED/ACCEPTED/no_action_required;
 - status-policy false warning regresses;
 - focused pytest omits `tests/test_project_reports.py`;
-- pytest, report-summary, execution-log, audit-inventory, audit-readiness, current-handoff-packet, final-check, run-closeout, or post-closeout final-check fails;
+- pytest, report-summary, execution-log, audit-inventory, audit-readiness, current-handoff-packet, codex-prompt-packet, final-check, run-closeout, or post-closeout final-check fails;
 - close-round is not CLOSED;
 - closeout nested failure scan finds active failures;
 - forbidden files are modified.
