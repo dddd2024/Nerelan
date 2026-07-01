@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
-  "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
-  "report_id": "codex_report_20260701_status_policy_and_audit_inventory_v1",
-  "generated_at": "2026-07-01T08:00:18.623730Z",
+  "decision_id": "decision_20260701_current_handoff_packet_v1",
+  "round_id": "round_20260701_current_handoff_packet_v1",
+  "report_id": "codex_report_20260701_current_handoff_packet_v1",
+  "generated_at": "2026-07-01T12:24:11.410843Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
-    "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
-    "report_id": "codex_report_20260701_status_policy_and_audit_inventory_v1",
+    "decision_id": "decision_20260701_current_handoff_packet_v1",
+    "round_id": "round_20260701_current_handoff_packet_v1",
+    "report_id": "codex_report_20260701_current_handoff_packet_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "8f540b7362ee5aa3c2a3e0257a25bd92ee1f840de2c9eff0fbc44c4b036faf30",
-        "size_bytes": 17760,
-        "command_block_count": 17
+        "sha256": "b3c8f245c1dd9db8a3f11999f538bde95097b6836c7e1d4fe53ce7f57918a6a0",
+        "size_bytes": 18404,
+        "command_block_count": 18
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "f4fd7d5ddff4a42a05b144ac61881882fbbbe1a82189e0430f87d9a65605dd6a",
-        "size_bytes": 8377,
-        "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
-        "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+        "sha256": "0db447da38b9165a762669d675cd969d3e651e0efc07502e95d441b474f3aed0",
+        "size_bytes": 8741,
+        "decision_id": "decision_20260701_current_handoff_packet_v1",
+        "round_id": "round_20260701_current_handoff_packet_v1",
         "plan_status": "PASSED",
-        "command_count": 18
+        "command_count": 19
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "7ce19655fda65c87f437e7b7258e042554cfe676de4071e4549b19ed357f9206",
-        "size_bytes": 35313,
-        "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
-        "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
-        "command_block_count": 18
+        "sha256": "ef358d7c81d6ae48275860f48ee261cc62147816f30869b53d4e34889543d11d",
+        "size_bytes": 36028,
+        "decision_id": "decision_20260701_current_handoff_packet_v1",
+        "round_id": "round_20260701_current_handoff_packet_v1",
+        "command_block_count": 19
       }
     },
-    "command_count": 17,
-    "command_digest": "fa4e5aca902d06570cb95244be39c24dea56856dd9365fdd4688c0e43411cda2"
+    "command_count": 18,
+    "command_digest": "e3508de4a12c46d5fe911a6d5842180102c67da6ec627d2a852c154e5cc812e7"
   },
   "commands": [
     {
@@ -196,6 +196,17 @@
     },
     {
       "index": 14,
+      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+      "kind": "current-handoff-packet",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 15,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -207,7 +218,7 @@
       "status": "PASSED"
     },
     {
-      "index": 15,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -218,7 +229,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -230,8 +241,8 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_status_policy_and_audit_inventory_v1",
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_current_handoff_packet_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

@@ -42,6 +42,7 @@ from reverse_agent.project_gate import (
     _agent_runner_handoff_bundle_gate_check,
     _agent_runner_handoff_validation_gate_check,
     _audit_inventory_gate_check,
+    _current_handoff_packet_gate_check,
     _control_plane_snapshot_gate_check,
     _job_orchestration_gate_check,
     _jobs_inventory_gate_check,
@@ -72,6 +73,7 @@ from reverse_agent.project_gate import (
     execute_decision,
     final_check,
     audit_readiness_packet,
+    current_handoff_packet,
     audit_inventory,
     control_plane_snapshot,
     agent_runner_handoff_bundle,
@@ -17123,6 +17125,7 @@ def test_run_closeout_constants_and_allowlist():
             "agent-runner-handoff-bundle", "agent-runner-handoff-validate",
             "audit-inventory",
             "audit-readiness-packet",
+            "current-handoff-packet",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -26260,6 +26263,172 @@ def test_agent_runner_handoff_gates_write_and_validate_current_artifacts(tmp_pat
     )
     assert bundle_check["status"] == "PASS"
     assert validation_check["status"] == "PASS"
+
+
+def _add_current_handoff_supporting_artifacts(state_dir: Path) -> None:
+    commands = [
+        {
+            "index": 1,
+            "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q",
+            "phase": "test",
+            "kind": "pytest",
+            "required": True,
+            "expected_exit_codes": [0],
+        },
+        {
+            "index": 2,
+            "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+            "phase": "gate",
+            "kind": "current-handoff-packet",
+            "required": True,
+            "expected_exit_codes": [0],
+        },
+    ]
+    _write_json(
+        state_dir / "gates" / "command_plan.json",
+        {
+            "schema_version": 1,
+            "plan_name": "command-plan",
+            "plan_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "mainline": "engineering_branch",
+            "commands": commands,
+            "omitted_commands": [],
+            "execution_order_policy": {
+                "mode": "coverage_expected_exit_not_strict_wall_clock",
+                "strict_wall_clock_order": False,
+                "coverage_authority": True,
+                "expected_exit_authority": True,
+            },
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "audit_inventory_result.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "audit_inventory_result.json",
+            "gate_name": "audit-inventory",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "inventory_validation_status": "PASSED",
+            "audit_count": 0,
+            "outcome_counts": {},
+            "validated_paths": [],
+            "duplicate_audit_id_errors": [],
+            "invalid_file_errors": [],
+            "evidence_only": True,
+            "executable": False,
+            "can_execute": False,
+            "mutates_state": False,
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "audit_readiness_packet.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "audit_readiness_packet.json",
+            "gate_name": "audit-readiness-packet",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "readiness_status": "READY",
+            "recommendation": "ACCEPTED",
+            "next_action": "no_action_required",
+            "evidence_only": True,
+            "executable": False,
+            "can_execute": False,
+            "mutates_state": False,
+        },
+    )
+
+
+def test_current_handoff_packet_writes_current_non_dispatching_artifact(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        extra_text="""```json decision_contract
+{
+  "accepted_requires_current_handoff_packet": true,
+  "allowed_source_files": ["reverse_agent/project_gate.py"],
+  "forbidden_mutated_paths": ["project_state/current_state.json"],
+  "allowed_generated_or_updated_artifacts": ["project_state/gates/current_handoff_packet.json"]
+}
+```
+""",
+    )
+    _add_current_handoff_supporting_artifacts(state_dir)
+
+    payload = current_handoff_packet(state_dir=state_dir, write_result=True)
+    check = _current_handoff_packet_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_current_handoff_packet": True},
+        decision_text="current_handoff_packet.json",
+    )
+
+    assert payload["gate_status"] == "PASSED"
+    assert payload["evidence_only"] is True
+    assert payload["executable"] is False
+    assert payload["can_execute"] is False
+    assert payload["mutates_state"] is False
+    assert payload["command_plan_authority"]["packet_can_override_command_plan"] is False
+    assert check["status"] == "PASS"
+
+
+def test_current_handoff_packet_gate_check_rejects_stale_or_executable_packet(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _add_current_handoff_supporting_artifacts(state_dir)
+    payload = current_handoff_packet(state_dir=state_dir, write_result=False)
+    payload["decision_id"] = "decision_old"
+    payload["can_execute"] = True
+    payload["command_plan_authority"] = {"path": "project_state/gates/current_handoff_packet.json"}
+    _write_json(state_dir / "gates" / "current_handoff_packet.json", payload)
+
+    check = _current_handoff_packet_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_current_handoff_packet": True},
+        decision_text="current handoff packet",
+    )
+
+    assert check["status"] == "FAIL"
+    assert "decision_id mismatch" in check["errors"]
+    assert "can_execute is not false" in check["errors"]
+    assert "command_plan_authority.path is not command_plan.json" in check["errors"]
+
+
+def test_command_plan_injects_current_handoff_packet_gate(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+        extra_text="""```json decision_contract
+{
+  "accepted_requires_current_handoff_packet": true
+}
+```
+""",
+    )
+
+    result = command_plan(state_dir=state_dir, write_result=False)
+    kinds = [command["kind"] for command in result["commands"]]
+    commands = [command["command"] for command in result["commands"]]
+
+    assert result["plan_status"] == "PASSED"
+    assert "current-handoff-packet" in kinds
+    assert "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state" in commands
 
 
 def test_final_check_blocks_missing_required_handoff_artifacts(tmp_path: Path) -> None:

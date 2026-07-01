@@ -3,10 +3,10 @@
   "artifact_name": "audit_inventory_result.json",
   "gate_name": "audit-inventory",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
-  "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+  "decision_id": "decision_20260701_current_handoff_packet_v1",
+  "round_id": "round_20260701_current_handoff_packet_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-01T07:59:33.208750Z",
+  "generated_at": "2026-07-01T12:23:38.921941Z",
   "inventory_validation_status": "PASSED",
   "audit_count": 3,
   "outcome_counts": {

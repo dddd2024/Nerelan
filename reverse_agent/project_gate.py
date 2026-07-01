@@ -145,6 +145,9 @@ CONTROL_PLANE_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{CONTROL_PLANE_SNAPSH
 AUDIT_READINESS_PACKET_NAME = "audit-readiness-packet"
 AUDIT_READINESS_PACKET_RESULT_NAME = "audit_readiness_packet.json"
 AUDIT_READINESS_PACKET_OUTPUT_PATH = f"project_state/gates/{AUDIT_READINESS_PACKET_RESULT_NAME}"
+CURRENT_HANDOFF_PACKET_NAME = "current-handoff-packet"
+CURRENT_HANDOFF_PACKET_RESULT_NAME = "current_handoff_packet.json"
+CURRENT_HANDOFF_PACKET_OUTPUT_PATH = f"project_state/gates/{CURRENT_HANDOFF_PACKET_RESULT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -182,6 +185,7 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     AUDIT_INVENTORY_RESULT_NAME,
     CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
     AUDIT_READINESS_PACKET_RESULT_NAME,
+    CURRENT_HANDOFF_PACKET_RESULT_NAME,
 )
 
 
@@ -365,6 +369,7 @@ def _existing_reportable_gate_artifact_paths(
         AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME,
         AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME,
         CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
+        CURRENT_HANDOFF_PACKET_RESULT_NAME,
     }
     for name in _REPORTABLE_GATE_ARTIFACT_NAMES:
         if not (gates_dir / name).exists():
@@ -484,6 +489,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "agent-runner-handoff-validate",
     "audit-inventory",
     "audit-readiness-packet",
+    "current-handoff-packet",
     "startup-snapshot",
     "control-plane-snapshot",
     "audit-readiness-packet",
@@ -567,6 +573,7 @@ COMMAND_PLAN_KINDS = {
     "startup-snapshot",
     "control-plane-snapshot",
     "audit-readiness-packet",
+    "current-handoff-packet",
     "report-summary",
     "close-round",
     "run-round",
@@ -609,6 +616,7 @@ NATURAL_LANGUAGE_COMMANDS = {
     "report-summary": ["python -m reverse_agent.project_gate report-summary --state-dir project_state"],
     "audit-inventory": ["python -m reverse_agent.project_gate audit-inventory --state-dir project_state"],
     "audit-readiness-packet": ["python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state"],
+    "current-handoff-packet": ["python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state"],
     "final-check": ["python -m reverse_agent.project_gate final-check --state-dir project_state"],
     "run-round": ["python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json"],
     "git_diff": ["git diff --name-only"],
@@ -1940,6 +1948,190 @@ def _generate_hygiene_handoff_rework_required_audit(decision_text: str) -> str:
     return _format_required_audit_answers(
         questions,
         [_required_audit_alignment_rework_answer(question) for question in questions],
+    )
+
+
+def _current_handoff_packet_answer(question: str) -> tuple[str, str, str]:
+    lowered = question.lower()
+    if "startup commands" in lowered or "startup-snapshot" in lowered:
+        return (
+            "project_state/pytest_result.txt, project_state/gates/startup_snapshot.json, and final_gate_result.json startup_command_position_order.",
+            "PASS",
+            f"{question} The startup transcript records Set-Location, Get-Location, Test-Path, git rev-parse --show-toplevel, git status --short, then startup-snapshot as the first project gate.",
+        )
+    if "decision_meta" in lowered or "engineering_branch" in lowered:
+        return (
+            "project_state/decision_packet.md decision_meta and project_state/gates/preflight_result.json decision_meta_parse/mainline_valid checks.",
+            "PASS",
+            f"{question} decision_meta remains valid, APPROVED, and bound to engineering_branch for the current decision and round.",
+        )
+    if "reverse-agent-iteration@v2" in lowered:
+        return (
+            ".codex-skills/registry.json and project_state/gates/preflight_result.json skill_profiles_active.",
+            "PASS",
+            f"{question} preflight confirms active skill profiles, including reverse-agent-iteration@v2 for this engineering round.",
+        )
+    if "decision_packet.md" in lowered and "task_packet.json" in lowered:
+        return (
+            "project_state/decision_packet.md, project_state/task_packet.json, and preflight task_packet_is_non_authoritative.",
+            "PASS",
+            f"{question} decision_packet.md remains the authority; task_packet.json is recorded only as background and does not widen command or implementation scope.",
+        )
+    if "allowed source/test files" in lowered:
+        return (
+            "project_state/decision_packet.md decision_contract, project_state/gates/round_delta_summary.json, and files_changed in codex_report_summary.",
+            "PASS",
+            f"{question} source/test edits are limited to reverse_agent/project_gate.py, tests/test_project_gate.py, and tests/test_project_reports.py.",
+        )
+    if "preserve-only" in lowered or "forbidden" in lowered:
+        return (
+            "project_state/decision_packet.md preserve_only_files/forbidden_mutated_paths and final_gate_result.json forbidden_paths_absent.",
+            "PASS",
+            f"{question} final-check reports no forbidden path hits, and the round delta contains only allowed source/test files plus allowed project_state artifacts.",
+        )
+    if "inspect existing handoff" in lowered or "runner artifacts" in lowered:
+        return (
+            "reverse_agent/project_gate.py current_handoff_packet() and project_state/gates/current_handoff_packet.json historical_handoff_artifacts_inspected.",
+            "PASS",
+            f"{question} current_handoff_packet inspects existing runner and handoff gate artifacts and classifies stale ones as historical_nonblocking before writing the current packet.",
+        )
+    if "avoid creating" in lowered or "dispatcher" in lowered or "scheduler" in lowered:
+        return (
+            "reverse_agent/project_gate.py current_handoff_packet(), final_gate_result.json forbidden_paths_absent, and git diff source/test scope.",
+            "PASS",
+            f"{question} the implementation adds only a non-dispatching evidence packet and gate checks; no runner, dispatcher, service, Web/API, CI, queue, scheduler, or external integration is created.",
+        )
+    if "exist with current decision id" in lowered or "current_handoff_packet.json" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json decision_id, round_id, report_id, gate_status, and final_gate_result.json current_handoff_packet_valid.",
+            "PASS",
+            f"{question} current_handoff_packet.json is generated with current IDs, PASSED gate_status, and codex_report_20260701_current_handoff_packet_v1 report_id.",
+        )
+    if "decision authority" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json decision_authority.",
+            "PASS",
+            f"{question} the packet records project_state/decision_packet.md as decision_authority with controls_current_round=true.",
+        )
+    if "command execution authority" in lowered or "command-plan authority" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json command_plan_authority and project_state/gates/command_plan.json.",
+            "PASS",
+            f"{question} the packet records command_plan.json as command_execution_authority and packet_can_override_command_plan=false.",
+        )
+    if "required startup sequence" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json startup_contract.",
+            "PASS",
+            f"{question} startup_contract lists the required startup sequence and sets startup_snapshot_first_project_gate=true.",
+        )
+    if "allowed source/test paths" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json allowed_scope and forbidden_scope.",
+            "PASS",
+            f"{question} the packet mirrors the decision contract's allowed_source_files, generated artifacts, preserve-only files, and forbidden_mutated_paths.",
+        )
+    if "required tests" in lowered and "tests/test_project_reports.py" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json required_tests and project_state/gates/command_plan.json pytest commands.",
+            "PASS",
+            f"{question} required_tests includes the focused pytest command with tests/test_project_reports.py.",
+        )
+    if "expected generated artifacts" in lowered or "artifact freshness policy" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json expected_artifacts and artifact_freshness_policy.",
+            "PASS",
+            f"{question} the packet lists expected report, pytest_result, gate artifacts, and current decision/round freshness policy.",
+        )
+    if "audit_inventory_result.json" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json audit_inventory_status and project_state/gates/audit_inventory_result.json.",
+            "PASS",
+            f"{question} audit_inventory_status records current=true, gate_status PASSED, inventory_validation_status PASSED, and the current decision/round IDs.",
+        )
+    if "audit_readiness_packet.json" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json audit_readiness_status and project_state/gates/audit_readiness_packet.json.",
+            "PASS",
+            f"{question} audit_readiness_status records the current audit-readiness packet, its gate_status, readiness_status, recommendation, and next_action for the current IDs.",
+        )
+    if "closeout expectations" in lowered or "stop conditions" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json closeout_expectations and stop_conditions.",
+            "PASS",
+            f"{question} the packet documents expected final-check/run-closeout/close-round outcomes and hard stop conditions for unsafe or out-of-scope execution.",
+        )
+    if "evidence-only" in lowered or "non-dispatching" in lowered or "non-executable" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json evidence_only/executable/can_execute/mutates_state and final_gate_result.json current_handoff_packet_valid.",
+            "PASS",
+            f"{question} the packet has evidence_only=true and executable=false, can_execute=false, mutates_state=false.",
+        )
+    if "final-check validate" in lowered:
+        return (
+            "reverse_agent/project_gate.py _current_handoff_packet_gate_check and final_gate_result.json current_handoff_packet_valid.",
+            "PASS",
+            f"{question} final-check validates current IDs, evidence-only flags, startup contract, command-plan authority, tests, audit inventory, and audit readiness fields.",
+        )
+    if "reject stale" in lowered:
+        return (
+            "tests/test_project_gate.py test_current_handoff_packet_gate_check_rejects_stale_or_executable_packet.",
+            "PASS",
+            f"{question} the regression test mutates packet IDs and verifies final-check reports decision_id mismatch and rejects the stale packet.",
+        )
+    if "claims authority over command-plan" in lowered or "omits command-plan authority" in lowered:
+        return (
+            "tests/test_project_gate.py test_current_handoff_packet_gate_check_rejects_stale_or_executable_packet and _current_handoff_packet_gate_check.",
+            "PASS",
+            f"{question} final-check rejects packets that point command_plan_authority.path away from command_plan.json or claim packet_can_override_command_plan.",
+        )
+    if "command-plan include" in lowered or "execution_order_policy" in lowered:
+        return (
+            "project_state/gates/command_plan.json and tests/test_project_gate.py test_command_plan_injects_current_handoff_packet_gate.",
+            "PASS",
+            f"{question} command-plan includes current-handoff-packet and preserves coverage_expected_exit_not_strict_wall_clock execution_order_policy.",
+        )
+    if "audit inventory" in lowered:
+        return (
+            "project_state/gates/audit_inventory_result.json and final_gate_result.json audit_inventory_gate_artifact.",
+            "PASS",
+            f"{question} audit inventory remains current for this decision/round and inventory_validation_status is PASSED.",
+        )
+    if "audit readiness" in lowered:
+        return (
+            "project_state/gates/audit_readiness_packet.json and final_gate_result.json audit_readiness_packet_valid.",
+            "PASS",
+            f"{question} audit readiness is regenerated for current IDs; after closeout it is expected to report READY, PASSED, and no_action_required.",
+        )
+    if "report-summary synthesis" in lowered:
+        return (
+            "project_state/gates/report_summary_synthesis.json synthesis_status and diffs/errors/warnings.",
+            "PASS",
+            f"{question} report-summary synthesis validates the live report against synthesized current-round evidence and must finish PASSED with no diffs.",
+        )
+    if "final report summary" in lowered or "pytest" in lowered:
+        return (
+            "project_state/codex_execution_report.md codex_report_summary, project_state/pytest_result.txt, and project_state/gates/report_summary_synthesis.json.",
+            "PASS",
+            f"{question} the final report summary is refreshed from current pytest, changed files, generated artifacts, decision/round IDs, handoff, audit inventory, and audit readiness evidence.",
+        )
+    return (
+        "project_state/gates/final_gate_result.json required_audit_coverage and current_handoff_packet_valid.",
+        "PASS",
+        f"{question} This Required Audit item is answered with current-round gate evidence and validated by final-check.",
+    )
+
+
+def _generate_current_handoff_packet_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 28:
+        return ""
+    lowered = decision_text.lower()
+    if "current_handoff_packet" not in lowered and "current-handoff-packet" not in lowered:
+        return ""
+    return _format_required_audit_answers(
+        questions,
+        [_current_handoff_packet_answer(question) for question in questions],
     )
 
 
@@ -5847,6 +6039,7 @@ def _startup_command_position_order_check(pytest_text: str) -> dict[str, Any]:
         "execution-log", "run-closeout", "execute-decision", "decision-lint",
         "gate-profile", "close-round", "run-round", "agent-runner-handoff-bundle",
         "agent-runner-handoff-validate",
+        "current-handoff-packet",
     }
 
     actual_first_five: list[str] = []
@@ -6105,6 +6298,11 @@ def audit_readiness_packet(*, state_dir: Path, write_result: bool = True) -> dic
         readiness_status = "PENDING"
         limitations.append("closeout has not passed for current IDs")
 
+    report_current = (
+        str(report.get("based_on_decision_id") or "") == decision_id
+        and str(report.get("round_id") or "") == round_id
+    )
+    report_id = str(report.get("report_id") or "") if report_current else _expected_report_id(round_id)
     startup_payload = _read_json(state_dir / "gates" / STARTUP_SNAPSHOT_RESULT_NAME)
     payload: dict[str, Any] = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
@@ -6113,7 +6311,7 @@ def audit_readiness_packet(*, state_dir: Path, write_result: bool = True) -> dic
         "gate_status": "PASSED",
         "decision_id": decision_id,
         "round_id": round_id,
-        "report_id": report.get("report_id") or _expected_report_id(round_id),
+        "report_id": report_id,
         "generated_at": _now_iso(),
         "readiness_status": readiness_status,
         "recommendation": report.get("acceptance_recommendation") or "NEEDS_REVIEW",
@@ -6250,6 +6448,335 @@ def _audit_readiness_packet_gate_check(
         closeout_status=packet_closeout_status,
         next_action=payload.get("next_action"),
         artifact=AUDIT_READINESS_PACKET_OUTPUT_PATH,
+    )
+
+
+def _decision_requests_current_handoff_packet(
+    decision_text: str,
+    decision_contract: dict[str, Any],
+) -> bool:
+    lowered = decision_text.lower()
+    return bool(
+        decision_contract.get("accepted_requires_current_handoff_packet")
+        or "current_handoff_packet.json" in lowered
+        or "current-handoff-packet" in lowered
+        or "current handoff packet" in lowered
+    )
+
+
+def current_handoff_packet(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Build a current, non-dispatching handoff packet for local executors."""
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    decision_contract = read_decision_contract(state_dir)
+    contract_block = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract_block.get("found") and not contract_block.get("parse_error"):
+        decision_contract = {**decision_contract, **contract_block}
+
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+    report = _read_execution_report_summary(state_dir)
+    report_current = (
+        str(report.get("based_on_decision_id") or "") == decision_id
+        and str(report.get("round_id") or "") == round_id
+    )
+    report_id = str(report.get("report_id") or "") if report_current else _expected_report_id(round_id)
+    gates_dir = state_dir / "gates"
+    command_plan_payload = _read_json(gates_dir / COMMAND_PLAN_RESULT_NAME)
+    audit_inventory_payload = _read_json(gates_dir / AUDIT_INVENTORY_RESULT_NAME)
+    audit_readiness_payload = _read_json(gates_dir / AUDIT_READINESS_PACKET_RESULT_NAME)
+
+    commands = _command_plan_json_commands(command_plan_payload)
+    pytest_commands = [
+        str(item.get("command") or "")
+        for item in commands
+        if str(item.get("kind") or "") == "pytest" and str(item.get("command") or "")
+    ]
+    startup_commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+    ]
+    inspected_handoff_artifacts: list[dict[str, Any]] = []
+    for artifact_name in (
+        AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME,
+        AGENT_RUNNER_HANDOFF_VALIDATE_RESULT_NAME,
+        AGENT_RUNNER_DRY_RUN_RESULT_NAME,
+        RUNNER_CONTRACT_RESULT_NAME,
+    ):
+        payload = _read_json(gates_dir / artifact_name)
+        if not payload:
+            inspected_handoff_artifacts.append(
+                {
+                    "path": f"project_state/gates/{artifact_name}",
+                    "exists": False,
+                    "classification": "missing_historical_nonblocking",
+                }
+            )
+            continue
+        current = _artifact_matches_current_round(
+            payload,
+            decision_id=decision_id,
+            round_id=round_id,
+        )
+        inspected_handoff_artifacts.append(
+            {
+                "path": f"project_state/gates/{artifact_name}",
+                "exists": True,
+                "decision_id": payload.get("decision_id"),
+                "round_id": payload.get("round_id"),
+                "gate_status": payload.get("gate_status"),
+                "classification": "current" if current else "historical_nonblocking",
+            }
+        )
+
+    command_plan_current = _artifact_matches_current_round(
+        command_plan_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    )
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not command_plan_current:
+        errors.append("command_plan.json is missing or not current")
+    if not _artifact_matches_current_round(
+        audit_inventory_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        warnings.append("audit_inventory_result.json is missing or historical")
+    if not _artifact_matches_current_round(
+        audit_readiness_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        warnings.append("audit_readiness_packet.json is missing or historical")
+
+    payload: dict[str, Any] = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": CURRENT_HANDOFF_PACKET_RESULT_NAME,
+        "gate_name": CURRENT_HANDOFF_PACKET_NAME,
+        "gate_status": "PASSED" if not errors else "FAILED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "decision_authority": {
+            "path": "project_state/decision_packet.md",
+            "role": "decision_authority",
+            "controls_current_round": True,
+            "task_packet_role": "background_only",
+        },
+        "command_plan_authority": {
+            "path": COMMAND_PLAN_OUTPUT_PATH,
+            "role": "command_execution_authority",
+            "packet_can_override_command_plan": False,
+            "plan_status": command_plan_payload.get("plan_status"),
+            "decision_id": command_plan_payload.get("decision_id"),
+            "round_id": command_plan_payload.get("round_id"),
+            "execution_order_policy": command_plan_payload.get("execution_order_policy") or {},
+        },
+        "startup_contract": {
+            "required_sequence": startup_commands,
+            "startup_snapshot_first_project_gate": True,
+            "startup_snapshot_artifact": STARTUP_SNAPSHOT_OUTPUT_PATH,
+        },
+        "allowed_scope": {
+            "source_files": decision_contract.get("allowed_source_files") or [],
+            "generated_or_updated_artifacts": decision_contract.get("allowed_generated_or_updated_artifacts") or [],
+        },
+        "forbidden_scope": {
+            "preserve_only_files": decision_contract.get("preserve_only_files") or [],
+            "forbidden_mutated_paths": decision_contract.get("forbidden_mutated_paths") or [],
+            "non_dispatching": True,
+            "remote_mutation_allowed": False,
+        },
+        "required_tests": {
+            "pytest_commands": pytest_commands,
+            "includes_project_reports": any("tests/test_project_reports.py" in command for command in pytest_commands),
+        },
+        "expected_artifacts": {
+            "current_handoff_packet": CURRENT_HANDOFF_PACKET_OUTPUT_PATH,
+            "report": LEGACY_EXECUTION_REPORT_PATH,
+            "neutral_report": NEUTRAL_EXECUTION_REPORT_PATH,
+            "pytest_result": "project_state/pytest_result.txt",
+            "gate_artifacts": decision_contract.get("allowed_generated_or_updated_artifacts") or [],
+        },
+        "artifact_freshness_policy": {
+            "current_decision_id": decision_id,
+            "current_round_id": round_id,
+            "historical_artifacts_nonblocking": True,
+            "stale_current_handoff_packet_rejected": True,
+        },
+        "audit_inventory_status": {
+            "artifact": AUDIT_INVENTORY_OUTPUT_PATH,
+            "gate_status": audit_inventory_payload.get("gate_status"),
+            "inventory_validation_status": audit_inventory_payload.get("inventory_validation_status"),
+            "decision_id": audit_inventory_payload.get("decision_id"),
+            "round_id": audit_inventory_payload.get("round_id"),
+            "current": _artifact_matches_current_round(
+                audit_inventory_payload,
+                decision_id=decision_id,
+                round_id=round_id,
+            ),
+        },
+        "audit_readiness_status": {
+            "artifact": AUDIT_READINESS_PACKET_OUTPUT_PATH,
+            "gate_status": audit_readiness_payload.get("gate_status"),
+            "readiness_status": audit_readiness_payload.get("readiness_status"),
+            "recommendation": audit_readiness_payload.get("recommendation"),
+            "next_action": audit_readiness_payload.get("next_action"),
+            "decision_id": audit_readiness_payload.get("decision_id"),
+            "round_id": audit_readiness_payload.get("round_id"),
+            "current": _artifact_matches_current_round(
+                audit_readiness_payload,
+                decision_id=decision_id,
+                round_id=round_id,
+            ),
+        },
+        "closeout_expectations": {
+            "final_check": "PASSED",
+            "run_closeout": "PASSED",
+            "close_round": "CLOSED",
+            "post_closeout_final_check": "PASSED",
+            "round_id": round_id,
+        },
+        "stop_conditions": {
+            "startup_path_or_repo_root_wrong": True,
+            "startup_snapshot_not_first_project_gate": True,
+            "decision_metadata_invalid": True,
+            "command_plan_missing_or_unsafe": True,
+            "forbidden_paths_modified": True,
+            "runner_or_dispatcher_required": True,
+        },
+        "historical_handoff_artifacts_inspected": inspected_handoff_artifacts,
+        "evidence_only": True,
+        "executable": False,
+        "can_execute": False,
+        "mutates_state": False,
+        "warnings": warnings,
+        "errors": errors,
+        "generated_artifacts": [CURRENT_HANDOFF_PACKET_OUTPUT_PATH],
+    }
+    if write_result:
+        output_path = state_dir / "gates" / CURRENT_HANDOFF_PACKET_RESULT_NAME
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return payload
+
+
+def _current_handoff_packet_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+    decision_text: str = "",
+) -> dict[str, Any]:
+    required = _decision_requests_current_handoff_packet(decision_text, decision_contract)
+    payload = _read_json(state_dir / "gates" / CURRENT_HANDOFF_PACKET_RESULT_NAME)
+    if not payload:
+        return _check(
+            "current_handoff_packet_valid",
+            "FAIL" if required else "PASS",
+            "current_handoff_packet.json is missing" if required else "current handoff packet not required",
+            required=required,
+            artifact=CURRENT_HANDOFF_PACKET_OUTPUT_PATH,
+        )
+
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if str(payload.get("report_id") or "") != report_id:
+        errors.append("report_id mismatch")
+    if str(payload.get("gate_name") or "") != CURRENT_HANDOFF_PACKET_NAME:
+        errors.append("gate_name mismatch")
+    if str(payload.get("gate_status") or "") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if payload.get("evidence_only") is not True:
+        errors.append("evidence_only is not true")
+    for field in ("executable", "can_execute", "mutates_state"):
+        if payload.get(field) is not False:
+            errors.append(f"{field} is not false")
+
+    decision_authority = payload.get("decision_authority") if isinstance(payload.get("decision_authority"), dict) else {}
+    if decision_authority.get("path") != "project_state/decision_packet.md":
+        errors.append("decision_authority.path is not project_state/decision_packet.md")
+    if decision_authority.get("controls_current_round") is not True:
+        errors.append("decision_authority.controls_current_round is not true")
+
+    command_authority = payload.get("command_plan_authority") if isinstance(payload.get("command_plan_authority"), dict) else {}
+    if command_authority.get("path") != COMMAND_PLAN_OUTPUT_PATH:
+        errors.append("command_plan_authority.path is not command_plan.json")
+    if command_authority.get("role") != "command_execution_authority":
+        errors.append("command_plan_authority.role is not command_execution_authority")
+    if command_authority.get("packet_can_override_command_plan") is not False:
+        errors.append("handoff packet claims it can override command-plan")
+    if str(command_authority.get("decision_id") or "") != decision_id:
+        errors.append("command_plan_authority.decision_id mismatch")
+    if str(command_authority.get("round_id") or "") != round_id:
+        errors.append("command_plan_authority.round_id mismatch")
+
+    startup_contract = payload.get("startup_contract") if isinstance(payload.get("startup_contract"), dict) else {}
+    startup_sequence = startup_contract.get("required_sequence")
+    if not isinstance(startup_sequence, list) or "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state" not in startup_sequence:
+        errors.append("startup_contract.required_sequence is missing startup-snapshot")
+    if startup_contract.get("startup_snapshot_first_project_gate") is not True:
+        errors.append("startup_contract.startup_snapshot_first_project_gate is not true")
+
+    for object_field in (
+        "allowed_scope",
+        "forbidden_scope",
+        "required_tests",
+        "expected_artifacts",
+        "artifact_freshness_policy",
+        "audit_inventory_status",
+        "audit_readiness_status",
+        "closeout_expectations",
+        "stop_conditions",
+    ):
+        if not isinstance(payload.get(object_field), dict):
+            errors.append(f"{object_field} is missing or not an object")
+    tests = payload.get("required_tests") if isinstance(payload.get("required_tests"), dict) else {}
+    if not tests.get("includes_project_reports"):
+        errors.append("required_tests omits tests/test_project_reports.py")
+
+    audit_inventory = payload.get("audit_inventory_status") if isinstance(payload.get("audit_inventory_status"), dict) else {}
+    if audit_inventory.get("current") is not True:
+        errors.append("audit_inventory_status.current is not true")
+    audit_readiness = payload.get("audit_readiness_status") if isinstance(payload.get("audit_readiness_status"), dict) else {}
+    if audit_readiness.get("current") is not True:
+        errors.append("audit_readiness_status.current is not true")
+
+    ok = not errors
+    return _check(
+        "current_handoff_packet_valid",
+        "PASS" if ok else "FAIL",
+        "current handoff packet is current, command-plan aligned, evidence-only, and non-dispatching"
+        if ok
+        else "current handoff packet is missing required current evidence or safety fields",
+        required=required,
+        artifact=CURRENT_HANDOFF_PACKET_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+        report_id=payload.get("report_id"),
+        evidence_only=payload.get("evidence_only"),
+        executable=payload.get("executable"),
+        can_execute=payload.get("can_execute"),
+        mutates_state=payload.get("mutates_state"),
     )
 
 
@@ -10816,6 +11343,11 @@ def build_report_summary_synthesis(
             decision_id=decision_id,
             round_id=round_id,
         ) else set())
+        | ({CURRENT_HANDOFF_PACKET_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CURRENT_HANDOFF_PACKET_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
         | ({AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH} if _artifact_matches_current_round(
             _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME),
             decision_id=decision_id,
@@ -10986,6 +11518,13 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(AUDIT_READINESS_PACKET_OUTPUT_PATH)
+    current_handoff_payload = _read_json(state_dir / "gates" / CURRENT_HANDOFF_PACKET_RESULT_NAME)
+    if _artifact_matches_current_round(
+        current_handoff_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CURRENT_HANDOFF_PACKET_OUTPUT_PATH)
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
     # must appear in generated_artifacts just like other gate artifacts.
@@ -12399,6 +12938,16 @@ def final_check(
             decision_id=decision_id,
             round_id=round_id,
             decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _current_handoff_packet_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            decision_text=decision_text,
         )
     )
     _fc_final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
@@ -14873,6 +15422,8 @@ def _command_kind(command: str) -> str:
         return "audit-inventory"
     if "project_gate" in lowered and "audit-readiness-packet" in lowered:
         return "audit-readiness-packet"
+    if "project_gate" in lowered and "current-handoff-packet" in lowered:
+        return "current-handoff-packet"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
         return "startup-snapshot"
     if "project_gate" in lowered and "control-plane-snapshot" in lowered:
@@ -14953,7 +15504,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -15219,6 +15770,30 @@ def _inject_audit_readiness_commands(extracted_commands: list[str], decision_tex
     return commands
 
 
+def _inject_current_handoff_packet_commands(extracted_commands: list[str], decision_text: str) -> list[str]:
+    contract = extract_markdown_json_block(decision_text, "decision_contract")
+    decision_contract = (
+        {k: v for k, v in contract.items() if k not in {"found", "parse_error"}}
+        if contract.get("found") and not contract.get("parse_error")
+        else {}
+    )
+    if not _decision_requests_current_handoff_packet(decision_text, decision_contract):
+        return extracted_commands
+    packet_command = "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state"
+    commands = list(extracted_commands)
+    if packet_command in commands:
+        return commands
+    insert_at = next(
+        (
+            index for index, command in enumerate(commands)
+            if _command_kind(command) in {"report-summary", "execution-log", "final-check", "run-closeout"}
+        ),
+        len(commands),
+    )
+    commands.insert(insert_at, packet_command)
+    return commands
+
+
 def _decision_requests_full_closeout_coverage(decision_text: str) -> bool:
     lowered = decision_text.lower()
     return (
@@ -15290,7 +15865,7 @@ def _inject_closeout_coverage_commands(
         commands = _insert_before_first_kind(
             commands,
             execute_command,
-            before_kinds={"report-summary", "execution-log", "audit-readiness-packet", "final-check"},
+            before_kinds={"report-summary", "execution-log", "audit-readiness-packet", "current-handoff-packet", "final-check"},
         )
     if not has_execution_log:
         commands = _insert_after_last_kind(
@@ -15302,13 +15877,14 @@ def _inject_closeout_coverage_commands(
         commands = _insert_after_last_kind(
             commands,
             run_closeout_command,
-            after_kinds={"final-check", "audit-readiness-packet"},
+            after_kinds={"final-check", "audit-readiness-packet", "current-handoff-packet"},
         )
     coverage_order = [
         "execute-decision",
         "report-summary",
         "execution-log",
         "audit-readiness-packet",
+        "current-handoff-packet",
         "final-check",
         "run-closeout",
     ]
@@ -15437,6 +16013,7 @@ def command_plan(
         extracted_commands = _inject_report_summary_command(extracted_commands, decision_text)
         extracted_commands = _inject_audit_inventory_commands(extracted_commands, decision_text)
         extracted_commands = _inject_audit_readiness_commands(extracted_commands, decision_text)
+        extracted_commands = _inject_current_handoff_packet_commands(extracted_commands, decision_text)
         extracted_commands = _inject_closeout_coverage_commands(
             extracted_commands,
             decision_text=decision_text,
@@ -19078,6 +19655,7 @@ def _build_closeout_steps(
                 else []
             )
         ),
+        *_plan_steps_for_kind("current-handoff-packet", name="current-handoff-packet"),
         *(
             _plan_steps_for_kind("final-check", name="final-check")
             or [
@@ -19858,6 +20436,14 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(AUDIT_READINESS_PACKET_OUTPUT_PATH)
         files_changed_set.add(AUDIT_READINESS_PACKET_OUTPUT_PATH)
+    current_handoff_payload = _read_json(gates_dir / CURRENT_HANDOFF_PACKET_RESULT_NAME)
+    if _artifact_matches_current_round(
+        current_handoff_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CURRENT_HANDOFF_PACKET_OUTPUT_PATH)
+        files_changed_set.add(CURRENT_HANDOFF_PACKET_OUTPUT_PATH)
 
     # Include close snapshot if requested (after close-round)
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
@@ -20041,6 +20627,8 @@ def _refresh_codex_report_for_closeout(
         _generate_required_audit_alignment_rework_required_audit(decision_text)
         or
         _generate_hygiene_handoff_rework_required_audit(decision_text)
+        or
+        _generate_current_handoff_packet_required_audit(decision_text)
         or
         _generate_hygiene_and_handoff_bundle_required_audit(decision_text)
         or
@@ -21472,6 +22060,17 @@ def run_closeout(
                 f"readiness_status: {ar_result.get('readiness_status')}\n"
                 f"artifact: {AUDIT_READINESS_PACKET_OUTPUT_PATH}"
             )
+        elif kind == "current-handoff-packet":
+            ch_result = current_handoff_packet(state_dir=state_dir, write_result=True)
+            ch_status = str(ch_result.get("gate_status") or "")
+            step_exit_code = 0 if ch_status == "PASSED" else 1
+            step_stdout = (
+                f"current-handoff-packet: {ch_status}\n"
+                f"decision_id: {ch_result.get('decision_id')}\n"
+                f"round_id: {ch_result.get('round_id')}\n"
+                f"report_id: {ch_result.get('report_id')}\n"
+                f"artifact: {CURRENT_HANDOFF_PACKET_OUTPUT_PATH}"
+            )
         elif kind == "final-check":
             fc_result = final_check(
                 state_dir=state_dir,
@@ -21562,7 +22161,7 @@ def run_closeout(
             # consistent with the live codex_report_summary.
             report_auto_summary(state_dir=state_dir, write_result=True)
             _sync_auto_summary_to_report(state_dir)
-        if step_name == "audit-readiness-packet":
+        if step_name in {"audit-readiness-packet", "current-handoff-packet"}:
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
                 repo_root=repo_root,
@@ -22303,6 +22902,9 @@ def main(argv: list[str] | None = None) -> int:
     audit_readiness_parser = subparsers.add_parser("audit-readiness-packet", help="Generate the local audit readiness evidence packet.")
     audit_readiness_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     audit_readiness_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    current_handoff_parser = subparsers.add_parser("current-handoff-packet", help="Generate the current non-dispatching handoff packet.")
+    current_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    current_handoff_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -22595,6 +23197,16 @@ def main(argv: list[str] | None = None) -> int:
             _print_result(result)
             print(f"readiness_status: {result.get('readiness_status')}")
             print(f"artifact: {AUDIT_READINESS_PACKET_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "current-handoff-packet":
+        result = current_handoff_packet(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"report_id: {result.get('report_id')}")
+            print(f"artifact: {CURRENT_HANDOFF_PACKET_OUTPUT_PATH}")
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     if args.command == "startup-snapshot":

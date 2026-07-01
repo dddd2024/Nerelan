@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from reverse_agent.project_gate import (
+    _generate_current_handoff_packet_required_audit,
     _generate_final_check_exit_and_audit_readiness_required_audit,
     _generate_required_audit_alignment_rework_required_audit,
     _required_audit_alignment_failures,
@@ -44,6 +45,37 @@ REQUIRED_AUDIT_ALIGNMENT_QUESTIONS = [
     "Does `codex_report_summary` match `pytest_result.txt`, artifact taxonomy, generated/updated artifacts, changed files, decision ID, and round ID?",
 ]
 
+CURRENT_HANDOFF_PACKET_QUESTIONS = [
+    "Did startup commands confirm `F:\\reverse-agent`, repo root, and clean `git status --short` before any project gate?",
+    "Was `startup-snapshot` still the immediate sixth command and first project gate?",
+    "Did `decision_meta` remain valid and APPROVED on `engineering_branch`?",
+    "Did `reverse-agent-iteration@v2` remain active in `.codex-skills/registry.json`?",
+    "Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?",
+    "Did implementation stay within allowed source/test files?",
+    "Were preserve-only and forbidden files not modified?",
+    "Did Codex inspect existing handoff/runner artifacts or code before adding the current handoff packet?",
+    "Did implementation avoid creating a new runner, dispatcher, scheduler, queue, service, Web/API layer, CI workflow, or external integration?",
+    "Does `current_handoff_packet.json` exist with current decision ID, round ID, and report ID?",
+    "Does the handoff packet identify `decision_packet.md` as the decision authority?",
+    "Does the handoff packet identify `command_plan.json` as the command execution authority?",
+    "Does the handoff packet include the required startup sequence and startup-snapshot-first rule?",
+    "Does the handoff packet summarize allowed source/test paths and forbidden paths from the decision contract?",
+    "Does the handoff packet summarize required tests and the pytest command including `tests/test_project_reports.py`?",
+    "Does the handoff packet include expected generated artifacts and artifact freshness policy?",
+    "Does the handoff packet summarize current `audit_inventory_result.json` status?",
+    "Does the handoff packet summarize current `audit_readiness_packet.json` status?",
+    "Does the handoff packet summarize closeout expectations and stop conditions?",
+    "Is the handoff packet evidence-only, non-dispatching, non-executable, and non-mutating?",
+    "Does final-check validate handoff packet freshness, evidence-only fields, and command-plan alignment?",
+    "Does final-check reject stale handoff packet IDs when current handoff is required?",
+    "Does final-check reject a handoff packet that claims authority over command-plan or omits command-plan authority?",
+    "Did command-plan include the handoff packet gate and preserve explicit `execution_order_policy`?",
+    "Did audit inventory remain current and validated?",
+    "Did audit readiness remain `READY`, `PASSED`, and `no_action_required`?",
+    "Did report-summary synthesis pass with no diffs?",
+    "Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, current handoff status, audit inventory status, and audit readiness status?",
+]
+
 
 def _decision_text() -> str:
     return (
@@ -67,6 +99,31 @@ def test_required_audit_alignment_rework_generator_is_substantive() -> None:
     )
 
     assert audit.count("### ") == 31
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
+    assert result["placeholder_answers"] == []
+
+
+def test_current_handoff_packet_required_audit_generator_is_substantive() -> None:
+    decision_text = (
+        "# Decision\n\n"
+        "current_handoff_packet current-handoff-packet\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(CURRENT_HANDOFF_PACKET_QUESTIONS, start=1)
+        )
+    )
+    audit = _generate_current_handoff_packet_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 28
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/current_handoff_packet.json" in audit
     assert result["status"] == "PASS"
     assert result["alignment_failures"] == []
     assert result["placeholder_answers"] == []
@@ -139,7 +196,14 @@ def test_command_plan_keeps_required_project_reports_pytest(tmp_path: Path) -> N
 
 
 def test_final_check_exit_audit_generator_uses_dirty_startup_negative_evidence() -> None:
-    decision_text = Path("project_state/decision_packet.md").read_text(encoding="utf-8")
+    questions = [f"Placeholder final-check exit policy audit item {index}?" for index in range(1, 29)]
+    questions[5] = "Did the implementation stay within allowed source/test files?"
+    decision_text = (
+        "# Decision\n\n"
+        "final_check_exit_and_audit_readiness accepted_requires_audit_readiness_packet\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(f"{index}. {question}" for index, question in enumerate(questions, start=1))
+    )
 
     audit = _generate_final_check_exit_and_audit_readiness_required_audit(decision_text)
     item_6 = audit.split("### 6.", 1)[1].split("### 7.", 1)[0]
