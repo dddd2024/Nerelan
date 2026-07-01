@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-  "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-  "report_id": "codex_report_20260630_final_check_exit_and_audit_readiness_v1",
-  "generated_at": "2026-07-01T05:12:39.466823Z",
+  "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+  "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+  "report_id": "codex_report_20260701_status_policy_and_audit_inventory_v1",
+  "generated_at": "2026-07-01T08:00:18.623730Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-    "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-    "report_id": "codex_report_20260630_final_check_exit_and_audit_readiness_v1",
+    "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+    "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+    "report_id": "codex_report_20260701_status_policy_and_audit_inventory_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "19ce8226497367028a306b7d532bd8ddf7f6676140ec5c19a8249305f4f83d81",
-        "size_bytes": 17550,
+        "sha256": "8f540b7362ee5aa3c2a3e0257a25bd92ee1f840de2c9eff0fbc44c4b036faf30",
+        "size_bytes": 17760,
         "command_block_count": 17
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "745be418c070a71765c373e15173f2622f5b30e7730901d7908a8f4f35511c1c",
-        "size_bytes": 8013,
-        "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-        "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
+        "sha256": "f4fd7d5ddff4a42a05b144ac61881882fbbbe1a82189e0430f87d9a65605dd6a",
+        "size_bytes": 8377,
+        "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+        "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
         "plan_status": "PASSED",
-        "command_count": 17
+        "command_count": 18
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "cf24889ace8cafbe0277c181492f4733df6b6c7c789a80e2ccac72483e69a4e2",
-        "size_bytes": 36949,
-        "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-        "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-        "command_block_count": 17
+        "sha256": "7ce19655fda65c87f437e7b7258e042554cfe676de4071e4549b19ed357f9206",
+        "size_bytes": 35313,
+        "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+        "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+        "command_block_count": 18
       }
     },
     "command_count": 17,
-    "command_digest": "4517d8049d189fd3aa766801499e2c221dd54623a1310273d9464154c046f7f8"
+    "command_digest": "fa4e5aca902d06570cb95244be39c24dea56856dd9365fdd4688c0e43411cda2"
   },
   "commands": [
     {
@@ -173,8 +173,8 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_final_check_exit_and_audit_readiness_v1 --dry-run",
-      "kind": "execute-decision",
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -223,14 +223,15 @@
       "kind": "final-check",
       "phase": "gate",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "exit_code": 0,
       "status": "PASSED"
     },
     {
       "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_final_check_exit_and_audit_readiness_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_status_policy_and_audit_inventory_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

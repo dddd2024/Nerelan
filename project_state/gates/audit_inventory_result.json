@@ -3,21 +3,22 @@
   "artifact_name": "audit_inventory_result.json",
   "gate_name": "audit-inventory",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260629_audit_inventory_gate_v1",
-  "round_id": "round_20260629_audit_inventory_gate_v1",
+  "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+  "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-29T09:29:22.140087Z",
+  "generated_at": "2026-07-01T07:59:33.208750Z",
   "inventory_validation_status": "PASSED",
-  "audit_count": 2,
+  "audit_count": 3,
   "outcome_counts": {
     "ACCEPTED": 0,
     "ACCEPTED_WITH_LIMITATIONS": 0,
     "BLOCKED": 0,
-    "REWORK_REQUIRED": 2
+    "REWORK_REQUIRED": 3
   },
   "validated_paths": [
     "project_state/audits/audit_20260629_rework_required_audit_inventory_gate.md",
-    "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md"
+    "project_state/audits/audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md",
+    "project_state/audits/audit_20260701_rework_required_audit_readiness_packet.md"
   ],
   "audits_dir": "project_state/audits",
   "audits": [
@@ -40,10 +41,24 @@
       "mainline": "engineering_branch",
       "validation_status": "PASSED",
       "errors": []
+    },
+    {
+      "path": "project_state/audits/audit_20260701_rework_required_audit_readiness_packet.md",
+      "audit_id": "audit_20260701_rework_required_audit_readiness_packet",
+      "audited_decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
+      "audited_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
+      "outcome": "REWORK_REQUIRED",
+      "mainline": "engineering_branch",
+      "validation_status": "PASSED",
+      "errors": []
     }
   ],
   "duplicate_audit_id_errors": [],
   "invalid_file_errors": [],
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "mutates_state": false,
   "errors": [],
   "warnings": [],
   "generated_artifacts": [

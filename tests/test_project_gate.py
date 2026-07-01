@@ -136,6 +136,26 @@ def _valid_inventory_audit(*, audit_id: str = "audit_inventory_valid", outcome: 
 """
 
 
+def _valid_inventory_audit_result_summary(
+    *, audit_id: str = "audit_uploaded_result_summary", outcome: str = "REWORK_REQUIRED"
+) -> str:
+    payload = {
+        "schema_version": 1,
+        "audit_id": audit_id,
+        "decision_id": "decision_uploaded_audit",
+        "round_id": "round_uploaded_audit",
+        "report_id": "codex_report_uploaded_audit",
+        "mainline": "engineering_branch",
+        "outcome": outcome,
+    }
+    return f"""# Audit
+
+```json audit_result_summary
+{json.dumps(payload, indent=2)}
+```
+"""
+
+
 def _write_ci_workflow_files(repo_root: Path) -> None:
     workflows_dir = repo_root / ".github" / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
@@ -1132,6 +1152,41 @@ def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp
     assert status_policy["status"] == "PASS"
     # Historical sample limitations should be in external_state_notices
     assert status_policy.get("external_state_notices") is not None
+
+
+def test_final_check_reconciles_stale_lint_report_status_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reverse_agent import project_gate as gate
+
+    state_dir = _make_gate_state(tmp_path)
+    original_lint_report = gate.lint_report
+
+    def stale_lint_report(path: Path) -> dict[str, Any]:
+        result = original_lint_report(path)
+        result["warnings"] = [*list(result.get("warnings") or []), "report_status is FAILED"]
+        return result
+
+    monkeypatch.setattr(gate, "lint_report", stale_lint_report)
+
+    result = gate.final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    status_policy = _check(result, "status_policy_valid")
+    assert status_policy["status"] == "PASS"
+    assert "report_status is FAILED" not in status_policy["warnings"]
+    assert status_policy["report_status"] == "SUCCESS"
+    assert status_policy["canonical_status_source"] == "execution_report_summary"
+    assert status_policy["status_source_reconciliations"] == [
+        {
+            "source": "lint_report",
+            "field": "report_status",
+            "noncanonical_value": "FAILED",
+            "canonical_value": "SUCCESS",
+            "canonical_source": "execution_report_summary",
+            "disposition": "stale_noncanonical_status_ignored",
+        }
+    ]
 
 
 def test_final_check_blocks_unclaimed_legacy_artifacts_for_reverse_solving(
@@ -25334,7 +25389,37 @@ def test_audit_inventory_gate_writes_current_artifact_for_existing_audits(tmp_pa
     assert artifact["validated_paths"] == ["project_state/audits/valid.md"]
     assert artifact["duplicate_audit_id_errors"] == []
     assert artifact["invalid_file_errors"] == []
+    assert artifact["evidence_only"] is True
+    assert artifact["executable"] is False
+    assert artifact["can_execute"] is False
+    assert artifact["mutates_state"] is False
     assert artifact["generated_artifacts"] == ["project_state/gates/audit_inventory_result.json"]
+
+
+def test_audit_inventory_gate_accepts_uploaded_audit_result_summary_fence(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_uploaded_audit_inventory",
+        round_id="round_uploaded_audit_inventory",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    audits_dir = state_dir / "audits"
+    audits_dir.mkdir(parents=True, exist_ok=True)
+    (audits_dir / "uploaded.md").write_text(
+        _valid_inventory_audit_result_summary(),
+        encoding="utf-8",
+    )
+
+    result = audit_inventory(state_dir=state_dir)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["inventory_validation_status"] == "PASSED"
+    assert result["audit_count"] == 1
+    assert result["validated_paths"] == ["project_state/audits/uploaded.md"]
+    assert result["outcome_counts"]["REWORK_REQUIRED"] == 1
+    assert result["invalid_file_errors"] == []
 
 
 def test_audit_inventory_gate_accepts_missing_audits_directory(tmp_path: Path) -> None:
@@ -25408,6 +25493,50 @@ def test_audit_inventory_gate_check_requires_current_artifact(tmp_path: Path) ->
     assert current["status"] == "PASS"
 
 
+def test_audit_inventory_gate_check_requires_all_audit_files_when_current(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_audits_all_files",
+        round_id="round_audits_all_files",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    audits_dir = state_dir / "audits"
+    audits_dir.mkdir(parents=True, exist_ok=True)
+    (audits_dir / "included.md").write_text(_valid_inventory_audit(audit_id="audit_included"), encoding="utf-8")
+    (audits_dir / "omitted.md").write_text(_valid_inventory_audit(audit_id="audit_omitted"), encoding="utf-8")
+    _write_json(
+        state_dir / "gates" / "audit_inventory_result.json",
+        {
+            "gate_name": "audit-inventory",
+            "gate_status": "PASSED",
+            "decision_id": "decision_audits_all_files",
+            "round_id": "round_audits_all_files",
+            "inventory_validation_status": "PASSED",
+            "audit_count": 2,
+            "outcome_counts": {"REWORK_REQUIRED": 2},
+            "validated_paths": ["project_state/audits/included.md"],
+            "duplicate_audit_id_errors": [],
+            "invalid_file_errors": [],
+            "evidence_only": True,
+            "executable": False,
+            "can_execute": False,
+            "mutates_state": False,
+        },
+    )
+
+    result = _audit_inventory_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_audits_all_files",
+        round_id="round_audits_all_files",
+        decision_contract={"accepted_requires_current_audit_inventory": True},
+    )
+
+    assert result["status"] == "FAIL"
+    assert any("omits audit file" in error for error in result["errors"])
+
+
 def test_audit_inventory_gate_check_ignores_stale_optional_artifact(tmp_path: Path) -> None:
     state_dir = _make_preflight_state(
         tmp_path,
@@ -25439,6 +25568,122 @@ def test_audit_inventory_gate_check_ignores_stale_optional_artifact(tmp_path: Pa
     )
 
     assert result["status"] == "PASS"
+
+
+def test_execute_decision_contract_ignores_stale_optional_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_execute_optional",
+        round_id="round_execute_optional",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "gates" / "execute_decision_result.json",
+        {
+            "gate_name": "execute-decision",
+            "gate_status": "PASSED",
+            "decision_id": "decision_old",
+            "round_id": "round_old",
+        },
+    )
+
+    result = _execute_decision_contract_check(
+        state_dir=state_dir,
+        decision={"decision_id": "decision_execute_optional", "round_id": "round_execute_optional"},
+        contract={},
+        report={"generated_artifacts": []},
+        command_plan_payload={},
+    )
+
+    assert result["status"] == "PASS"
+    assert "stale" in result["detail"]
+
+
+def test_report_summary_synthesis_treats_stale_execute_decision_as_historical(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_execute_historical",
+        round_id="round_execute_historical",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_report(
+        state_dir,
+        decision_id="decision_execute_historical",
+        report_id="codex_report_execute_historical",
+        round_id="round_execute_historical",
+        generated_artifacts=[],
+    )
+    _write_json(
+        state_dir / "gates" / "execute_decision_result.json",
+        {
+            "gate_name": "execute-decision",
+            "gate_status": "PASSED",
+            "decision_id": "decision_old",
+            "round_id": "round_old",
+        },
+    )
+
+    result = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        write_result=False,
+    )
+    synthesized = result["synthesized_summary"]
+
+    assert "project_state/gates/execute_decision_result.json" not in synthesized["generated_artifacts"]
+    assert (
+        "project_state/gates/execute_decision_result.json"
+        in synthesized["historical_nonblocking_artifacts"]
+    )
+
+
+def test_command_plan_injects_current_audit_inventory_gate(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="\n".join(
+            [
+                "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+                "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            ]
+        ),
+        extra_text=(
+            "```json decision_contract\n"
+            '{"accepted_requires_current_audit_inventory": true}\n'
+            "```\n"
+        ),
+    )
+
+    result = command_plan(state_dir=state_dir, write_result=False)
+
+    commands = [item["command"] for item in result["commands"]]
+    assert "python -m reverse_agent.project_gate audit-inventory --state-dir project_state" in commands
+    assert commands.index("python -m reverse_agent.project_gate audit-inventory --state-dir project_state") < commands.index(
+        "python -m reverse_agent.project_gate final-check --state-dir project_state"
+    )
+
+
+def test_build_closeout_steps_includes_planned_audit_inventory(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "decision_packet.md").write_text("", encoding="utf-8")
+
+    steps = _build_closeout_steps(
+        state_dir=state_dir,
+        round_id="round_closeout_audit_inventory",
+        plan_result={
+            "commands": [
+                {
+                    "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+                    "kind": "audit-inventory",
+                    "expected_exit_codes": [0],
+                }
+            ]
+        },
+    )
+
+    assert any(step["kind"] == "audit-inventory" for step in steps)
 
 
 def test_command_kind_recognizes_audit_inventory_gate() -> None:

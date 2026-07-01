@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-  "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-  "generated_at": "2026-07-01T05:12:29.772736Z",
+  "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+  "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+  "generated_at": "2026-07-01T07:59:39.103620Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -87,9 +87,9 @@
       "status": "PASSED"
     },
     {
-      "name": "execute-decision",
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260630_final_check_exit_and_audit_readiness_v1 --dry-run",
-      "kind": "execute-decision",
+      "name": "audit-inventory",
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
       "expected_exit_codes": [
         0
       ],
@@ -133,14 +133,26 @@
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "exit_code": 0,
       "status": "PASSED"
     },
     {
+      "name": "final-check",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 1,
+      "status": "PASSED"
+    },
+    {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260630_final_check_exit_and_audit_readiness_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260701_status_policy_and_audit_inventory_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
@@ -175,13 +187,13 @@
     "schema_version": 1,
     "gate_name": "close-round",
     "close_status": "CLOSED",
-    "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-    "report_id": "codex_report_20260630_final_check_exit_and_audit_readiness_v1",
-    "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-    "decision_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-    "report_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
+    "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+    "report_id": "codex_report_20260701_status_policy_and_audit_inventory_v1",
+    "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+    "decision_round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+    "report_round_id": "round_20260701_status_policy_and_audit_inventory_v1",
     "report_status": "SUCCESS",
-    "generated_at": "2026-07-01T05:12:28.091646Z",
+    "generated_at": "2026-07-01T07:59:37.959122Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -208,15 +220,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-        "decision_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
-        "report_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1"
+        "requested_round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+        "decision_round_id": "round_20260701_status_policy_and_audit_inventory_v1",
+        "report_round_id": "round_20260701_status_policy_and_audit_inventory_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1"
+        "report_based_on_decision_id": "decision_20260701_status_policy_and_audit_inventory_v1"
       },
       {
         "name": "pytest_result_match",
@@ -242,14 +254,14 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-        "command_plan_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1"
+        "command_plan_decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+        "command_plan_round_id": "round_20260701_status_policy_and_audit_inventory_v1"
       },
       {
         "name": "command_plan_execution_order_policy",
         "status": "PASS",
         "detail": "command-plan explicitly documents coverage/expected-exit authority rather than strict wall-clock order",
-        "required": true,
+        "required": false,
         "errors": [],
         "policy": {
           "mode": "coverage_expected_exit_not_strict_wall_clock",
@@ -305,7 +317,7 @@
         "detail": "closeout-tail command recording is pending until run-closeout completes",
         "errors": [
           {
-            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260630_final_check_exit_and_audit_readiness_v1",
+            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_status_policy_and_audit_inventory_v1",
             "error": "missing recorded command block",
             "expected_count": 1,
             "recorded_count": 0
@@ -324,54 +336,50 @@
         "new_dirty_files_since_baseline": [
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
+          "project_state/gates/audit_inventory_result.json",
           "project_state/gates/audit_readiness_packet.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
-          "project_state/gates/execute_decision_result.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
+          "project_state/gates/round_baseline.json",
           "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
+          "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/codex_execution_report.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/decision_packet.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/execution_report.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/pytest_result.txt",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/round_manifest.json",
           "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "tests/test_project_gate.py",
+          "tests/test_project_reports.py"
         ],
         "final_dirty_files": [
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
+          "project_state/gates/audit_inventory_result.json",
           "project_state/gates/audit_readiness_packet.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
-          "project_state/gates/execute_decision_result.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
+          "project_state/gates/round_baseline.json",
           "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
+          "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/codex_execution_report.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/decision_packet.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/execution_report.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/pytest_result.txt",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/round_manifest.json",
           "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "tests/test_project_gate.py",
+          "tests/test_project_reports.py"
         ]
       },
       {
@@ -388,54 +396,51 @@
         "git_changed_files": [
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
+          "project_state/gates/audit_inventory_result.json",
           "project_state/gates/audit_readiness_packet.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
-          "project_state/gates/execute_decision_result.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
+          "project_state/gates/round_baseline.json",
           "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
+          "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/codex_execution_report.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/decision_packet.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/execution_report.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/pytest_result.txt",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/round_manifest.json",
           "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "tests/test_project_gate.py",
+          "tests/test_project_reports.py"
         ],
         "required_round_delta_files": [
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
+          "project_state/gates/audit_inventory_result.json",
           "project_state/gates/audit_readiness_packet.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
-          "project_state/gates/execute_decision_result.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
+          "project_state/gates/round_baseline.json",
           "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
+          "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/codex_execution_report.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/decision_packet.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/execution_report.md",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/pytest_result.txt",
-          "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/round_manifest.json",
+          "project_state/rounds/round_20260701_status_policy_and_audit_inventory_v1/round_manifest.json",
           "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "tests/test_project_gate.py",
+          "tests/test_project_reports.py"
         ],
         "inherited_dirty_files": []
       },
@@ -445,7 +450,8 @@
         "detail": "files_changed covers substantive source/test/artifact changes",
         "substantive_dirty_files": [
           "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "tests/test_project_gate.py",
+          "tests/test_project_reports.py"
         ],
         "claimed_source_test_paths": []
       },
@@ -468,7 +474,8 @@
         "source_test_baseline_dirty": [],
         "close_source_test_dirty": [
           "reverse_agent/project_gate.py",
-          "tests/test_project_gate.py"
+          "tests/test_project_gate.py",
+          "tests/test_project_reports.py"
         ],
         "allowed_inherited_dirty_files": [
           "reverse_agent/project_gate.py",
@@ -513,10 +520,10 @@
         "detail": "all live project_state/ generated artifact paths exist on disk",
         "live_paths": [
           "project_state/codex_execution_report.md",
+          "project_state/gates/audit_inventory_result.json",
           "project_state/gates/audit_readiness_packet.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
-          "project_state/gates/execute_decision_result.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/gate_profile_plan.json",
@@ -623,9 +630,11 @@
       },
       {
         "name": "generated_artifacts_cover_round_archive",
-        "status": "PASS",
-        "detail": "generated_artifacts covers round archive files",
-        "missing_artifacts": []
+        "status": "WARN",
+        "detail": "generated_artifacts omits round archive files",
+        "missing_artifacts": [
+          "project_state/rounds/round_20260701_status_policy_and_audit_inventory_v1/round_manifest.json"
+        ]
       },
       {
         "name": "generated_artifacts_cover_gate_artifacts",
@@ -633,10 +642,10 @@
         "detail": "generated_artifacts or referenced_artifacts cover all existing gate artifacts",
         "missing_artifacts": [],
         "existing_gate_artifacts": [
+          "project_state/gates/audit_inventory_result.json",
           "project_state/gates/audit_readiness_packet.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
-          "project_state/gates/execute_decision_result.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
@@ -651,7 +660,6 @@
           "project_state/gates/startup_snapshot.json"
         ],
         "referenced_artifacts": [
-          "project_state/gates/audit_inventory_result.json",
           "project_state/gates/policy_lint_result.json",
           "project_state/gates/run_round_result.json"
         ]
@@ -691,8 +699,8 @@
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260630_final_check_exit_and_audit_readiness_v1",
-        "manifest": "project_state\\rounds\\round_20260630_final_check_exit_and_audit_readiness_v1\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260701_status_policy_and_audit_inventory_v1",
+        "manifest": "project_state\\rounds\\round_20260701_status_policy_and_audit_inventory_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
@@ -709,7 +717,7 @@
     ],
     "archive": {
       "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/round_manifest.json",
+      "round_manifest_path": "project_state/rounds/round_20260701_status_policy_and_audit_inventory_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",
@@ -727,8 +735,17 @@
     },
     "blocking_reasons": [],
     "warnings": [],
-    "resolved_pre_archive_warnings": [],
-    "pre_archive_diagnostics": [],
+    "resolved_pre_archive_warnings": [
+      "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
+    ],
+    "pre_archive_diagnostics": [
+      {
+        "check_name": "generated_artifacts_cover_round_archive",
+        "detail": "generated_artifacts omits round archive files",
+        "resolution": "resolved_by_final_check_after_archive",
+        "scope": "pre_archive_transient"
+      }
+    ],
     "recommended_next_action": "no_action_required",
     "status_summary": {
       "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
@@ -748,8 +765,6 @@
     "status": "applied",
     "reason": "run-round recorded the top-level run-closeout command block after run-closeout returned",
     "final_gate_failures": [],
-    "final_gate_warnings_before_refresh": [
-      "status_policy_valid"
-    ]
+    "final_gate_warnings_before_refresh": []
   }
 }
