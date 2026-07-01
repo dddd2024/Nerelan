@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
-  "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
+  "decision_id": "decision_20260701_status_policy_and_audit_inventory_v1",
+  "round_id": "round_20260701_status_policy_and_audit_inventory_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,17 +13,16 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260630_required_audit_alignment_rework_v1",
-  "previous_round_id": "round_20260630_required_audit_alignment_rework_v1",
+  "previous_decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
+  "previous_round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
   "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
-  "phase_label": "phase_2_24_final_check_exit_and_audit_readiness",
-  "primary_goal": "Fix final-check accepted exit semantics and Required Audit item 6 evidence, then add a local audit readiness packet.",
+  "phase_label": "phase_2_25_status_policy_and_audit_inventory",
+  "primary_goal": "Fix status-policy warning/source inconsistency and advance audit inventory into a current gate artifact.",
   "command_plan_authority_required": true,
-  "accepted_requires_final_check_exit_zero": true,
-  "accepted_requires_required_audit_item_6_negative_evidence": true,
-  "accepted_requires_tests_project_reports_py": true,
-  "accepted_requires_audit_readiness_packet": true,
-  "accepted_requires_startup_and_artifact_taxonomy_regression_free": true,
+  "accepted_requires_status_policy_no_false_failed_report_warning": true,
+  "accepted_requires_current_audit_inventory": true,
+  "accepted_requires_existing_audit_readiness_packet_not_regressed": true,
+  "accepted_requires_command_plan_order_policy_preserved": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py",
@@ -47,9 +46,8 @@
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/jobs/job_20260630_final_check_exit_and_audit_readiness_v1.json",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/*"
+    "project_state/rounds/round_20260701_status_policy_and_audit_inventory_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -68,73 +66,90 @@
 
 ## 1. Goal
 
-Implement **Final-Check Exit Policy and Audit Readiness Packet v1**.
+Implement **Status Policy Cleanup and Current Audit Inventory v1**.
 
-This round combines a repair task and a small engineering advance.
+This round deliberately combines one repair and one bounded engineering advance.
 
-Repair tasks:
+Repair task:
 
-1. Accepted `final-check` evidence must use CLI exit `0`. A passed final gate artifact paired with exit `1` is no longer enough for final accepted evidence.
-2. Required Audit item 6 must prove that final-check rejects dirty startup source/test evidence. It must not only state that the real startup was clean.
-3. Preserve existing startup order, startup cleanliness, Required Audit alignment, and artifact taxonomy fixes.
+1. Fix the `status_policy_valid` false/inconsistent warning where final-check can report current-round artifacts complete while still embedding `report_status is FAILED` or `doctor status is WARN` even though the live report summary is `SUCCESS` and `ACCEPTED`.
 
 Engineering advance:
 
-4. Add `project_state/gates/audit_readiness_packet.json`. This is a compact local evidence packet for later UI/API handoff. It summarizes the current decision, report, pytest, final-check, closeout, artifact taxonomy, Required Audit coverage, limitations, and next action.
+2. Promote audit inventory from historical/nonblocking context into a current, bounded gate artifact for this round.
+3. The current audit inventory must validate `project_state/audits/*.md` files, including the latest uploaded audit result, and report outcome counts without using stale historical IDs as current evidence.
 
-Target outcome: report `SUCCESS`, recommendation `ACCEPTED`, pytest `PASSED`, closeout `PASSED`, close-round `CLOSED`, final accepted checks exit `0`, and audit readiness packet is current and valid.
+Target outcome:
+
+- `codex_execution_report.md` status: `SUCCESS`.
+- acceptance recommendation: `ACCEPTED`.
+- `pytest_result.txt` status: `PASSED`.
+- `final-check`: `PASSED`.
+- `run-closeout`: `PASSED`.
+- `close-round`: `CLOSED`.
+- `audit_readiness_packet.json`: remains `READY`, `PASSED`, `no_action_required`, evidence-only.
+- `status_policy_valid`: no false `report_status is FAILED` warning when the canonical report summary is `SUCCESS`.
+- `audit_inventory_result.json`: current decision ID, current round ID, valid audit count, valid outcome counts, no duplicate audit IDs.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` is background only.
+`project_state/decision_packet.md` controls the current round. `project_state/task_packet.json` remains background only.
 
-Previous round: `decision_20260630_required_audit_alignment_rework_v1` / `round_20260630_required_audit_alignment_rework_v1`.
+Previous accepted-with-limitations evidence:
 
-Previous audit outcome: `ACCEPTED_WITH_LIMITATIONS`.
+- `audit_readiness_packet.json` was repaired to `readiness_status: READY`.
+- `audit_readiness_packet.closeout_status.status` is now `PASSED`.
+- `audit_readiness_packet.limitations` is empty.
+- `audit_readiness_packet.next_action` is `no_action_required`.
+- final-check validates `audit_readiness_packet_valid`.
+- pytest passed with expanded counts.
+- run-closeout passed and close-round is closed.
+- command-plan now explicitly documents `execution_order_policy.mode = coverage_expected_exit_not_strict_wall_clock`.
 
-Accepted evidence from the previous round:
+Remaining limitation:
 
-- decision digest matched `current_state.state_digest`;
-- Required Audit alignment was repaired;
-- `tests/test_project_reports.py` was added and run;
-- startup order was correct;
-- startup source/test state was clean;
-- artifact taxonomy separated current generated artifacts from historical references.
+- `final_gate_result.json` still contains a `status_policy_valid` warning with stale/inconsistent text such as `report_status is FAILED` even though report summary synthesis and final status summary show `SUCCESS` / `ACCEPTED`.
+- `audit_inventory_result.json` is still treated as stale/historical in final-check and does not provide a current-round inventory of `project_state/audits/*.md`.
 
-Remaining limitations:
+Artifact freshness policy:
 
-- Required Audit item 6 should cite final-check negative evidence directly;
-- accepted final-check command blocks should exit `0` to avoid automation ambiguity.
-
-Artifact freshness:
-
-- New artifacts must carry this decision ID and round ID.
-- Historical artifacts may only be referenced unless rebuilt in this round.
-- Missing sample artifacts remain nonblocking background.
+- Current-round gate artifacts must carry `decision_20260701_status_policy_and_audit_inventory_v1` and `round_20260701_status_policy_and_audit_inventory_v1`.
+- Historical artifacts may be referenced but not listed as generated/current unless rebuilt in this round.
+- Missing historical sample artifacts remain nonblocking background.
+- The uploaded audit result under `project_state/audits/` should be treated as input evidence for audit inventory, not as a generated artifact of this new round unless Codex modifies it.
 
 Command-plan policy:
 
-- `command-plan` is the command authority.
+- `command-plan` is the execution authority.
 - Codex may only run command-plan authorized commands.
-- Command-plan must preserve startup order, final-check exit-zero acceptance, audit readiness packet validation, and artifact taxonomy.
+- Existing execution order policy may remain coverage/expected-exit based, but it must be explicit and final-check validated.
+- Startup order and closeout order checks must remain strict.
 
 ## 3. Do Not Do
 
-Do not expand runner, handoff, control-plane, job, round, or state modules.
+Do not expand runner, handoff, control-plane, job, round, Web, API, CI, scheduler, database, or external integration modules.
 
-Do not add UI, service, database, scheduler, external integration, or new execution channel.
+Do not perform reverse solving, sample solving, runtime probing, dynamic debugging, emulator work, IDA/Ghidra/OllyDbg execution, or heavy historical scanning.
 
-Do not modify workflows, prompt docs, skills, task/current/artifact/negative state files, or solve report output.
+Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
-Do not perform sample solving or heavy historical scanning.
+Do not modify:
 
-Do not accept final-check exit `1` as final accepted evidence.
+- `project_state/current_state.json`
+- `project_state/task_packet.json`
+- `project_state/artifact_index.json`
+- `project_state/negative_results.json`
+- `.codex-skills/registry.json`
+- `.github/workflows/*`
+- `docs/prompts/*`
 
-Do not accept Required Audit item 6 without direct negative evidence from final-check behavior.
+Do not create a new audit verdict file unless explicitly required by a generated artifact policy. This round should validate audit inventory, not write a new human audit.
 
-Do not make the audit readiness packet executable or capable of changing state. It is evidence only.
+Do not weaken final-check merely to silence warnings. The fix must make status-policy sources consistent.
+
+Do not change report status schema values or introduce unsupported status names.
 
 Do not commit, push, create PRs, switch branches, rebase, merge, or modify remote state unless the user explicitly asks the executor to upload results.
 
@@ -148,9 +163,20 @@ Read first:
 4. `project_state/negative_results.json`
 5. `project_state/decision_packet.md`
 6. `project_state/codex_execution_report.md`
-7. `project_state/execution_report.md` if present
+7. `project_state/execution_report.md`
 8. `project_state/pytest_result.txt`
 9. `.codex-skills/registry.json`
+
+Inspect bounded gate artifacts:
+
+1. `project_state/gates/final_gate_result.json`
+2. `project_state/gates/report_summary_synthesis.json`
+3. `project_state/gates/audit_readiness_packet.json`
+4. `project_state/gates/audit_inventory_result.json` if present
+5. `project_state/gates/command_plan.json`
+6. `project_state/gates/execution_log.json`
+7. `project_state/gates/run_closeout_result.json`
+8. `project_state/gates/round_delta_summary.json`
 
 Inspect implementation and tests:
 
@@ -158,59 +184,49 @@ Inspect implementation and tests:
 2. `tests/test_project_gate.py`
 3. `tests/test_project_reports.py`
 
+Inspect audit inputs only:
+
+1. `project_state/audits/*.md`
+
 Read-only context if needed:
 
-1. `reverse_agent/project_agent_runner.py`
-2. `reverse_agent/project_control_plane.py`
-3. `tests/test_project_agent_runner.py`
-4. `tests/test_project_control_plane.py`
-5. `tests/test_project_state.py`
+1. `reverse_agent/project_audits.py`
+2. `reverse_agent/project_rounds.py`
 
-Inspect bounded artifacts only:
-
-1. `project_state/gates/startup_snapshot.json`
-2. `project_state/gates/command_plan.json`
-3. `project_state/gates/report_summary_synthesis.json`
-4. `project_state/gates/final_gate_result.json`
-5. `project_state/gates/run_closeout_result.json`
-6. `project_state/gates/execution_log.json`
-7. `project_state/gates/round_delta_summary.json`
-8. `project_state/gates/audit_readiness_packet.json` if present
-
-Do not scan full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or full historical round directories.
+Do not scan full `solve_reports/`, full historical round directories, or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
 The execution report must answer these items with direct evidence:
 
-1. Startup commands confirmed `F:\reverse-agent`, repo root, and `git status --short`.
-2. Startup-snapshot was the immediate sixth command and first project gate.
-3. No preflight ran before startup-snapshot.
-4. Startup had no dirty `reverse_agent/` or `tests/` files.
-5. `source_test_clean_start` matched actual startup state.
-6. Final-check blocks dirty startup source/test evidence and the report cites that negative evidence directly.
-7. Final-check blocks gate-order regression before startup-snapshot.
-8. Decision metadata and active skill are valid.
-9. Decision packet was authority and task packet was background.
-10. Required Audit alignment remains fixed.
-11. Artifact taxonomy separates generated, referenced, historical, and archived artifacts.
-12. Historical-only artifacts are excluded from generated/current lists unless rebuilt this round.
-13. Report-summary synthesis passes with no diffs.
-14. `tests/test_project_reports.py` ran and pytest exited 0.
-15. Accepted final-check command blocks exit 0.
-16. Closeout internal final-checks have unambiguous success semantics.
-17. `audit_readiness_packet.json` exists with current IDs.
-18. Audit readiness packet is evidence-only and cannot execute or mutate state.
-19. Final-check validates audit readiness packet freshness and policy fields.
-20. Implementation stayed within allowed files.
-21. Preserve-only and forbidden files were not modified.
-22. Required command-plan commands were recorded with expected exits.
-23. Execute-decision passed.
-24. Execution-log provenance is current-round aligned.
-25. Run-closeout exited 0 and close-round is CLOSED.
-26. Post-closeout final-check passed with exit 0.
-27. Closeout nested failure scan passed.
-28. Report summary matches pytest, artifacts, changed files, decision ID, round ID, and audit readiness packet status.
+1. Did startup commands confirm `F:\reverse-agent`, repo root, and clean `git status --short` before any project gate?
+2. Was `startup-snapshot` still the immediate sixth command and first project gate?
+3. Did `decision_meta` remain valid and APPROVED on `engineering_branch`?
+4. Did `reverse-agent-iteration@v2` remain active in `.codex-skills/registry.json`?
+5. Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?
+6. Did the implementation stay within allowed source/test files?
+7. Were preserve-only and forbidden files not modified?
+8. Did the status-policy repair remove false `report_status is FAILED` warning when canonical report summary is `SUCCESS`?
+9. Does final-check now use one canonical status source, or explicitly reconcile report summary, report body, report-summary synthesis, and final status summary?
+10. Is there a regression test where stale `FAILED` status-policy data would have produced the old warning and now fails or normalizes correctly?
+11. Did `audit_inventory_result.json` get regenerated with the current decision ID and round ID?
+12. Does audit inventory validate all `project_state/audits/*.md` files in bounded form?
+13. Does audit inventory include the latest uploaded `audit_20260701_rework_required_audit_readiness_packet.md` file or otherwise explain why it is excluded?
+14. Does audit inventory report outcome counts and duplicate audit ID errors?
+15. Does final-check distinguish stale historical audit inventory from current audit inventory?
+16. Does final-check reject current audit inventory with stale decision/round IDs if this round requires current inventory?
+17. Did audit inventory remain evidence-only and non-dispatching?
+18. Did `audit_readiness_packet.json` remain `READY`, `PASSED`, evidence-only, and `no_action_required`?
+19. Did command-plan retain explicit `execution_order_policy`?
+20. Did final-check continue validating command-plan coverage, expected exits, and startup/closeout ordering?
+21. Did report-summary synthesis pass with no diffs?
+22. Did focused pytest include `tests/test_project_reports.py` and exit 0?
+23. Did `execution-log` provenance remain current-round aligned?
+24. Did `run-closeout` exit 0?
+25. Did close-round become `CLOSED`?
+26. Did post-closeout final-check pass with exit 0?
+27. Did closeout nested failure scan pass?
+28. Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, audit inventory status, and audit readiness packet status?
 
 ## 6. Implementation Scope
 
@@ -225,20 +241,35 @@ Allowed generated or updated artifacts:
 - `project_state/codex_execution_report.md`
 - `project_state/execution_report.md`
 - `project_state/pytest_result.txt`
-- `project_state/jobs/job_20260630_final_check_exit_and_audit_readiness_v1.json`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260630_final_check_exit_and_audit_readiness_v1/*`
+- `project_state/rounds/round_20260701_status_policy_and_audit_inventory_v1/*`
 
 Required behavior:
 
-1. Accepted final-check and post-closeout final-check exit 0.
-2. Tests fail if final accepted evidence still depends on exit 1.
-3. Required Audit item 6 uses final-check dirty-startup negative evidence.
-4. Tests fail if item 6 only cites clean startup evidence.
-5. Add an `audit-readiness-packet` gate or equivalent function that writes `project_state/gates/audit_readiness_packet.json`.
-6. Packet fields include IDs, readiness status, recommendation, startup hygiene, Required Audit coverage, pytest coverage, final-check policy, closeout status, artifact taxonomy, limitations, and next action.
-7. Final-check validates packet freshness and evidence-only semantics.
-8. Existing startup and artifact taxonomy fixes do not regress.
+1. `status_policy_valid` must not report `report_status is FAILED` when canonical report summary and final status summary are `SUCCESS` / `ACCEPTED`.
+2. If multiple report status sources disagree, final-check must either:
+   - fail with explicit source mismatch; or
+   - normalize through a documented canonical source and record the noncanonical source as stale/nonblocking only.
+3. Add a regression test for the stale status-policy warning case.
+4. Add or update an `audit-inventory` gate function if already present in `project_gate.py`, or repair its current-round integration if the function already exists.
+5. `audit_inventory_result.json` must include:
+   - schema_version;
+   - artifact_name;
+   - gate_name;
+   - gate_status;
+   - decision_id;
+   - round_id;
+   - generated_at;
+   - audit_count;
+   - outcome_counts;
+   - validated_paths;
+   - duplicate_audit_id_errors;
+   - invalid_file_errors;
+   - evidence_only or equivalent non-dispatching marker.
+6. final-check must validate current audit inventory when this decision contract requires it.
+7. Existing audit readiness packet behavior must not regress.
+8. Existing command-plan execution order policy must not regress.
+9. Existing artifact taxonomy separation must not regress.
 
 ## 7. Tests
 
@@ -259,17 +290,34 @@ Required focused pytest command:
 python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q
 ```
 
-Required coverage:
+Required gate commands must be authorized by command-plan. At minimum command-plan should cover:
 
-- accepted final-check exits 0;
-- post-closeout final-check exits 0;
-- Required Audit item 6 rejects clean-startup-only evidence;
-- Required Audit item 6 accepts dirty-startup negative evidence;
-- audit readiness packet is current, evidence-only, and complete;
-- final-check validates audit readiness packet;
-- artifact taxonomy remains clean.
+```powershell
+python -m reverse_agent.project_gate command-plan --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
+python -m reverse_agent.project_gate audit-inventory --state-dir project_state
+python -m reverse_agent.project_gate report-summary --state-dir project_state
+python -m reverse_agent.project_gate execution-log --state-dir project_state
+python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_status_policy_and_audit_inventory_v1
+python -m reverse_agent.project_gate final-check --state-dir project_state
+```
 
-Then run only command-plan authorized validation commands. At minimum the command-plan must cover startup-snapshot, command-plan, preflight, report-summary, focused pytest, final-check, execute-decision, execution-log, run-closeout, post-closeout final-check, audit-readiness-packet, and final-check after audit-readiness.
+If the exact CLI name for audit inventory differs, use the existing project_gate subcommand and record the actual command in `pytest_result.txt`.
+
+Required regression coverage:
+
+- stale `report_status is FAILED` warning is removed or becomes a blocking source mismatch;
+- current audit inventory carries current decision/round IDs;
+- audit inventory validates every bounded audit file;
+- duplicate audit IDs fail;
+- invalid audit summary blocks fail;
+- stale audit inventory is not accepted as current when current inventory is required;
+- audit readiness packet remains READY/PASSED/no_action_required;
+- command-plan execution_order_policy remains explicit;
+- final-check and closeout exit 0.
 
 Write all top-level commands, exit codes, and pytest pass/fail counts to `project_state/pytest_result.txt`.
 
@@ -278,23 +326,25 @@ Write all top-level commands, exit codes, and pytest pass/fail counts to `projec
 Stop with `BLOCKED` if:
 
 - startup path or repo root is wrong;
-- startup `git status --short` has dirty source/test files;
+- startup `git status --short` has dirty source/test files outside allowed baseline;
 - startup-snapshot is not immediate after startup status commands;
-- any gate runs before startup-snapshot;
+- any project gate runs before startup-snapshot;
 - decision metadata or skill profile is invalid;
 - command-plan is missing or unsafe;
-- implementation requires preserve-only or forbidden paths.
+- implementation requires preserve-only or forbidden paths;
+- repair requires changing workflow, runner, Web/API, database, project state builder, or remote state.
 
 Stop with `REWORK_REQUIRED` if:
 
-- accepted final-check or post-closeout final-check exits 1;
-- Required Audit item 6 lacks direct dirty-startup negative evidence;
-- Required Audit alignment regresses;
-- `tests/test_project_reports.py` is missing from pytest;
-- audit readiness packet is missing, stale, mutable, incomplete, or not validated by final-check;
-- startup or artifact taxonomy fixes regress;
-- generated/current artifacts include historical-only artifacts;
-- any forbidden path is modified;
-- pytest, report-summary, execute-decision, execution-log, final-check, audit-readiness, or run-closeout fails;
+- `status_policy_valid` still reports false `report_status is FAILED` while canonical report status is `SUCCESS`;
+- status sources disagree and final-check neither fails nor documents a safe canonical source;
+- `audit_inventory_result.json` is missing, stale, malformed, or not current-round aligned;
+- audit inventory omits the uploaded audit result without explanation;
+- duplicate audit IDs or invalid audit summaries are not detected;
+- audit readiness packet regresses from READY/PASSED/no_action_required;
+- command-plan execution order policy disappears or becomes implicit again;
+- focused pytest omits `tests/test_project_reports.py`;
+- pytest, report-summary, execution-log, audit-inventory, final-check, audit-readiness, run-closeout, or post-closeout final-check fails;
 - close-round is not CLOSED;
-- nested failure scan finds active failures.
+- closeout nested failure scan finds active failures;
+- forbidden files are modified.
