@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from reverse_agent.project_gate import (
+    _generate_final_check_exit_and_audit_readiness_required_audit,
     _generate_required_audit_alignment_rework_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
@@ -135,3 +136,21 @@ def test_command_plan_keeps_required_project_reports_pytest(tmp_path: Path) -> N
 
     assert result["plan_status"] == "PASSED"
     assert command in commands
+
+
+def test_final_check_exit_audit_generator_uses_dirty_startup_negative_evidence() -> None:
+    decision_text = Path("project_state/decision_packet.md").read_text(encoding="utf-8")
+
+    audit = _generate_final_check_exit_and_audit_readiness_required_audit(decision_text)
+    item_6 = audit.split("### 6.", 1)[1].split("### 7.", 1)[0]
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 28
+    assert "dirty startup regression" in item_6
+    assert "negative regression" in item_6
+    assert "live clean startup alone" in item_6
+    assert result["status"] == "PASS"

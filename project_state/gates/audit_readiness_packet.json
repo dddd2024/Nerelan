@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "artifact_name": "audit_readiness_packet.json",
+  "gate_name": "audit-readiness-packet",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
+  "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
+  "report_id": "codex_report_20260630_final_check_exit_and_audit_readiness_v1",
+  "generated_at": "2026-06-30T17:29:02.789000Z",
+  "readiness_status": "PENDING",
+  "recommendation": "ACCEPTED",
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "mutates_state": false,
+  "startup_hygiene": {
+    "source_test_clean_start": true,
+    "startup_snapshot": "project_state/gates/startup_snapshot.json"
+  },
+  "required_audit_coverage": {
+    "name": "required_audit_coverage",
+    "status": "PASS",
+    "detail": "report covers all 28 Required Audit items with substantive aligned answers",
+    "required_audit_items": [
+      "Startup commands confirmed `F:\\reverse-agent`, repo root, and `git status --short`.",
+      "Startup-snapshot was the immediate sixth command and first project gate.",
+      "No preflight ran before startup-snapshot.",
+      "Startup had no dirty `reverse_agent/` or `tests/` files.",
+      "`source_test_clean_start` matched actual startup state.",
+      "Final-check blocks dirty startup source/test evidence and the report cites that negative evidence directly.",
+      "Final-check blocks gate-order regression before startup-snapshot.",
+      "Decision metadata and active skill are valid.",
+      "Decision packet was authority and task packet was background.",
+      "Required Audit alignment remains fixed.",
+      "Artifact taxonomy separates generated, referenced, historical, and archived artifacts.",
+      "Historical-only artifacts are excluded from generated/current lists unless rebuilt this round.",
+      "Report-summary synthesis passes with no diffs.",
+      "`tests/test_project_reports.py` ran and pytest exited 0.",
+      "Accepted final-check command blocks exit 0.",
+      "Closeout internal final-checks have unambiguous success semantics.",
+      "`audit_readiness_packet.json` exists with current IDs.",
+      "Audit readiness packet is evidence-only and cannot execute or mutate state.",
+      "Final-check validates audit readiness packet freshness and policy fields.",
+      "Implementation stayed within allowed files.",
+      "Preserve-only and forbidden files were not modified.",
+      "Required command-plan commands were recorded with expected exits.",
+      "Execute-decision passed.",
+      "Execution-log provenance is current-round aligned.",
+      "Run-closeout exited 0 and close-round is CLOSED.",
+      "Post-closeout final-check passed with exit 0.",
+      "Closeout nested failure scan passed.",
+      "Report summary matches pytest, artifacts, changed files, decision ID, round ID, and audit readiness packet status."
+    ],
+    "missing_answers": [],
+    "placeholder_answers": [],
+    "alignment_failures": []
+  },
+  "pytest_coverage": {
+    "status": "PASSED",
+    "tests_ran_count": 12,
+    "includes_project_reports": true
+  },
+  "final_check_policy": {
+    "accepted_requires_exit_zero": true,
+    "final_gate_status": "PASSED",
+    "final_gate_artifact": "project_state/gates/final_gate_result.json"
+  },
+  "closeout_status": {
+    "status": "IN_PROGRESS",
+    "artifact": "project_state/gates/run_closeout_result.json"
+  },
+  "artifact_taxonomy": {
+    "generated_or_updated_count": 24,
+    "referenced_count": 3,
+    "historical_nonblocking_count": 14,
+    "archived_count": 5,
+    "report_summary_status": "PASSED"
+  },
+  "limitations": [
+    "closeout has not passed for current IDs"
+  ],
+  "next_action": "complete_closeout_and_rerun_final_check",
+  "inputs": {
+    "decision_packet": "project_state/decision_packet.md",
+    "report": "project_state/codex_execution_report.md",
+    "pytest_result": "project_state/pytest_result.txt",
+    "command_plan": "project_state/gates/command_plan.json"
+  }
+}

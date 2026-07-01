@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
-  "round_id": "round_20260630_required_audit_alignment_rework_v1",
-  "head_commit": "47f1788028b6",
+  "decision_id": "decision_20260630_final_check_exit_and_audit_readiness_v1",
+  "round_id": "round_20260630_final_check_exit_and_audit_readiness_v1",
+  "head_commit": "919507115c46",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
@@ -11,5 +11,5 @@
   "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-06-30T14:27:50.186533Z"
+  "generated_at": "2026-06-30T15:16:55.872616Z"
 }

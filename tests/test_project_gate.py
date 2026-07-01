@@ -21,6 +21,7 @@ from reverse_agent.project_gate import (
     _report_body_consistency_check,
     _artifact_status_policy,
     _artifact_role_taxonomy_check,
+    _closeout_status_policy_convergence_pending,
     _expected_report_id,
     _execution_log_derive_commands,
     _execute_decision_contract_check,
@@ -70,6 +71,7 @@ from reverse_agent.project_gate import (
     command_plan,
     execute_decision,
     final_check,
+    audit_readiness_packet,
     audit_inventory,
     control_plane_snapshot,
     agent_runner_handoff_bundle,
@@ -3807,12 +3809,18 @@ git status --short
 
     assert result["plan_status"] == "PASSED"
     commands = result["commands"]
-    assert [command["command"] for command in commands][:3] == [
+    assert [command["command"] for command in commands] == [
         "pwd",
+        "git status --short",
         "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state",
+        "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_command_plan",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
     ]
     assert [command["phase"] for command in commands] == [
+        "status",
         "status",
         "preflight",
         "test",
@@ -3820,22 +3828,21 @@ git status --short
         "status",
         "archive",
         "post_archive",
-        "post_archive",
     ]
     assert [command["kind"] for command in commands] == [
         "pwd",
+        "git status",
         "preflight",
         "pytest",
         "final-check",
         "lint-report",
         "archive-round",
         "final-check",
-        "git status",
     ]
     assert commands[1]["expected_exit_codes"] == [0]
     assert commands[2]["expected_exit_codes"] == [0]
-    assert commands[5]["expected_exit_codes"] == [0]
-    assert commands[6]["expected_exit_codes"] == [0, 1]
+    assert commands[5]["expected_exit_codes"] == [0, 1]
+    assert commands[6]["expected_exit_codes"] == [0]
     assert result["blocking_reasons"] == []
     assert result["warnings"] == []
 
@@ -17054,6 +17061,7 @@ def test_run_closeout_constants_and_allowlist():
             "job-orchestration", "runner-contract", "agent-runner-dry-run",
             "agent-runner-handoff-bundle", "agent-runner-handoff-validate",
             "audit-inventory",
+            "audit-readiness-packet",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -23120,6 +23128,149 @@ class TestExecutionLogConsistencyBlocking:
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
         consistency_check = _check(result, "execution_log_consistency")
         assert consistency_check["status"] == "PASS"
+
+
+class TestFinalCheckExitAndAuditReadiness:
+    def test_command_plan_requires_final_check_zero_and_audit_readiness(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        decision = {
+            "schema_version": 1,
+            "decision_id": "decision_final_check_exit",
+            "round_id": "round_final_check_exit",
+            "status": "APPROVED",
+            "mainline": "engineering_branch",
+        }
+        contract = {
+            "accepted_requires_final_check_exit_zero": True,
+            "accepted_requires_audit_readiness_packet": True,
+            "accepted_requires_tests_project_reports_py": True,
+        }
+        (state_dir / "decision_packet.md").write_text(
+            "```json decision_meta\n"
+            + json.dumps(decision)
+            + "\n```\n\n"
+            + "```json decision_contract\n"
+            + json.dumps(contract)
+            + "\n```\n\n"
+            + "# Decision\n\n## 7. Tests\n\n```powershell\n"
+            + "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q\n"
+            + "python -m reverse_agent.project_gate final-check --state-dir project_state\n"
+            + "```\n"
+            + "\nAt minimum command-plan must cover report-summary, execute-decision, execution-log, "
+            + "run-closeout, audit-readiness-packet, and final-check after audit-readiness.\n",
+            encoding="utf-8",
+        )
+
+        result = command_plan(state_dir=state_dir, write_result=False)
+        commands = result["commands"]
+        kinds = [item["kind"] for item in commands]
+        final_checks = [item for item in commands if item["kind"] == "final-check"]
+
+        assert result["plan_status"] == "PASSED"
+        assert any(item["kind"] == "audit-readiness-packet" for item in commands)
+        assert "execute-decision" in kinds
+        assert "execution-log" in kinds
+        assert "run-closeout" in kinds
+        assert kinds.index("execute-decision") < kinds.index("report-summary")
+        assert kinds.index("report-summary") < kinds.index("final-check")
+        assert kinds.index("final-check") < kinds.index("run-closeout")
+        assert [item for item in commands if item["kind"] == "run-closeout"][0][
+            "expected_exit_codes"
+        ] == [0]
+        assert final_checks
+        assert all(item["expected_exit_codes"] == [0] for item in final_checks)
+
+    def test_audit_readiness_packet_is_evidence_only_and_validated(self, tmp_path: Path) -> None:
+        state_dir = _make_gate_state(tmp_path)
+        contract = {
+            "accepted_requires_audit_readiness_packet": True,
+            "accepted_requires_final_check_exit_zero": True,
+        }
+        with (state_dir / "decision_packet.md").open("a", encoding="utf-8") as handle:
+            handle.write(
+                "\n```json decision_contract\n"
+                + json.dumps(contract)
+                + "\n```\n"
+            )
+
+        packet = audit_readiness_packet(state_dir=state_dir, write_result=True)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        readiness_check = _check(result, "audit_readiness_packet_valid")
+
+        assert packet["evidence_only"] is True
+        assert packet["executable"] is False
+        assert packet["can_execute"] is False
+        assert packet["mutates_state"] is False
+        assert readiness_check["status"] == "PASS"
+
+    def test_final_check_rejects_dirty_startup_source_test_evidence(self, tmp_path: Path) -> None:
+        state_dir = _make_gate_state(
+            tmp_path,
+            startup_dirty_files=["reverse_agent/project_gate.py"],
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        startup_check = _check(result, "startup_baseline_consistency")
+
+        assert "reverse_agent/project_gate.py" in startup_check.get("startup_source_test_dirty", [])
+
+    def test_nonrequired_stale_control_plane_snapshot_is_historical_nonblocking(
+        self, tmp_path: Path
+    ) -> None:
+        state_dir = _make_gate_state(tmp_path)
+        _write_json(
+            state_dir / "gates" / "control_plane_snapshot.json",
+            {
+                "schema_version": 1,
+                "artifact_name": "control_plane_snapshot.json",
+                "gate_name": "control-plane-snapshot",
+                "gate_status": "PASSED",
+                "decision_id": "old_decision",
+                "round_id": "old_round",
+                "artifact_path": "project_state/gates/control_plane_snapshot.json",
+                "active_decision": {},
+                "execution_status": {},
+                "inventory_status": {},
+                "runner_readiness": {"can_dispatch_next_decision": False},
+                "authority_separation": {},
+                "ui_summary": {
+                    "headline": "",
+                    "next_action": "",
+                    "blocking_reasons": [],
+                    "warnings": [],
+                },
+            },
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        snapshot_check = _check(result, "control_plane_snapshot_artifact")
+
+        assert snapshot_check["status"] == "PASS"
+        assert snapshot_check["historical_nonblocking"] is True
+
+    def test_closeout_status_policy_convergence_pending_is_narrow(self) -> None:
+        assert _closeout_status_policy_convergence_pending(
+            close_round_in_progress=True,
+            report_status="FAILED",
+            doctor_status="FAIL",
+            status_errors=["doctor status is FAIL"],
+            status_warnings=["report_status is FAILED", "report round not archived yet"],
+        )
+        assert not _closeout_status_policy_convergence_pending(
+            close_round_in_progress=False,
+            report_status="FAILED",
+            doctor_status="FAIL",
+            status_errors=["doctor status is FAIL"],
+            status_warnings=["report_status is FAILED", "report round not archived yet"],
+        )
+        assert not _closeout_status_policy_convergence_pending(
+            close_round_in_progress=True,
+            report_status="FAILED",
+            doctor_status="FAIL",
+            status_errors=["doctor status is FAIL", "required artifact missing"],
+            status_warnings=["report_status is FAILED", "report round not archived yet"],
+        )
 
 
 class TestResultStatusWarnBlocking:
