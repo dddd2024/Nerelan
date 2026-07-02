@@ -3,10 +3,10 @@
   "artifact_name": "ci_workflow_readiness_result.json",
   "gate_name": "ci-workflow-readiness",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "generated_at": "2026-07-02T11:06:03.680758Z",
+  "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "generated_at": "2026-07-02T14:32:04.636978Z",
   "readiness_status": "READY",
   "recommendation": "NO_ACTION_REQUIRED",
   "required_workflows": [
@@ -29,18 +29,18 @@
       "exists": true,
       "read_only_input": true,
       "modified": true,
-      "sha256": "2c38cc534a8938c3bfd58483a7217ae4888c418e339514c00e076bed2e61043a",
-      "size_bytes": 2943,
-      "line_count": 86
+      "sha256": "c3216275d7561e7dfb952215f45fd5f4f73cb95f9e58b4319bd8f4db9afc7ef7",
+      "size_bytes": 3921,
+      "line_count": 111
     },
     {
       "path": ".github/workflows/decision-preflight.yml",
       "exists": true,
       "read_only_input": true,
       "modified": true,
-      "sha256": "6105cf1cfb48d685dfc932ed7bdbdf1384b0ad42e4c6bbb58e614024e804f466",
-      "size_bytes": 1509,
-      "line_count": 49
+      "sha256": "7699f6be3ac2b15396e19f25866bffc773ed448213329e950c7a9005da98bd89",
+      "size_bytes": 2600,
+      "line_count": 77
     }
   ],
   "coverage_gate_status": "PASSED",

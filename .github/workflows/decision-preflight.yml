@@ -5,9 +5,12 @@ on:
     paths:
       - "project_state/decision_packet.md"
       - "reverse_agent/project_gate.py"
+      - "reverse_agent/project_ci.py"
       - "reverse_agent/project_jobs.py"
       - "tests/test_project_gate.py"
       - "tests/test_project_jobs.py"
+      - "tests/test_project_ci.py"
+      - "tests/test_project_reports.py"
       - ".github/workflows/decision-preflight.yml"
   workflow_dispatch:
 
@@ -45,5 +48,30 @@ jobs:
       - name: Local CI parity
         run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
 
+      - name: CI observation schema
+        run: python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state
+
+      - name: CI observation handoff
+        run: python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state
+
+      - name: CI observation reconcile
+        run: python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state
+
+      - name: CI artifact manifest
+        run: python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state
+
+      - name: CI audit handoff bundle
+        run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
+
       - name: Focused preflight tests
         run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q
+
+      - name: Upload project gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-gate-evidence
+          if-no-files-found: warn
+          path: |
+            project_state/gates/*.json
+            project_state/pytest_result.txt

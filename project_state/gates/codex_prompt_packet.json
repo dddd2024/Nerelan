@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-02T11:06:39.415022Z",
+  "generated_at": "2026-07-02T14:32:42.746473Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-      "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
-      "sha256": "8b11d50d04aa2a007265bbf53508154dfc54c92f991923d614e19cbcdcac93bf"
+      "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+      "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+      "sha256": "683e183af9709848bf5f9edbbc8d3d9ac2ccf664535b8e8b60c3e585b00dfd15"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-      "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
-      "sha256": "0709bf7cdd2c48c5e4d25196732dc5dc70ca4c560bd68883b5bf573a7ee3370e"
+      "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+      "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+      "sha256": "0509f40a8de8429f921a682949ce2f2499f6332b3f137e6db338eb0b0cc714c1"
     }
   },
   "prompt_sections": {

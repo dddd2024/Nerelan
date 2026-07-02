@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "artifact_name": "ci_observation_handoff_packet.json",
+  "gate_name": "ci-observation-handoff",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "generated_at": "2026-07-02T14:32:06.012329Z",
+  "observation_state": "AWAITING_EXTERNAL_OBSERVATION",
+  "snapshot_validation_status": "NOT_SUPPLIED",
+  "snapshot_source": null,
+  "snapshot": null,
+  "handoff_contract": {
+    "external_observer_required": true,
+    "dispatch_performed": false,
+    "polling_performed": false,
+    "repository_write_performed": false
+  },
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "generated_artifacts": [
+    "project_state/gates/ci_observation_handoff_packet.json"
+  ],
+  "errors": [],
+  "warnings": [
+    "external CI observation has not been supplied"
+  ]
+}

@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "generated_at": "2026-07-02T11:06:34.783144Z",
+  "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "generated_at": "2026-07-02T14:32:37.958670Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-    "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
-    "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
+    "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+    "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+    "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "63022e6635cc8c79ebee989fb5ea150a1b7e2b3d38efee36691a16a56666a184",
-        "size_bytes": 23317,
-        "command_block_count": 24
+        "sha256": "0fb981ae385f1317ca633a006f83397fd2b8c65600f068abd34955f57b418ace",
+        "size_bytes": 28187,
+        "command_block_count": 29
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "e52ff157bbf0fe5d79b991d214fa409b2212ad3705060fba4a33579597923eea",
-        "size_bytes": 11227,
-        "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-        "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+        "sha256": "79a9babd4fea5f771c3e1dd79c8c7d29b4bde0e9a5273e68c7874cbc6209cd13",
+        "size_bytes": 13296,
+        "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+        "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
         "plan_status": "PASSED",
-        "command_count": 25
+        "command_count": 30
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "4a67676976ae8a76b0350a25a8659de5cd379ae5a6751ffb025520ef53240665",
-        "size_bytes": 42554,
-        "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-        "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
-        "command_block_count": 25
+        "sha256": "8f24ddc8a13847e27dab8588a34cb10c956fcf0e7d333ccaa7f00243cb52abb7",
+        "size_bytes": 49556,
+        "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+        "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+        "command_block_count": 30
       }
     },
-    "command_count": 24,
-    "command_digest": "6ee214ead2b23a827de596236bb6b97c6e514949b3f0b5bcb15d2857f35f6711"
+    "command_count": 29,
+    "command_digest": "edb4eacd9ac993c34c02950eb1e766fcc64833ad018e4e9184dde8c65b882211"
   },
   "commands": [
     {
@@ -129,7 +129,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -217,6 +217,61 @@
     },
     {
       "index": 16,
+      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+      "kind": "ci-observation-schema",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+      "kind": "ci-observation-handoff",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+      "kind": "ci-observation-reconcile",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+      "kind": "ci-artifact-manifest",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+      "kind": "ci-audit-handoff-bundle",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 21,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -228,7 +283,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 22,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet",
       "phase": "gate",
@@ -239,7 +294,7 @@
       "status": "PASSED"
     },
     {
-      "index": 18,
+      "index": 23,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "kind": "local-execution-bundle",
       "phase": "gate",
@@ -250,7 +305,7 @@
       "status": "PASSED"
     },
     {
-      "index": 19,
+      "index": 24,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "kind": "codex-prompt-packet",
       "phase": "gate",
@@ -261,7 +316,7 @@
       "status": "PASSED"
     },
     {
-      "index": 20,
+      "index": 25,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "kind": "audit-precheck",
       "phase": "gate",
@@ -272,7 +327,7 @@
       "status": "PASSED"
     },
     {
-      "index": 21,
+      "index": 26,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -284,7 +339,7 @@
       "status": "PASSED"
     },
     {
-      "index": 22,
+      "index": 27,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -295,7 +350,7 @@
       "status": "PASSED"
     },
     {
-      "index": 23,
+      "index": 28,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -307,8 +362,8 @@
       "status": "PASSED"
     },
     {
-      "index": 24,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+      "index": 29,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

@@ -44,6 +44,7 @@ from reverse_agent.project_gate import (
     _audit_inventory_gate_check,
     _audit_precheck_gate_check,
     _ci_run_evidence_gate_check,
+    _ci_bridge_gate_check,
     _ci_workflow_coverage_gate_check,
     _ci_workflow_readiness_gate_check,
     _codex_prompt_packet_gate_check,
@@ -83,6 +84,11 @@ from reverse_agent.project_gate import (
     audit_readiness_packet,
     audit_precheck,
     ci_run_evidence,
+    ci_observation_schema,
+    ci_observation_handoff,
+    ci_observation_reconcile,
+    ci_artifact_manifest,
+    ci_audit_handoff_bundle,
     ci_workflow_coverage,
     ci_workflow_readiness,
     codex_prompt_packet,
@@ -17148,6 +17154,11 @@ def test_run_closeout_constants_and_allowlist():
             "ci-workflow-readiness",
             "ci-run-evidence",
             "local-ci-parity",
+            "ci-observation-schema",
+            "ci-observation-handoff",
+            "ci-observation-reconcile",
+            "ci-artifact-manifest",
+            "ci-audit-handoff-bundle",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -27606,7 +27617,19 @@ jobs:
       - run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
       - run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
       - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: project-gate-evidence
+          if-no-files-found: warn
+          path: |
+            project_state/gates/*.json
+            project_state/pytest_result.txt
 """,
         encoding="utf-8",
     )
@@ -27667,8 +27690,20 @@ jobs:
       - run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
       - run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
       - run: python -m reverse_agent.project_gate final-check --state-dir project_state
       - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: project-gate-evidence
+          if-no-files-found: warn
+          path: |
+            project_state/gates/*.json
+            project_state/pytest_result.txt
 """
 
 
@@ -27777,6 +27812,76 @@ def test_ci_run_evidence_validates_supplied_bounded_snapshot(tmp_path: Path) -> 
     assert payload["live_ci_observed"] is False
 
 
+def test_ci_observation_bridge_records_awaiting_external_observation(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+
+    schema = ci_observation_schema(state_dir=state_dir, write_result=True)
+    handoff = ci_observation_handoff(state_dir=state_dir, write_result=True)
+    reconcile = ci_observation_reconcile(state_dir=state_dir, write_result=True)
+
+    assert schema["schema_status"] == "DEFINED"
+    assert "commit_sha" in schema["required_fields"]
+    assert handoff["gate_status"] == "PASSED"
+    assert handoff["observation_state"] == "AWAITING_EXTERNAL_OBSERVATION"
+    assert handoff["snapshot_validation_status"] == "NOT_SUPPLIED"
+    assert reconcile["gate_status"] == "PASSED"
+    assert reconcile["observation_state"] == "AWAITING_EXTERNAL_OBSERVATION"
+
+
+def test_ci_observation_handoff_rejects_malformed_snapshot(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    snapshot_path = tmp_path / "ci_snapshot.json"
+    _write_json(snapshot_path, {"workflow_name": "State Gate", "run_id": "123"})
+
+    payload = ci_observation_handoff(
+        state_dir=state_dir,
+        ci_snapshot_path=snapshot_path,
+        write_result=False,
+    )
+
+    assert payload["gate_status"] == "FAILED"
+    assert payload["observation_state"] == "INVALID_SUPPLIED_INPUT"
+    assert "missing required field: commit_sha" in payload["errors"]
+
+
+def test_ci_artifact_manifest_and_audit_bundle_accept_read_only_exports(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
+    ci_observation_schema(state_dir=state_dir, write_result=True)
+    ci_observation_handoff(state_dir=state_dir, write_result=True)
+    ci_observation_reconcile(state_dir=state_dir, write_result=True)
+
+    manifest = ci_artifact_manifest(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+    bundle = ci_audit_handoff_bundle(state_dir=state_dir, write_result=True)
+
+    assert manifest["gate_status"] == "PASSED"
+    assert manifest["manifest_status"] == "READY"
+    assert manifest["observed_export_terms"]["gate_json_export"] is True
+    assert manifest["observed_export_terms"]["pytest_result_export"] is True
+    assert bundle["gate_status"] == "PASSED"
+    assert bundle["handoff_status"] == "READY_FOR_AUDIT"
+
+
+def test_ci_bridge_gate_check_validates_current_evidence_only_artifact(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    ci_observation_schema(state_dir=state_dir, write_result=True)
+
+    check = _ci_bridge_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_ci_workflow_coverage",
+        round_id="round_ci_workflow_coverage",
+        report_id=_expected_report_id("round_ci_workflow_coverage"),
+        decision_contract={"accepted_requires": ["ci_observation_schema_result.json"]},
+        gate_name="ci-observation-schema",
+        artifact_name="ci_observation_schema_result.json",
+        output_path="project_state/gates/ci_observation_schema_result.json",
+        required_status_field="schema_status",
+        allowed_statuses={"DEFINED"},
+    )
+
+    assert check["status"] == "PASS"
+
+
 def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tmp_path: Path) -> None:
     state_dir = _make_ci_coverage_state(tmp_path)
     _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
@@ -27795,6 +27900,11 @@ def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tm
         "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
         "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
         "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
         "python -m reverse_agent.project_gate final-check --state-dir project_state",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
@@ -28004,6 +28114,40 @@ def test_command_plan_classifies_ci_run_evidence_and_local_ci_parity_as_gates(tm
     assert "local-ci-parity" in kinds
     assert _command_phase("ci-run-evidence", archive_seen=False) == "gate"
     assert _command_phase("local-ci-parity", archive_seen=False) == "gate"
+
+
+def test_command_plan_includes_ci_observation_bridge_when_requested(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\nci_observation_schema_result.json ci_observation_handoff_packet.json "
+        + "ci_observation_reconcile_result.json ci_artifact_manifest_result.json "
+        + "ci_audit_handoff_bundle.json\n"
+        + "\n## Tests\n\n```powershell\npython -m reverse_agent.project_gate final-check --state-dir project_state\n```\n",
+        encoding="utf-8",
+    )
+
+    result = command_plan(state_dir=state_dir)
+    commands = [item["command"] for item in result["commands"]]
+    kinds = {item["kind"] for item in result["commands"]}
+
+    for command in [
+        "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+    ]:
+        assert command in commands
+        assert _command_phase(_command_kind(command), archive_seen=False) == "gate"
+    assert {
+        "ci-observation-schema",
+        "ci-observation-handoff",
+        "ci-observation-reconcile",
+        "ci-artifact-manifest",
+        "ci-audit-handoff-bundle",
+    } <= kinds
 
 
 def test_gate_profile_uses_decision_contract_allowed_source_files(tmp_path: Path) -> None:

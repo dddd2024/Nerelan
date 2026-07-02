@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "artifact_name": "ci_observation_schema_result.json",
+  "gate_name": "ci-observation-schema",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "generated_at": "2026-07-02T14:32:05.623931Z",
+  "schema_status": "DEFINED",
+  "required_fields": [
+    "commit_sha",
+    "workflow_name",
+    "run_id",
+    "status",
+    "conclusion",
+    "job_summaries",
+    "observed_commands",
+    "artifacts",
+    "provenance"
+  ],
+  "field_definitions": {
+    "commit_sha": "Git commit SHA observed for the workflow run.",
+    "workflow_name": "Workflow display name, for example State Gate.",
+    "run_id": "Workflow run ID or equivalent immutable CI run identifier.",
+    "status": "Workflow status, such as queued, in_progress, or completed.",
+    "conclusion": "Workflow conclusion, such as success, failure, cancelled, or skipped.",
+    "job_summaries": "List of jobs with job name, status, conclusion, and step summaries.",
+    "observed_commands": "Commands observed from CI logs or job summaries.",
+    "artifacts": "CI artifacts exported by the workflow, including name, path, and metadata.",
+    "provenance": "Where the snapshot came from and who/what captured it."
+  },
+  "accepted_snapshot_shape": {
+    "commit_sha": "string",
+    "workflow_name": "string",
+    "run_id": "string",
+    "status": "string",
+    "conclusion": "string",
+    "job_summaries": "list[object]",
+    "observed_commands": "list[string|object]",
+    "artifacts": "list[object]",
+    "provenance": "object"
+  },
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "generated_artifacts": [
+    "project_state/gates/ci_observation_schema_result.json"
+  ],
+  "errors": [],
+  "warnings": []
+}

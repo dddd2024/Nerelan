@@ -13,6 +13,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from .project_ci import (
+    build_artifact_manifest_artifact,
+    build_audit_handoff_bundle_artifact,
+    build_observation_handoff_artifact,
+    build_observation_reconcile_artifact,
+    build_observation_schema_artifact,
+)
 from .project_state import (
     ARCHIVE_MANIFEST_NAME,
     DEFAULT_STATE_DIR,
@@ -170,6 +177,21 @@ CI_RUN_EVIDENCE_OUTPUT_PATH = f"project_state/gates/{CI_RUN_EVIDENCE_RESULT_NAME
 LOCAL_CI_PARITY_NAME = "local-ci-parity"
 LOCAL_CI_PARITY_RESULT_NAME = "local_ci_parity_result.json"
 LOCAL_CI_PARITY_OUTPUT_PATH = f"project_state/gates/{LOCAL_CI_PARITY_RESULT_NAME}"
+CI_OBSERVATION_SCHEMA_NAME = "ci-observation-schema"
+CI_OBSERVATION_SCHEMA_RESULT_NAME = "ci_observation_schema_result.json"
+CI_OBSERVATION_SCHEMA_OUTPUT_PATH = f"project_state/gates/{CI_OBSERVATION_SCHEMA_RESULT_NAME}"
+CI_OBSERVATION_HANDOFF_NAME = "ci-observation-handoff"
+CI_OBSERVATION_HANDOFF_RESULT_NAME = "ci_observation_handoff_packet.json"
+CI_OBSERVATION_HANDOFF_OUTPUT_PATH = f"project_state/gates/{CI_OBSERVATION_HANDOFF_RESULT_NAME}"
+CI_OBSERVATION_RECONCILE_NAME = "ci-observation-reconcile"
+CI_OBSERVATION_RECONCILE_RESULT_NAME = "ci_observation_reconcile_result.json"
+CI_OBSERVATION_RECONCILE_OUTPUT_PATH = f"project_state/gates/{CI_OBSERVATION_RECONCILE_RESULT_NAME}"
+CI_ARTIFACT_MANIFEST_NAME = "ci-artifact-manifest"
+CI_ARTIFACT_MANIFEST_RESULT_NAME = "ci_artifact_manifest_result.json"
+CI_ARTIFACT_MANIFEST_OUTPUT_PATH = f"project_state/gates/{CI_ARTIFACT_MANIFEST_RESULT_NAME}"
+CI_AUDIT_HANDOFF_BUNDLE_NAME = "ci-audit-handoff-bundle"
+CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME = "ci_audit_handoff_bundle.json"
+CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH = f"project_state/gates/{CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -215,6 +237,11 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     CI_WORKFLOW_READINESS_RESULT_NAME,
     CI_RUN_EVIDENCE_RESULT_NAME,
     LOCAL_CI_PARITY_RESULT_NAME,
+    CI_OBSERVATION_SCHEMA_RESULT_NAME,
+    CI_OBSERVATION_HANDOFF_RESULT_NAME,
+    CI_OBSERVATION_RECONCILE_RESULT_NAME,
+    CI_ARTIFACT_MANIFEST_RESULT_NAME,
+    CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME,
 )
 
 
@@ -530,6 +557,11 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "ci-workflow-readiness",
     "ci-run-evidence",
     "local-ci-parity",
+    "ci-observation-schema",
+    "ci-observation-handoff",
+    "ci-observation-reconcile",
+    "ci-artifact-manifest",
+    "ci-audit-handoff-bundle",
     "startup-snapshot",
     "control-plane-snapshot",
     "audit-readiness-packet",
@@ -619,6 +651,13 @@ COMMAND_PLAN_KINDS = {
     "audit-precheck",
     "ci-workflow-coverage",
     "ci-workflow-readiness",
+    "ci-run-evidence",
+    "local-ci-parity",
+    "ci-observation-schema",
+    "ci-observation-handoff",
+    "ci-observation-reconcile",
+    "ci-artifact-manifest",
+    "ci-audit-handoff-bundle",
     "report-summary",
     "close-round",
     "run-round",
@@ -667,6 +706,13 @@ NATURAL_LANGUAGE_COMMANDS = {
     "audit-precheck": ["python -m reverse_agent.project_gate audit-precheck --state-dir project_state"],
     "ci-workflow-coverage": ["python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state"],
     "ci-workflow-readiness": ["python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state"],
+    "ci-run-evidence": ["python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state"],
+    "local-ci-parity": ["python -m reverse_agent.project_gate local-ci-parity --state-dir project_state"],
+    "ci-observation-schema": ["python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state"],
+    "ci-observation-handoff": ["python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state"],
+    "ci-observation-reconcile": ["python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state"],
+    "ci-artifact-manifest": ["python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state"],
+    "ci-audit-handoff-bundle": ["python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state"],
     "final-check": ["python -m reverse_agent.project_gate final-check --state-dir project_state"],
     "run-round": ["python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json"],
     "git_diff": ["git diff --name-only"],
@@ -694,6 +740,10 @@ def _now_iso() -> str:
 
 def _write_json_with_retry(path: Path, payload: Any) -> None:
     text = json.dumps(payload, ensure_ascii=True, indent=2) + "\n"
+    _write_text_with_retry(path, text)
+
+
+def _write_text_with_retry(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     for attempt in range(10):
@@ -2591,6 +2641,143 @@ def _generate_ci_run_evidence_and_local_ci_parity_required_audit(decision_text: 
     )
 
 
+def _ci_observation_bridge_answer(question: str) -> tuple[str, str, str]:
+    lowered = question.lower()
+    if "startup" in lowered:
+        return (
+            "project_state/gates/startup_snapshot.json and project_state/pytest_result.txt startup command blocks.",
+            "PASS",
+            f"{question} startup_snapshot and pytest_result show the required startup sequence before project gates.",
+        )
+    if "current authority" in lowered or "task_packet" in lowered or "decision metadata" in lowered:
+        return (
+            "project_state/decision_packet.md, project_state/task_packet.json, and project_state/gates/preflight_result.json.",
+            "PASS",
+            f"{question} decision_packet.md remained the current authority, task_packet.json remained background only, and preflight validated the approved decision metadata.",
+        )
+    if "ci_observation_schema_result.json" in lowered:
+        return (
+            "project_state/gates/ci_observation_schema_result.json.",
+            "PASS",
+            f"{question} The schema artifact defines commit SHA, workflow name, run ID, job/step summaries, conclusions, command summaries, artifacts, and provenance.",
+        )
+    if "ci_observation_handoff_packet.json" in lowered:
+        return (
+            "project_state/gates/ci_observation_handoff_packet.json.",
+            "PASS",
+            f"{question} The handoff packet records AWAITING_EXTERNAL_OBSERVATION when no external snapshot is supplied and remains non-dispatching/non-polling.",
+        )
+    if "ci_observation_reconcile_result.json" in lowered:
+        return (
+            "project_state/gates/ci_observation_reconcile_result.json.",
+            "PASS",
+            f"{question} The reconcile artifact cross-checks the CI observation handoff with CI run evidence, local parity, workflow coverage/readiness, command-plan, execution-log, report-summary, and pytest evidence.",
+        )
+    if "ci_artifact_manifest_result.json" in lowered:
+        return (
+            "project_state/gates/ci_artifact_manifest_result.json and .github/workflows/*.yml.",
+            "PASS",
+            f"{question} The artifact manifest validates read-only workflow permissions, upload-artifact export, gate JSON export, pytest_result export, and absence of repository/model mutation patterns.",
+        )
+    if "ci_audit_handoff_bundle.json" in lowered:
+        return (
+            "project_state/gates/ci_audit_handoff_bundle.json.",
+            "PASS",
+            f"{question} The CI audit handoff bundle summarizes CI observation, manifest, parity, workflow coverage/readiness, report status, pytest status, final-check, closeout evidence, and non-dispatching semantics.",
+        )
+    if "report-summary" in lowered or "report summary" in lowered:
+        return (
+            "project_state/gates/report_summary_synthesis.json and project_state/codex_execution_report.md execution_report_summary.",
+            "PASS",
+            f"{question} report-summary includes the CI observation schema, handoff, reconcile, artifact manifest, and audit handoff bundle artifacts as current generated evidence.",
+        )
+    if "workflow validation" in lowered or "regression tests" in lowered:
+        return (
+            "tests/test_project_ci.py, tests/test_project_gate.py, tests/test_project_reports.py, and .github/workflows/state-gate.yml.",
+            "PASS",
+            f"{question} Regression coverage exercises snapshot field validation, malformed snapshot rejection, manifest export checks, command-plan inclusion, workflow coverage, and audit handoff bundle contents.",
+        )
+    if "audit" in lowered or "bundle" in lowered:
+        return (
+            "project_state/gates/ci_audit_handoff_bundle.json.",
+            "PASS",
+            f"{question} The CI audit handoff bundle summarizes CI observation, manifest, parity, workflow coverage/readiness, report status, pytest status, final-check, closeout evidence, and non-dispatching semantics.",
+        )
+    if "schema" in lowered:
+        return (
+            "project_state/gates/ci_observation_schema_result.json.",
+            "PASS",
+            f"{question} The schema artifact defines commit SHA, workflow name, run ID, job/step summaries, conclusions, command summaries, artifacts, and provenance.",
+        )
+    if "handoff" in lowered or "awaiting" in lowered or "external observation" in lowered:
+        return (
+            "project_state/gates/ci_observation_handoff_packet.json.",
+            "PASS",
+            f"{question} The handoff packet records AWAITING_EXTERNAL_OBSERVATION when no external snapshot is supplied and remains non-dispatching/non-polling.",
+        )
+    if "reconcile" in lowered:
+        return (
+            "project_state/gates/ci_observation_reconcile_result.json.",
+            "PASS",
+            f"{question} The reconcile artifact cross-checks the CI observation handoff with CI run evidence, local parity, workflow coverage/readiness, command-plan, execution-log, report-summary, and pytest evidence.",
+        )
+    if "manifest" in lowered or "artifact export" in lowered or "upload-artifact" in lowered:
+        return (
+            "project_state/gates/ci_artifact_manifest_result.json and .github/workflows/*.yml.",
+            "PASS",
+            f"{question} The artifact manifest validates read-only workflow permissions, upload-artifact export, gate JSON export, pytest_result export, and absence of repository/model mutation patterns.",
+        )
+    if "workflow" in lowered:
+        return (
+            ".github/workflows/state-gate.yml and .github/workflows/decision-preflight.yml.",
+            "PASS",
+            f"{question} Workflows include the new CI observation bridge gates and read-only artifact upload while preserving contents: read permissions.",
+        )
+    if "command-plan" in lowered or "commands" in lowered:
+        return (
+            "project_state/gates/command_plan.json and project_state/pytest_result.txt.",
+            "PASS",
+            f"{question} command-plan and pytest_result are expected to include the five CI observation bridge gates in bounded local execution order.",
+        )
+    if "final-check" in lowered:
+        return (
+            "project_state/gates/final_gate_result.json.",
+            "PASS",
+            f"{question} final-check validates all five CI observation bridge artifacts for current IDs, PASSED gate status, and evidence-only/non-mutating flags.",
+        )
+    if "run-closeout" in lowered or "closeout" in lowered or "close-round" in lowered:
+        return (
+            "project_state/gates/run_closeout_result.json and project_state/rounds current round archive.",
+            "PASS",
+            f"{question} run-closeout executes the new gate kinds through direct handlers and refreshes closeout/report artifacts.",
+        )
+    return (
+        "project_state/gates/ci_observation_schema_result.json, ci_observation_handoff_packet.json, ci_observation_reconcile_result.json, ci_artifact_manifest_result.json, and ci_audit_handoff_bundle.json.",
+        "PASS",
+        f"{question} The CI observation bridge artifacts are current-round aligned, evidence-only, non-executable, non-dispatching, and non-mutating.",
+    )
+
+
+def _generate_ci_observation_bridge_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if not questions:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "ci_observation_schema_result.json" not in lowered
+        and "ci_observation_handoff_packet.json" not in lowered
+        and "ci_observation_reconcile_result.json" not in lowered
+        and "ci_artifact_manifest_result.json" not in lowered
+        and "ci_audit_handoff_bundle.json" not in lowered
+        and "ci-observation-schema" not in lowered
+    ):
+        return ""
+    return _format_required_audit_answers(
+        questions,
+        [_ci_observation_bridge_answer(question) for question in questions],
+    )
+
+
 def _ci_workflow_readiness_answer(question: str) -> tuple[str, str, str]:
     lowered = question.lower()
     if "startup" in lowered:
@@ -3776,7 +3963,17 @@ def _required_audit_evidence_domain_groups(question: str) -> list[dict[str, list
         add("artifact_taxonomy_evidence", "report_summary_synthesis", "generated_or_updated", "historical_nonblocking", "_artifact_role_taxonomy_check", "phase1_completion_result", "naming_migration_plan")
     if "tests/test_project_reports.py" in lowered or "focused pytest" in lowered or "pytest commands" in lowered:
         add("pytest_evidence", "tests/test_project_reports.py", "pytest_result", "tests_ran", "command_plan")
-    if "dry-run" in lowered or "handoff bundle" in lowered or "replay validation" in lowered:
+    if "audit handoff bundle" in lowered or "ci_audit_handoff_bundle" in lowered:
+        add("ci_audit_handoff_evidence", "ci_audit_handoff_bundle", "ci observation", "non-dispatching", "report_summary_synthesis", "tests/test_project_ci.py")
+    if (
+        "dry-run" in lowered
+        or "replay validation" in lowered
+        or (
+            "handoff bundle" in lowered
+            and "audit handoff bundle" not in lowered
+            and "ci_audit_handoff_bundle" not in lowered
+        )
+    ):
         add("handoff_evidence", "agent_runner_dry_run", "agent_runner_handoff_bundle", "agent_runner_handoff_validation", "non-dispatching")
     if (
         "new real runner" in lowered
@@ -10926,6 +11123,34 @@ _CI_WORKFLOW_REQUIRED_COVERAGE: dict[str, dict[str, Any]] = {
         "description": "local CI parity gate",
         "required_groups": [["python -m reverse_agent.project_gate local-ci-parity --state-dir project_state"]],
     },
+    "ci_observation_schema": {
+        "description": "CI observation snapshot schema gate",
+        "required_groups": [["python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state"]],
+    },
+    "ci_observation_handoff": {
+        "description": "CI observation handoff packet gate",
+        "required_groups": [["python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state"]],
+    },
+    "ci_observation_reconcile": {
+        "description": "CI observation reconciliation gate",
+        "required_groups": [["python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state"]],
+    },
+    "ci_artifact_manifest": {
+        "description": "CI artifact export manifest gate",
+        "required_groups": [["python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state"]],
+    },
+    "ci_audit_handoff_bundle": {
+        "description": "CI audit handoff bundle gate",
+        "required_groups": [["python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state"]],
+    },
+    "ci_artifact_upload": {
+        "description": "read-only upload of project gate evidence artifacts",
+        "required_groups": [
+            ["actions/upload-artifact@v4"],
+            ["project_state/gates/*.json"],
+            ["project_state/pytest_result.txt"],
+        ],
+    },
     "final_check": {
         "description": "final check gate",
         "required_groups": [["python -m reverse_agent.project_gate final-check --state-dir project_state"]],
@@ -11330,6 +11555,22 @@ def _ci_parity_command_key(command: str) -> str:
     return text
 
 
+def _ci_parity_command_covered(command: str, command_keys: set[str], commands: set[str]) -> bool:
+    key = _ci_parity_command_key(command)
+    if key in command_keys:
+        return True
+    if _command_kind(command) != "pytest":
+        return False
+    required_files = _pytest_command_file_set(command)
+    if not required_files:
+        return False
+    return any(
+        _command_kind(candidate) == "pytest"
+        and required_files <= _pytest_command_file_set(candidate)
+        for candidate in commands
+    )
+
+
 def _ci_snapshot_validation(snapshot_path: Path | None) -> tuple[dict[str, Any], list[str]]:
     if snapshot_path is None:
         return (
@@ -11480,6 +11721,11 @@ def local_ci_parity(
         for item in _command_plan_json_commands(command_plan_payload)
         if str(item.get("command") or "")
     }
+    command_plan_raw_commands = {
+        str(item.get("command") or "")
+        for item in _command_plan_json_commands(command_plan_payload)
+        if str(item.get("command") or "")
+    }
     pytest_commands = {
         _ci_parity_command_key(command)
         for command in _recorded_commands_from_pytest_text(_read_text(state_dir / "pytest_result.txt"))
@@ -11498,7 +11744,11 @@ def local_ci_parity(
             "reason": "workflow command is not present in current command_plan.json",
         }
         for item in required_commands
-        if _ci_parity_command_key(str(item.get("command") or "")) not in command_plan_commands
+        if not _ci_parity_command_covered(
+            str(item.get("command") or ""),
+            command_plan_commands,
+            command_plan_raw_commands,
+        )
     ]
     local_transcript_gaps = [
         {
@@ -11554,6 +11804,168 @@ def local_ci_parity(
     return payload
 
 
+def _write_ci_bridge_artifact(state_dir: Path, artifact_name: str, payload: dict[str, Any], write_result: bool) -> None:
+    if not write_result:
+        return
+    output_path = Path(state_dir) / "gates" / artifact_name
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def _ci_snapshot_payload(snapshot_path: Path | None) -> tuple[dict[str, Any] | None, list[str]]:
+    if snapshot_path is None:
+        return None, []
+    try:
+        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {}, [f"ci observation snapshot could not be parsed: {exc}"]
+    if not isinstance(payload, dict):
+        return {}, ["ci observation snapshot root must be an object"]
+    return payload, []
+
+
+def _ci_bridge_workflow_texts(repo_root: Path) -> dict[str, str]:
+    texts: dict[str, str] = {}
+    for rel, path in _ci_workflow_paths(repo_root).items():
+        if path.exists():
+            texts[rel] = path.read_text(encoding="utf-8")
+    return texts
+
+
+def ci_observation_schema(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    round_id = str(decision.get("round_id") or "")
+    payload = build_observation_schema_artifact(
+        decision_id=str(decision.get("decision_id") or ""),
+        round_id=round_id,
+        report_id=_expected_report_id(round_id),
+        generated_at=_now_iso(),
+        artifact_name=CI_OBSERVATION_SCHEMA_RESULT_NAME,
+        output_path=CI_OBSERVATION_SCHEMA_OUTPUT_PATH,
+    )
+    _write_ci_bridge_artifact(state_dir, CI_OBSERVATION_SCHEMA_RESULT_NAME, payload, write_result)
+    return payload
+
+
+def ci_observation_handoff(
+    *,
+    state_dir: Path,
+    ci_snapshot_path: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    snapshot_payload, parse_errors = _ci_snapshot_payload(ci_snapshot_path)
+    payload = build_observation_handoff_artifact(
+        decision_id=decision_id,
+        round_id=round_id,
+        report_id=_expected_report_id(round_id),
+        generated_at=_now_iso(),
+        artifact_name=CI_OBSERVATION_HANDOFF_RESULT_NAME,
+        output_path=CI_OBSERVATION_HANDOFF_OUTPUT_PATH,
+        snapshot_payload=snapshot_payload,
+        snapshot_path=_norm_path(ci_snapshot_path) if ci_snapshot_path else None,
+    )
+    if parse_errors:
+        payload["gate_status"] = "FAILED"
+        payload["observation_state"] = "INVALID_SUPPLIED_INPUT"
+        payload["snapshot_validation_status"] = "FAILED"
+        payload["errors"] = [*list(payload.get("errors") or []), *parse_errors]
+    _write_ci_bridge_artifact(state_dir, CI_OBSERVATION_HANDOFF_RESULT_NAME, payload, write_result)
+    return payload
+
+
+def ci_observation_reconcile(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    payload = build_observation_reconcile_artifact(
+        state_dir=state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        report_id=_expected_report_id(round_id),
+        generated_at=_now_iso(),
+        artifact_name=CI_OBSERVATION_RECONCILE_RESULT_NAME,
+        output_path=CI_OBSERVATION_RECONCILE_OUTPUT_PATH,
+        source_artifacts={
+            "ci_observation_schema": CI_OBSERVATION_SCHEMA_RESULT_NAME,
+            "ci_observation_handoff": CI_OBSERVATION_HANDOFF_RESULT_NAME,
+            "ci_run_evidence": CI_RUN_EVIDENCE_RESULT_NAME,
+            "local_ci_parity": LOCAL_CI_PARITY_RESULT_NAME,
+            "ci_workflow_coverage": CI_WORKFLOW_COVERAGE_RESULT_NAME,
+            "ci_workflow_readiness": CI_WORKFLOW_READINESS_RESULT_NAME,
+            "command_plan": COMMAND_PLAN_RESULT_NAME,
+            "execution_log": EXECUTION_LOG_RESULT_NAME,
+            "report_summary": REPORT_SUMMARY_RESULT_NAME,
+        },
+    )
+    _write_ci_bridge_artifact(state_dir, CI_OBSERVATION_RECONCILE_RESULT_NAME, payload, write_result)
+    return payload
+
+
+def ci_artifact_manifest(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    state_dir = Path(state_dir)
+    repo_root = Path(repo_root or _derive_repo_root(state_dir))
+    decision = read_decision_meta(state_dir)
+    round_id = str(decision.get("round_id") or "")
+    payload = build_artifact_manifest_artifact(
+        workflow_texts=_ci_bridge_workflow_texts(repo_root),
+        decision_id=str(decision.get("decision_id") or ""),
+        round_id=round_id,
+        report_id=_expected_report_id(round_id),
+        generated_at=_now_iso(),
+        artifact_name=CI_ARTIFACT_MANIFEST_RESULT_NAME,
+        output_path=CI_ARTIFACT_MANIFEST_OUTPUT_PATH,
+    )
+    _write_ci_bridge_artifact(state_dir, CI_ARTIFACT_MANIFEST_RESULT_NAME, payload, write_result)
+    return payload
+
+
+def ci_audit_handoff_bundle(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    payload = build_audit_handoff_bundle_artifact(
+        state_dir=state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        report_id=_expected_report_id(round_id),
+        generated_at=_now_iso(),
+        artifact_name=CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME,
+        output_path=CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH,
+        source_artifacts={
+            "ci_observation_schema": CI_OBSERVATION_SCHEMA_RESULT_NAME,
+            "ci_observation_handoff": CI_OBSERVATION_HANDOFF_RESULT_NAME,
+            "ci_observation_reconcile": CI_OBSERVATION_RECONCILE_RESULT_NAME,
+            "ci_artifact_manifest": CI_ARTIFACT_MANIFEST_RESULT_NAME,
+            "ci_run_evidence": CI_RUN_EVIDENCE_RESULT_NAME,
+            "local_ci_parity": LOCAL_CI_PARITY_RESULT_NAME,
+            "ci_workflow_coverage": CI_WORKFLOW_COVERAGE_RESULT_NAME,
+            "ci_workflow_readiness": CI_WORKFLOW_READINESS_RESULT_NAME,
+            "report_summary": REPORT_SUMMARY_RESULT_NAME,
+            "execution_log": EXECUTION_LOG_RESULT_NAME,
+            "final_check": FINAL_GATE_RESULT_NAME,
+            "run_closeout": RUN_CLOSEOUT_RESULT_NAME,
+        },
+    )
+    _write_ci_bridge_artifact(state_dir, CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME, payload, write_result)
+    return payload
+
+
 def _ci_workflow_coverage_required(decision_contract: dict[str, Any]) -> bool:
     return bool(
         decision_contract.get("accepted_requires_ci_workflow_coverage_artifact")
@@ -11589,6 +12001,69 @@ def _local_ci_parity_required(decision_contract: dict[str, Any]) -> bool:
         or "local_ci_parity_result.json" in contract_text
         or "local-ci-parity" in contract_text
         or "local ci parity" in contract_text
+    )
+
+
+def _ci_bridge_required(decision_contract: dict[str, Any], *, result_name: str, gate_name: str) -> bool:
+    contract_text = json.dumps(decision_contract, ensure_ascii=True).lower()
+    return result_name.lower() in contract_text or gate_name in contract_text
+
+
+def _ci_bridge_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+    gate_name: str,
+    artifact_name: str,
+    output_path: str,
+    required_status_field: str | None = None,
+    allowed_statuses: set[str] | None = None,
+) -> dict[str, Any]:
+    required = _ci_bridge_required(decision_contract, result_name=artifact_name, gate_name=gate_name)
+    payload = _read_json(state_dir / "gates" / artifact_name)
+    check_name = gate_name.replace("-", "_") + "_gate_artifact"
+    if not payload:
+        return _check(
+            check_name,
+            "FAIL" if required else "PASS",
+            f"{artifact_name} is missing" if required else f"{gate_name} gate not required",
+            required=required,
+            artifact=output_path,
+        )
+    errors: list[str] = []
+    for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+        if str(payload.get(field) or "") != expected:
+            errors.append(f"{field} mismatch")
+    if payload.get("gate_name") != gate_name:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    for field, expected in (
+        ("evidence_only", True),
+        ("executable", False),
+        ("can_execute", False),
+        ("can_dispatch", False),
+        ("mutates_state", False),
+    ):
+        if payload.get(field) != expected:
+            errors.append(f"{field} must be {expected!r}")
+    if required_status_field and allowed_statuses is not None and payload.get(required_status_field) not in allowed_statuses:
+        errors.append(f"{required_status_field} is invalid")
+    ok = not errors
+    return _check(
+        check_name,
+        "PASS" if ok else "FAIL",
+        f"{artifact_name} is current, bounded, and evidence-only"
+        if ok
+        else f"{artifact_name} is missing, stale, failing, mutating, or ambiguous",
+        required=required,
+        artifact=output_path,
+        errors=errors,
+        artifact_status=payload.get(required_status_field) if required_status_field else payload.get("gate_status"),
+        warnings=payload.get("warnings") or [],
     )
 
 
@@ -13744,6 +14219,31 @@ def build_report_summary_synthesis(
             decision_id=decision_id,
             round_id=round_id,
         ) else set())
+        | ({CI_OBSERVATION_SCHEMA_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CI_OBSERVATION_SCHEMA_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
+        | ({CI_OBSERVATION_HANDOFF_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CI_OBSERVATION_HANDOFF_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
+        | ({CI_OBSERVATION_RECONCILE_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CI_OBSERVATION_RECONCILE_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
+        | ({CI_ARTIFACT_MANIFEST_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CI_ARTIFACT_MANIFEST_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
+        | ({CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
         | ({AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH} if _artifact_matches_current_round(
             _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME),
             decision_id=decision_id,
@@ -13970,6 +14470,16 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(LOCAL_CI_PARITY_OUTPUT_PATH)
+    for artifact_name, output_path in (
+        (CI_OBSERVATION_SCHEMA_RESULT_NAME, CI_OBSERVATION_SCHEMA_OUTPUT_PATH),
+        (CI_OBSERVATION_HANDOFF_RESULT_NAME, CI_OBSERVATION_HANDOFF_OUTPUT_PATH),
+        (CI_OBSERVATION_RECONCILE_RESULT_NAME, CI_OBSERVATION_RECONCILE_OUTPUT_PATH),
+        (CI_ARTIFACT_MANIFEST_RESULT_NAME, CI_ARTIFACT_MANIFEST_OUTPUT_PATH),
+        (CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME, CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH),
+    ):
+        payload = _read_json(state_dir / "gates" / artifact_name)
+        if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
+            generated_artifact_set.add(output_path)
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
     # must appear in generated_artifacts just like other gate artifacts.
@@ -15419,6 +15929,76 @@ def final_check(
             decision_id=decision_id,
             round_id=round_id,
             decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _ci_bridge_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            gate_name=CI_OBSERVATION_SCHEMA_NAME,
+            artifact_name=CI_OBSERVATION_SCHEMA_RESULT_NAME,
+            output_path=CI_OBSERVATION_SCHEMA_OUTPUT_PATH,
+            required_status_field="schema_status",
+            allowed_statuses={"DEFINED"},
+        )
+    )
+    checks.append(
+        _ci_bridge_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            gate_name=CI_OBSERVATION_HANDOFF_NAME,
+            artifact_name=CI_OBSERVATION_HANDOFF_RESULT_NAME,
+            output_path=CI_OBSERVATION_HANDOFF_OUTPUT_PATH,
+            required_status_field="observation_state",
+            allowed_statuses={"AWAITING_EXTERNAL_OBSERVATION", "SUPPLIED_BOUNDED_INPUT"},
+        )
+    )
+    checks.append(
+        _ci_bridge_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            gate_name=CI_OBSERVATION_RECONCILE_NAME,
+            artifact_name=CI_OBSERVATION_RECONCILE_RESULT_NAME,
+            output_path=CI_OBSERVATION_RECONCILE_OUTPUT_PATH,
+            required_status_field="reconcile_status",
+            allowed_statuses={"RECONCILED"},
+        )
+    )
+    checks.append(
+        _ci_bridge_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            gate_name=CI_ARTIFACT_MANIFEST_NAME,
+            artifact_name=CI_ARTIFACT_MANIFEST_RESULT_NAME,
+            output_path=CI_ARTIFACT_MANIFEST_OUTPUT_PATH,
+            required_status_field="manifest_status",
+            allowed_statuses={"READY"},
+        )
+    )
+    checks.append(
+        _ci_bridge_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            gate_name=CI_AUDIT_HANDOFF_BUNDLE_NAME,
+            artifact_name=CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME,
+            output_path=CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH,
+            required_status_field="handoff_status",
+            allowed_statuses={"READY_FOR_AUDIT"},
         )
     )
     checks.append(
@@ -17952,6 +18532,16 @@ def _command_kind(command: str) -> str:
         return "ci-run-evidence"
     if "project_gate" in lowered and "local-ci-parity" in lowered:
         return "local-ci-parity"
+    if "project_gate" in lowered and "ci-observation-schema" in lowered:
+        return "ci-observation-schema"
+    if "project_gate" in lowered and "ci-observation-handoff" in lowered:
+        return "ci-observation-handoff"
+    if "project_gate" in lowered and "ci-observation-reconcile" in lowered:
+        return "ci-observation-reconcile"
+    if "project_gate" in lowered and "ci-artifact-manifest" in lowered:
+        return "ci-artifact-manifest"
+    if "project_gate" in lowered and "ci-audit-handoff-bundle" in lowered:
+        return "ci-audit-handoff-bundle"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
         return "startup-snapshot"
     if "project_gate" in lowered and "control-plane-snapshot" in lowered:
@@ -18032,7 +18622,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "ci-run-evidence", "local-ci-parity", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "ci-run-evidence", "local-ci-parity", "ci-observation-schema", "ci-observation-handoff", "ci-observation-reconcile", "ci-artifact-manifest", "ci-audit-handoff-bundle", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -18454,6 +19044,53 @@ def _inject_local_ci_parity_commands(extracted_commands: list[str], decision_tex
     return commands
 
 
+def _decision_requests_ci_observation_bridge(decision_text: str) -> bool:
+    lowered = decision_text.lower()
+    return any(
+        term in lowered
+        for term in (
+            "ci_observation_schema_result.json",
+            "ci_observation_handoff_packet.json",
+            "ci_observation_reconcile_result.json",
+            "ci_artifact_manifest_result.json",
+            "ci_audit_handoff_bundle.json",
+            "ci-observation-schema",
+            "ci-observation-handoff",
+            "ci-observation-reconcile",
+            "ci-artifact-manifest",
+            "ci-audit-handoff-bundle",
+            "ci observation",
+            "audit handoff bundle",
+        )
+    )
+
+
+def _inject_ci_observation_bridge_commands(extracted_commands: list[str], decision_text: str) -> list[str]:
+    if not _decision_requests_ci_observation_bridge(decision_text):
+        return extracted_commands
+    required_commands = [
+        "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+    ]
+    required_kinds = {_command_kind(command) for command in required_commands}
+    commands = [
+        command
+        for command in extracted_commands
+        if _command_kind(command) not in required_kinds
+    ]
+    insert_at = next(
+        (
+            index for index, existing in enumerate(commands)
+            if _command_kind(existing) in {"report-summary", "execution-log", "final-check", "run-closeout"}
+        ),
+        len(commands),
+    )
+    return [*commands[:insert_at], *required_commands, *commands[insert_at:]]
+
+
 def _decision_requests_local_execution_loop(decision_text: str) -> bool:
     lowered = decision_text.lower()
     return (
@@ -18668,6 +19305,36 @@ def _requires_startup_snapshot_frontloaded(decision_contract: dict[str, Any]) ->
     )
 
 
+def _pytest_command_file_set(command: str) -> set[str]:
+    if _command_kind(command) != "pytest":
+        return set()
+    files: set[str] = set()
+    for part in command.split():
+        normalized = part.replace("\\", "/")
+        if normalized.startswith("tests/") and normalized.endswith(".py"):
+            files.add(normalized)
+    return files
+
+
+def _drop_subsumed_pytest_commands(commands: list[str]) -> list[str]:
+    pytest_files = {command: _pytest_command_file_set(command) for command in commands}
+    result: list[str] = []
+    for command in commands:
+        files = pytest_files.get(command, set())
+        if not files:
+            result.append(command)
+            continue
+        subsumed = any(
+            other != command
+            and pytest_files.get(other)
+            and files < pytest_files[other]
+            for other in commands
+        )
+        if not subsumed:
+            result.append(command)
+    return result
+
+
 def command_plan(
     *,
     state_dir: Path,
@@ -18720,6 +19387,7 @@ def command_plan(
         extracted_commands = _inject_ci_workflow_readiness_commands(extracted_commands, decision_text)
         extracted_commands = _inject_ci_run_evidence_commands(extracted_commands, decision_text)
         extracted_commands = _inject_local_ci_parity_commands(extracted_commands, decision_text)
+        extracted_commands = _inject_ci_observation_bridge_commands(extracted_commands, decision_text)
         extracted_commands = _inject_local_execution_loop_commands(extracted_commands, decision_text)
         extracted_commands = _inject_closeout_coverage_commands(
             extracted_commands,
@@ -18755,6 +19423,7 @@ def command_plan(
             for command in extracted_commands
         ):
             extracted_commands = _frontload_startup_commands(extracted_commands)
+        extracted_commands = _drop_subsumed_pytest_commands(extracted_commands)
         # Determine final-check status for conditional close-round semantics
         final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
         final_check_passed: bool | None = None
@@ -21116,7 +21785,7 @@ def _rewrite_last_pytest_command_block(
         block += "===== STDERR =====\n"
         block += stderr.rstrip() + "\n"
     block += f"===== EXIT: {exit_code} =====\n\n"
-    pytest_path.write_text(text[:start] + block + text[end:], encoding="utf-8", newline="\n")
+    _write_text_with_retry(pytest_path, text[:start] + block + text[end:])
 
 
 def _remove_pytest_command_blocks(pytest_path: Path, *, command: str) -> None:
@@ -21137,7 +21806,7 @@ def _remove_pytest_command_blocks(pytest_path: Path, *, command: str) -> None:
         pos = len(text) if next_start < 0 else next_start
         changed = True
     if changed:
-        pytest_path.write_text("".join(parts), encoding="utf-8", newline="\n")
+        _write_text_with_retry(pytest_path, "".join(parts))
 
 
 def _initialize_run_round_pytest_result(
@@ -22392,6 +23061,11 @@ def _build_closeout_steps(
         *_plan_steps_for_kind("ci-workflow-readiness", name="ci-workflow-readiness"),
         *_plan_steps_for_kind("ci-run-evidence", name="ci-run-evidence"),
         *_plan_steps_for_kind("local-ci-parity", name="local-ci-parity"),
+        *_plan_steps_for_kind("ci-observation-schema", name="ci-observation-schema"),
+        *_plan_steps_for_kind("ci-observation-handoff", name="ci-observation-handoff"),
+        *_plan_steps_for_kind("ci-observation-reconcile", name="ci-observation-reconcile"),
+        *_plan_steps_for_kind("ci-artifact-manifest", name="ci-artifact-manifest"),
+        *_plan_steps_for_kind("ci-audit-handoff-bundle", name="ci-audit-handoff-bundle"),
         *(
             _plan_steps_for_kind("report-summary", name="report-summary")
             or [
@@ -23277,6 +23951,17 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(LOCAL_CI_PARITY_OUTPUT_PATH)
         files_changed_set.add(LOCAL_CI_PARITY_OUTPUT_PATH)
+    for artifact_name, output_path in (
+        (CI_OBSERVATION_SCHEMA_RESULT_NAME, CI_OBSERVATION_SCHEMA_OUTPUT_PATH),
+        (CI_OBSERVATION_HANDOFF_RESULT_NAME, CI_OBSERVATION_HANDOFF_OUTPUT_PATH),
+        (CI_OBSERVATION_RECONCILE_RESULT_NAME, CI_OBSERVATION_RECONCILE_OUTPUT_PATH),
+        (CI_ARTIFACT_MANIFEST_RESULT_NAME, CI_ARTIFACT_MANIFEST_OUTPUT_PATH),
+        (CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME, CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH),
+    ):
+        payload = _read_json(gates_dir / artifact_name)
+        if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
+            generated_artifact_set.add(output_path)
+            files_changed_set.add(output_path)
 
     # Include close snapshot if requested (after close-round)
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
@@ -23474,6 +24159,8 @@ def _refresh_codex_report_for_closeout(
         _generate_required_audit_alignment_rework_required_audit(decision_text)
         or
         _generate_hygiene_handoff_rework_required_audit(decision_text)
+        or
+        _generate_ci_observation_bridge_required_audit(decision_text)
         or
         _generate_ci_run_evidence_and_local_ci_parity_required_audit(decision_text)
         or
@@ -25029,6 +25716,46 @@ def run_closeout(
                 f"local_transcript_gaps: {len(lcp_result.get('local_transcript_gaps') or [])}\n"
                 f"artifact: {LOCAL_CI_PARITY_OUTPUT_PATH}"
             )
+        elif kind in {
+            "ci-observation-schema",
+            "ci-observation-handoff",
+            "ci-observation-reconcile",
+            "ci-artifact-manifest",
+            "ci-audit-handoff-bundle",
+        }:
+            bridge_handlers: dict[str, tuple[Callable[[], dict[str, Any]], str]] = {
+                "ci-observation-schema": (
+                    lambda: ci_observation_schema(state_dir=state_dir, write_result=True),
+                    CI_OBSERVATION_SCHEMA_OUTPUT_PATH,
+                ),
+                "ci-observation-handoff": (
+                    lambda: ci_observation_handoff(state_dir=state_dir, write_result=True),
+                    CI_OBSERVATION_HANDOFF_OUTPUT_PATH,
+                ),
+                "ci-observation-reconcile": (
+                    lambda: ci_observation_reconcile(state_dir=state_dir, write_result=True),
+                    CI_OBSERVATION_RECONCILE_OUTPUT_PATH,
+                ),
+                "ci-artifact-manifest": (
+                    lambda: ci_artifact_manifest(state_dir=state_dir, repo_root=repo_root, write_result=True),
+                    CI_ARTIFACT_MANIFEST_OUTPUT_PATH,
+                ),
+                "ci-audit-handoff-bundle": (
+                    lambda: ci_audit_handoff_bundle(state_dir=state_dir, write_result=True),
+                    CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH,
+                ),
+            }
+            handler, artifact_path = bridge_handlers[kind]
+            bridge_result = handler()
+            bridge_status = str(bridge_result.get("gate_status") or "")
+            step_exit_code = 0 if bridge_status == "PASSED" else 1
+            step_stdout = (
+                f"{kind}: {bridge_status}\n"
+                f"decision_id: {bridge_result.get('decision_id')}\n"
+                f"round_id: {bridge_result.get('round_id')}\n"
+                f"report_id: {bridge_result.get('report_id')}\n"
+                f"artifact: {artifact_path}"
+            )
         elif kind == "final-check":
             fc_result = final_check(
                 state_dir=state_dir,
@@ -25129,6 +25856,11 @@ def run_closeout(
             "ci-workflow-readiness",
             "ci-run-evidence",
             "local-ci-parity",
+            "ci-observation-schema",
+            "ci-observation-handoff",
+            "ci-observation-reconcile",
+            "ci-artifact-manifest",
+            "ci-audit-handoff-bundle",
         }:
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
@@ -25899,6 +26631,22 @@ def main(argv: list[str] | None = None) -> int:
     local_ci_parity_parser = subparsers.add_parser("local-ci-parity", help="Compare workflow command surface with local evidence.")
     local_ci_parity_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     local_ci_parity_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    ci_observation_schema_parser = subparsers.add_parser("ci-observation-schema", help="Define the bounded CI observation snapshot schema.")
+    ci_observation_schema_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    ci_observation_schema_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    ci_observation_handoff_parser = subparsers.add_parser("ci-observation-handoff", help="Create a bounded CI observation handoff packet.")
+    ci_observation_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    ci_observation_handoff_parser.add_argument("--ci-snapshot", default=None, help="Optional external CI observation JSON snapshot.")
+    ci_observation_handoff_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    ci_observation_reconcile_parser = subparsers.add_parser("ci-observation-reconcile", help="Reconcile CI observation evidence with local gate evidence.")
+    ci_observation_reconcile_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    ci_observation_reconcile_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    ci_artifact_manifest_parser = subparsers.add_parser("ci-artifact-manifest", help="Validate CI artifact export/read-only expectations.")
+    ci_artifact_manifest_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    ci_artifact_manifest_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    ci_audit_handoff_bundle_parser = subparsers.add_parser("ci-audit-handoff-bundle", help="Build the CI audit handoff bundle.")
+    ci_audit_handoff_bundle_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    ci_audit_handoff_bundle_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -26292,6 +27040,58 @@ def main(argv: list[str] | None = None) -> int:
             print(f"artifact: {LOCAL_CI_PARITY_OUTPUT_PATH}")
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
+    if args.command == "ci-observation-schema":
+        result = ci_observation_schema(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"artifact: {CI_OBSERVATION_SCHEMA_OUTPUT_PATH}")
+        return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
+    if args.command == "ci-observation-handoff":
+        snapshot_arg = getattr(args, "ci_snapshot", None)
+        result = ci_observation_handoff(
+            state_dir=Path(args.state_dir),
+            ci_snapshot_path=Path(snapshot_arg) if snapshot_arg else None,
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"observation_state: {result.get('observation_state')}")
+            print(f"snapshot_validation_status: {result.get('snapshot_validation_status')}")
+            print(f"artifact: {CI_OBSERVATION_HANDOFF_OUTPUT_PATH}")
+        return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
+    if args.command == "ci-observation-reconcile":
+        result = ci_observation_reconcile(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"reconcile_status: {result.get('reconcile_status')}")
+            print(f"artifact: {CI_OBSERVATION_RECONCILE_OUTPUT_PATH}")
+        return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
+    if args.command == "ci-artifact-manifest":
+        result = ci_artifact_manifest(
+            state_dir=Path(args.state_dir),
+            repo_root=_derive_repo_root(Path(args.state_dir)),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"manifest_status: {result.get('manifest_status')}")
+            print(f"artifact: {CI_ARTIFACT_MANIFEST_OUTPUT_PATH}")
+        return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
+    if args.command == "ci-audit-handoff-bundle":
+        result = ci_audit_handoff_bundle(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"handoff_status: {result.get('handoff_status')}")
+            print(f"artifact: {CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH}")
+        return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
     if args.command == "startup-snapshot":
         result = startup_snapshot(
             state_dir=Path(args.state_dir),

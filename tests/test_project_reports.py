@@ -3,6 +3,7 @@ from pathlib import Path
 
 from reverse_agent.project_gate import (
     _generate_ci_run_evidence_and_local_ci_parity_required_audit,
+    _generate_ci_observation_bridge_required_audit,
     _generate_ci_workflow_coverage_required_audit,
     _generate_ci_workflow_readiness_required_audit,
     _generate_current_handoff_packet_required_audit,
@@ -440,4 +441,40 @@ def test_ci_run_evidence_and_local_ci_parity_required_audit_generator_is_substan
     assert "project_state/gates/local_ci_parity_result.json" in audit
     assert "NOT_OBSERVED" in audit
     assert "bounded CI evidence/parity infrastructure" in audit
+    assert result["status"] == "PASS"
+
+
+def test_ci_observation_bridge_required_audit_generator_is_substantive() -> None:
+    questions = [
+        "Does `ci_observation_schema_result.json` define commit SHA, workflow name, run ID, job summaries, step summaries, conclusion/status, observed command summaries, artifact metadata, and provenance?",
+        "Does `ci_observation_handoff_packet.json` validate a supplied snapshot or record `AWAITING_EXTERNAL_OBSERVATION` when none is supplied?",
+        "Does `ci_observation_reconcile_result.json` reconcile observation state with CI run evidence, local CI parity, workflow coverage, workflow readiness, command-plan, pytest_result, execution-log, and report-summary evidence?",
+        "Does `ci_artifact_manifest_result.json` validate read-only artifact export expectations without repository write permissions?",
+        "Does `ci_audit_handoff_bundle.json` summarize CI observation, manifest, parity, workflow coverage/readiness, report status, pytest status, final-check, and closeout status?",
+    ] + [f"CI observation bridge audit item {index}?" for index in range(6, 33)]
+    decision_text = (
+        "# Decision\n\n"
+        "ci-observation-schema ci-observation-handoff ci-observation-reconcile "
+        "ci-artifact-manifest ci-audit-handoff-bundle "
+        "ci_observation_schema_result.json ci_observation_handoff_packet.json "
+        "ci_observation_reconcile_result.json ci_artifact_manifest_result.json "
+        "ci_audit_handoff_bundle.json\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(f"{index}. {question}" for index, question in enumerate(questions, start=1))
+    )
+
+    audit = _generate_ci_observation_bridge_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 32
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/ci_observation_schema_result.json" in audit
+    assert "project_state/gates/ci_observation_handoff_packet.json" in audit
+    assert "project_state/gates/ci_observation_reconcile_result.json" in audit
+    assert "project_state/gates/ci_artifact_manifest_result.json" in audit
+    assert "project_state/gates/ci_audit_handoff_bundle.json" in audit
     assert result["status"] == "PASS"

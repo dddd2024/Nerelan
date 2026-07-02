@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
-  "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-02T11:06:39.411239Z",
+  "generated_at": "2026-07-02T14:32:42.740110Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-    "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+    "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+    "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -44,16 +44,18 @@
   "allowed_scope": {
     "source_files": [
       "reverse_agent/project_gate.py",
+      "reverse_agent/project_ci.py",
       "tests/test_project_gate.py",
       "tests/test_project_reports.py",
-      "tests/test_project_jobs.py"
+      "tests/test_project_jobs.py",
+      "tests/test_project_ci.py"
     ],
     "generated_or_updated_artifacts": [
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
       "project_state/gates/*.json",
-      "project_state/rounds/round_20260702_ci_run_evidence_and_local_ci_parity_v1/*"
+      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/*"
     ]
   },
   "forbidden_scope": {
@@ -72,7 +74,7 @@
   },
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q"
     ],
     "includes_project_reports": true
   },
@@ -86,12 +88,12 @@
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
       "project_state/gates/*.json",
-      "project_state/rounds/round_20260702_ci_run_evidence_and_local_ci_parity_v1/*"
+      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/*"
     ]
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-    "current_round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+    "current_decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+    "current_round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -99,8 +101,8 @@
     "artifact": "project_state/gates/audit_inventory_result.json",
     "gate_status": "PASSED",
     "inventory_validation_status": "PASSED",
-    "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-    "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+    "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+    "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
     "current": true
   },
   "audit_readiness_status": {
@@ -109,8 +111,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
-    "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+    "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+    "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -118,7 +120,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1"
+    "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,
