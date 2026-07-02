@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-  "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+  "decision_id": "decision_20260702_ci_workflow_update_from_coverage_audit_v1",
+  "round_id": "round_20260702_ci_workflow_update_from_coverage_audit_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,34 +13,35 @@
 
 ```json decision_contract
 {
-  "previous_decision_id": "decision_20260701_local_execution_loop_foundation_v1",
-  "previous_round_id": "round_20260701_local_execution_loop_foundation_v1",
+  "previous_decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
+  "previous_round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
   "previous_audit_outcome": "ACCEPTED",
-  "phase_label": "phase_2_28_ci_workflow_coverage_audit_gate",
-  "primary_goal": "Create a bounded local project-gate artifact that audits existing GitHub workflow coverage against the accepted local execution loop artifacts, without modifying workflow files or adding runner/dispatcher behavior.",
+  "phase_label": "phase_2_29_ci_workflow_update_from_coverage_audit",
+  "primary_goal": "Update existing GitHub CI workflow files to close the nonblocking coverage gaps reported by ci_workflow_coverage_result.json, while preserving read-only remote behavior and avoiding any runner, dispatcher, Web/API, database, model call, or reverse-solving scope.",
   "command_plan_authority_required": true,
-  "accepted_requires_ci_workflow_coverage_artifact": true,
-  "accepted_requires_workflow_static_validation_tests": true,
-  "accepted_requires_existing_workflows_read_only": true,
+  "accepted_requires_workflow_files_updated": true,
+  "accepted_requires_ci_workflow_coverage_no_missing_required_coverage": true,
+  "accepted_requires_no_unsafe_workflow_patterns": true,
+  "accepted_requires_tests_project_reports_in_workflow": true,
+  "accepted_requires_state_gate_local_execution_loop_coverage": true,
   "accepted_requires_local_execution_loop_not_regressed": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py",
     "tests/test_project_reports.py"
   ],
+  "allowed_config_files": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml"
+  ],
   "allowed_generated_or_updated_artifacts": [
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260702_ci_workflow_coverage_audit_gate_v1/*"
-  ],
-  "read_only_files": [
-    ".github/workflows/ci.yml",
-    ".github/workflows/state-gate.yml"
+    "project_state/rounds/round_20260702_ci_workflow_update_from_coverage_audit_v1/*"
   ],
   "forbidden_mutated_paths": [
-    ".github/workflows/*",
     "project_state/current_state.json",
     "project_state/task_packet.json",
     "project_state/artifact_index.json",
@@ -65,41 +66,43 @@
 
 ## 1. Goal
 
-Implement **CI Workflow Coverage Audit Gate v1**.
+Implement **CI Workflow Update from Coverage Audit v1**.
 
-This is an `engineering_branch` round. The previous accepted round produced the local execution loop foundation through current gate artifacts: `local_execution_bundle.json`, `codex_prompt_packet.json`, and `audit_precheck_result.json`.
+This is an `engineering_branch` round. The previous accepted round created a local audit gate, `project_state/gates/ci_workflow_coverage_result.json`, which inspected the existing GitHub workflow files and reported workflow coverage gaps as nonblocking planning evidence.
 
-The next step is not to change CI yet. First create a bounded local gate that audits the existing workflow files and records whether they cover the current local execution loop. This avoids silently assuming that GitHub CI already validates the new bundle / prompt / audit-precheck path.
+This round should now close those gaps by updating only the existing workflow files:
+
+1. `.github/workflows/ci.yml`
+2. `.github/workflows/state-gate.yml`
 
 Primary objective:
 
-1. Add or repair a project-gate subcommand that writes `project_state/gates/ci_workflow_coverage_result.json`.
-2. The artifact must statically inspect `.github/workflows/ci.yml` and `.github/workflows/state-gate.yml` as read-only inputs.
-3. The artifact must report whether existing workflows cover:
-   - baseline import / focused pytest;
-   - `tests/test_project_reports.py`;
-   - preflight;
-   - command-plan;
-   - audit-inventory;
-   - audit-readiness-packet;
-   - current-handoff-packet;
-   - local-execution-bundle;
-   - codex-prompt-packet;
-   - audit-precheck;
-   - report-summary;
-   - execution-log;
-   - final-check.
-4. The artifact must also report unsafe workflow capabilities if present, including write permissions, workflow commands that mutate repository state, autonomous agent execution, external model calls, self-hosted runner use, sample execution, harness execution, or full `solve_reports/` scanning.
-5. Add regression tests for the workflow coverage parser and unsafe-pattern detector.
-6. Preserve the accepted local execution loop artifacts and final-check / closeout behavior.
-7. Do not modify `.github/workflows/*` in this round.
+1. Update the existing workflows so the CI / state-gate configuration includes `tests/test_project_reports.py` coverage.
+2. Update the existing workflows so state-gate validation covers the current local execution loop gate surface:
+   - `audit-inventory`
+   - `audit-readiness-packet`
+   - `current-handoff-packet`
+   - `local-execution-bundle`
+   - `codex-prompt-packet`
+   - `audit-precheck`
+   - `report-summary`
+   - `execution-log`
+   - `final-check`
+3. Preserve bounded, read-only remote behavior: workflows may validate the checked-out workspace, but they must not push, commit, create PRs, call model APIs, invoke autonomous agents, use self-hosted runners, run reverse-solving samples, execute harnesses, or scan full `solve_reports/`.
+4. Regenerate `ci_workflow_coverage_result.json` after the workflow changes and require it to report no missing required coverage and no unsafe patterns.
+5. Preserve accepted local execution loop evidence: current handoff packet, local execution bundle, codex prompt packet, audit precheck, audit readiness, report-summary, execution-log, final-check, and closeout.
+6. Do not implement Web, AgentRunner, job dispatch, API planner/auditor, database, queue, scheduler, self-hosted runner automation, IDA/Ghidra/OllyDbg integration, User Solve Layer, IDA MCP adapter, or reverse-solving behavior in this round.
 
 Target accepted state:
 
 - `codex_execution_report.md` status: `SUCCESS`.
-- acceptance recommendation: `ACCEPTED` if the new audit gate and tests pass, even if the audit artifact reports workflow coverage gaps as nonblocking findings for a future workflow-update round.
+- acceptance recommendation: `ACCEPTED`.
 - `pytest_result.txt` status: `PASSED`.
-- `ci_workflow_coverage_result.json`: current decision ID, current round ID, current report ID, evidence-only, read-only, non-mutating, and explicit about workflow coverage status.
+- `.github/workflows/ci.yml` and/or `.github/workflows/state-gate.yml` updated only as needed to close coverage gaps.
+- `ci_workflow_coverage_result.json` current with current decision ID, round ID, and report ID.
+- `ci_workflow_coverage_result.json.missing_coverage` is empty for required coverage from this decision.
+- `ci_workflow_coverage_result.json.unsafe_patterns_found` is empty.
+- `ci_workflow_coverage_result.json.workflow_files_dirty` contains only the workflow files intentionally updated this round, or an equivalent field clearly records the workflow changes as authorized.
 - `final_gate_result.json`: `PASSED`.
 - `run_closeout_result.json`: `PASSED`.
 - close-round: `CLOSED`.
@@ -108,34 +111,49 @@ Target accepted state:
 
 Mainline: `engineering_branch`.
 
-`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only.
+`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only and must not control execution.
 
 Previous accepted round:
 
-- `decision_20260701_local_execution_loop_foundation_v1`
-- `round_20260701_local_execution_loop_foundation_v1`
+- `decision_20260702_ci_workflow_coverage_audit_gate_v1`
+- `round_20260702_ci_workflow_coverage_audit_gate_v1`
 - audit outcome: `ACCEPTED`
 
-Accepted evidence to preserve:
+Current accepted evidence from the previous round:
 
-- `local_execution_bundle.json` was current, evidence-only, non-executable, non-dispatching, non-mutating, and command-plan aligned.
-- `codex_prompt_packet.json` was current and derived from current bundle / handoff evidence.
-- `audit_precheck_result.json` was current and ultimately recommended `READY_FOR_GPT_AUDIT` when report, pytest, final-check, closeout, readiness, bundle, and prompt evidence aligned.
-- `audit_readiness_packet.json` was current with `READY`, `ACCEPTED`, and `no_action_required`.
-- `final_gate_result.json` passed with no blocking reasons or warnings.
-- `run_closeout_result.json` passed and close-round was `CLOSED`.
+1. `codex_execution_report.md` was current with `SUCCESS` and `ACCEPTED`.
+2. `pytest_result.txt` was current with `PASSED` and included the focused pytest command containing `tests/test_project_reports.py`.
+3. `ci_workflow_coverage_result.json` was current and evidence-only.
+4. `ci_workflow_coverage_result.json` inspected `.github/workflows/ci.yml` and `.github/workflows/state-gate.yml` as read-only inputs.
+5. `ci_workflow_coverage_result.json` reported `unsafe_patterns_found: []`.
+6. `ci_workflow_coverage_result.json` reported `recommendation: WORKFLOW_UPDATE_RECOMMENDED`.
+7. `ci_workflow_coverage_result.json` reported these missing coverage items:
+   - `tests_project_reports_py`
+   - `audit_inventory`
+   - `audit_readiness_packet`
+   - `current_handoff_packet`
+   - `local_execution_bundle`
+   - `codex_prompt_packet`
+   - `audit_precheck`
+   - `report_summary`
+   - `execution_log`
+8. `final_gate_result.json` passed with no blocking reasons or warnings.
+9. `run_closeout_result.json` passed and close-round was `CLOSED`.
+10. `audit_precheck_result.json` ultimately recommended `READY_FOR_GPT_AUDIT`.
+11. `audit_readiness_packet.json` was `READY`, `ACCEPTED`, and `no_action_required`.
 
 Existing workflow evidence:
 
-- `.github/workflows/ci.yml` exists and performs baseline repository validation.
-- `.github/workflows/state-gate.yml` exists and performs state-gate validation.
-- These workflows were introduced before the current local execution loop foundation. They must be audited before deciding whether a workflow-update round is needed.
+- `.github/workflows/ci.yml` exists.
+- `.github/workflows/state-gate.yml` exists.
+- The previous audit showed that the workflows already cover baseline import / focused pytest, preflight, command-plan, and final-check.
+- The previous audit also showed that the workflows do not yet cover the local execution loop and report-summary surfaces listed above.
 
 Artifact freshness policy:
 
-- Current-round generated artifacts must carry `decision_20260702_ci_workflow_coverage_audit_gate_v1` and `round_20260702_ci_workflow_coverage_audit_gate_v1`.
+- Current-round generated artifacts must carry `decision_20260702_ci_workflow_update_from_coverage_audit_v1` and `round_20260702_ci_workflow_update_from_coverage_audit_v1` when regenerated.
 - Historical artifacts may be referenced only as historical or nonblocking unless rebuilt with current IDs.
-- Reverse-solving artifacts in `artifact_index.json` remain missing/non-current and must not be treated as current engineering evidence.
+- Reverse-solving sample artifacts in `artifact_index.json` remain missing/non-current and must not be treated as engineering evidence.
 
 Negative-results policy:
 
@@ -145,16 +163,41 @@ Negative-results policy:
 Command-plan policy:
 
 - `project_state/gates/command_plan.json` remains the only command execution authority.
-- The Tests section does not authorize commands by itself.
+- Codex may execute only commands authorized by `command_plan.commands`.
 - `command_plan.omitted_commands` must not be executed.
+- The Tests section states required coverage; it does not override command-plan.
+
+GitHub / remote policy:
+
+- Workflow files may be modified in the local repository as part of this decision.
+- The workflow definitions must not push, commit, create PRs, or mutate remote GitHub state.
+- The executor must not push results to GitHub unless the user explicitly requests upload in the future execution context.
+
+Longer-term architecture context:
+
+- The uploaded architecture plan says `decision` controls the task, `command-plan` controls execution, `execution_log` records facts, GitHub CI performs repeatable verification, `final-check` is the hard gate, and LLM audit performs semantic judgment.
+- This round is only the CI/state-gate coverage update step in that architecture.
+- User Solve Layer and IDA/MCP integration are future layers and must not be implemented here.
 
 ## 3. Do Not Do
 
-Do not modify `.github/workflows/*` in this round. The workflows are read-only evidence.
+Do not implement or modify a real runner, dispatcher, scheduler, service, queue, database, Web/API layer, external integration, model API caller, self-hosted runner controller, remote executor, or remote automation.
 
-Do not implement a runner, dispatcher, scheduler, service, Web/API layer, queue, database, self-hosted runner controller, external integration, model API caller, remote executor, or remote automation.
+Do not implement User Solve Layer, Fast Solve Wrapper, fallback ladder, tool profiles, runner capabilities, IDA MCP adapter, IDA runner, Ghidra runner, OllyDbg runner, sample execution, dynamic debug, runtime probe, solver expansion, or reverse-solving behavior.
 
-Do not execute reverse-solving samples, solvers, harnesses, IDA, Ghidra, OllyDbg, x64dbg, radare2, emulators, dynamic debugging, or full historical `solve_reports/` scans.
+Do not add workflows or workflow steps that:
+
+- push commits;
+- create, edit, merge, or close PRs;
+- call `gh api` to mutate GitHub state;
+- use `contents: write`, `pull-requests: write`, `actions: write`, or `write-all` permissions;
+- call OpenAI, Anthropic, Copilot, ChatGPT, or other model APIs;
+- run Codex, Trae, Claude Code, Aider, AgentRunner, or equivalent autonomous agent surfaces;
+- use `self-hosted` runner labels;
+- execute reverse-solving samples;
+- execute harnesses;
+- scan full `solve_reports/`;
+- start databases, queues, services, or schedulers.
 
 Do not modify preserve-only modules:
 
@@ -168,7 +211,6 @@ Do not modify preserve-only modules:
 
 Do not modify forbidden paths:
 
-- `.github/workflows/*`
 - `project_state/current_state.json`
 - `project_state/task_packet.json`
 - `project_state/artifact_index.json`
@@ -177,13 +219,11 @@ Do not modify forbidden paths:
 - `docs/prompts/*`
 - `solve_reports/*`
 
-Do not write dynamic run facts, candidate data, runtime metrics, artifact freshness, or one-round conclusions into `.codex-skills/`.
+Do not write dynamic run facts, workflow run IDs, runtime metrics, prompt text, candidate data, sample conclusions, or artifact freshness into `.codex-skills/`.
 
-Do not weaken existing checks for command-plan authority, startup-snapshot ordering, report-summary synthesis, execution-log consistency, audit inventory, audit readiness, local execution bundle, codex prompt packet, audit precheck, final-check, run-closeout, or close-round archive behavior.
+Do not weaken existing checks for command-plan authority, startup-snapshot ordering, local execution bundle, codex prompt packet, audit precheck, audit readiness, report-summary, execution-log, final-check, run-closeout, or close-round archive behavior.
 
 Do not use `COMPLETED_WITH_LIMITATIONS` as report status.
-
-Do not claim CI workflows were updated. This round only creates local audit evidence about the current workflow files.
 
 ## 4. Files To Inspect
 
@@ -201,28 +241,34 @@ Read first:
 
 Inspect bounded current gate artifacts:
 
-1. `project_state/gates/command_plan.json`
-2. `project_state/gates/final_gate_result.json`
-3. `project_state/gates/report_summary_synthesis.json`
-4. `project_state/gates/execution_log.json`
-5. `project_state/gates/run_closeout_result.json`
-6. `project_state/gates/audit_inventory_result.json`
-7. `project_state/gates/audit_readiness_packet.json`
-8. `project_state/gates/current_handoff_packet.json`
-9. `project_state/gates/local_execution_bundle.json`
-10. `project_state/gates/codex_prompt_packet.json`
-11. `project_state/gates/audit_precheck_result.json`
+1. `project_state/gates/ci_workflow_coverage_result.json`
+2. `project_state/gates/command_plan.json`
+3. `project_state/gates/final_gate_result.json`
+4. `project_state/gates/report_summary_synthesis.json`
+5. `project_state/gates/execution_log.json`
+6. `project_state/gates/run_closeout_result.json`
+7. `project_state/gates/audit_inventory_result.json`
+8. `project_state/gates/audit_readiness_packet.json`
+9. `project_state/gates/current_handoff_packet.json`
+10. `project_state/gates/local_execution_bundle.json`
+11. `project_state/gates/codex_prompt_packet.json`
+12. `project_state/gates/audit_precheck_result.json`
+13. `project_state/gates/round_baseline.json`
+14. `project_state/gates/round_delta_summary.json`
+15. `project_state/gates/run_closeout_execution_log.json`
 
 Inspect implementation and tests:
 
-1. `reverse_agent/project_gate.py`
-2. `tests/test_project_gate.py`
-3. `tests/test_project_reports.py`
-
-Read-only workflow evidence:
-
 1. `.github/workflows/ci.yml`
 2. `.github/workflows/state-gate.yml`
+3. `reverse_agent/project_gate.py`
+4. `tests/test_project_gate.py`
+5. `tests/test_project_reports.py`
+
+Read-only context if needed:
+
+1. Historical CI decision/report archive for `round_20260626_ci_state_gate_and_naming_provenance_v1`, only to avoid reintroducing previously rejected or duplicated CI behavior.
+2. Current accepted architecture planning notes only as background; do not let them override this decision.
 
 Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -230,33 +276,40 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 The execution report must answer all items below with concrete evidence and one status value: `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Did startup commands confirm `F:\reverse-agent`, repo root, and clean or explicitly baselined `git status --short` before any project gate?
-2. Was `startup-snapshot` still the immediate sixth command and first project gate?
+1. Did startup commands confirm `F:\reverse-agent`, repository root, and clean or explicitly baselined `git status --short` before any project gate?
+2. Was `startup-snapshot` the immediate sixth recorded command and the first project gate command?
 3. Did `decision_meta` remain valid and `APPROVED` on `engineering_branch` with active `reverse-agent-iteration@v2`?
 4. Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?
-5. Were `.github/workflows/ci.yml` and `.github/workflows/state-gate.yml` inspected only as read-only evidence?
-6. Was `project_state/gates/ci_workflow_coverage_result.json` generated with current decision ID, round ID, and report ID?
-7. What workflow coverage does the artifact report for baseline pytest, `tests/test_project_reports.py`, preflight, command-plan, local-execution-bundle, codex-prompt-packet, audit-precheck, report-summary, execution-log, and final-check?
-8. What unsafe workflow capabilities does the artifact check for, and were any found?
-9. Do tests fail when required workflow coverage is missing from synthetic workflow content?
-10. Do tests fail when unsafe workflow patterns are present in synthetic workflow content?
-11. Did implementation stay within allowed source/test files and generated artifacts?
-12. Were forbidden and preserve-only files not modified?
-13. Did local execution bundle remain current, evidence-only, non-executable, non-dispatching, non-mutating, and command-plan aligned?
-14. Did codex prompt packet remain current and non-executable?
-15. Did audit precheck preserve `READY_FOR_GPT_AUDIT` and `DO_NOT_ACCEPT`/blocking semantics?
-16. Did report-summary match pytest, changed files, generated artifacts, decision ID, round ID, and new workflow coverage artifact status?
-17. Did execution-log align with command-plan and pytest_result, with no omitted command executed?
-18. Did final-check pass?
-19. Did run-closeout pass, close-round become `CLOSED`, and post-closeout final-check pass?
-20. Did the report clearly state that workflow files were not modified and that any workflow coverage gaps are input for a future decision?
+5. Which exact workflow files were modified, and were modifications limited to `.github/workflows/ci.yml` and `.github/workflows/state-gate.yml`?
+6. Does `ci.yml` remain bounded to baseline repository validation and focused pytest, with no remote mutation, model API call, autonomous agent, self-hosted runner, sample execution, harness execution, or full `solve_reports/` scan?
+7. Does `state-gate.yml` now cover `tests/test_project_reports.py`?
+8. Does `state-gate.yml` now cover `audit-inventory`, `audit-readiness-packet`, `current-handoff-packet`, `local-execution-bundle`, `codex-prompt-packet`, `audit-precheck`, `report-summary`, `execution-log`, and `final-check`?
+9. Was `ci_workflow_coverage_result.json` regenerated with current decision ID, round ID, and report ID?
+10. Does `ci_workflow_coverage_result.json` report no missing required coverage for this round?
+11. Does `ci_workflow_coverage_result.json` report no unsafe workflow patterns?
+12. Do tests fail or report missing coverage if synthetic workflow text omits `tests/test_project_reports.py`?
+13. Do tests fail or report missing coverage if synthetic workflow text omits local execution loop gate commands?
+14. Do tests fail or report unsafe patterns when synthetic workflow text contains write permissions, push/commit/PR mutation, model API calls, autonomous agent invocations, self-hosted runner labels, sample execution, harness execution, or full `solve_reports/` scans?
+15. Did implementation stay within allowed source/test/config files and generated artifacts?
+16. Were forbidden and preserve-only files not modified?
+17. Did local execution bundle remain current, evidence-only, non-executable, non-dispatching, non-mutating, and command-plan aligned?
+18. Did codex prompt packet remain current and non-executable?
+19. Did audit precheck preserve `READY_FOR_GPT_AUDIT` and `DO_NOT_ACCEPT`/blocking semantics?
+20. Did audit readiness remain `READY`, `ACCEPTED`, and `no_action_required` after closeout?
+21. Did report-summary match pytest, changed files, generated artifacts, decision ID, round ID, workflow updates, and `ci_workflow_coverage_result.json` status?
+22. Did execution-log align with command-plan and pytest_result, with no omitted command executed?
+23. Did final-check pass?
+24. Did run-closeout pass, close-round become `CLOSED`, and post-closeout final-check pass?
+25. Did the report clearly state that this round only updated bounded GitHub workflow validation and did not implement Web/API/Runner/User Solve/IDA/MCP/reverse-solving capability?
 
-Do not answer with placeholder text or unsupported claims.
+Do not answer audit items with TODO, TBD, PENDING, placeholders, speculative claims, or unsupported statements.
 
 ## 6. Implementation Scope
 
-Allowed source/test changes:
+Allowed source/test/config changes:
 
+- `.github/workflows/ci.yml`
+- `.github/workflows/state-gate.yml`
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
 - `tests/test_project_reports.py`
@@ -267,42 +320,38 @@ Allowed generated or updated artifacts:
 - `project_state/execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260702_ci_workflow_coverage_audit_gate_v1/*`
+- `project_state/rounds/round_20260702_ci_workflow_update_from_coverage_audit_v1/*`
 
 Required behavior:
 
-1. Add or repair a bounded project-gate command such as `ci-workflow-coverage` that writes `project_state/gates/ci_workflow_coverage_result.json`.
-2. The command must read workflow files without modifying them.
-3. The output artifact must include:
-   - schema_version;
-   - artifact_name;
-   - gate_name;
-   - gate_status;
-   - decision_id;
-   - round_id;
-   - report_id;
-   - generated_at;
-   - inspected_workflows;
-   - required_coverage;
-   - observed_coverage;
-   - missing_coverage;
-   - unsafe_patterns_checked;
-   - unsafe_patterns_found;
-   - recommendation;
-   - evidence_only;
-   - executable;
-   - can_execute;
-   - can_dispatch;
-   - mutates_state;
-   - warnings;
-   - errors.
-4. The gate should distinguish structural gate success from workflow coverage completeness. Example: artifact generation can pass while recommendation says `WORKFLOW_UPDATE_RECOMMENDED` if current workflows omit coverage.
-5. Add tests for valid current workflow parsing.
-6. Add tests with synthetic workflow text where required coverage is missing.
-7. Add tests with synthetic workflow text where unsafe patterns are present.
-8. Add final-check/report-summary integration if needed so the new artifact is not orphaned.
-9. Preserve local execution bundle, codex prompt packet, audit precheck, current handoff, audit inventory, audit readiness, execution-log, final-check, and closeout behavior.
-10. Do not update `.github/workflows/*`.
+1. Update existing workflow files rather than creating duplicate CI concepts.
+2. Keep workflow permissions minimal, preferably `contents: read` only.
+3. Keep workflows on GitHub-hosted Ubuntu runners. Do not add self-hosted runners in this round.
+4. Ensure `ci.yml` remains a baseline validation workflow. It may add `tests/test_project_reports.py` to focused pytest if needed.
+5. Ensure `state-gate.yml` includes a focused pytest command covering `tests/test_project_gate.py`, `tests/test_project_reports.py`, and `tests/test_project_state.py`.
+6. Ensure `state-gate.yml` includes bounded project-gate validation for audit inventory, audit readiness, current handoff, local execution bundle, codex prompt packet, audit precheck, report-summary, execution-log, and final-check.
+7. If any gate command would write tracked artifacts in the CI checkout, ensure the workflow still does not commit, push, upload current-state evidence as authoritative, or mutate remote state. Ephemeral workspace artifacts are acceptable only as validation output.
+8. Preserve or update workflow static validation tests so missing coverage and unsafe patterns are caught.
+9. Regenerate `ci_workflow_coverage_result.json` after workflow changes and require missing coverage to be empty for required coverage in this round.
+10. Keep `unsafe_patterns_found` empty.
+11. Preserve local execution bundle, codex prompt packet, audit precheck, audit readiness, report-summary, execution-log, final-check, and closeout behavior.
+12. Do not refactor unrelated project-gate areas.
+13. Do not implement any User Solve Layer, IDA/MCP, Web/API, runner, scheduler, service, queue, database, external model call, or reverse-solving capability.
+
+Expected workflow coverage minimum:
+
+- `python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q`
+- `python -m reverse_agent.project_gate preflight --state-dir project_state`
+- `python -m reverse_agent.project_gate command-plan --state-dir project_state`
+- `python -m reverse_agent.project_gate audit-inventory --state-dir project_state`
+- `python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state`
+- `python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state`
+- `python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state`
+- `python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state`
+- `python -m reverse_agent.project_gate audit-precheck --state-dir project_state`
+- `python -m reverse_agent.project_gate report-summary --state-dir project_state`
+- `python -m reverse_agent.project_gate execution-log --state-dir project_state`
+- `python -m reverse_agent.project_gate final-check --state-dir project_state`
 
 ## 7. Tests
 
@@ -344,25 +393,28 @@ python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/
 Required closeout path:
 
 ```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_workflow_coverage_audit_gate_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_workflow_update_from_coverage_audit_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
 Required regression coverage:
 
-- valid current workflow files produce a current `ci_workflow_coverage_result.json`;
+- current workflow files produce a current `ci_workflow_coverage_result.json` with no missing required coverage;
+- current workflow files produce `unsafe_patterns_found: []`;
 - synthetic workflow missing `tests/test_project_reports.py` is reported as missing coverage;
 - synthetic workflow missing `local-execution-bundle` is reported as missing coverage;
 - synthetic workflow missing `codex-prompt-packet` is reported as missing coverage;
 - synthetic workflow missing `audit-precheck` is reported as missing coverage;
-- synthetic workflow missing `report-summary` or `final-check` is reported as missing coverage;
-- synthetic workflow with unsafe remote mutation or autonomous-agent patterns is reported unsafe;
-- current local execution bundle remains valid;
-- current codex prompt packet remains valid;
+- synthetic workflow missing `report-summary` or `execution-log` is reported as missing coverage;
+- synthetic workflow missing `final-check` is reported as missing coverage;
+- synthetic workflow with unsafe remote mutation or autonomous-agent/model-call/self-hosted/sample/harness/full-solve-reports patterns is reported unsafe;
+- local execution bundle remains valid;
+- codex prompt packet remains valid;
 - audit precheck remains valid;
+- audit readiness remains `READY` / `ACCEPTED` / `no_action_required` after closeout;
 - final-check and closeout exit 0 in accepted state.
 
-Write all top-level commands, exit codes, and pytest pass/fail counts to `project_state/pytest_result.txt`.
+Write all top-level commands, exit codes, pytest pass/fail counts, and any skipped command with reason to `project_state/pytest_result.txt`.
 
 The Tests section does not itself authorize execution. If Tests and `command_plan.json` conflict, `command_plan.json` is authoritative.
 
@@ -371,36 +423,39 @@ The Tests section does not itself authorize execution. If Tests and `command_pla
 Stop with `BLOCKED` if:
 
 - startup path or repository root is wrong;
-- startup `git status --short` has dirty source/test files outside the allowed baseline;
+- startup `git status --short` has dirty source/test/config files outside the allowed baseline;
 - startup-snapshot is not immediate after startup status commands;
 - any project gate runs before startup-snapshot;
 - decision metadata or skill profile is invalid;
-- command-plan is missing, unsafe, or omits the new `ci-workflow-coverage` gate when required;
-- implementing the gate requires modifying `.github/workflows/*`;
-- implementing the gate requires preserve-only modules or forbidden paths;
-- implementing the gate requires runner, dispatcher, scheduler, Web/API, database, queue, self-hosted runner controller, external integration, model API caller, remote executor, or reverse-solving behavior.
+- command-plan is missing, unsafe, or omits the required workflow-update and `ci-workflow-coverage` validation commands;
+- workflow update requires adding self-hosted runners, remote mutation, model API calls, autonomous agent execution, sample execution, harness execution, full `solve_reports/` scanning, Web/API, runner, dispatcher, scheduler, service, queue, database, IDA/Ghidra/OllyDbg, User Solve Layer, IDA MCP, or reverse-solving behavior;
+- current workflow behavior cannot be statically validated with bounded tests.
 
 Stop with `REWORK_REQUIRED` if:
 
-- `ci_workflow_coverage_result.json` is missing, stale, malformed, or not current-round aligned;
-- the artifact does not inspect both workflow files when they exist;
-- the artifact does not report required coverage, observed coverage, missing coverage, unsafe patterns checked, unsafe patterns found, and recommendation;
-- the artifact is executable, dispatching, mutating, or claims command authority;
-- tests do not cover missing required workflow coverage;
-- tests do not cover unsafe workflow patterns;
-- `.github/workflows/*` is modified;
+- `.github/workflows/ci.yml` or `.github/workflows/state-gate.yml` is malformed;
+- duplicate workflow concepts are created unnecessarily;
+- workflow permissions are broader than needed without explicit justification;
+- workflows can push, commit, create PRs, call model APIs, run autonomous agents, use self-hosted runners, run sample solving, run harnesses, start services/databases/queues, or scan full `solve_reports/`;
+- `tests/test_project_reports.py` is still missing from workflow coverage;
+- any required local execution loop gate remains missing from workflow coverage;
+- `ci_workflow_coverage_result.json` is missing, stale, malformed, not current-round aligned, or still has missing required coverage;
+- `ci_workflow_coverage_result.json.unsafe_patterns_found` is nonempty;
+- workflow static validation tests are missing or do not fail on omitted required coverage;
+- workflow static validation tests are missing or do not fail on unsafe patterns;
+- source/test/config changes exceed allowed files;
+- forbidden or preserve-only files are modified;
 - local execution bundle regresses;
 - codex prompt packet regresses;
 - audit precheck regresses;
 - audit readiness regresses from `READY` / `ACCEPTED` / `no_action_required`;
-- report-summary omits the new artifact status;
+- report-summary omits workflow update or `ci_workflow_coverage_result.json` status;
 - execution-log does not align with command-plan and pytest_result;
 - final-check fails;
 - run-closeout fails;
 - close-round is not `CLOSED`;
 - closeout nested failure scan finds active failures;
-- forbidden files are modified;
 - report status is `SUCCESS` without real pytest and gate evidence.
 
-If all required local tests and gates pass, accept the round even if the new workflow coverage artifact recommends a future workflow-update decision. That recommendation is planning evidence, not failure of this audit-gate round.
+If all required local tests and gates pass but actual GitHub Actions execution is not observed in this local round, the report may still recommend `ACCEPTED` as long as it clearly states that workflows were statically validated locally and not proven by a live GitHub Actions run.
 ```
