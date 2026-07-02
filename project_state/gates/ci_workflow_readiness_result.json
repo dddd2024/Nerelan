@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "artifact_name": "ci_workflow_readiness_result.json",
+  "gate_name": "ci-workflow-readiness",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+  "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
+  "report_id": "codex_report_20260702_ci_preflight_and_workflow_readiness_v1",
+  "generated_at": "2026-07-02T08:04:09.285887Z",
+  "readiness_status": "READY",
+  "recommendation": "NO_ACTION_REQUIRED",
+  "required_workflows": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml"
+  ],
+  "inspected_workflows": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "exists": true,
+      "read_only_input": true,
+      "modified": true,
+      "sha256": "b15e0a23ea680393a8ffa5d0a39ee630dc588a98fcbfbb7e1f4810f208873db7",
+      "size_bytes": 716,
+      "line_count": 32
+    },
+    {
+      "path": ".github/workflows/state-gate.yml",
+      "exists": true,
+      "read_only_input": true,
+      "modified": true,
+      "sha256": "6d1205334a40bb79b71e1d9abb637ff0e0aa29e8fe40d18f078834139ea728b0",
+      "size_bytes": 2697,
+      "line_count": 80
+    },
+    {
+      "path": ".github/workflows/decision-preflight.yml",
+      "exists": true,
+      "read_only_input": true,
+      "modified": true,
+      "sha256": "808b7f28edae6f92706069f1d082e4149db4bd462f80fc817644090d39420a62",
+      "size_bytes": 1263,
+      "line_count": 43
+    }
+  ],
+  "coverage_gate_status": "PASSED",
+  "coverage_recommendation": "NO_ACTION_REQUIRED",
+  "missing_coverage": [],
+  "unsafe_patterns_found": [],
+  "workflow_files_dirty": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml"
+  ],
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/ci_workflow_readiness_result.json"
+  ]
+}

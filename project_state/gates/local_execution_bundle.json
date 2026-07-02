@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-  "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
-  "report_id": "codex_report_20260702_ci_workflow_coverage_audit_gate_v1",
+  "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+  "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
+  "report_id": "codex_report_20260702_ci_preflight_and_workflow_readiness_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-02T06:42:46.759904Z",
+  "generated_at": "2026-07-02T08:04:42.736088Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-    "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+    "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+    "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -45,28 +45,20 @@
     "source_files": [
       "reverse_agent/project_gate.py",
       "tests/test_project_gate.py",
-      "tests/test_project_reports.py"
+      "tests/test_project_reports.py",
+      "tests/test_project_jobs.py"
     ],
     "generated_or_updated_artifacts": [
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
       "project_state/gates/*.json",
-      "project_state/rounds/round_20260702_ci_workflow_coverage_audit_gate_v1/*"
+      "project_state/rounds/round_20260702_ci_preflight_and_workflow_readiness_v1/*"
     ]
   },
   "forbidden_scope": {
-    "preserve_only_files": [
-      "reverse_agent/project_agent_runner.py",
-      "reverse_agent/project_control_plane.py",
-      "reverse_agent/project_jobs.py",
-      "reverse_agent/project_runner_contract.py",
-      "reverse_agent/project_audits.py",
-      "reverse_agent/project_rounds.py",
-      "reverse_agent/project_state.py"
-    ],
+    "preserve_only_files": [],
     "forbidden_mutated_paths": [
-      ".github/workflows/*",
       "project_state/current_state.json",
       "project_state/task_packet.json",
       "project_state/artifact_index.json",
@@ -130,85 +122,85 @@
     },
     {
       "index": 8,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 10,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "required": true
-    },
-    {
-      "index": 11,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "kind": "audit-inventory",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 12,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 13,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 14,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "kind": "local-execution-bundle",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 15,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "kind": "codex-prompt-packet",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 16,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "kind": "audit-precheck",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 17,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 18,
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 17,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 19,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "kind": "ci-workflow-coverage",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+      "kind": "ci-workflow-readiness",
       "phase": "gate",
       "required": true
     },
@@ -221,16 +213,16 @@
     },
     {
       "index": 21,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
       "required": true
     },
     {
       "index": 22,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_workflow_coverage_audit_gate_v1",
-      "kind": "run-closeout",
-      "phase": "gate",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_preflight_and_workflow_readiness_v1",
+      "kind": "preflight",
+      "phase": "preflight",
       "required": true
     },
     {
@@ -243,8 +235,7 @@
   ],
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q"
     ],
     "includes_project_reports": true
   },
@@ -265,11 +256,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-    "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+    "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+    "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "599f8fb8c2fdfc08d88393ab4b868c09224abd98eb1914d024a7dbf9f1865895"
+    "sha256": "8de4cebcdf79a6632e897b0b6c705115dd7d9294dec3f7925a670d042a499f2e"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -283,8 +274,8 @@
     "artifact": "project_state/gates/audit_inventory_result.json",
     "gate_status": "PASSED",
     "inventory_validation_status": "PASSED",
-    "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-    "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+    "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+    "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
     "current": true
   },
   "audit_readiness_status": {
@@ -293,8 +284,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-    "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+    "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+    "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -302,7 +293,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1"
+    "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

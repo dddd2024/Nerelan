@@ -3,10 +3,10 @@
   "artifact_name": "audit_inventory_result.json",
   "gate_name": "audit-inventory",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-  "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+  "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+  "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-02T06:42:11.555068Z",
+  "generated_at": "2026-07-02T08:04:08.893950Z",
   "inventory_validation_status": "PASSED",
   "audit_count": 4,
   "outcome_counts": {

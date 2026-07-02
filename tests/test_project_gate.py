@@ -44,6 +44,7 @@ from reverse_agent.project_gate import (
     _audit_inventory_gate_check,
     _audit_precheck_gate_check,
     _ci_workflow_coverage_gate_check,
+    _ci_workflow_readiness_gate_check,
     _codex_prompt_packet_gate_check,
     _current_handoff_packet_gate_check,
     _local_execution_bundle_gate_check,
@@ -76,9 +77,11 @@ from reverse_agent.project_gate import (
     command_plan,
     execute_decision,
     final_check,
+    gate_profile,
     audit_readiness_packet,
     audit_precheck,
     ci_workflow_coverage,
+    ci_workflow_readiness,
     codex_prompt_packet,
     current_handoff_packet,
     local_execution_bundle,
@@ -17138,6 +17141,7 @@ def test_run_closeout_constants_and_allowlist():
             "codex-prompt-packet",
             "audit-precheck",
             "ci-workflow-coverage",
+            "ci-workflow-readiness",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -27484,7 +27488,73 @@ def test_closeout_report_covers_control_plane_and_historical_audit_artifacts(tmp
     assert "project_state/gates/agent_runner_dry_run_result.json" in synthesized["generated_artifacts"]
 
 
-def _write_ci_coverage_workflows(repo_root: Path, *, state_gate_body: str, ci_body: str | None = None) -> None:
+def test_closeout_report_refresh_uses_closed_successful_run_closeout(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_gate_state(
+        tmp_path,
+        status="FAILED",
+        acceptance="REWORK_REQUIRED",
+    )
+    gates_dir = state_dir / "gates"
+    _write_json(
+        gates_dir / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "FAILED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "report_id": "codex_report_gate",
+            "checks": [],
+            "blocking_reasons": [
+                "final_check_stdout_matches_gate_status: recorded final-check stdout does not match gate_status"
+            ],
+            "status_summary": {
+                "report_status": "FAILED",
+                "report_acceptance_recommendation": "REWORK_REQUIRED",
+            },
+        },
+    )
+    _write_json(
+        gates_dir / "run_closeout_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "blocking_reasons": [],
+            "warnings": [],
+            "close_round_result": {
+                "close_status": "CLOSED",
+                "blocking_reasons": [],
+                "warnings": [],
+                "actions": [],
+            },
+        },
+    )
+
+    _refresh_codex_report_for_closeout(
+        state_dir=state_dir,
+        repo_root=tmp_path,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        include_close_snapshot=True,
+    )
+    summary = _read_execution_report_summary(state_dir)
+
+    assert summary["status"] == "SUCCESS"
+    assert summary["acceptance_recommendation"] == "ACCEPTED"
+
+
+def _write_ci_coverage_workflows(
+    repo_root: Path,
+    *,
+    state_gate_body: str,
+    ci_body: str | None = None,
+    decision_preflight_body: str | None = None,
+) -> None:
     workflows_dir = repo_root / ".github" / "workflows"
     workflows_dir.mkdir(parents=True, exist_ok=True)
     (workflows_dir / "ci.yml").write_text(
@@ -27509,6 +27579,29 @@ jobs:
         encoding="utf-8",
     )
     (workflows_dir / "state-gate.yml").write_text(state_gate_body, encoding="utf-8")
+    (workflows_dir / "decision-preflight.yml").write_text(
+        decision_preflight_body
+        or """name: Decision Preflight
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  decision-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install -e .
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q
+""",
+        encoding="utf-8",
+    )
 
 
 def _make_ci_coverage_state(tmp_path: Path) -> Path:
@@ -27520,6 +27613,7 @@ def _make_ci_coverage_state(tmp_path: Path) -> Path:
     )
     contract = {
         "accepted_requires_ci_workflow_coverage_artifact": True,
+        "accepted_requires_ci_workflow_readiness_artifact": True,
         "accepted_requires_workflow_static_validation_tests": True,
         "accepted_requires_existing_workflows_read_only": True,
     }
@@ -27559,8 +27653,10 @@ jobs:
       - run: python -m reverse_agent.project_gate audit-precheck --state-dir project_state
       - run: python -m reverse_agent.project_gate report-summary --state-dir project_state
       - run: python -m reverse_agent.project_gate execution-log --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
       - run: python -m reverse_agent.project_gate final-check --state-dir project_state
-      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q
 """
 
 
@@ -27579,6 +27675,87 @@ def test_ci_workflow_coverage_accepts_complete_read_only_workflows(tmp_path: Pat
     assert (state_dir / "gates" / "ci_workflow_coverage_result.json").exists()
 
 
+def test_ci_workflow_readiness_accepts_complete_workflow_set(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
+
+    result = ci_workflow_readiness(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["readiness_status"] == "READY"
+    assert result["missing_coverage"] == []
+    assert result["unsafe_patterns_found"] == []
+    assert set(result["required_workflows"]) == {
+        ".github/workflows/ci.yml",
+        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
+    }
+    assert (state_dir / "gates" / "ci_workflow_readiness_result.json").exists()
+
+
+def test_ci_workflow_readiness_rejects_missing_required_coverage(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(
+        tmp_path,
+        state_gate_body="""name: State Gate
+permissions:
+  contents: read
+jobs:
+  state-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+""",
+        decision_preflight_body="""name: Decision Preflight
+permissions:
+  contents: read
+jobs:
+  decision-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
+""",
+    )
+
+    result = ci_workflow_readiness(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+
+    assert result["gate_status"] == "FAILED"
+    assert result["readiness_status"] == "REWORK_REQUIRED"
+    assert "audit_inventory" in result["missing_coverage"]
+    assert "required workflow coverage is incomplete" in result["errors"][0]
+
+
+def test_ci_workflow_readiness_gate_check_rejects_incomplete_artifact(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(
+        tmp_path,
+        state_gate_body="""name: State Gate
+permissions:
+  contents: read
+jobs:
+  state-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+    )
+    ci_workflow_readiness(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+
+    check = _ci_workflow_readiness_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_ci_workflow_coverage",
+        round_id="round_ci_workflow_coverage",
+        report_id=_expected_report_id("round_ci_workflow_coverage"),
+        decision_contract={"accepted_requires_ci_workflow_readiness_artifact": True},
+    )
+
+    assert check["status"] == "FAIL"
+    assert "required workflow coverage is incomplete" in check["errors"]
+
+
 def test_ci_workflow_coverage_reports_missing_required_workflow_coverage(tmp_path: Path) -> None:
     state_dir = _make_ci_coverage_state(tmp_path)
     _write_ci_coverage_workflows(
@@ -27593,6 +27770,17 @@ jobs:
       - run: python -m reverse_agent.project_gate preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
 """,
+        decision_preflight_body="""name: Decision Preflight
+permissions:
+  contents: read
+jobs:
+  decision-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
+""",
     )
 
     result = ci_workflow_coverage(state_dir=state_dir, repo_root=tmp_path, write_result=False)
@@ -27606,6 +27794,31 @@ jobs:
     assert "audit_precheck" in missing
     assert "report_summary" in missing
     assert "final_check" in missing
+
+
+def test_command_plan_includes_ci_workflow_readiness_when_requested(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\n## Tests\n\n```powershell\npython -m reverse_agent.project_gate final-check --state-dir project_state\n```\n",
+        encoding="utf-8",
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    commands = [item["command"] for item in result["commands"]]
+    assert "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state" in commands
+
+
+def test_gate_profile_uses_decision_contract_allowed_source_files(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    gate_profile(state_dir=state_dir)
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["profile_meta"]["profile"] == "full"
+    assert result["profile_meta"]["closeout_allowed"] is True
 
 
 def test_ci_workflow_coverage_flags_unsafe_synthetic_workflow_patterns(tmp_path: Path) -> None:

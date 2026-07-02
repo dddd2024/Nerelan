@@ -36,5 +36,8 @@ jobs:
       - name: Project gate command plan
         run: python -m reverse_agent.project_gate command-plan --state-dir project_state
 
+      - name: CI workflow readiness
+        run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
+
       - name: Focused preflight tests
-        run: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
+        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q

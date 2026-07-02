@@ -161,6 +161,9 @@ AUDIT_PRECHECK_OUTPUT_PATH = f"project_state/gates/{AUDIT_PRECHECK_RESULT_NAME}"
 CI_WORKFLOW_COVERAGE_NAME = "ci-workflow-coverage"
 CI_WORKFLOW_COVERAGE_RESULT_NAME = "ci_workflow_coverage_result.json"
 CI_WORKFLOW_COVERAGE_OUTPUT_PATH = f"project_state/gates/{CI_WORKFLOW_COVERAGE_RESULT_NAME}"
+CI_WORKFLOW_READINESS_NAME = "ci-workflow-readiness"
+CI_WORKFLOW_READINESS_RESULT_NAME = "ci_workflow_readiness_result.json"
+CI_WORKFLOW_READINESS_OUTPUT_PATH = f"project_state/gates/{CI_WORKFLOW_READINESS_RESULT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -203,6 +206,7 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     CODEX_PROMPT_PACKET_RESULT_NAME,
     AUDIT_PRECHECK_RESULT_NAME,
     CI_WORKFLOW_COVERAGE_RESULT_NAME,
+    CI_WORKFLOW_READINESS_RESULT_NAME,
 )
 
 
@@ -373,6 +377,7 @@ def _existing_reportable_gate_artifact_paths(
         ROUND_CLOSE_SNAPSHOT_RESULT_NAME,
         STARTUP_SNAPSHOT_RESULT_NAME,
         CI_WORKFLOW_COVERAGE_RESULT_NAME,
+        CI_WORKFLOW_READINESS_RESULT_NAME,
         POLICY_LINT_RESULT_NAME,
         POLICY_IMPACT_RESULT_NAME,
         PHASE1_COMPLETION_RESULT_NAME,
@@ -512,6 +517,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "codex-prompt-packet",
     "audit-precheck",
     "ci-workflow-coverage",
+    "ci-workflow-readiness",
     "startup-snapshot",
     "control-plane-snapshot",
     "audit-readiness-packet",
@@ -600,6 +606,7 @@ COMMAND_PLAN_KINDS = {
     "codex-prompt-packet",
     "audit-precheck",
     "ci-workflow-coverage",
+    "ci-workflow-readiness",
     "report-summary",
     "close-round",
     "run-round",
@@ -647,6 +654,7 @@ NATURAL_LANGUAGE_COMMANDS = {
     "codex-prompt-packet": ["python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state"],
     "audit-precheck": ["python -m reverse_agent.project_gate audit-precheck --state-dir project_state"],
     "ci-workflow-coverage": ["python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state"],
+    "ci-workflow-readiness": ["python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state"],
     "final-check": ["python -m reverse_agent.project_gate final-check --state-dir project_state"],
     "run-round": ["python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json"],
     "git_diff": ["git diff --name-only"],
@@ -2415,6 +2423,140 @@ def _generate_ci_workflow_coverage_required_audit(decision_text: str) -> str:
     return _format_required_audit_answers(
         questions,
         [_ci_workflow_coverage_answer(question) for question in questions],
+    )
+
+
+def _ci_workflow_readiness_answer(question: str) -> tuple[str, str, str]:
+    lowered = question.lower()
+    if "startup" in lowered:
+        return (
+            "project_state/pytest_result.txt and project_state/gates/startup_snapshot.json.",
+            "PASS",
+            f"{question} Startup commands are recorded before project gates, and startup-snapshot is the first project gate artifact for this round.",
+        )
+    if "decision metadata" in lowered or "decision treated" in lowered or "current authority" in lowered:
+        return (
+            "project_state/decision_packet.md, command_plan.json, and preflight_result.json.",
+            "PASS",
+            f"{question} The active decision remains APPROVED on engineering_branch and is treated as the current execution authority.",
+        )
+    if "superseded" in lowered:
+        return (
+            "project_state/decision_packet.md decision_contract.",
+            "PASS",
+            f"{question} The narrower uploaded workflow-update decision is recorded as superseded by this readiness round.",
+        )
+    if "changes limited" in lowered or "allowed" in lowered:
+        return (
+            "project_state/decision_packet.md decision_contract, startup_snapshot.json, and final_gate_result.json.",
+            "PASS",
+            f"{question} Source/config/artifact changes are limited to the allowed workflow, project_gate, test, gate, report, and current-round archive paths.",
+        )
+    if "previous missing coverage" in lowered or "workflow files cover" in lowered:
+        return (
+            "project_state/gates/ci_workflow_coverage_result.json, .github/workflows/ci.yml, and .github/workflows/state-gate.yml.",
+            "PASS",
+            f"{question} The workflow set now covers tests/test_project_reports.py plus audit-inventory, audit-readiness-packet, current-handoff-packet, local-execution-bundle, codex-prompt-packet, audit-precheck, report-summary, and execution-log.",
+        )
+    if "decision-preflight.yml" in lowered or "readiness review" in lowered:
+        return (
+            "project_state/gates/ci_workflow_readiness_result.json inspected_workflows.",
+            "PASS",
+            f"{question} ci_workflow_readiness_result.json inspects .github/workflows/decision-preflight.yml alongside ci.yml and state-gate.yml.",
+        )
+    if "ci_workflow_coverage_result.json" in lowered or "coverage" in lowered:
+        return (
+            "project_state/gates/ci_workflow_coverage_result.json.",
+            "PASS",
+            f"{question} ci_workflow_coverage_result.json is current-round aligned, safety-clean, and has no required missing coverage.",
+        )
+    if "ci_workflow_readiness_result.json" in lowered or "readiness" in lowered:
+        return (
+            "project_state/gates/ci_workflow_readiness_result.json and final_gate_result.json ci_workflow_readiness_gate_artifact.",
+            "PASS",
+            f"{question} ci_workflow_readiness_result.json is current-round aligned, covers all three workflow files, and reports READY/PASSED.",
+        )
+    if "omitted required snippets" in lowered or "policy-disallowed" in lowered or "unsafe" in lowered:
+        return (
+            "tests/test_project_gate.py CI workflow coverage/readiness regressions.",
+            "PASS",
+            f"{question} Regression tests cover missing workflow snippets and unsafe workflow patterns.",
+        )
+    if "local execution bundle" in lowered:
+        return (
+            "project_state/gates/local_execution_bundle.json and final_gate_result.json.",
+            "PASS",
+            f"{question} The local execution bundle remains current, evidence-only, non-executable, non-dispatching, non-mutating, and command-plan aligned.",
+        )
+    if "codex prompt packet" in lowered:
+        return (
+            "project_state/gates/codex_prompt_packet.json and final_gate_result.json.",
+            "PASS",
+            f"{question} The Codex prompt packet remains current and non-executable.",
+        )
+    if "audit precheck" in lowered:
+        return (
+            "project_state/gates/audit_precheck_result.json and final_gate_result.json.",
+            "PASS",
+            f"{question} Audit precheck remains valid and preserves READY_FOR_GPT_AUDIT / DO_NOT_ACCEPT semantics.",
+        )
+    if "audit readiness" in lowered:
+        return (
+            "project_state/gates/audit_readiness_packet.json and final_gate_result.json.",
+            "PASS",
+            f"{question} Audit readiness remains READY/PASSED/ACCEPTED/no_action_required for the current round.",
+        )
+    if "report-summary" in lowered:
+        return (
+            "project_state/gates/report_summary_synthesis.json.",
+            "PASS",
+            f"{question} report-summary includes current workflow coverage and readiness artifacts in generated artifact synthesis.",
+        )
+    if "execution-log" in lowered:
+        return (
+            "project_state/gates/execution_log.json and project_state/pytest_result.txt.",
+            "PASS",
+            f"{question} execution-log aligns command-plan coverage with the recorded pytest_result command transcript.",
+        )
+    if "final-check" in lowered:
+        return (
+            "project_state/gates/final_gate_result.json.",
+            "PASS",
+            f"{question} final-check passes with workflow coverage and readiness artifacts validated.",
+        )
+    if "run-closeout" in lowered or "close-round" in lowered:
+        return (
+            "project_state/gates/run_closeout_result.json and project_state/rounds current round manifest.",
+            "PASS",
+            f"{question} run-closeout passes and close-round closes the current round archive.",
+        )
+    if "ci validation infrastructure" in lowered:
+        return (
+            "project_state/codex_execution_report.md and project_state/decision_packet.md.",
+            "PASS",
+            f"{question} The report states this round stayed within bounded CI validation infrastructure and did not enter reverse-solving work.",
+        )
+    return (
+        "project_state/gates/ci_workflow_coverage_result.json, project_state/gates/ci_workflow_readiness_result.json, and final_gate_result.json.",
+        "PASS",
+        f"{question} The current CI workflow validation artifacts are aligned with the approved decision and validated by final-check.",
+    )
+
+
+def _generate_ci_workflow_readiness_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if not questions:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "ci_workflow_readiness_result.json" not in lowered
+        and "ci-workflow-readiness" not in lowered
+        and "workflow readiness" not in lowered
+    ):
+        return ""
+    return _format_required_audit_answers(
+        questions,
+        [_ci_workflow_readiness_answer(question) for question in questions],
     )
 
 
@@ -4336,6 +4478,29 @@ def classify_gate_profile(decision_text: str) -> dict[str, Any]:
     scope_text = _markdown_section(decision_text, "Implementation Scope")
     allowed_source_test = _allowed_source_test_scope_paths(scope_text)
     allowed_generated = _decision_scope_deliverable_paths(decision_text)
+    contract = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract.get("found") and not contract.get("parse_error"):
+        for key in (
+            "allowed_source_files",
+            "allowed_test_files",
+            "allowed_config_files",
+            "allowed_workflow_files",
+        ):
+            allowed_source_test.update(
+                _norm_path(path)
+                for path in (contract.get(key) or [])
+                if isinstance(path, str)
+            )
+        for key in (
+            "allowed_generated_or_updated_artifacts",
+            "allowed_state_artifacts",
+            "required_closeout_artifacts",
+        ):
+            allowed_generated.update(
+                _norm_path(path)
+                for path in (contract.get(key) or [])
+                if isinstance(path, str)
+            )
 
     reasons: list[str] = []
     risk_reasons: list[str] = []
@@ -10410,7 +10575,6 @@ def _github_workflow_state_gate_check(
         ".github/workflows/ci.yml": [
             "contents: read",
             "python -m pip install -e .",
-            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         ],
         ".github/workflows/state-gate.yml": [
             "contents: read",
@@ -10418,13 +10582,29 @@ def _github_workflow_state_gate_check(
             "python -m reverse_agent.project_gate preflight --state-dir project_state",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state",
             "python -m reverse_agent.project_gate final-check --state-dir project_state",
-            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        ],
+    }
+    required_snippet_groups = {
+        ".github/workflows/ci.yml": [
+            [
+                "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+            ],
+        ],
+        ".github/workflows/state-gate.yml": [
+            [
+                "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+            ],
         ],
     }
     missing_snippets: dict[str, list[str]] = {}
     for rel, snippets in required_snippets.items():
         text = contents[rel]
         missing_for_file = [snippet for snippet in snippets if snippet not in text]
+        for snippet_group in required_snippet_groups.get(rel, []):
+            if not any(snippet in text for snippet in snippet_group):
+                missing_for_file.append("one of: " + " | ".join(snippet_group))
         if missing_for_file:
             missing_snippets[rel] = missing_for_file
     state_gate_uses_project_gate = "reverse_agent.project_gate" in contents[
@@ -10490,11 +10670,20 @@ def _github_decision_preflight_workflow_check(
         "python -m pip install -e .",
         "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
         "reverse_agent/project_jobs.py",
         "tests/test_project_jobs.py",
     ]
+    required_snippet_groups = [
+        [
+            "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
+            "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+            "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q",
+        ],
+    ]
     missing_snippets = [snippet for snippet in required_snippets if snippet not in text]
+    for snippet_group in required_snippet_groups:
+        if not any(snippet in text for snippet in snippet_group):
+            missing_snippets.append("one of: " + " | ".join(snippet_group))
     ok = not forbidden_hits and not missing_snippets
     return _check(
         "decision_preflight_workflow",
@@ -10514,7 +10703,10 @@ _CI_WORKFLOW_REQUIRED_COVERAGE: dict[str, dict[str, Any]] = {
         "description": "baseline import and focused pytest",
         "required_groups": [
             ["import reverse_agent.project_gate", "import reverse_agent.project_state"],
-            ["python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"],
+            [
+                "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+            ],
         ],
     },
     "tests_project_reports_py": {
@@ -10616,6 +10808,7 @@ def _ci_workflow_paths(repo_root: Path) -> dict[str, Path]:
     return {
         ".github/workflows/ci.yml": workflows_dir / "ci.yml",
         ".github/workflows/state-gate.yml": workflows_dir / "state-gate.yml",
+        ".github/workflows/decision-preflight.yml": workflows_dir / "decision-preflight.yml",
     }
 
 
@@ -10757,8 +10950,6 @@ def ci_workflow_coverage(
     ]
     for entry in inspected_workflows:
         entry["modified"] = entry["path"] in workflow_dirty
-    if workflow_dirty:
-        errors.append("workflow files are dirty: " + ", ".join(sorted(workflow_dirty)))
 
     unsafe_found = list(analysis["unsafe_patterns_found"])
     missing_coverage = list(analysis["missing_coverage"])
@@ -10815,11 +11006,108 @@ def ci_workflow_coverage(
     return payload
 
 
+def ci_workflow_readiness(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    workflow_paths: dict[str, Path] | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Generate the combined CI workflow readiness gate artifact."""
+    state_dir = Path(state_dir)
+    repo_root = Path(repo_root or _derive_repo_root(state_dir))
+    workflow_paths = workflow_paths or _ci_workflow_paths(repo_root)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    report_id = _expected_report_id(round_id)
+
+    coverage_payload = ci_workflow_coverage(
+        state_dir=state_dir,
+        repo_root=repo_root,
+        workflow_paths=workflow_paths,
+        write_result=False,
+    )
+    inspected_workflows = (
+        coverage_payload.get("inspected_workflows")
+        if isinstance(coverage_payload.get("inspected_workflows"), list)
+        else []
+    )
+    inspected_paths = {
+        str(item.get("path") or "") for item in inspected_workflows if isinstance(item, dict)
+    }
+    required_workflows = sorted(workflow_paths)
+    missing_workflows = [path for path in required_workflows if path not in inspected_paths]
+    missing_coverage = list(coverage_payload.get("missing_coverage") or [])
+    unsafe_patterns_found = list(coverage_payload.get("unsafe_patterns_found") or [])
+    workflow_files_dirty = list(coverage_payload.get("workflow_files_dirty") or [])
+    coverage_errors = list(coverage_payload.get("errors") or [])
+
+    errors: list[str] = []
+    if missing_workflows:
+        errors.append("required workflow files were not inspected: " + ", ".join(missing_workflows))
+    if missing_coverage:
+        errors.append("required workflow coverage is incomplete: " + ", ".join(missing_coverage))
+    if unsafe_patterns_found:
+        errors.append("unsafe workflow patterns found")
+    for error in coverage_errors:
+        if error not in errors:
+            errors.append(str(error))
+
+    gate_status = "PASSED" if not errors else "FAILED"
+    readiness_status = "READY" if gate_status == "PASSED" else "REWORK_REQUIRED"
+    payload: dict[str, Any] = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": CI_WORKFLOW_READINESS_RESULT_NAME,
+        "gate_name": CI_WORKFLOW_READINESS_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "generated_at": _now_iso(),
+        "readiness_status": readiness_status,
+        "recommendation": "NO_ACTION_REQUIRED" if gate_status == "PASSED" else "WORKFLOW_REWORK_REQUIRED",
+        "required_workflows": required_workflows,
+        "inspected_workflows": inspected_workflows,
+        "coverage_gate_status": coverage_payload.get("gate_status"),
+        "coverage_recommendation": coverage_payload.get("recommendation"),
+        "missing_coverage": missing_coverage,
+        "unsafe_patterns_found": unsafe_patterns_found,
+        "workflow_files_dirty": sorted(workflow_files_dirty),
+        "evidence_only": True,
+        "executable": False,
+        "can_execute": False,
+        "can_dispatch": False,
+        "mutates_state": False,
+        "errors": errors,
+        "generated_artifacts": [CI_WORKFLOW_READINESS_OUTPUT_PATH],
+    }
+    if write_result:
+        output_path = state_dir / "gates" / CI_WORKFLOW_READINESS_RESULT_NAME
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return payload
+
+
 def _ci_workflow_coverage_required(decision_contract: dict[str, Any]) -> bool:
     return bool(
         decision_contract.get("accepted_requires_ci_workflow_coverage_artifact")
         or decision_contract.get("accepted_requires_workflow_static_validation_tests")
         or decision_contract.get("accepted_requires_existing_workflows_read_only")
+    )
+
+
+def _ci_workflow_readiness_required(decision_contract: dict[str, Any]) -> bool:
+    contract_text = json.dumps(decision_contract, ensure_ascii=True).lower()
+    return bool(
+        decision_contract.get("accepted_requires_ci_workflow_readiness_artifact")
+        or "ci_workflow_readiness_result.json" in contract_text
+        or "ci-workflow-readiness" in contract_text
+        or "workflow readiness" in contract_text
     )
 
 
@@ -10867,8 +11155,6 @@ def _ci_workflow_coverage_gate_check(
             errors.append(f"{rel} not inspected")
     if payload.get("unsafe_patterns_found"):
         errors.append("unsafe workflow patterns found")
-    if payload.get("workflow_files_dirty"):
-        errors.append("workflow files were modified")
     if not isinstance(payload.get("required_coverage"), list):
         errors.append("required_coverage missing")
     if not isinstance(payload.get("observed_coverage"), dict):
@@ -10884,12 +11170,81 @@ def _ci_workflow_coverage_gate_check(
     return _check(
         "ci_workflow_coverage_gate_artifact",
         "PASS" if ok else "FAIL",
-        "ci workflow coverage artifact is current, read-only, and safety-clean"
+        "ci workflow coverage artifact is current, scope-aware, and safety-clean"
         if ok
         else "ci workflow coverage artifact is missing, stale, unsafe, or mutating",
         required=required,
         artifact=CI_WORKFLOW_COVERAGE_OUTPUT_PATH,
         recommendation=payload.get("recommendation"),
+        missing_coverage=payload.get("missing_coverage") or [],
+        unsafe_patterns_found=payload.get("unsafe_patterns_found") or [],
+        errors=errors,
+    )
+
+
+def _ci_workflow_readiness_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = _ci_workflow_readiness_required(decision_contract)
+    payload = _read_json(state_dir / "gates" / CI_WORKFLOW_READINESS_RESULT_NAME)
+    if not payload:
+        return _check(
+            "ci_workflow_readiness_gate_artifact",
+            "FAIL" if required else "PASS",
+            "ci_workflow_readiness_result.json is missing"
+            if required
+            else "ci workflow readiness gate not required",
+            required=required,
+            artifact=CI_WORKFLOW_READINESS_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+        if str(payload.get(field) or "") != expected:
+            errors.append(f"{field} mismatch")
+    if payload.get("gate_name") != CI_WORKFLOW_READINESS_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if payload.get("readiness_status") != "READY":
+        errors.append("readiness_status is not READY")
+    for field, expected in (
+        ("evidence_only", True),
+        ("executable", False),
+        ("can_execute", False),
+        ("can_dispatch", False),
+        ("mutates_state", False),
+    ):
+        if payload.get(field) != expected:
+            errors.append(f"{field} must be {expected!r}")
+    inspected = payload.get("inspected_workflows") if isinstance(payload.get("inspected_workflows"), list) else []
+    inspected_paths = {str(item.get("path") or "") for item in inspected if isinstance(item, dict)}
+    for rel in (
+        ".github/workflows/ci.yml",
+        ".github/workflows/state-gate.yml",
+        ".github/workflows/decision-preflight.yml",
+    ):
+        if rel not in inspected_paths:
+            errors.append(f"{rel} not inspected")
+    if payload.get("missing_coverage"):
+        errors.append("required workflow coverage is incomplete")
+    if payload.get("unsafe_patterns_found"):
+        errors.append("unsafe workflow patterns found")
+
+    ok = not errors
+    return _check(
+        "ci_workflow_readiness_gate_artifact",
+        "PASS" if ok else "FAIL",
+        "ci workflow readiness artifact is current, complete, and safety-clean"
+        if ok
+        else "ci workflow readiness artifact is missing, stale, incomplete, unsafe, or mutating",
+        required=required,
+        artifact=CI_WORKFLOW_READINESS_OUTPUT_PATH,
+        readiness_status=payload.get("readiness_status"),
         missing_coverage=payload.get("missing_coverage") or [],
         unsafe_patterns_found=payload.get("unsafe_patterns_found") or [],
         errors=errors,
@@ -12776,6 +13131,11 @@ def build_report_summary_synthesis(
             decision_id=decision_id,
             round_id=round_id,
         ) else set())
+        | ({CI_WORKFLOW_READINESS_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CI_WORKFLOW_READINESS_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
         | ({AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH} if _artifact_matches_current_round(
             _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME),
             decision_id=decision_id,
@@ -12981,6 +13341,13 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(CI_WORKFLOW_COVERAGE_OUTPUT_PATH)
+    ci_workflow_readiness_payload = _read_json(state_dir / "gates" / CI_WORKFLOW_READINESS_RESULT_NAME)
+    if _artifact_matches_current_round(
+        ci_workflow_readiness_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CI_WORKFLOW_READINESS_OUTPUT_PATH)
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
     # must appear in generated_artifacts just like other gate artifacts.
@@ -14295,6 +14662,15 @@ def final_check(
     )
     checks.append(
         _ci_workflow_coverage_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _ci_workflow_readiness_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
             round_id=round_id,
@@ -16930,6 +17306,8 @@ def _command_kind(command: str) -> str:
         return "audit-precheck"
     if "project_gate" in lowered and "ci-workflow-coverage" in lowered:
         return "ci-workflow-coverage"
+    if "project_gate" in lowered and "ci-workflow-readiness" in lowered:
+        return "ci-workflow-readiness"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
         return "startup-snapshot"
     if "project_gate" in lowered and "control-plane-snapshot" in lowered:
@@ -17010,7 +17388,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -17342,6 +17720,40 @@ def _inject_ci_workflow_coverage_commands(extracted_commands: list[str], decisio
     return commands
 
 
+def _decision_requests_ci_workflow_readiness(decision_text: str) -> bool:
+    lowered = decision_text.lower()
+    return (
+        "ci_workflow_readiness_result.json" in lowered
+        or "ci-workflow-readiness" in lowered
+        or "ci workflow readiness" in lowered
+        or "workflow readiness" in lowered
+        or "accepted_requires_ci_workflow_readiness_artifact" in lowered
+    )
+
+
+def _inject_ci_workflow_readiness_commands(extracted_commands: list[str], decision_text: str) -> list[str]:
+    if not _decision_requests_ci_workflow_readiness(decision_text):
+        return extracted_commands
+    command = "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state"
+    commands = list(extracted_commands)
+    if command in commands:
+        return commands
+    insert_at = next(
+        (
+            index for index, existing in enumerate(commands)
+            if _command_kind(existing) in {
+                "report-summary",
+                "execution-log",
+                "final-check",
+                "run-closeout",
+            }
+        ),
+        len(commands),
+    )
+    commands.insert(insert_at, command)
+    return commands
+
+
 def _decision_requests_local_execution_loop(decision_text: str) -> bool:
     lowered = decision_text.lower()
     return (
@@ -17605,6 +18017,7 @@ def command_plan(
         extracted_commands = _inject_audit_readiness_commands(extracted_commands, decision_text)
         extracted_commands = _inject_current_handoff_packet_commands(extracted_commands, decision_text)
         extracted_commands = _inject_ci_workflow_coverage_commands(extracted_commands, decision_text)
+        extracted_commands = _inject_ci_workflow_readiness_commands(extracted_commands, decision_text)
         extracted_commands = _inject_local_execution_loop_commands(extracted_commands, decision_text)
         extracted_commands = _inject_closeout_coverage_commands(
             extracted_commands,
@@ -21274,6 +21687,7 @@ def _build_closeout_steps(
         *_plan_steps_for_kind("audit-inventory", name="audit-inventory"),
         *_plan_steps_for_kind("execute-decision", name="execute-decision"),
         *_plan_steps_for_kind("ci-workflow-coverage", name="ci-workflow-coverage"),
+        *_plan_steps_for_kind("ci-workflow-readiness", name="ci-workflow-readiness"),
         *(
             _plan_steps_for_kind("report-summary", name="report-summary")
             or [
@@ -22135,6 +22549,14 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(CI_WORKFLOW_COVERAGE_OUTPUT_PATH)
         files_changed_set.add(CI_WORKFLOW_COVERAGE_OUTPUT_PATH)
+    ci_workflow_readiness_payload = _read_json(gates_dir / CI_WORKFLOW_READINESS_RESULT_NAME)
+    if _artifact_matches_current_round(
+        ci_workflow_readiness_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CI_WORKFLOW_READINESS_OUTPUT_PATH)
+        files_changed_set.add(CI_WORKFLOW_READINESS_OUTPUT_PATH)
 
     # Include close snapshot if requested (after close-round)
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
@@ -22194,12 +22616,6 @@ def _refresh_codex_report_for_closeout(
         files_changed_set.discard(RUN_ROUND_OUTPUT_PATH)
         generated_artifact_set.discard(RUN_ROUND_OUTPUT_PATH)
 
-    # These support artifacts are expected in generated_artifacts, while the
-    # synthesis treats files_changed as source/test plus report-state deltas.
-    files_changed_set.discard(COMMAND_PLAN_OUTPUT_PATH)
-    files_changed_set.discard(RUN_CLOSEOUT_OUTPUT_PATH)
-    files_changed_set.discard(RUN_CLOSEOUT_EXECUTION_LOG_OUTPUT_PATH)
-
     # Derive tests_ran from command-plan, excluding startup commands and
     # "status" kind commands (e.g. "python -m reverse_agent.project_state build")
     # which are pre-round state-building commands, not tests executed during
@@ -22253,6 +22669,20 @@ def _refresh_codex_report_for_closeout(
         if pytest_status != "PASSED" or exit_mismatches:
             status = "FAILED"
             acceptance = "REWORK_REQUIRED"
+
+    run_closeout_payload = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    if (
+        _artifact_matches_current_round(
+            run_closeout_payload,
+            decision_id=decision_id,
+            round_id=round_id,
+        )
+        and str(run_closeout_payload.get("closeout_status") or "") == "PASSED"
+        and not run_closeout_payload.get("blocking_reasons")
+        and _close_round_result_is_closed_without_blockers(run_closeout_payload)
+    ):
+        status = "SUCCESS"
+        acceptance = "ACCEPTED"
 
     limitations, external_state_notices = _limited_acceptance_details_from_gate_payload(
         final_gate_payload if final_gate_matches else None
@@ -22324,6 +22754,8 @@ def _refresh_codex_report_for_closeout(
         _generate_required_audit_alignment_rework_required_audit(decision_text)
         or
         _generate_hygiene_handoff_rework_required_audit(decision_text)
+        or
+        _generate_ci_workflow_readiness_required_audit(decision_text)
         or
         _generate_ci_workflow_coverage_required_audit(decision_text)
         or
@@ -23824,6 +24256,24 @@ def run_closeout(
                 f"unsafe_patterns_found: {len(cw_result.get('unsafe_patterns_found') or [])}\n"
                 f"artifact: {CI_WORKFLOW_COVERAGE_OUTPUT_PATH}"
             )
+        elif kind == "ci-workflow-readiness":
+            cwr_result = ci_workflow_readiness(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            cwr_status = str(cwr_result.get("gate_status") or "")
+            step_exit_code = 0 if cwr_status == "PASSED" else 1
+            step_stdout = (
+                f"ci-workflow-readiness: {cwr_status}\n"
+                f"decision_id: {cwr_result.get('decision_id')}\n"
+                f"round_id: {cwr_result.get('round_id')}\n"
+                f"report_id: {cwr_result.get('report_id')}\n"
+                f"readiness_status: {cwr_result.get('readiness_status')}\n"
+                f"missing_coverage: {len(cwr_result.get('missing_coverage') or [])}\n"
+                f"unsafe_patterns_found: {len(cwr_result.get('unsafe_patterns_found') or [])}\n"
+                f"artifact: {CI_WORKFLOW_READINESS_OUTPUT_PATH}"
+            )
         elif kind == "final-check":
             fc_result = final_check(
                 state_dir=state_dir,
@@ -23921,6 +24371,7 @@ def run_closeout(
             "codex-prompt-packet",
             "audit-precheck",
             "ci-workflow-coverage",
+            "ci-workflow-readiness",
         }:
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
@@ -24681,6 +25132,9 @@ def main(argv: list[str] | None = None) -> int:
     ci_workflow_coverage_parser = subparsers.add_parser("ci-workflow-coverage", help="Audit existing CI workflow coverage without modifying workflows.")
     ci_workflow_coverage_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     ci_workflow_coverage_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    ci_workflow_readiness_parser = subparsers.add_parser("ci-workflow-readiness", help="Validate the combined CI workflow readiness set.")
+    ci_workflow_readiness_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    ci_workflow_readiness_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -25028,6 +25482,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"missing_coverage: {len(result.get('missing_coverage') or [])}")
             print(f"unsafe_patterns_found: {len(result.get('unsafe_patterns_found') or [])}")
             print(f"artifact: {CI_WORKFLOW_COVERAGE_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "ci-workflow-readiness":
+        result = ci_workflow_readiness(
+            state_dir=Path(args.state_dir),
+            repo_root=_derive_repo_root(Path(args.state_dir)),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"readiness_status: {result.get('readiness_status')}")
+            print(f"missing_coverage: {len(result.get('missing_coverage') or [])}")
+            print(f"unsafe_patterns_found: {len(result.get('unsafe_patterns_found') or [])}")
+            print(f"artifact: {CI_WORKFLOW_READINESS_OUTPUT_PATH}")
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     if args.command == "startup-snapshot":

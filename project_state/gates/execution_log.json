@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-  "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
-  "report_id": "codex_report_20260702_ci_workflow_coverage_audit_gate_v1",
-  "generated_at": "2026-07-02T06:42:41.763339Z",
+  "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+  "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
+  "report_id": "codex_report_20260702_ci_preflight_and_workflow_readiness_v1",
+  "generated_at": "2026-07-02T08:04:37.893201Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-    "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
-    "report_id": "codex_report_20260702_ci_workflow_coverage_audit_gate_v1",
+    "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+    "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
+    "report_id": "codex_report_20260702_ci_preflight_and_workflow_readiness_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "70e6558f157e066f465d8038a0e1ce193d37d8d7131c3c4e3f0f9232782b0c49",
-        "size_bytes": 23900,
-        "command_block_count": 22
+        "sha256": "3122ca90808d10c7c2e26ed76b4827aa261f1b81e3136675a5e8f41d399ed9f6",
+        "size_bytes": 21604,
+        "command_block_count": 23
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "9ac7dd2160fc2ccae881249d7af64e10e847234f2a94b04042946e1a654afa17",
-        "size_bytes": 10370,
-        "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-        "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+        "sha256": "23e281ad55c3ae1d481a70c7431d9b6255fe3fd18f97734bf7ae3bf8af35d0a0",
+        "size_bytes": 10430,
+        "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+        "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
         "plan_status": "PASSED",
         "command_count": 23
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "58138cb118c6613261c5aa97fe093cc956a01a99ace51942b8099890c4f4ea65",
-        "size_bytes": 42590,
-        "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-        "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
-        "command_block_count": 23
+        "sha256": "474b6b4c0277f59deacd2e8b1b68d7e8ede54c7a39cb7ddb0756b48eaf932119",
+        "size_bytes": 40763,
+        "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+        "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
+        "command_block_count": 24
       }
     },
     "command_count": 22,
-    "command_digest": "13d1cda407b1e35e8f20b0c308a2691bbe1aa7738ba8ea5cb2cf4a57fb812303"
+    "command_digest": "fc08b49f1179e2f4e02f6f06f339d0fe683ce6e4417062e32754a92a230bc056"
   },
   "commands": [
     {
@@ -129,7 +129,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -140,17 +140,6 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 10,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -161,7 +150,7 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -172,7 +161,7 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "kind": "audit-inventory",
       "phase": "gate",
@@ -183,9 +172,20 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "kind": "ci-workflow-coverage",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+      "kind": "ci-workflow-readiness",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -286,9 +286,9 @@
     },
     {
       "index": 22,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_workflow_coverage_audit_gate_v1",
-      "kind": "run-closeout",
-      "phase": "gate",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_preflight_and_workflow_readiness_v1",
+      "kind": "preflight",
+      "phase": "preflight",
       "expected_exit_codes": [
         0
       ],

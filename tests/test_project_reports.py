@@ -3,6 +3,7 @@ from pathlib import Path
 
 from reverse_agent.project_gate import (
     _generate_ci_workflow_coverage_required_audit,
+    _generate_ci_workflow_readiness_required_audit,
     _generate_current_handoff_packet_required_audit,
     _generate_final_check_exit_and_audit_readiness_required_audit,
     _generate_local_execution_loop_required_audit,
@@ -130,6 +131,30 @@ CI_WORKFLOW_COVERAGE_QUESTIONS = [
     "Did final-check pass with the CI workflow coverage artifact validated?",
     "Did run-closeout pass, close-round become CLOSED, and post-closeout final-check pass?",
     "Does the report state workflow files were not modified and coverage gaps are future-decision planning evidence?",
+]
+
+CI_WORKFLOW_READINESS_QUESTIONS = [
+    "Were startup commands recorded before project gates?",
+    "Was startup-snapshot the first project gate?",
+    "Did decision metadata remain valid and approved?",
+    "Was this decision treated as current authority?",
+    "Was the narrower uploaded decision treated as superseded?",
+    "Were changes limited to allowed workflow/source/test/artifact files?",
+    "Do the workflow files cover the previous missing coverage items?",
+    "Is `decision-preflight.yml` included in the readiness review?",
+    "Is `ci_workflow_coverage_result.json` current and complete?",
+    "Is `ci_workflow_readiness_result.json` current and complete?",
+    "Did workflow validation tests cover omitted required snippets?",
+    "Did workflow validation tests cover policy-disallowed workflow patterns?",
+    "Did local execution bundle remain valid?",
+    "Did codex prompt packet remain valid?",
+    "Did audit precheck remain valid?",
+    "Did audit readiness remain ready and accepted?",
+    "Did report-summary include workflow coverage and readiness status?",
+    "Did execution-log align with command-plan and pytest_result?",
+    "Did final-check pass?",
+    "Did run-closeout pass and close-round close?",
+    "Did the report clearly state that the round stayed within CI validation infrastructure?",
 ]
 
 
@@ -333,4 +358,31 @@ def test_ci_workflow_coverage_required_audit_generator_is_substantive() -> None:
     assert ".github/workflows/ci.yml" in audit
     assert ".github/workflows/state-gate.yml" in audit
     assert "WORKFLOW_UPDATE_RECOMMENDED" in audit or "coverage gaps" in audit
+    assert result["status"] == "PASS"
+
+
+def test_ci_workflow_readiness_required_audit_generator_is_substantive() -> None:
+    decision_text = (
+        "# Decision\n\n"
+        "ci workflow readiness ci_workflow_readiness_result.json "
+        "ci_workflow_coverage_result.json\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(CI_WORKFLOW_READINESS_QUESTIONS, start=1)
+        )
+    )
+
+    audit = _generate_ci_workflow_readiness_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == len(CI_WORKFLOW_READINESS_QUESTIONS)
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/ci_workflow_readiness_result.json" in audit
+    assert ".github/workflows/decision-preflight.yml" in audit
+    assert "bounded CI validation infrastructure" in audit
     assert result["status"] == "PASS"

@@ -29,4 +29,4 @@ jobs:
         run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state"
 
       - name: Focused tests
-        run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q

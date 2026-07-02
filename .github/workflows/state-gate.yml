@@ -43,8 +43,38 @@ jobs:
       - name: Project gate command plan
         run: python -m reverse_agent.project_gate command-plan --state-dir project_state
 
+      - name: Project gate audit inventory
+        run: python -m reverse_agent.project_gate audit-inventory --state-dir project_state
+
+      - name: Project gate audit readiness packet
+        run: python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
+
+      - name: Project gate current handoff packet
+        run: python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state
+
+      - name: Project gate local execution bundle
+        run: python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state
+
+      - name: Project gate Codex prompt packet
+        run: python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state
+
+      - name: Project gate audit precheck
+        run: python -m reverse_agent.project_gate audit-precheck --state-dir project_state
+
+      - name: Project gate report summary
+        run: python -m reverse_agent.project_gate report-summary --state-dir project_state
+
+      - name: Project gate execution log
+        run: python -m reverse_agent.project_gate execution-log --state-dir project_state
+
+      - name: CI workflow coverage
+        run: python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state
+
+      - name: CI workflow readiness
+        run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
+
       - name: Focused gate tests
-        run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q
 
       - name: Project gate final check
         run: python -m reverse_agent.project_gate final-check --state-dir project_state

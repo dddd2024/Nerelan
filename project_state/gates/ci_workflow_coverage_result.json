@@ -3,28 +3,37 @@
   "artifact_name": "ci_workflow_coverage_result.json",
   "gate_name": "ci-workflow-coverage",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
-  "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
-  "report_id": "codex_report_20260702_ci_workflow_coverage_audit_gate_v1",
-  "generated_at": "2026-07-02T06:42:11.644853Z",
+  "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
+  "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
+  "report_id": "codex_report_20260702_ci_preflight_and_workflow_readiness_v1",
+  "generated_at": "2026-07-02T08:04:08.960633Z",
   "inspected_workflows": [
     {
       "path": ".github/workflows/ci.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": false,
-      "sha256": "0bc777e66dc489679ed22a9f05faeb41e663743e5659d5b26660706e5eaeaf82",
-      "size_bytes": 659,
+      "modified": true,
+      "sha256": "b15e0a23ea680393a8ffa5d0a39ee630dc588a98fcbfbb7e1f4810f208873db7",
+      "size_bytes": 716,
       "line_count": 32
     },
     {
       "path": ".github/workflows/state-gate.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": false,
-      "sha256": "f151fb5d08a3879954f7a81d2938bf2a0aab91bec0dd38865cdbedcc8b8f3695",
-      "size_bytes": 1242,
-      "line_count": 50
+      "modified": true,
+      "sha256": "6d1205334a40bb79b71e1d9abb637ff0e0aa29e8fe40d18f078834139ea728b0",
+      "size_bytes": 2697,
+      "line_count": 80
+    },
+    {
+      "path": ".github/workflows/decision-preflight.yml",
+      "exists": true,
+      "read_only_input": true,
+      "modified": true,
+      "sha256": "808b7f28edae6f92706069f1d082e4149db4bd462f80fc817644090d39420a62",
+      "size_bytes": 1263,
+      "line_count": 43
     }
   ],
   "required_coverage": [
@@ -37,7 +46,8 @@
           "import reverse_agent.project_state"
         ],
         [
-          "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+          "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+          "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q"
         ]
       ]
     },
@@ -175,24 +185,25 @@
         },
         {
           "required_any": [
-            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+            "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q"
           ],
           "present": true,
           "matches": [
             {
               "workflow": ".github/workflows/ci.yml",
-              "term": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+              "term": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q"
             },
             {
               "workflow": ".github/workflows/state-gate.yml",
-              "term": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+              "term": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q"
             }
           ]
         }
       ]
     },
     "tests_project_reports_py": {
-      "present": false,
+      "present": true,
       "description": "tests/test_project_reports.py focused report tests",
       "groups": [
         {
@@ -200,8 +211,21 @@
             "tests/test_project_reports.py",
             "tests\\test_project_reports.py"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/ci.yml",
+              "term": "tests/test_project_reports.py"
+            },
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "tests/test_project_reports.py"
+            },
+            {
+              "workflow": ".github/workflows/decision-preflight.yml",
+              "term": "tests/test_project_reports.py"
+            }
+          ]
         }
       ]
     },
@@ -217,6 +241,10 @@
           "matches": [
             {
               "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate preflight --state-dir project_state"
+            },
+            {
+              "workflow": ".github/workflows/decision-preflight.yml",
               "term": "python -m reverse_agent.project_gate preflight --state-dir project_state"
             }
           ]
@@ -236,112 +264,156 @@
             {
               "workflow": ".github/workflows/state-gate.yml",
               "term": "python -m reverse_agent.project_gate command-plan --state-dir project_state"
+            },
+            {
+              "workflow": ".github/workflows/decision-preflight.yml",
+              "term": "python -m reverse_agent.project_gate command-plan --state-dir project_state"
             }
           ]
         }
       ]
     },
     "audit_inventory": {
-      "present": false,
+      "present": true,
       "description": "audit inventory gate",
       "groups": [
         {
           "required_any": [
             "python -m reverse_agent.project_gate audit-inventory --state-dir project_state"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state"
+            }
+          ]
         }
       ]
     },
     "audit_readiness_packet": {
-      "present": false,
+      "present": true,
       "description": "audit readiness packet gate",
       "groups": [
         {
           "required_any": [
             "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state"
+            }
+          ]
         }
       ]
     },
     "current_handoff_packet": {
-      "present": false,
+      "present": true,
       "description": "current handoff packet gate",
       "groups": [
         {
           "required_any": [
             "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state"
+            }
+          ]
         }
       ]
     },
     "local_execution_bundle": {
-      "present": false,
+      "present": true,
       "description": "local execution bundle gate",
       "groups": [
         {
           "required_any": [
             "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state"
+            }
+          ]
         }
       ]
     },
     "codex_prompt_packet": {
-      "present": false,
+      "present": true,
       "description": "codex prompt packet gate",
       "groups": [
         {
           "required_any": [
             "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state"
+            }
+          ]
         }
       ]
     },
     "audit_precheck": {
-      "present": false,
+      "present": true,
       "description": "audit precheck gate",
       "groups": [
         {
           "required_any": [
             "python -m reverse_agent.project_gate audit-precheck --state-dir project_state"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state"
+            }
+          ]
         }
       ]
     },
     "report_summary": {
-      "present": false,
+      "present": true,
       "description": "report summary synthesis gate",
       "groups": [
         {
           "required_any": [
             "python -m reverse_agent.project_gate report-summary --state-dir project_state"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+            }
+          ]
         }
       ]
     },
     "execution_log": {
-      "present": false,
+      "present": true,
       "description": "execution log gate",
       "groups": [
         {
           "required_any": [
             "python -m reverse_agent.project_gate execution-log --state-dir project_state"
           ],
-          "present": false,
-          "matches": []
+          "present": true,
+          "matches": [
+            {
+              "workflow": ".github/workflows/state-gate.yml",
+              "term": "python -m reverse_agent.project_gate execution-log --state-dir project_state"
+            }
+          ]
         }
       ]
     },
@@ -364,17 +436,7 @@
       ]
     }
   },
-  "missing_coverage": [
-    "tests_project_reports_py",
-    "audit_inventory",
-    "audit_readiness_packet",
-    "current_handoff_packet",
-    "local_execution_bundle",
-    "codex_prompt_packet",
-    "audit_precheck",
-    "report_summary",
-    "execution_log"
-  ],
+  "missing_coverage": [],
   "unsafe_patterns_checked": [
     {
       "id": "write_permissions",
@@ -453,16 +515,18 @@
     }
   ],
   "unsafe_patterns_found": [],
-  "recommendation": "WORKFLOW_UPDATE_RECOMMENDED",
+  "recommendation": "NO_ACTION_REQUIRED",
   "evidence_only": true,
   "executable": false,
   "can_execute": false,
   "can_dispatch": false,
   "mutates_state": false,
-  "workflow_files_dirty": [],
-  "warnings": [
-    "workflow coverage gaps are nonblocking planning evidence for a future workflow-update decision"
+  "workflow_files_dirty": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml"
   ],
+  "warnings": [],
   "errors": [],
   "generated_artifacts": [
     "project_state/gates/ci_workflow_coverage_result.json"
