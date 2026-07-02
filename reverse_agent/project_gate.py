@@ -12067,6 +12067,91 @@ def _ci_bridge_gate_check(
     )
 
 
+def _ci_bridge_closeout_consistency_check(
+    *,
+    state_dir: Path,
+    decision_contract: dict[str, Any],
+    report: dict[str, Any],
+    close_round_in_progress: bool,
+) -> dict[str, Any]:
+    required = bool(
+        decision_contract.get("accepted_requires_reconcile_post_closeout_consistency")
+        or decision_contract.get("accepted_requires_audit_bundle_post_closeout_consistency")
+        or decision_contract.get("accepted_requires_final_check_hardening")
+    )
+    if not required:
+        return _check(
+            "ci_bridge_closeout_consistency",
+            "PASS",
+            "CI bridge closeout consistency hardening not required",
+            required=False,
+        )
+    if close_round_in_progress:
+        return _check(
+            "ci_bridge_closeout_consistency",
+            "PASS",
+            "CI bridge final consistency deferred while close-round is in progress",
+            required=True,
+            deferred=True,
+        )
+
+    report_status = str(report.get("status") or "")
+    acceptance = str(report.get("acceptance_recommendation") or "")
+    report_accepted = report_status == "SUCCESS" and acceptance == "ACCEPTED"
+    if not report_accepted:
+        return _check(
+            "ci_bridge_closeout_consistency",
+            "PASS",
+            "report is not SUCCESS/ACCEPTED; final CI bridge consistency is not an acceptance precondition yet",
+            required=True,
+            report_status=report_status,
+            acceptance_recommendation=acceptance,
+        )
+
+    reconcile = _read_json(state_dir / "gates" / CI_OBSERVATION_RECONCILE_RESULT_NAME)
+    bundle = _read_json(state_dir / "gates" / CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME)
+    errors: list[str] = []
+
+    if str(reconcile.get("reconcile_status") or "") != "RECONCILED":
+        errors.append("ci_observation_reconcile_result.json is not RECONCILED")
+    if str(reconcile.get("final_consistency_status") or "") != "FINAL_CONSISTENT":
+        errors.append("ci_observation_reconcile_result.json is not FINAL_CONSISTENT")
+    if reconcile.get("pending_diagnostic_sources"):
+        errors.append("ci_observation_reconcile_result.json has pending diagnostic sources")
+
+    audit_summary = bundle.get("audit_summary") if isinstance(bundle.get("audit_summary"), dict) else {}
+    post_closeout_status = (
+        bundle.get("post_closeout_status")
+        if isinstance(bundle.get("post_closeout_status"), dict)
+        else {}
+    )
+    if str(bundle.get("handoff_status") or "") != "READY_FOR_AUDIT":
+        errors.append("ci_audit_handoff_bundle.json is not READY_FOR_AUDIT")
+    if audit_summary.get("pending_diagnostic_sources"):
+        errors.append("ci_audit_handoff_bundle.json has pending diagnostic sources")
+    if str(post_closeout_status.get("final_check_gate_status") or "") != "PASSED":
+        errors.append("ci_audit_handoff_bundle.json final_check is not PASSED")
+    if str(post_closeout_status.get("run_closeout_status") or "") != "PASSED":
+        errors.append("ci_audit_handoff_bundle.json run_closeout is not PASSED")
+    if str(post_closeout_status.get("close_round_status") or "") != "CLOSED":
+        errors.append("ci_audit_handoff_bundle.json close_round is not CLOSED")
+
+    return _check(
+        "ci_bridge_closeout_consistency",
+        "PASS" if not errors else "FAIL",
+        "CI bridge reconcile and audit handoff bundle reflect final post-closeout status"
+        if not errors
+        else "CI bridge reconcile or audit handoff bundle contains stale/non-final closeout status",
+        required=True,
+        errors=errors,
+        reconcile_status=reconcile.get("reconcile_status"),
+        reconcile_final_consistency_status=reconcile.get("final_consistency_status"),
+        bundle_handoff_status=bundle.get("handoff_status"),
+        bundle_pending_diagnostic_sources=audit_summary.get("pending_diagnostic_sources") or [],
+        post_closeout_status=post_closeout_status,
+    )
+
+
 def _ci_workflow_coverage_gate_check(
     *,
     state_dir: Path,
@@ -15970,7 +16055,7 @@ def final_check(
             artifact_name=CI_OBSERVATION_RECONCILE_RESULT_NAME,
             output_path=CI_OBSERVATION_RECONCILE_OUTPUT_PATH,
             required_status_field="reconcile_status",
-            allowed_statuses={"RECONCILED"},
+            allowed_statuses={"RECONCILED", "DIAGNOSTIC_GAPS_RECORDED"},
         )
     )
     checks.append(
@@ -15998,7 +16083,15 @@ def final_check(
             artifact_name=CI_AUDIT_HANDOFF_BUNDLE_RESULT_NAME,
             output_path=CI_AUDIT_HANDOFF_BUNDLE_OUTPUT_PATH,
             required_status_field="handoff_status",
-            allowed_statuses={"READY_FOR_AUDIT"},
+            allowed_statuses={"READY_FOR_AUDIT", "PENDING_DIAGNOSTIC_EVIDENCE"},
+        )
+    )
+    checks.append(
+        _ci_bridge_closeout_consistency_check(
+            state_dir=state_dir,
+            decision_contract=decision_contract,
+            report=report,
+            close_round_in_progress=close_round_in_progress,
         )
     )
     checks.append(
@@ -22266,9 +22359,14 @@ def _refresh_post_run_closeout_evidence(
             audit_readiness_packet(state_dir=state_dir, write_result=True)
             current_handoff_packet(state_dir=state_dir, write_result=True)
             _refresh_local_execution_artifacts()
+            ci_observation_reconcile(state_dir=state_dir, write_result=True)
+            ci_audit_handoff_bundle(state_dir=state_dir, write_result=True)
         except Exception:
             pass
         try:
+            final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+            ci_observation_reconcile(state_dir=state_dir, write_result=True)
+            ci_audit_handoff_bundle(state_dir=state_dir, write_result=True)
             final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
         except Exception:
             pass
@@ -22297,6 +22395,9 @@ def _refresh_post_run_closeout_evidence(
             audit_readiness_packet(state_dir=state_dir, write_result=True)
             current_handoff_packet(state_dir=state_dir, write_result=True)
             _refresh_local_execution_artifacts()
+            ci_observation_reconcile(state_dir=state_dir, write_result=True)
+            ci_audit_handoff_bundle(state_dir=state_dir, write_result=True)
+            final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
                 repo_root=repo_root,
@@ -23585,13 +23686,25 @@ def _refresh_codex_report_for_closeout(
     decision_text = _read_text(state_dir / "decision_packet.md")
     command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
 
-    # Compute expected files_changed from git diff and round delta summary.
+    # Compute expected files_changed from round delta summary.
     # The synthesis (build_report_summary_synthesis) derives expected_files_changed
     # from round_delta_files (which includes gate artifacts added by
     # _build_round_delta_summary to final_dirty_files).  The report must match,
-    # so we include the same delta files here.
+    # so use the same delta source here instead of live git diff.  Closeout
+    # rewrites command_plan.json and pytest_result.txt while it is running; live
+    # git diff can therefore be newer than round_delta_summary.json and create
+    # a false report-summary mismatch.
     dirty_files = _git_changed_files(repo_root)
     dirty_files_norm = {_norm_path(p) for p in dirty_files}
+    delta_payload = _read_json(state_dir / "gates" / ROUND_DELTA_SUMMARY_NAME)
+    if delta_payload:
+        round_delta_files = _string_set(
+            delta_payload.get("new_dirty_files_since_baseline")
+            if delta_payload.get("baseline_available")
+            else delta_payload.get("final_dirty_files")
+        )
+    else:
+        round_delta_files = set()
     # Read baseline dirty files to exclude inherited dirty files
     baseline_payload = _read_json(state_dir / "gates" / ROUND_BASELINE_RESULT_NAME)
     baseline_dirty_files: set[str] = set()
@@ -23604,8 +23717,9 @@ def _refresh_codex_report_for_closeout(
     new_dirty_files = dirty_files_norm - baseline_dirty_files
     # Filter to source/test, project_state/, or docs/prompts/ paths
     # (docs/prompts/ contains canonical prompt documents tracked by policy-lint)
+    file_source = round_delta_files or new_dirty_files
     files_changed_set = {
-        p for p in new_dirty_files
+        p for p in file_source
         if _path_is_source_or_test(p)
         or p.startswith("project_state/")
         or p.startswith("docs/prompts/")
@@ -23635,11 +23749,11 @@ def _refresh_codex_report_for_closeout(
             norm_path = _norm_path(path)
             if norm_path in dirty_files_norm:
                 files_changed_set.add(norm_path)
-    # Always include report and pytest_result
+    # Always include report artifacts. pytest_result.txt is included when the
+    # round delta includes it; it remains a generated artifact either way.
     files_changed_set |= {
         LEGACY_EXECUTION_REPORT_PATH,
         NEUTRAL_EXECUTION_REPORT_PATH,
-        "project_state/pytest_result.txt",
     }
     # Note: RUN_CLOSEOUT_OUTPUT_PATH is NOT added to files_changed because
     # the synthesis (build_report_summary_synthesis) does not include it in
@@ -23706,7 +23820,7 @@ def _refresh_codex_report_for_closeout(
             files_changed_set.add(PREFLIGHT_OUTPUT_PATH)
         generated_artifact_set.add(PREFLIGHT_OUTPUT_PATH)
     if (gates_dir / COMMAND_PLAN_RESULT_NAME).exists():
-        if COMMAND_PLAN_OUTPUT_PATH in dirty_files_norm:
+        if COMMAND_PLAN_OUTPUT_PATH in round_delta_files:
             files_changed_set.add(COMMAND_PLAN_OUTPUT_PATH)
         generated_artifact_set.add(COMMAND_PLAN_OUTPUT_PATH)
     if (gates_dir / GATE_PROFILE_PLAN_RESULT_NAME).exists():

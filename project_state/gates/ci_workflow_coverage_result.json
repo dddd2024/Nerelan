@@ -3,10 +3,10 @@
   "artifact_name": "ci_workflow_coverage_result.json",
   "gate_name": "ci-workflow-coverage",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-  "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-  "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-  "generated_at": "2026-07-02T14:32:04.283373Z",
+  "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "report_id": "codex_report_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "generated_at": "2026-07-02T16:30:23.618871Z",
   "inspected_workflows": [
     {
       "path": ".github/workflows/ci.yml",
@@ -21,7 +21,7 @@
       "path": ".github/workflows/state-gate.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": true,
+      "modified": false,
       "sha256": "c3216275d7561e7dfb952215f45fd5f4f73cb95f9e58b4319bd8f4db9afc7ef7",
       "size_bytes": 3921,
       "line_count": 111
@@ -30,7 +30,7 @@
       "path": ".github/workflows/decision-preflight.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": true,
+      "modified": false,
       "sha256": "7699f6be3ac2b15396e19f25866bffc773ed448213329e950c7a9005da98bd89",
       "size_bytes": 2600,
       "line_count": 77
@@ -807,10 +807,7 @@
   "can_execute": false,
   "can_dispatch": false,
   "mutates_state": false,
-  "workflow_files_dirty": [
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/state-gate.yml"
-  ],
+  "workflow_files_dirty": [],
   "warnings": [],
   "errors": [],
   "generated_artifacts": [

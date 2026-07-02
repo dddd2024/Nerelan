@@ -37,6 +37,8 @@ def _truthy_current(payload: dict[str, Any], decision_id: str, round_id: str) ->
 
 def _gate_summary(state_dir: Path, artifact_name: str, decision_id: str, round_id: str) -> dict[str, Any]:
     payload = _read_json(state_dir / "gates" / artifact_name)
+    close_round_result = payload.get("close_round_result") if isinstance(payload.get("close_round_result"), dict) else {}
+    status_summary = payload.get("status_summary") if isinstance(payload.get("status_summary"), dict) else {}
     return {
         "artifact": f"project_state/gates/{artifact_name}",
         "exists": bool(payload),
@@ -48,10 +50,28 @@ def _gate_summary(state_dir: Path, artifact_name: str, decision_id: str, round_i
         or payload.get("manifest_status")
         or payload.get("reconcile_status")
         or payload.get("closeout_status"),
+        "close_round_status": close_round_result.get("close_status"),
+        "report_status": payload.get("report_status") or status_summary.get("report_status"),
+        "acceptance_recommendation": status_summary.get("report_acceptance_recommendation"),
         "recommendation": payload.get("recommendation"),
         "errors": payload.get("errors") or payload.get("blocking_reasons") or [],
         "warnings": payload.get("warnings") or [],
     }
+
+
+def _diagnostic_source_pending(key: str, summary: dict[str, Any]) -> bool:
+    if not summary.get("exists"):
+        return True
+    if not summary.get("current_round"):
+        return True
+    if key == "run_closeout":
+        return (
+            summary.get("status") != "PASSED"
+            or summary.get("close_round_status") not in {None, "CLOSED"}
+        )
+    if key == "report_summary":
+        return summary.get("status") not in {None, "PASSED"}
+    return summary.get("gate_status") == "FAILED" or summary.get("status") == "FAILED"
 
 
 def build_observation_schema_artifact(
@@ -224,6 +244,24 @@ def build_observation_reconcile_artifact(
         errors.append("source artifact gate failures: " + ", ".join(hard_failures))
     if stale:
         errors.append("source artifacts are stale: " + ", ".join(stale))
+    pending_diagnostics = [
+        key for key in sorted(pending_diagnostic_keys)
+        if _diagnostic_source_pending(key, summaries.get(key, {}))
+    ]
+    final_consistency_status = (
+        "REWORK_REQUIRED"
+        if errors
+        else "NON_FINAL_DIAGNOSTIC"
+        if pending_diagnostics
+        else "FINAL_CONSISTENT"
+    )
+    reconcile_status = (
+        "REWORK_REQUIRED"
+        if errors
+        else "DIAGNOSTIC_GAPS_RECORDED"
+        if pending_diagnostics
+        else "RECONCILED"
+    )
     return {
         "schema_version": 1,
         "artifact_name": artifact_name,
@@ -233,7 +271,9 @@ def build_observation_reconcile_artifact(
         "round_id": round_id,
         "report_id": report_id,
         "generated_at": generated_at,
-        "reconcile_status": "RECONCILED" if not errors else "REWORK_REQUIRED",
+        "reconcile_status": reconcile_status,
+        "final_consistency_status": final_consistency_status,
+        "pending_diagnostic_sources": pending_diagnostics,
         "observation_state": observation_state,
         "source_artifacts": summaries,
         "evidence_only": True,
@@ -251,8 +291,7 @@ def build_observation_reconcile_artifact(
             ),
             *[
                 f"{key} is diagnostic and not yet converged"
-                for key in pending_diagnostic_keys
-                if summaries.get(key, {}).get("gate_status") == "FAILED"
+                for key in pending_diagnostics
             ],
         ],
     }
@@ -354,6 +393,27 @@ def build_audit_handoff_bundle_artifact(
         if summary.get("gate_status") == "FAILED" and key not in pending_diagnostic_keys
     ]
     missing = [key for key, summary in summaries.items() if not summary.get("exists")]
+    pending_diagnostics = [
+        key for key in sorted(pending_diagnostic_keys)
+        if _diagnostic_source_pending(key, summaries.get(key, {}))
+    ]
+    final_check_status = summaries.get("final_check", {}).get("gate_status")
+    run_closeout_status = summaries.get("run_closeout", {}).get("status")
+    close_round_status = summaries.get("run_closeout", {}).get("close_round_status")
+    post_closeout_status = {
+        "final_check_gate_status": final_check_status,
+        "run_closeout_status": run_closeout_status,
+        "close_round_status": close_round_status,
+        "execution_log_gate_status": summaries.get("execution_log", {}).get("gate_status"),
+        "report_summary_status": summaries.get("report_summary", {}).get("status"),
+    }
+    handoff_status = (
+        "REWORK_REQUIRED"
+        if failed
+        else "PENDING_DIAGNOSTIC_EVIDENCE"
+        if pending_diagnostics
+        else "READY_FOR_AUDIT"
+    )
     return {
         "schema_version": 1,
         "artifact_name": artifact_name,
@@ -363,19 +423,16 @@ def build_audit_handoff_bundle_artifact(
         "round_id": round_id,
         "report_id": report_id,
         "generated_at": generated_at,
-        "handoff_status": "READY_FOR_AUDIT" if not failed else "REWORK_REQUIRED",
+        "handoff_status": handoff_status,
         "source_artifacts": summaries,
         "audit_summary": {
             "failed_sources": failed,
             "missing_sources": missing,
             "external_observation_pending": summaries.get("ci_observation_handoff", {}).get("status")
             == "AWAITING_EXTERNAL_OBSERVATION",
-            "pending_diagnostic_sources": [
-                key for key in sorted(pending_diagnostic_keys)
-                if summaries.get(key, {}).get("gate_status") == "FAILED"
-                or summaries.get(key, {}).get("status") == "FAILED"
-            ],
+            "pending_diagnostic_sources": pending_diagnostics,
         },
+        "post_closeout_status": post_closeout_status,
         "evidence_only": True,
         "executable": False,
         "can_execute": False,

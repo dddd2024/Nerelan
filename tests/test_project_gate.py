@@ -45,6 +45,7 @@ from reverse_agent.project_gate import (
     _audit_precheck_gate_check,
     _ci_run_evidence_gate_check,
     _ci_bridge_gate_check,
+    _ci_bridge_closeout_consistency_check,
     _ci_workflow_coverage_gate_check,
     _ci_workflow_readiness_gate_check,
     _codex_prompt_packet_gate_check,
@@ -27859,7 +27860,83 @@ def test_ci_artifact_manifest_and_audit_bundle_accept_read_only_exports(tmp_path
     assert manifest["observed_export_terms"]["gate_json_export"] is True
     assert manifest["observed_export_terms"]["pytest_result_export"] is True
     assert bundle["gate_status"] == "PASSED"
-    assert bundle["handoff_status"] == "READY_FOR_AUDIT"
+    assert bundle["handoff_status"] == "PENDING_DIAGNOSTIC_EVIDENCE"
+    assert set(bundle["audit_summary"]["pending_diagnostic_sources"]) == {
+        "execution_log",
+        "report_summary",
+        "final_check",
+        "run_closeout",
+    }
+
+
+def test_ci_bridge_closeout_consistency_blocks_accepted_stale_bundle(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    _write_json(
+        state_dir / "gates" / "ci_observation_reconcile_result.json",
+        {
+            "reconcile_status": "DIAGNOSTIC_GAPS_RECORDED",
+            "final_consistency_status": "NON_FINAL_DIAGNOSTIC",
+            "pending_diagnostic_sources": ["execution_log"],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "ci_audit_handoff_bundle.json",
+        {
+            "handoff_status": "READY_FOR_AUDIT",
+            "audit_summary": {"pending_diagnostic_sources": ["final_check", "run_closeout"]},
+            "post_closeout_status": {
+                "final_check_gate_status": "FAILED",
+                "run_closeout_status": "IN_PROGRESS",
+                "close_round_status": "OPEN",
+            },
+        },
+    )
+
+    check = _ci_bridge_closeout_consistency_check(
+        state_dir=state_dir,
+        decision_contract={"accepted_requires_audit_bundle_post_closeout_consistency": True},
+        report={"status": "SUCCESS", "acceptance_recommendation": "ACCEPTED"},
+        close_round_in_progress=False,
+    )
+
+    assert check["status"] == "FAIL"
+    assert "ci_observation_reconcile_result.json is not RECONCILED" in check["errors"]
+    assert "ci_audit_handoff_bundle.json has pending diagnostic sources" in check["errors"]
+    assert "ci_audit_handoff_bundle.json final_check is not PASSED" in check["errors"]
+    assert "ci_audit_handoff_bundle.json run_closeout is not PASSED" in check["errors"]
+
+
+def test_ci_bridge_closeout_consistency_accepts_final_bundle(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    _write_json(
+        state_dir / "gates" / "ci_observation_reconcile_result.json",
+        {
+            "reconcile_status": "RECONCILED",
+            "final_consistency_status": "FINAL_CONSISTENT",
+            "pending_diagnostic_sources": [],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "ci_audit_handoff_bundle.json",
+        {
+            "handoff_status": "READY_FOR_AUDIT",
+            "audit_summary": {"pending_diagnostic_sources": []},
+            "post_closeout_status": {
+                "final_check_gate_status": "PASSED",
+                "run_closeout_status": "PASSED",
+                "close_round_status": "CLOSED",
+            },
+        },
+    )
+
+    check = _ci_bridge_closeout_consistency_check(
+        state_dir=state_dir,
+        decision_contract={"accepted_requires_reconcile_post_closeout_consistency": True},
+        report={"status": "SUCCESS", "acceptance_recommendation": "ACCEPTED"},
+        close_round_in_progress=False,
+    )
+
+    assert check["status"] == "PASS"
 
 
 def test_ci_bridge_gate_check_validates_current_evidence_only_artifact(tmp_path: Path) -> None:

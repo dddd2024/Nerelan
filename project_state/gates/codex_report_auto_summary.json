@@ -3,21 +3,19 @@
   "artifact_name": "codex_report_auto_summary.json",
   "gate_name": "report-auto-summary",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-  "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-  "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-  "generated_at": "2026-07-02T14:32:42.518581Z",
+  "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "report_id": "codex_report_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "generated_at": "2026-07-02T16:31:04.997594Z",
   "source": "synthesized_from_structured_evidence",
   "summary": {
     "schema_version": 1,
-    "report_id": "codex_report_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-    "round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-    "based_on_decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+    "report_id": "codex_report_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+    "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+    "based_on_decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
     "status": "SUCCESS",
     "acceptance_recommendation": "ACCEPTED",
     "files_changed": [
-      ".github/workflows/decision-preflight.yml",
-      ".github/workflows/state-gate.yml",
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/gates/audit_inventory_result.json",
@@ -33,7 +31,6 @@
       "project_state/gates/ci_workflow_readiness_result.json",
       "project_state/gates/codex_prompt_packet.json",
       "project_state/gates/codex_report_auto_summary.json",
-      "project_state/gates/command_plan.json",
       "project_state/gates/current_handoff_packet.json",
       "project_state/gates/execution_log.json",
       "project_state/gates/execution_report_auto_summary.json",
@@ -46,20 +43,16 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/gates/run_closeout_execution_log.json",
-      "project_state/gates/run_closeout_result.json",
       "project_state/gates/startup_snapshot.json",
-      "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/decision_packet.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/execution_report.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/pytest_result.txt",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/round_manifest.json",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/execution_report.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/round_manifest.json",
       "reverse_agent/project_ci.py",
       "reverse_agent/project_gate.py",
       "tests/test_project_ci.py",
-      "tests/test_project_gate.py",
-      "tests/test_project_reports.py"
+      "tests/test_project_gate.py"
     ],
     "tests_ran": [
       "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
@@ -85,7 +78,7 @@
       "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
       "python -m reverse_agent.project_gate final-check --state-dir project_state"
     ],
     "generated_artifacts": [
@@ -121,11 +114,11 @@
       "project_state/gates/run_closeout_result.json",
       "project_state/gates/startup_snapshot.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/decision_packet.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/execution_report.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/pytest_result.txt",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/round_manifest.json"
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/execution_report.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/round_manifest.json"
     ],
     "referenced_artifacts": [
       "project_state/gates/policy_lint_result.json"
@@ -172,11 +165,11 @@
       "project_state/gates/startup_snapshot.json"
     ],
     "archive_paths": [
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/decision_packet.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/execution_report.md",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/pytest_result.txt",
-      "project_state/rounds/round_20260702_ci_evidence_bridge_and_audit_handoff_v1/round_manifest.json"
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/execution_report.md",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/round_manifest.json"
     ],
     "status_source": "final_gate_result.json",
     "final_gate_result": "project_state/gates/final_gate_result.json"
