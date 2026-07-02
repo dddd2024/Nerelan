@@ -4,6 +4,7 @@ from pathlib import Path
 from reverse_agent.project_gate import (
     _generate_current_handoff_packet_required_audit,
     _generate_final_check_exit_and_audit_readiness_required_audit,
+    _generate_local_execution_loop_required_audit,
     _generate_required_audit_alignment_rework_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
@@ -76,6 +77,37 @@ CURRENT_HANDOFF_PACKET_QUESTIONS = [
     "Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, current handoff status, audit inventory status, and audit readiness status?",
 ]
 
+LOCAL_EXECUTION_LOOP_QUESTIONS = [
+    "Did startup commands confirm `F:\\reverse-agent`, repo root, and clean `git status --short` before any project gate?",
+    "Was `startup-snapshot` still the immediate sixth command and first project gate?",
+    "Did `decision_meta` remain valid and APPROVED on `engineering_branch`?",
+    "Did `reverse-agent-iteration@v2` remain active in `.codex-skills/registry.json`?",
+    "Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?",
+    "Did implementation stay within allowed source/test files?",
+    "Were preserve-only and forbidden files not modified?",
+    "Did implementation avoid creating a runner, dispatcher, scheduler, service, Web/API layer, CI workflow, queue, database, external integration, API caller, or remote automation?",
+    "Did Codex inspect the current handoff, command-plan, audit inventory, audit readiness, final-check, and closeout artifacts before implementing the bundle?",
+    "Does `local_execution_bundle.json` exist with current decision ID, round ID, and report ID?",
+    "Does the bundle declare `decision_packet.md` as the decision authority and `task_packet.json` as background only?",
+    "Does the bundle declare `command_plan.json` as the only command execution authority?",
+    "Does the bundle include startup contract and startup-snapshot-first rule?",
+    "Does the bundle include allowed scope, forbidden scope, required tests, required artifacts, report update requirements, and stop conditions?",
+    "Does the bundle reference `current_handoff_packet.json` and `codex_prompt_packet.json`?",
+    "Is the bundle evidence-only, non-executable, non-dispatching, and non-mutating?",
+    "Does `codex_prompt_packet.json` exist with current decision ID, round ID, and report ID?",
+    "Is the prompt packet derived from current `local_execution_bundle.json` and current `current_handoff_packet.json`?",
+    "Does the prompt packet include a complete copyable prompt or structured prompt sections?",
+    "Does the prompt preserve `F:\\reverse-agent`, startup checks, decision authority, task_packet background status, command-plan authority, allowed scope, forbidden scope, required tests, pytest_result writing, codex_execution_report writing, and no-push/no-commit rules?",
+    "Does `audit_precheck_result.json` exist with current decision ID, round ID, and report ID?",
+    "Does audit precheck validate report/decision/round matching, pytest_result presence, pytest command coverage, final-check status, run-closeout status, close-round status, audit readiness, current handoff, local execution bundle, and prompt packet status?",
+    "Does audit precheck return `READY_FOR_GPT_AUDIT` only when required evidence is present and aligned?",
+    "Does audit precheck return `DO_NOT_ACCEPT` or equivalent blocking state when report, pytest, ID alignment, final-check, closeout, readiness, bundle, or prompt packet evidence is missing or failed?",
+    "Does final-check validate local execution bundle freshness and evidence-only fields?",
+    "Does final-check validate prompt packet freshness and derivation from the current bundle/handoff?",
+    "Does final-check validate audit precheck status and recommendation?",
+    "Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, current handoff status, local execution bundle status, prompt packet status, audit precheck status, audit inventory status, and audit readiness status?",
+]
+
 
 def _decision_text() -> str:
     return (
@@ -124,6 +156,33 @@ def test_current_handoff_packet_required_audit_generator_is_substantive() -> Non
     assert audit.count("### ") == 28
     assert "(to be filled)" not in audit
     assert "project_state/gates/current_handoff_packet.json" in audit
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
+    assert result["placeholder_answers"] == []
+
+
+def test_local_execution_loop_required_audit_generator_is_substantive() -> None:
+    decision_text = (
+        "# Decision\n\n"
+        "local execution loop local_execution_bundle.json codex_prompt_packet.json audit_precheck_result.json\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(LOCAL_EXECUTION_LOOP_QUESTIONS, start=1)
+        )
+    )
+    audit = _generate_local_execution_loop_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 28
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/local_execution_bundle.json" in audit
+    assert "project_state/gates/codex_prompt_packet.json" in audit
+    assert "project_state/gates/audit_precheck_result.json" in audit
     assert result["status"] == "PASS"
     assert result["alignment_failures"] == []
     assert result["placeholder_answers"] == []

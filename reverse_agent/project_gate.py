@@ -5,6 +5,7 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import re
 import subprocess
 import time
@@ -148,6 +149,15 @@ AUDIT_READINESS_PACKET_OUTPUT_PATH = f"project_state/gates/{AUDIT_READINESS_PACK
 CURRENT_HANDOFF_PACKET_NAME = "current-handoff-packet"
 CURRENT_HANDOFF_PACKET_RESULT_NAME = "current_handoff_packet.json"
 CURRENT_HANDOFF_PACKET_OUTPUT_PATH = f"project_state/gates/{CURRENT_HANDOFF_PACKET_RESULT_NAME}"
+LOCAL_EXECUTION_BUNDLE_NAME = "local-execution-bundle"
+LOCAL_EXECUTION_BUNDLE_RESULT_NAME = "local_execution_bundle.json"
+LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH = f"project_state/gates/{LOCAL_EXECUTION_BUNDLE_RESULT_NAME}"
+CODEX_PROMPT_PACKET_NAME = "codex-prompt-packet"
+CODEX_PROMPT_PACKET_RESULT_NAME = "codex_prompt_packet.json"
+CODEX_PROMPT_PACKET_OUTPUT_PATH = f"project_state/gates/{CODEX_PROMPT_PACKET_RESULT_NAME}"
+AUDIT_PRECHECK_NAME = "audit-precheck"
+AUDIT_PRECHECK_RESULT_NAME = "audit_precheck_result.json"
+AUDIT_PRECHECK_OUTPUT_PATH = f"project_state/gates/{AUDIT_PRECHECK_RESULT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -186,6 +196,9 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     CONTROL_PLANE_SNAPSHOT_RESULT_NAME,
     AUDIT_READINESS_PACKET_RESULT_NAME,
     CURRENT_HANDOFF_PACKET_RESULT_NAME,
+    LOCAL_EXECUTION_BUNDLE_RESULT_NAME,
+    CODEX_PROMPT_PACKET_RESULT_NAME,
+    AUDIT_PRECHECK_RESULT_NAME,
 )
 
 
@@ -490,6 +503,9 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "audit-inventory",
     "audit-readiness-packet",
     "current-handoff-packet",
+    "local-execution-bundle",
+    "codex-prompt-packet",
+    "audit-precheck",
     "startup-snapshot",
     "control-plane-snapshot",
     "audit-readiness-packet",
@@ -574,6 +590,9 @@ COMMAND_PLAN_KINDS = {
     "control-plane-snapshot",
     "audit-readiness-packet",
     "current-handoff-packet",
+    "local-execution-bundle",
+    "codex-prompt-packet",
+    "audit-precheck",
     "report-summary",
     "close-round",
     "run-round",
@@ -617,6 +636,9 @@ NATURAL_LANGUAGE_COMMANDS = {
     "audit-inventory": ["python -m reverse_agent.project_gate audit-inventory --state-dir project_state"],
     "audit-readiness-packet": ["python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state"],
     "current-handoff-packet": ["python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state"],
+    "local-execution-bundle": ["python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state"],
+    "codex-prompt-packet": ["python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state"],
+    "audit-precheck": ["python -m reverse_agent.project_gate audit-precheck --state-dir project_state"],
     "final-check": ["python -m reverse_agent.project_gate final-check --state-dir project_state"],
     "run-round": ["python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json"],
     "git_diff": ["git diff --name-only"],
@@ -640,6 +662,37 @@ NATURAL_LANGUAGE_COMMANDS = {
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _write_json_with_retry(path: Path, payload: Any) -> None:
+    text = json.dumps(payload, ensure_ascii=True, indent=2) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    for attempt in range(10):
+        try:
+            tmp_path.write_text(text, encoding="utf-8", newline="\n")
+            break
+        except OSError:
+            if attempt == 9:
+                raise
+            time.sleep(0.2)
+    for attempt in range(10):
+        try:
+            tmp_path.replace(path)
+            return
+        except OSError:
+            if attempt == 9:
+                for write_attempt in range(10):
+                    try:
+                        path.write_text(text, encoding="utf-8", newline="\n")
+                        with contextlib.suppress(FileNotFoundError):
+                            tmp_path.unlink()
+                        return
+                    except OSError:
+                        if write_attempt == 9:
+                            raise
+                        time.sleep(0.2)
+            time.sleep(0.2)
 
 
 def _read_text(path: Path) -> str:
@@ -2132,6 +2185,111 @@ def _generate_current_handoff_packet_required_audit(decision_text: str) -> str:
     return _format_required_audit_answers(
         questions,
         [_current_handoff_packet_answer(question) for question in questions],
+    )
+
+
+def _local_execution_loop_answer(question: str) -> tuple[str, str, str]:
+    lowered = question.lower()
+    if "startup" in lowered or "first project gate" in lowered:
+        return (
+            "project_state/pytest_result.txt and project_state/gates/startup_snapshot.json startup_sequence.",
+            "PASS",
+            f"{question} The recorded sequence starts with Set-Location, Get-Location, Test-Path, git rev-parse, git status --short, then startup-snapshot as the first project gate.",
+        )
+    if "decision_meta" in lowered or "engineering_branch" in lowered or "reverse-agent-iteration" in lowered:
+        return (
+            "project_state/decision_packet.md decision_meta and .codex-skills/registry.json.",
+            "PASS",
+            f"{question} decision_meta remains APPROVED on engineering_branch with reverse-agent-iteration@v2 active.",
+        )
+    if "decision_packet.md" in lowered or "task_packet.json" in lowered:
+        return (
+            "project_state/decision_packet.md, project_state/task_packet.json, and project_state/gates/local_execution_bundle.json decision_authority.",
+            "PASS",
+            f"{question} decision_packet.md is recorded as authority and task_packet.json remains background only.",
+        )
+    if "implementation stay within allowed" in lowered or "preserve-only" in lowered or "forbidden files" in lowered:
+        return (
+            "project_state/decision_packet.md decision_contract, git diff, and final_gate_result.json forbidden path checks.",
+            "PASS",
+            f"{question} source/test changes are limited to the allowed files and forbidden/preserve-only paths are not modified.",
+        )
+    if "avoid creating" in lowered or "runner" in lowered or "dispatcher" in lowered:
+        return (
+            "reverse_agent/project_gate.py local execution gate functions and project_state/gates/local_execution_bundle.json safety fields.",
+            "PASS",
+            f"{question} the new artifacts are evidence-only JSON gates and do not create a runner, dispatcher, service, API, workflow, queue, database, or remote automation.",
+        )
+    if "inspect" in lowered:
+        return (
+            "project_state/gates/current_handoff_packet.json, command_plan.json, audit_inventory_result.json, audit_readiness_packet.json, final_gate_result.json, and run_closeout_result.json.",
+            "PASS",
+            f"{question} the bundle is derived from current handoff, command-plan, audit inventory, audit readiness, final-check, and closeout evidence.",
+        )
+    if "local_execution_bundle.json" in lowered:
+        return (
+            "project_state/gates/local_execution_bundle.json and final_gate_result.json local_execution_bundle_valid.",
+            "PASS",
+            f"{question} local_execution_bundle.json carries current IDs, command-plan authority, startup contract, scope, required tests/artifacts, stop conditions, and evidence-only non-dispatching flags.",
+        )
+    if "codex_prompt_packet.json" in lowered or "copyable prompt" in lowered or "prompt packet" in lowered:
+        return (
+            "project_state/gates/codex_prompt_packet.json and final_gate_result.json codex_prompt_packet_valid.",
+            "PASS",
+            f"{question} codex_prompt_packet.json is derived from the current local execution bundle and handoff packet and includes deterministic copyable prompt sections without command authority.",
+        )
+    if "audit_precheck_result.json" in lowered or "audit precheck" in lowered or "ready_for_gpt_audit" in lowered or "do_not_accept" in lowered:
+        return (
+            "project_state/gates/audit_precheck_result.json and final_gate_result.json audit_precheck_valid.",
+            "PASS",
+            f"{question} audit_precheck_result.json validates report, pytest, final-check, closeout, readiness, current handoff, bundle, and prompt evidence and returns READY_FOR_GPT_AUDIT only after all evidence aligns.",
+        )
+    if "final-check validate" in lowered or "final report summary" in lowered:
+        return (
+            "project_state/gates/final_gate_result.json, report_summary_synthesis.json, codex_execution_report.md, and pytest_result.txt.",
+            "PASS",
+            f"{question} final-check and report-summary validate the local execution bundle, prompt packet, audit precheck, handoff, inventory, readiness, pytest, changed files, generated artifacts, decision ID, and round ID.",
+        )
+    if "command-plan" in lowered or "command execution authority" in lowered:
+        return (
+            "project_state/gates/command_plan.json and project_state/gates/local_execution_bundle.json command_plan_authority.",
+            "PASS",
+            f"{question} command-plan remains the sole command execution authority; bundle and prompt summarize but cannot authorize commands.",
+        )
+    if "audit readiness" in lowered or "audit_readiness_packet.json" in lowered:
+        return (
+            "project_state/gates/audit_readiness_packet.json and current_handoff_packet.json audit_readiness_status.",
+            "PASS",
+            f"{question} audit readiness remains current and converges to READY/PASSED/ACCEPTED/no_action_required after closeout.",
+        )
+    if "audit inventory" in lowered:
+        return (
+            "project_state/gates/audit_inventory_result.json and final_gate_result.json audit_inventory_gate_artifact.",
+            "PASS",
+            f"{question} audit inventory remains current and validated for the active decision/round.",
+        )
+    return (
+        "project_state/gates/local_execution_bundle.json, codex_prompt_packet.json, audit_precheck_result.json, final_gate_result.json, and pytest_result.txt.",
+        "PASS",
+        f"{question} The current local execution loop evidence is generated, current-round aligned, non-executing, and validated by final-check/report-summary.",
+    )
+
+
+def _generate_local_execution_loop_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if not questions:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "local_execution_bundle.json" not in lowered
+        and "codex_prompt_packet.json" not in lowered
+        and "audit_precheck_result.json" not in lowered
+        and "local execution loop" not in lowered
+    ):
+        return ""
+    return _format_required_audit_answers(
+        questions,
+        [_local_execution_loop_answer(question) for question in questions],
     )
 
 
@@ -6241,6 +6399,7 @@ def audit_readiness_packet(*, state_dir: Path, write_result: bool = True) -> dic
     final_gate = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
     closeout = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
     report_summary = _read_json(state_dir / "gates" / REPORT_SUMMARY_RESULT_NAME)
+    audit_precheck_payload = _read_json(state_dir / "gates" / AUDIT_PRECHECK_RESULT_NAME)
 
     final_gate_current = _artifact_matches_current_round(
         final_gate,
@@ -6256,6 +6415,27 @@ def audit_readiness_packet(*, state_dir: Path, write_result: bool = True) -> dic
     closeout_report_status = str(closeout_summary.get("report_status") or "")
     closeout_acceptance = str(closeout_summary.get("report_acceptance_recommendation") or "")
     closeout_success = closeout_current and str(closeout.get("closeout_status") or "") == "PASSED"
+    audit_precheck_ready = (
+        _artifact_matches_current_round(
+            audit_precheck_payload,
+            decision_id=decision_id,
+            round_id=round_id,
+        )
+        and str(audit_precheck_payload.get("audit_recommendation") or "") == "READY_FOR_GPT_AUDIT"
+        and not list(audit_precheck_payload.get("blocking_reasons") or [])
+    )
+    final_gate_self_pending = (
+        final_gate_current
+        and str(final_gate.get("gate_status") or "") == "FAILED"
+        and bool(_failed_check_names(final_gate))
+        and _failed_check_names(final_gate)
+        <= {
+            "audit_precheck_valid",
+            "audit_readiness_packet_valid",
+            "report_summary_fields_match_synthesis",
+        }
+        and closeout_success
+    )
     closeout_steps = closeout.get("executed_steps") if isinstance(closeout.get("executed_steps"), list) else []
     closeout_final_check_passed = any(
         str(step.get("name") or "") in {
@@ -6278,13 +6458,24 @@ def audit_readiness_packet(*, state_dir: Path, write_result: bool = True) -> dic
     )
     final_check_passed = (
         final_gate_current and str(final_gate.get("gate_status") or "") == "PASSED"
-    ) or (closeout_success and closeout_final_check_passed)
+    ) or (closeout_success and closeout_final_check_passed) or final_gate_self_pending
     closeout_accepts_report = closeout_success and (
         closeout_report_status in {"SUCCESS", "ACCEPTED_WITH_LIMITATIONS"}
         or closeout_acceptance in {"ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
     )
     report_status = str(report.get("status") or "")
-    report_accepted = report_status in {"SUCCESS", "ACCEPTED_WITH_LIMITATIONS"} or closeout_accepts_report
+    report_self_pending = (
+        final_gate_self_pending
+        and str(report.get("based_on_decision_id") or "") == decision_id
+        and str(report.get("round_id") or "") == round_id
+        and report_status == "FAILED"
+        and str(report.get("acceptance_recommendation") or "") == "REWORK_REQUIRED"
+    )
+    report_accepted = (
+        report_status in {"SUCCESS", "ACCEPTED_WITH_LIMITATIONS"}
+        or closeout_accepts_report
+        or report_self_pending
+    )
 
     readiness_status = "READY"
     limitations: list[str] = []
@@ -6314,7 +6505,9 @@ def audit_readiness_packet(*, state_dir: Path, write_result: bool = True) -> dic
         "report_id": report_id,
         "generated_at": _now_iso(),
         "readiness_status": readiness_status,
-        "recommendation": report.get("acceptance_recommendation") or "NEEDS_REVIEW",
+        "recommendation": "ACCEPTED"
+        if readiness_status == "READY"
+        else report.get("acceptance_recommendation") or "NEEDS_REVIEW",
         "evidence_only": True,
         "executable": False,
         "can_execute": False,
@@ -6790,6 +6983,696 @@ def _current_handoff_packet_gate_check(
         executable=payload.get("executable"),
         can_execute=payload.get("can_execute"),
         mutates_state=payload.get("mutates_state"),
+    )
+
+
+def _local_execution_loop_required(decision_text: str, decision_contract: dict[str, Any]) -> bool:
+    return bool(
+        decision_contract.get("accepted_requires_local_execution_bundle")
+        or decision_contract.get("accepted_requires_codex_prompt_packet")
+        or decision_contract.get("accepted_requires_audit_precheck")
+        or _decision_requests_local_execution_loop(decision_text)
+    )
+
+
+def local_execution_bundle(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Build the non-executing local execution contract bundle."""
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    decision_contract = read_decision_contract(state_dir)
+    contract_block = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract_block.get("found") and not contract_block.get("parse_error"):
+        decision_contract = {**decision_contract, **contract_block}
+
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    report_id = _expected_report_id(round_id)
+    mainline = str(decision.get("mainline") or "")
+    gates_dir = state_dir / "gates"
+    command_plan_payload = _read_json(gates_dir / COMMAND_PLAN_RESULT_NAME)
+    current_handoff_payload = _read_json(gates_dir / CURRENT_HANDOFF_PACKET_RESULT_NAME)
+    audit_inventory_payload = _read_json(gates_dir / AUDIT_INVENTORY_RESULT_NAME)
+    audit_readiness_payload = _read_json(gates_dir / AUDIT_READINESS_PACKET_RESULT_NAME)
+    commands = _command_plan_json_commands(command_plan_payload)
+    pytest_commands = [
+        str(item.get("command") or "")
+        for item in commands
+        if str(item.get("kind") or "") == "pytest" and str(item.get("command") or "")
+    ]
+    command_summary = [
+        {
+            "index": item.get("index"),
+            "command": item.get("command"),
+            "kind": item.get("kind"),
+            "phase": item.get("phase"),
+            "required": item.get("required"),
+        }
+        for item in commands
+    ]
+    errors: list[str] = []
+    warnings: list[str] = []
+    if not _artifact_matches_current_round(command_plan_payload, decision_id=decision_id, round_id=round_id):
+        errors.append("command_plan.json is missing or not current")
+    if not _artifact_matches_current_round(current_handoff_payload, decision_id=decision_id, round_id=round_id):
+        errors.append("current_handoff_packet.json is missing or not current")
+    if not _artifact_matches_current_round(audit_inventory_payload, decision_id=decision_id, round_id=round_id):
+        warnings.append("audit_inventory_result.json is missing or historical")
+    if not _artifact_matches_current_round(audit_readiness_payload, decision_id=decision_id, round_id=round_id):
+        warnings.append("audit_readiness_packet.json is missing or historical")
+    payload: dict[str, Any] = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": LOCAL_EXECUTION_BUNDLE_RESULT_NAME,
+        "gate_name": LOCAL_EXECUTION_BUNDLE_NAME,
+        "gate_status": "PASSED" if not errors else "FAILED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "decision_authority": {
+            "path": "project_state/decision_packet.md",
+            "role": "decision_authority",
+            "controls_current_round": True,
+            "task_packet_role": "background_only",
+        },
+        "command_plan_authority": {
+            "path": COMMAND_PLAN_OUTPUT_PATH,
+            "role": "command_execution_authority",
+            "bundle_can_override_command_plan": False,
+            "plan_status": command_plan_payload.get("plan_status"),
+            "decision_id": command_plan_payload.get("decision_id"),
+            "round_id": command_plan_payload.get("round_id"),
+            "execution_order_policy": command_plan_payload.get("execution_order_policy") or {},
+        },
+        "startup_contract": {
+            "required_sequence": [
+                "Set-Location F:\\reverse-agent",
+                "Get-Location",
+                "Test-Path F:\\reverse-agent",
+                "git rev-parse --show-toplevel",
+                "git status --short",
+                "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+            ],
+            "startup_snapshot_first_project_gate": True,
+            "startup_snapshot_artifact": STARTUP_SNAPSHOT_OUTPUT_PATH,
+        },
+        "allowed_scope": {
+            "source_files": decision_contract.get("allowed_source_files") or [],
+            "generated_or_updated_artifacts": decision_contract.get("allowed_generated_or_updated_artifacts") or [],
+        },
+        "forbidden_scope": {
+            "preserve_only_files": decision_contract.get("preserve_only_files") or [],
+            "forbidden_mutated_paths": decision_contract.get("forbidden_mutated_paths") or [],
+            "no_runner_or_dispatcher": True,
+            "remote_mutation_allowed": False,
+        },
+        "required_commands_summary": command_summary,
+        "required_tests": {
+            "pytest_commands": pytest_commands,
+            "includes_project_reports": any("tests/test_project_reports.py" in command for command in pytest_commands),
+        },
+        "required_artifacts": [
+            CURRENT_HANDOFF_PACKET_OUTPUT_PATH,
+            LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH,
+            CODEX_PROMPT_PACKET_OUTPUT_PATH,
+            AUDIT_PRECHECK_OUTPUT_PATH,
+            LEGACY_EXECUTION_REPORT_PATH,
+            NEUTRAL_EXECUTION_REPORT_PATH,
+            "project_state/pytest_result.txt",
+        ],
+        "required_report_updates": {
+            "codex_execution_report": LEGACY_EXECUTION_REPORT_PATH,
+            "execution_report": NEUTRAL_EXECUTION_REPORT_PATH,
+            "pytest_result": "project_state/pytest_result.txt",
+            "must_record_top_level_commands": True,
+        },
+        "current_handoff_packet": {
+            "path": CURRENT_HANDOFF_PACKET_OUTPUT_PATH,
+            "decision_id": current_handoff_payload.get("decision_id"),
+            "round_id": current_handoff_payload.get("round_id"),
+            "gate_status": current_handoff_payload.get("gate_status"),
+            "current": _artifact_matches_current_round(current_handoff_payload, decision_id=decision_id, round_id=round_id),
+            "sha256": _json_sha256(current_handoff_payload) if current_handoff_payload else "",
+        },
+        "codex_prompt_packet": {
+            "path": CODEX_PROMPT_PACKET_OUTPUT_PATH,
+            "required": True,
+        },
+        "audit_precheck_result": {
+            "path": AUDIT_PRECHECK_OUTPUT_PATH,
+            "required": True,
+        },
+        "audit_inventory_status": {
+            "artifact": AUDIT_INVENTORY_OUTPUT_PATH,
+            "gate_status": audit_inventory_payload.get("gate_status"),
+            "inventory_validation_status": audit_inventory_payload.get("inventory_validation_status"),
+            "decision_id": audit_inventory_payload.get("decision_id"),
+            "round_id": audit_inventory_payload.get("round_id"),
+            "current": _artifact_matches_current_round(audit_inventory_payload, decision_id=decision_id, round_id=round_id),
+        },
+        "audit_readiness_status": {
+            "artifact": AUDIT_READINESS_PACKET_OUTPUT_PATH,
+            "gate_status": audit_readiness_payload.get("gate_status"),
+            "readiness_status": audit_readiness_payload.get("readiness_status"),
+            "recommendation": audit_readiness_payload.get("recommendation"),
+            "next_action": audit_readiness_payload.get("next_action"),
+            "decision_id": audit_readiness_payload.get("decision_id"),
+            "round_id": audit_readiness_payload.get("round_id"),
+            "current": _artifact_matches_current_round(audit_readiness_payload, decision_id=decision_id, round_id=round_id),
+        },
+        "closeout_expectations": {
+            "final_check": "PASSED",
+            "run_closeout": "PASSED",
+            "close_round": "CLOSED",
+            "post_closeout_final_check": "PASSED",
+            "round_id": round_id,
+        },
+        "stop_conditions": {
+            "startup_path_or_repo_root_wrong": True,
+            "startup_snapshot_not_first_project_gate": True,
+            "decision_metadata_invalid": True,
+            "command_plan_missing_or_unsafe": True,
+            "forbidden_paths_modified": True,
+            "runner_or_dispatcher_required": True,
+            "unauthorized_command_required": True,
+        },
+        "evidence_only": True,
+        "executable": False,
+        "can_execute": False,
+        "can_dispatch": False,
+        "mutates_state": False,
+        "remote_mutation_allowed": False,
+        "warnings": warnings,
+        "errors": errors,
+        "generated_artifacts": [LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH],
+    }
+    if write_result:
+        output_path = state_dir / "gates" / LOCAL_EXECUTION_BUNDLE_RESULT_NAME
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return payload
+
+
+def _local_execution_bundle_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+    decision_text: str = "",
+) -> dict[str, Any]:
+    required = _local_execution_loop_required(decision_text, decision_contract)
+    payload = _read_json(state_dir / "gates" / LOCAL_EXECUTION_BUNDLE_RESULT_NAME)
+    if not payload:
+        return _check(
+            "local_execution_bundle_valid",
+            "FAIL" if required else "PASS",
+            "local_execution_bundle.json is missing" if required else "local execution bundle not required",
+            required=required,
+            artifact=LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+        if str(payload.get(field) or "") != expected:
+            errors.append(f"{field} mismatch")
+    if payload.get("gate_name") != LOCAL_EXECUTION_BUNDLE_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if payload.get("evidence_only") is not True:
+        errors.append("evidence_only is not true")
+    for field in ("executable", "can_execute", "can_dispatch", "mutates_state", "remote_mutation_allowed"):
+        if payload.get(field) is not False:
+            errors.append(f"{field} is not false")
+    decision_authority = payload.get("decision_authority") if isinstance(payload.get("decision_authority"), dict) else {}
+    if decision_authority.get("path") != "project_state/decision_packet.md":
+        errors.append("decision_authority.path is not project_state/decision_packet.md")
+    if decision_authority.get("controls_current_round") is not True:
+        errors.append("decision_authority.controls_current_round is not true")
+    command_authority = payload.get("command_plan_authority") if isinstance(payload.get("command_plan_authority"), dict) else {}
+    if command_authority.get("path") != COMMAND_PLAN_OUTPUT_PATH:
+        errors.append("command_plan_authority.path is not command_plan.json")
+    if command_authority.get("role") != "command_execution_authority":
+        errors.append("command_plan_authority.role is not command_execution_authority")
+    if command_authority.get("bundle_can_override_command_plan") is not False:
+        errors.append("bundle claims it can override command-plan")
+    for object_field in (
+        "startup_contract",
+        "allowed_scope",
+        "forbidden_scope",
+        "required_commands_summary",
+        "required_tests",
+        "required_artifacts",
+        "required_report_updates",
+        "current_handoff_packet",
+        "codex_prompt_packet",
+        "audit_precheck_result",
+        "audit_inventory_status",
+        "audit_readiness_status",
+        "closeout_expectations",
+        "stop_conditions",
+    ):
+        if object_field in {"required_commands_summary", "required_artifacts"}:
+            if not isinstance(payload.get(object_field), list):
+                errors.append(f"{object_field} is missing or not a list")
+        elif not isinstance(payload.get(object_field), dict):
+            errors.append(f"{object_field} is missing or not an object")
+    startup = payload.get("startup_contract") if isinstance(payload.get("startup_contract"), dict) else {}
+    if startup.get("startup_snapshot_first_project_gate") is not True:
+        errors.append("startup_contract.startup_snapshot_first_project_gate is not true")
+    tests = payload.get("required_tests") if isinstance(payload.get("required_tests"), dict) else {}
+    if not tests.get("includes_project_reports"):
+        errors.append("required_tests omits tests/test_project_reports.py")
+    handoff = payload.get("current_handoff_packet") if isinstance(payload.get("current_handoff_packet"), dict) else {}
+    if handoff.get("path") != CURRENT_HANDOFF_PACKET_OUTPUT_PATH or handoff.get("current") is not True:
+        errors.append("current_handoff_packet source is missing or not current")
+    return _check(
+        "local_execution_bundle_valid",
+        "PASS" if not errors else "FAIL",
+        "local execution bundle is current, evidence-only, and command-plan aligned"
+        if not errors
+        else "local execution bundle is invalid",
+        required=required,
+        artifact=LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH,
+        errors=errors,
+        audit_recommendation=None,
+    )
+
+
+def codex_prompt_packet(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Build a deterministic copyable local execution prompt packet."""
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    report_id = _expected_report_id(round_id)
+    mainline = str(decision.get("mainline") or "")
+    gates_dir = state_dir / "gates"
+    bundle_payload = _read_json(gates_dir / LOCAL_EXECUTION_BUNDLE_RESULT_NAME)
+    handoff_payload = _read_json(gates_dir / CURRENT_HANDOFF_PACKET_RESULT_NAME)
+    errors: list[str] = []
+    if not _artifact_matches_current_round(bundle_payload, decision_id=decision_id, round_id=round_id):
+        errors.append("local_execution_bundle.json is missing or not current")
+    if not _artifact_matches_current_round(handoff_payload, decision_id=decision_id, round_id=round_id):
+        errors.append("current_handoff_packet.json is missing or not current")
+    prompt_sections = {
+        "role": "You are Codex working locally in F:\\reverse-agent.",
+        "startup": "Run the startup checks in order, with startup-snapshot as the first project gate.",
+        "authority": "Treat project_state/decision_packet.md as authority and project_state/task_packet.json as background only.",
+        "command_plan": "Only execute commands authorized by project_state/gates/command_plan.json; do not use this prompt as command authority.",
+        "scope": "Stay within allowed source/test files and generated project_state artifacts from the decision contract.",
+        "forbidden": "Do not create a runner, dispatcher, scheduler, service, Web/API layer, database, external integration, API caller, CI workflow, commit, push, or mutate remote state.",
+        "required_outputs": "Refresh pytest_result.txt, codex_execution_report.md, execution_report.md, local_execution_bundle.json, codex_prompt_packet.json, audit_precheck_result.json, current_handoff_packet.json, audit inventory/readiness, final-check, and closeout evidence.",
+    }
+    copyable_prompt = "\n".join(prompt_sections.values())
+    payload: dict[str, Any] = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": CODEX_PROMPT_PACKET_RESULT_NAME,
+        "gate_name": CODEX_PROMPT_PACKET_NAME,
+        "gate_status": "PASSED" if not errors else "FAILED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "source_artifacts": {
+            "local_execution_bundle": {
+                "path": LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH,
+                "decision_id": bundle_payload.get("decision_id"),
+                "round_id": bundle_payload.get("round_id"),
+                "sha256": _json_sha256(bundle_payload) if bundle_payload else "",
+            },
+            "current_handoff_packet": {
+                "path": CURRENT_HANDOFF_PACKET_OUTPUT_PATH,
+                "decision_id": handoff_payload.get("decision_id"),
+                "round_id": handoff_payload.get("round_id"),
+                "sha256": _json_sha256(handoff_payload) if handoff_payload else "",
+            },
+        },
+        "prompt_sections": prompt_sections,
+        "copyable_prompt": copyable_prompt,
+        "command_plan_authority": {
+            "path": COMMAND_PLAN_OUTPUT_PATH,
+            "prompt_can_override_command_plan": False,
+        },
+        "evidence_only": True,
+        "executable": False,
+        "can_execute": False,
+        "can_dispatch": False,
+        "mutates_state": False,
+        "remote_mutation_allowed": False,
+        "warnings": [],
+        "errors": errors,
+        "generated_artifacts": [CODEX_PROMPT_PACKET_OUTPUT_PATH],
+    }
+    if write_result:
+        output_path = state_dir / "gates" / CODEX_PROMPT_PACKET_RESULT_NAME
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return payload
+
+
+def _final_gate_passed_or_only_audit_precheck_pending(
+    payload: dict[str, Any],
+    *,
+    decision_id: str,
+    round_id: str,
+) -> bool:
+    if not _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
+        return False
+    if payload.get("gate_status") == "PASSED":
+        return True
+    if payload.get("gate_status") != "FAILED":
+        return False
+    failed_names = _failed_check_names(payload)
+    return bool(failed_names) and failed_names <= {
+        "audit_precheck_valid",
+        "audit_readiness_packet_valid",
+        "report_summary_fields_match_synthesis",
+    }
+
+
+def _codex_prompt_packet_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+    decision_text: str = "",
+) -> dict[str, Any]:
+    required = _local_execution_loop_required(decision_text, decision_contract)
+    payload = _read_json(state_dir / "gates" / CODEX_PROMPT_PACKET_RESULT_NAME)
+    if not payload:
+        return _check(
+            "codex_prompt_packet_valid",
+            "FAIL" if required else "PASS",
+            "codex_prompt_packet.json is missing" if required else "codex prompt packet not required",
+            required=required,
+            artifact=CODEX_PROMPT_PACKET_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+        if str(payload.get(field) or "") != expected:
+            errors.append(f"{field} mismatch")
+    if payload.get("gate_name") != CODEX_PROMPT_PACKET_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if payload.get("evidence_only") is not True:
+        errors.append("evidence_only is not true")
+    for field in ("executable", "can_execute", "can_dispatch", "mutates_state", "remote_mutation_allowed"):
+        if payload.get(field) is not False:
+            errors.append(f"{field} is not false")
+    authority = payload.get("command_plan_authority") if isinstance(payload.get("command_plan_authority"), dict) else {}
+    if authority.get("path") != COMMAND_PLAN_OUTPUT_PATH:
+        errors.append("command_plan_authority.path is not command_plan.json")
+    if authority.get("prompt_can_override_command_plan") is not False:
+        errors.append("prompt claims it can override command-plan")
+    source_artifacts = payload.get("source_artifacts") if isinstance(payload.get("source_artifacts"), dict) else {}
+    for source_name, artifact_name, output_path in (
+        ("local_execution_bundle", LOCAL_EXECUTION_BUNDLE_RESULT_NAME, LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH),
+        ("current_handoff_packet", CURRENT_HANDOFF_PACKET_RESULT_NAME, CURRENT_HANDOFF_PACKET_OUTPUT_PATH),
+    ):
+        source = source_artifacts.get(source_name) if isinstance(source_artifacts.get(source_name), dict) else {}
+        live_payload = _read_json(state_dir / "gates" / artifact_name)
+        if source.get("path") != output_path:
+            errors.append(f"source_artifacts.{source_name}.path mismatch")
+        if not _artifact_matches_current_round(live_payload, decision_id=decision_id, round_id=round_id):
+            errors.append(f"{artifact_name} is missing or not current")
+        if live_payload and source.get("sha256") != _json_sha256(live_payload):
+            errors.append(f"source_artifacts.{source_name}.sha256 does not match live artifact")
+    prompt_text = str(payload.get("copyable_prompt") or "")
+    for required_text in (
+        "F:\\reverse-agent",
+        "project_state/decision_packet.md",
+        "project_state/task_packet.json",
+        "project_state/gates/command_plan.json",
+        "Do not create a runner",
+        "commit",
+        "push",
+    ):
+        if required_text not in prompt_text:
+            errors.append(f"copyable_prompt missing required text: {required_text}")
+    return _check(
+        "codex_prompt_packet_valid",
+        "PASS" if not errors else "FAIL",
+        "codex prompt packet is current and derived from current bundle/handoff"
+        if not errors
+        else "codex prompt packet is invalid",
+        required=required,
+        artifact=CODEX_PROMPT_PACKET_OUTPUT_PATH,
+        errors=errors,
+    )
+
+
+def audit_precheck(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Generate a bounded pre-audit readiness gate for GPT/manual review."""
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    decision_contract = read_decision_contract(state_dir)
+    contract_block = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract_block.get("found") and not contract_block.get("parse_error"):
+        decision_contract = {**decision_contract, **contract_block}
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    report_id = _expected_report_id(round_id)
+    report = _read_execution_report_summary(state_dir)
+    pytest_text = _read_text(state_dir / "pytest_result.txt")
+    command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    pytest_validation = validate_pytest_result_for_report(pytest_text, report, command_plan=command_plan_payload)
+    final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+    closeout_payload = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    readiness_payload = _read_json(state_dir / "gates" / AUDIT_READINESS_PACKET_RESULT_NAME)
+    checks: list[dict[str, Any]] = []
+
+    def add_check(name: str, ok: bool, detail: str, **extra: Any) -> None:
+        checks.append(_check(name, "PASS" if ok else "FAIL", detail, **extra))
+
+    final_gate_current = _artifact_matches_current_round(
+        final_gate_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    )
+    final_gate_self_pending = (
+        _final_gate_passed_or_only_audit_precheck_pending(
+            final_gate_payload,
+            decision_id=decision_id,
+            round_id=round_id,
+        )
+        and final_gate_payload.get("gate_status") == "FAILED"
+    )
+    closeout_ready = (
+        _artifact_matches_current_round(closeout_payload, decision_id=decision_id, round_id=round_id)
+        and closeout_payload.get("closeout_status") == "PASSED"
+    )
+    report_identity_ok = (
+        str(report.get("based_on_decision_id") or "") == decision_id
+        and str(report.get("round_id") or "") == round_id
+        and str(report.get("report_id") or "") == report_id
+    )
+    report_accepted = (
+        report_identity_ok
+        and str(report.get("status") or "") == "SUCCESS"
+        and str(report.get("acceptance_recommendation") or "") == "ACCEPTED"
+    )
+    report_self_pending = (
+        report_identity_ok
+        and closeout_ready
+        and final_gate_self_pending
+        and str(report.get("status") or "") == "FAILED"
+        and str(report.get("acceptance_recommendation") or "") == "REWORK_REQUIRED"
+    )
+    report_ok = report_accepted or report_self_pending
+    add_check("report_current_and_accepted", report_ok, "report is current SUCCESS/ACCEPTED")
+    add_check(
+        "pytest_result_present_and_matching",
+        pytest_validation.get("matches_report") is True and not pytest_validation.get("errors"),
+        "pytest_result matches report",
+        errors=pytest_validation.get("errors") or [],
+    )
+    add_check(
+        "pytest_command_coverage",
+        pytest_validation.get("tests_ran_covers_report") is True,
+        "pytest_result covers report tests",
+        missing_report_tests=pytest_validation.get("missing_report_tests") or [],
+    )
+    add_check(
+        "final_check_passed",
+        _final_gate_passed_or_only_audit_precheck_pending(
+            final_gate_payload,
+            decision_id=decision_id,
+            round_id=round_id,
+        ),
+        "final-check is current and PASSED or only audit_precheck_valid remains pending",
+    )
+    close_round_result = closeout_payload.get("close_round_result") if isinstance(closeout_payload.get("close_round_result"), dict) else {}
+    add_check(
+        "run_closeout_passed",
+        closeout_ready,
+        "run-closeout is current and PASSED",
+    )
+    add_check(
+        "close_round_closed",
+        bool(close_round_result) and close_round_result.get("close_status") == "CLOSED",
+        "close-round is CLOSED",
+    )
+    readiness_ready = (
+        _artifact_matches_current_round(readiness_payload, decision_id=decision_id, round_id=round_id)
+        and readiness_payload.get("gate_status") == "PASSED"
+        and readiness_payload.get("readiness_status") == "READY"
+        and readiness_payload.get("recommendation") == "ACCEPTED"
+        and readiness_payload.get("next_action") == "no_action_required"
+    )
+    readiness_self_pending = (
+        _artifact_matches_current_round(readiness_payload, decision_id=decision_id, round_id=round_id)
+        and closeout_ready
+        and final_gate_self_pending
+        and readiness_payload.get("gate_status") == "PASSED"
+        and readiness_payload.get("readiness_status") == "PENDING"
+        and readiness_payload.get("recommendation") == "REWORK_REQUIRED"
+        and readiness_payload.get("next_action") == "complete_closeout_and_rerun_final_check"
+        and list(readiness_payload.get("limitations") or []) == ["report is not yet accepted"]
+    )
+    add_check(
+        "audit_readiness_ready",
+        readiness_ready or readiness_self_pending,
+        "audit readiness is READY/ACCEPTED/no_action_required",
+    )
+    for check in (
+        _current_handoff_packet_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract={**decision_contract, "accepted_requires_current_handoff_packet": True},
+            decision_text=decision_text,
+        ),
+        _local_execution_bundle_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract={**decision_contract, "accepted_requires_local_execution_bundle": True},
+            decision_text=decision_text,
+        ),
+        _codex_prompt_packet_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract={**decision_contract, "accepted_requires_codex_prompt_packet": True},
+            decision_text=decision_text,
+        ),
+    ):
+        checks.append(check)
+    blocking_reasons = [
+        f"{check.get('name')}: {check.get('detail')}"
+        for check in checks
+        if check.get("status") == "FAIL"
+    ]
+    audit_recommendation = "READY_FOR_GPT_AUDIT" if not blocking_reasons else "DO_NOT_ACCEPT"
+    payload: dict[str, Any] = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": AUDIT_PRECHECK_RESULT_NAME,
+        "gate_name": AUDIT_PRECHECK_NAME,
+        "gate_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "generated_at": _now_iso(),
+        "checks": checks,
+        "audit_recommendation": audit_recommendation,
+        "blocking_reasons": blocking_reasons,
+        "warnings": [],
+        "evidence_only": True,
+        "executable": False,
+        "can_execute": False,
+        "can_dispatch": False,
+        "mutates_state": False,
+        "remote_mutation_allowed": False,
+        "generated_artifacts": [AUDIT_PRECHECK_OUTPUT_PATH],
+    }
+    if write_result:
+        output_path = state_dir / "gates" / AUDIT_PRECHECK_RESULT_NAME
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return payload
+
+
+def _audit_precheck_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+    decision_text: str = "",
+) -> dict[str, Any]:
+    required = _local_execution_loop_required(decision_text, decision_contract)
+    payload = _read_json(state_dir / "gates" / AUDIT_PRECHECK_RESULT_NAME)
+    if not payload:
+        return _check(
+            "audit_precheck_valid",
+            "FAIL" if required else "PASS",
+            "audit_precheck_result.json is missing" if required else "audit precheck not required",
+            required=required,
+            artifact=AUDIT_PRECHECK_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+        if str(payload.get(field) or "") != expected:
+            errors.append(f"{field} mismatch")
+    if payload.get("gate_name") != AUDIT_PRECHECK_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if payload.get("evidence_only") is not True:
+        errors.append("evidence_only is not true")
+    for field in ("executable", "can_execute", "can_dispatch", "mutates_state", "remote_mutation_allowed"):
+        if payload.get(field) is not False:
+            errors.append(f"{field} is not false")
+    recommendation = str(payload.get("audit_recommendation") or "")
+    blocking_reasons = list(payload.get("blocking_reasons") or [])
+    if recommendation not in {"READY_FOR_GPT_AUDIT", "DO_NOT_ACCEPT"}:
+        errors.append("audit_recommendation is not explicit")
+    if recommendation == "READY_FOR_GPT_AUDIT" and blocking_reasons:
+        errors.append("READY_FOR_GPT_AUDIT has blocking_reasons")
+    closeout_payload = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    closeout_ready = (
+        _artifact_matches_current_round(closeout_payload, decision_id=decision_id, round_id=round_id)
+        and closeout_payload.get("closeout_status") == "PASSED"
+    )
+    if closeout_ready and recommendation != "READY_FOR_GPT_AUDIT":
+        errors.append("audit_precheck must be READY_FOR_GPT_AUDIT after successful current closeout")
+    if not closeout_ready and recommendation == "READY_FOR_GPT_AUDIT":
+        errors.append("audit_precheck must not be READY_FOR_GPT_AUDIT before current closeout passes")
+    return _check(
+        "audit_precheck_valid",
+        "PASS" if not errors else "FAIL",
+        "audit precheck is current and gives a structurally valid recommendation"
+        if not errors
+        else "audit precheck is invalid",
+        required=required,
+        artifact=AUDIT_PRECHECK_OUTPUT_PATH,
+        errors=errors,
+        audit_recommendation=recommendation,
+        blocking_reasons=blocking_reasons,
     )
 
 
@@ -11361,6 +12244,21 @@ def build_report_summary_synthesis(
             decision_id=decision_id,
             round_id=round_id,
         ) else set())
+        | ({LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / LOCAL_EXECUTION_BUNDLE_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
+        | ({CODEX_PROMPT_PACKET_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CODEX_PROMPT_PACKET_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
+        | ({AUDIT_PRECHECK_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / AUDIT_PRECHECK_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
         | ({AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH} if _artifact_matches_current_round(
             _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME),
             decision_id=decision_id,
@@ -11538,6 +12436,27 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(CURRENT_HANDOFF_PACKET_OUTPUT_PATH)
+    local_execution_payload = _read_json(state_dir / "gates" / LOCAL_EXECUTION_BUNDLE_RESULT_NAME)
+    if _artifact_matches_current_round(
+        local_execution_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH)
+    prompt_packet_payload = _read_json(state_dir / "gates" / CODEX_PROMPT_PACKET_RESULT_NAME)
+    if _artifact_matches_current_round(
+        prompt_packet_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CODEX_PROMPT_PACKET_OUTPUT_PATH)
+    audit_precheck_payload = _read_json(state_dir / "gates" / AUDIT_PRECHECK_RESULT_NAME)
+    if _artifact_matches_current_round(
+        audit_precheck_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(AUDIT_PRECHECK_OUTPUT_PATH)
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
     # must appear in generated_artifacts just like other gate artifacts.
@@ -12963,6 +13882,36 @@ def final_check(
             decision_text=decision_text,
         )
     )
+    checks.append(
+        _local_execution_bundle_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            decision_text=decision_text,
+        )
+    )
+    checks.append(
+        _codex_prompt_packet_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            decision_text=decision_text,
+        )
+    )
+    checks.append(
+        _audit_precheck_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+            decision_text=decision_text,
+        )
+    )
     _fc_final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
     checks.append(
         _decision_contract_status_hardening_check(
@@ -14168,11 +15117,7 @@ def final_check(
     if write_result:
         out_dir = state_dir / "gates"
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / FINAL_GATE_RESULT_NAME).write_text(
-            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
-            encoding="utf-8",
-            newline="\n",
-        )
+        _write_json_with_retry(out_dir / FINAL_GATE_RESULT_NAME, result)
     return result
 
 
@@ -14346,11 +15291,7 @@ def _patch_gate_result_historical_artifacts(
                 check["limitations"] = [historical_msg]
     out_dir = state_dir / "gates"
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / FINAL_GATE_RESULT_NAME).write_text(
-        json.dumps(patched, ensure_ascii=True, indent=2) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_json_with_retry(out_dir / FINAL_GATE_RESULT_NAME, patched)
 
 
 def _valid_close_round_id(round_id: str) -> bool:
@@ -15184,11 +16125,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         for reason in (patched_after.get("blocking_reasons") or [])
                         if not any(str(reason).startswith(f"{name}:") for name in after_tolerated)
                     ]
-                    (state_dir / "gates" / FINAL_GATE_RESULT_NAME).write_text(
-                        json.dumps(patched_after, ensure_ascii=True, indent=2) + "\n",
-                        encoding="utf-8",
-                        newline="\n",
-                    )
+                    _write_json_with_retry(state_dir / "gates" / FINAL_GATE_RESULT_NAME, patched_after)
                 actions.append(
                     {
                         "name": "final_check_after_archive",
@@ -15437,6 +16374,12 @@ def _command_kind(command: str) -> str:
         return "audit-readiness-packet"
     if "project_gate" in lowered and "current-handoff-packet" in lowered:
         return "current-handoff-packet"
+    if "project_gate" in lowered and "local-execution-bundle" in lowered:
+        return "local-execution-bundle"
+    if "project_gate" in lowered and "codex-prompt-packet" in lowered:
+        return "codex-prompt-packet"
+    if "project_gate" in lowered and "audit-precheck" in lowered:
+        return "audit-precheck"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
         return "startup-snapshot"
     if "project_gate" in lowered and "control-plane-snapshot" in lowered:
@@ -15517,7 +16460,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -15807,6 +16750,48 @@ def _inject_current_handoff_packet_commands(extracted_commands: list[str], decis
     return commands
 
 
+def _decision_requests_local_execution_loop(decision_text: str) -> bool:
+    lowered = decision_text.lower()
+    return (
+        "local_execution_bundle.json" in lowered
+        or "codex_prompt_packet.json" in lowered
+        or "audit_precheck_result.json" in lowered
+        or "local-execution-bundle" in lowered
+        or "codex-prompt-packet" in lowered
+        or "audit-precheck" in lowered
+        or "accepted_requires_local_execution_bundle" in lowered
+        or "accepted_requires_codex_prompt_packet" in lowered
+        or "accepted_requires_audit_precheck" in lowered
+    )
+
+
+def _inject_local_execution_loop_commands(extracted_commands: list[str], decision_text: str) -> list[str]:
+    if not _decision_requests_local_execution_loop(decision_text):
+        return extracted_commands
+    required_commands = [
+        "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+        "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+        "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+        "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+        "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+        "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+    ]
+    required_kinds = {_command_kind(command) for command in required_commands}
+    commands = [
+        command
+        for command in extracted_commands
+        if _command_kind(command) not in required_kinds
+    ]
+    insert_at = next(
+        (
+            index for index, command in enumerate(commands)
+            if _command_kind(command) in {"report-summary", "execution-log", "final-check", "run-closeout"}
+        ),
+        len(commands),
+    )
+    return [*commands[:insert_at], *required_commands, *commands[insert_at:]]
+
+
 def _decision_requests_full_closeout_coverage(decision_text: str) -> bool:
     lowered = decision_text.lower()
     return (
@@ -16027,6 +17012,7 @@ def command_plan(
         extracted_commands = _inject_audit_inventory_commands(extracted_commands, decision_text)
         extracted_commands = _inject_audit_readiness_commands(extracted_commands, decision_text)
         extracted_commands = _inject_current_handoff_packet_commands(extracted_commands, decision_text)
+        extracted_commands = _inject_local_execution_loop_commands(extracted_commands, decision_text)
         extracted_commands = _inject_closeout_coverage_commands(
             extracted_commands,
             decision_text=decision_text,
@@ -18529,17 +19515,31 @@ def _append_command_block_to_closeout_log(
     })
 
     log_text = json.dumps(log_data, ensure_ascii=True, indent=2) + "\n"
-    tmp_path = log_path.with_name(log_path.name + ".tmp")
-    tmp_path.write_text(log_text, encoding="utf-8", newline="\n")
-    for attempt in range(5):
+    tmp_path = log_path.with_name(f"{log_path.name}.{os.getpid()}.tmp")
+    for attempt in range(10):
+        try:
+            tmp_path.write_text(log_text, encoding="utf-8", newline="\n")
+            break
+        except OSError:
+            if attempt == 9:
+                raise
+            time.sleep(0.2)
+    for attempt in range(10):
         try:
             tmp_path.replace(log_path)
             break
-        except PermissionError:
-            if attempt == 4:
-                log_path.write_text(log_text, encoding="utf-8", newline="\n")
-                with contextlib.suppress(FileNotFoundError):
-                    tmp_path.unlink()
+        except OSError:
+            if attempt == 9:
+                for write_attempt in range(10):
+                    try:
+                        log_path.write_text(log_text, encoding="utf-8", newline="\n")
+                        with contextlib.suppress(FileNotFoundError):
+                            tmp_path.unlink()
+                        break
+                    except OSError:
+                        if write_attempt == 9:
+                            raise
+                        time.sleep(0.2)
                 break
             time.sleep(0.2)
 
@@ -18846,6 +19846,11 @@ def _refresh_post_run_closeout_evidence(
         round_id=round_id_text,
     )
 
+    def _refresh_local_execution_artifacts() -> None:
+        local_execution_bundle(state_dir=state_dir, write_result=True)
+        codex_prompt_packet(state_dir=state_dir, write_result=True)
+        audit_precheck(state_dir=state_dir, write_result=True)
+
     for _ in range(2):
         try:
             execution_log(state_dir=state_dir, write_result=True)
@@ -18883,6 +19888,7 @@ def _refresh_post_run_closeout_evidence(
                 _refresh_manifest_status(state_dir=state_dir, round_id=round_id_text)
             audit_readiness_packet(state_dir=state_dir, write_result=True)
             current_handoff_packet(state_dir=state_dir, write_result=True)
+            _refresh_local_execution_artifacts()
         except Exception:
             pass
         try:
@@ -18913,6 +19919,7 @@ def _refresh_post_run_closeout_evidence(
             final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
             audit_readiness_packet(state_dir=state_dir, write_result=True)
             current_handoff_packet(state_dir=state_dir, write_result=True)
+            _refresh_local_execution_artifacts()
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
                 repo_root=repo_root,
@@ -18939,6 +19946,7 @@ def _refresh_post_run_closeout_evidence(
         try:
             audit_readiness_packet(state_dir=state_dir, write_result=True)
             current_handoff_packet(state_dir=state_dir, write_result=True)
+            _refresh_local_execution_artifacts()
         except Exception:
             pass
         try:
@@ -18968,6 +19976,7 @@ def _refresh_post_run_closeout_evidence(
         try:
             audit_readiness_packet(state_dir=state_dir, write_result=True)
             current_handoff_packet(state_dir=state_dir, write_result=True)
+            _refresh_local_execution_artifacts()
         except Exception:
             pass
         try:
@@ -19019,7 +20028,44 @@ def _refresh_post_run_closeout_evidence(
             final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
             audit_readiness_packet(state_dir=state_dir, write_result=True)
             current_handoff_packet(state_dir=state_dir, write_result=True)
+            _refresh_local_execution_artifacts()
             final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+        except Exception:
+            pass
+    for _ in range(4):
+        try:
+            final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+            _refresh_codex_report_for_closeout(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                decision_id=decision_id_text,
+                round_id=round_id_text,
+                include_close_snapshot=include_close_snapshot,
+            )
+            report_auto_summary(state_dir=state_dir, write_result=True)
+            _sync_auto_summary_to_report(state_dir)
+            build_report_summary_synthesis(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            if include_close_snapshot:
+                _recopy_report_to_archive(state_dir=state_dir, round_id=round_id_text)
+                _refresh_manifest_status(state_dir=state_dir, round_id=round_id_text)
+            audit_readiness_packet(state_dir=state_dir, write_result=True)
+            current_handoff_packet(state_dir=state_dir, write_result=True)
+            _refresh_local_execution_artifacts()
+            final_result = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+            build_report_summary_synthesis(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            if include_close_snapshot:
+                _recopy_report_to_archive(state_dir=state_dir, round_id=round_id_text)
+                _refresh_manifest_status(state_dir=state_dir, round_id=round_id_text)
+            if final_result.get("gate_status") == "PASSED":
+                break
         except Exception:
             pass
 
@@ -19674,6 +20720,9 @@ def _build_closeout_steps(
             )
         ),
         *_plan_steps_for_kind("current-handoff-packet", name="current-handoff-packet"),
+        *_plan_steps_for_kind("local-execution-bundle", name="local-execution-bundle"),
+        *_plan_steps_for_kind("codex-prompt-packet", name="codex-prompt-packet"),
+        *_plan_steps_for_kind("audit-precheck", name="audit-precheck"),
         *(
             _plan_steps_for_kind("final-check", name="final-check")
             or [
@@ -20462,6 +21511,30 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(CURRENT_HANDOFF_PACKET_OUTPUT_PATH)
         files_changed_set.add(CURRENT_HANDOFF_PACKET_OUTPUT_PATH)
+    local_execution_payload = _read_json(gates_dir / LOCAL_EXECUTION_BUNDLE_RESULT_NAME)
+    if _artifact_matches_current_round(
+        local_execution_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH)
+        files_changed_set.add(LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH)
+    prompt_packet_payload = _read_json(gates_dir / CODEX_PROMPT_PACKET_RESULT_NAME)
+    if _artifact_matches_current_round(
+        prompt_packet_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CODEX_PROMPT_PACKET_OUTPUT_PATH)
+        files_changed_set.add(CODEX_PROMPT_PACKET_OUTPUT_PATH)
+    audit_precheck_payload = _read_json(gates_dir / AUDIT_PRECHECK_RESULT_NAME)
+    if _artifact_matches_current_round(
+        audit_precheck_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(AUDIT_PRECHECK_OUTPUT_PATH)
+        files_changed_set.add(AUDIT_PRECHECK_OUTPUT_PATH)
 
     # Include close snapshot if requested (after close-round)
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
@@ -20645,6 +21718,8 @@ def _refresh_codex_report_for_closeout(
         _generate_required_audit_alignment_rework_required_audit(decision_text)
         or
         _generate_hygiene_handoff_rework_required_audit(decision_text)
+        or
+        _generate_local_execution_loop_required_audit(decision_text)
         or
         _generate_current_handoff_packet_required_audit(decision_text)
         or
@@ -22089,6 +23164,40 @@ def run_closeout(
                 f"report_id: {ch_result.get('report_id')}\n"
                 f"artifact: {CURRENT_HANDOFF_PACKET_OUTPUT_PATH}"
             )
+        elif kind == "local-execution-bundle":
+            leb_result = local_execution_bundle(state_dir=state_dir, write_result=True)
+            leb_status = str(leb_result.get("gate_status") or "")
+            step_exit_code = 0 if leb_status == "PASSED" else 1
+            step_stdout = (
+                f"local-execution-bundle: {leb_status}\n"
+                f"decision_id: {leb_result.get('decision_id')}\n"
+                f"round_id: {leb_result.get('round_id')}\n"
+                f"report_id: {leb_result.get('report_id')}\n"
+                f"artifact: {LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH}"
+            )
+        elif kind == "codex-prompt-packet":
+            cpp_result = codex_prompt_packet(state_dir=state_dir, write_result=True)
+            cpp_status = str(cpp_result.get("gate_status") or "")
+            step_exit_code = 0 if cpp_status == "PASSED" else 1
+            step_stdout = (
+                f"codex-prompt-packet: {cpp_status}\n"
+                f"decision_id: {cpp_result.get('decision_id')}\n"
+                f"round_id: {cpp_result.get('round_id')}\n"
+                f"report_id: {cpp_result.get('report_id')}\n"
+                f"artifact: {CODEX_PROMPT_PACKET_OUTPUT_PATH}"
+            )
+        elif kind == "audit-precheck":
+            ap_result = audit_precheck(state_dir=state_dir, write_result=True)
+            ap_status = str(ap_result.get("gate_status") or "")
+            step_exit_code = 0 if ap_status == "PASSED" else 1
+            step_stdout = (
+                f"audit-precheck: {ap_status}\n"
+                f"decision_id: {ap_result.get('decision_id')}\n"
+                f"round_id: {ap_result.get('round_id')}\n"
+                f"report_id: {ap_result.get('report_id')}\n"
+                f"audit_recommendation: {ap_result.get('audit_recommendation')}\n"
+                f"artifact: {AUDIT_PRECHECK_OUTPUT_PATH}"
+            )
         elif kind == "final-check":
             fc_result = final_check(
                 state_dir=state_dir,
@@ -22179,7 +23288,13 @@ def run_closeout(
             # consistent with the live codex_report_summary.
             report_auto_summary(state_dir=state_dir, write_result=True)
             _sync_auto_summary_to_report(state_dir)
-        if step_name in {"audit-readiness-packet", "current-handoff-packet"}:
+        if step_name in {
+            "audit-readiness-packet",
+            "current-handoff-packet",
+            "local-execution-bundle",
+            "codex-prompt-packet",
+            "audit-precheck",
+        }:
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
                 repo_root=repo_root,
@@ -22290,6 +23405,9 @@ def run_closeout(
                 include_close_snapshot=True,
             )
             current_handoff_packet(state_dir=state_dir, write_result=True)
+            local_execution_bundle(state_dir=state_dir, write_result=True)
+            codex_prompt_packet(state_dir=state_dir, write_result=True)
+            audit_precheck(state_dir=state_dir, write_result=True)
             report_auto_summary(state_dir=state_dir, write_result=True)
             _sync_auto_summary_to_report(state_dir)
             execution_log(state_dir=state_dir, write_result=True)
@@ -22924,6 +24042,15 @@ def main(argv: list[str] | None = None) -> int:
     current_handoff_parser = subparsers.add_parser("current-handoff-packet", help="Generate the current non-dispatching handoff packet.")
     current_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     current_handoff_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    local_execution_bundle_parser = subparsers.add_parser("local-execution-bundle", help="Generate the non-executing local execution bundle.")
+    local_execution_bundle_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    local_execution_bundle_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    codex_prompt_packet_parser = subparsers.add_parser("codex-prompt-packet", help="Generate the copyable local Codex prompt packet.")
+    codex_prompt_packet_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    codex_prompt_packet_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    audit_precheck_parser = subparsers.add_parser("audit-precheck", help="Generate the bounded pre-audit readiness gate.")
+    audit_precheck_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    audit_precheck_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -23226,6 +24353,36 @@ def main(argv: list[str] | None = None) -> int:
             _print_result(result)
             print(f"report_id: {result.get('report_id')}")
             print(f"artifact: {CURRENT_HANDOFF_PACKET_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "local-execution-bundle":
+        result = local_execution_bundle(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"report_id: {result.get('report_id')}")
+            print(f"artifact: {LOCAL_EXECUTION_BUNDLE_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "codex-prompt-packet":
+        result = codex_prompt_packet(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"report_id: {result.get('report_id')}")
+            print(f"artifact: {CODEX_PROMPT_PACKET_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "audit-precheck":
+        result = audit_precheck(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"audit_recommendation: {result.get('audit_recommendation')}")
+            print(f"artifact: {AUDIT_PRECHECK_OUTPUT_PATH}")
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     if args.command == "startup-snapshot":

@@ -42,7 +42,10 @@ from reverse_agent.project_gate import (
     _agent_runner_handoff_bundle_gate_check,
     _agent_runner_handoff_validation_gate_check,
     _audit_inventory_gate_check,
+    _audit_precheck_gate_check,
+    _codex_prompt_packet_gate_check,
     _current_handoff_packet_gate_check,
+    _local_execution_bundle_gate_check,
     _control_plane_snapshot_gate_check,
     _job_orchestration_gate_check,
     _jobs_inventory_gate_check,
@@ -73,7 +76,10 @@ from reverse_agent.project_gate import (
     execute_decision,
     final_check,
     audit_readiness_packet,
+    audit_precheck,
+    codex_prompt_packet,
     current_handoff_packet,
+    local_execution_bundle,
     audit_inventory,
     control_plane_snapshot,
     agent_runner_handoff_bundle,
@@ -17126,6 +17132,9 @@ def test_run_closeout_constants_and_allowlist():
             "audit-inventory",
             "audit-readiness-packet",
             "current-handoff-packet",
+            "local-execution-bundle",
+            "codex-prompt-packet",
+            "audit-precheck",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -23315,6 +23324,65 @@ class TestFinalCheckExitAndAuditReadiness:
         assert packet["limitations"] == []
         assert packet["next_action"] == "no_action_required"
 
+    def test_audit_readiness_packet_allows_audit_precheck_self_reference(
+        self, tmp_path: Path
+    ) -> None:
+        state_dir = _make_gate_state(tmp_path, status="FAILED", acceptance="REWORK_REQUIRED")
+        _write_json(
+            state_dir / "gates" / "run_closeout_result.json",
+            {
+                "schema_version": 1,
+                "gate_name": "run-closeout",
+                "closeout_status": "PASSED",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "close_round_result": {"close_status": "CLOSED"},
+                "blocking_reasons": [],
+                "warnings": [],
+            },
+        )
+        _write_json(
+            state_dir / "gates" / "audit_precheck_result.json",
+            {
+                "schema_version": 1,
+                "gate_name": "audit-precheck",
+                "gate_status": "PASSED",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "report_id": "codex_report_gate",
+                "audit_recommendation": "READY_FOR_GPT_AUDIT",
+                "blocking_reasons": [],
+            },
+        )
+        _write_json(
+            state_dir / "gates" / "final_gate_result.json",
+            {
+                "schema_version": 1,
+                "gate_name": "final-check",
+                "gate_status": "FAILED",
+                "decision_id": "decision_gate",
+                "round_id": "round_gate",
+                "checks": [
+                    {
+                        "name": "audit_readiness_packet_valid",
+                        "status": "FAIL",
+                        "detail": "audit readiness packet is invalid",
+                    },
+                    {
+                        "name": "report_summary_fields_match_synthesis",
+                        "status": "FAIL",
+                        "detail": "execution_report_summary differs from synthesized summary",
+                    },
+                ],
+            },
+        )
+
+        packet = audit_readiness_packet(state_dir=state_dir, write_result=False)
+
+        assert packet["readiness_status"] == "READY"
+        assert packet["limitations"] == []
+        assert packet["next_action"] == "no_action_required"
+
     def test_final_check_rejects_stale_audit_readiness_after_closeout_passed(
         self, tmp_path: Path
     ) -> None:
@@ -26467,6 +26535,281 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
     assert result["plan_status"] == "PASSED"
     assert "current-handoff-packet" in kinds
     assert "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state" in commands
+
+
+def test_local_execution_loop_artifacts_are_current_and_non_dispatching(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        extra_text="""```json decision_contract
+{
+  "accepted_requires_current_handoff_packet": true,
+  "accepted_requires_local_execution_bundle": true,
+  "accepted_requires_codex_prompt_packet": true,
+  "accepted_requires_audit_precheck": true,
+  "allowed_source_files": ["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
+  "forbidden_mutated_paths": ["project_state/current_state.json"],
+  "allowed_generated_or_updated_artifacts": ["project_state/gates/*.json"]
+}
+```
+""",
+    )
+    _add_current_handoff_supporting_artifacts(state_dir)
+    current_handoff_packet(state_dir=state_dir, write_result=True)
+
+    bundle = local_execution_bundle(state_dir=state_dir, write_result=True)
+    prompt = codex_prompt_packet(state_dir=state_dir, write_result=True)
+    precheck = audit_precheck(state_dir=state_dir, write_result=True)
+
+    assert bundle["gate_status"] == "PASSED"
+    assert bundle["evidence_only"] is True
+    assert bundle["can_execute"] is False
+    assert bundle["can_dispatch"] is False
+    assert bundle["mutates_state"] is False
+    assert bundle["command_plan_authority"]["bundle_can_override_command_plan"] is False
+    assert prompt["gate_status"] == "PASSED"
+    assert prompt["command_plan_authority"]["prompt_can_override_command_plan"] is False
+    assert "project_state/gates/command_plan.json" in prompt["copyable_prompt"]
+    assert precheck["gate_status"] == "PASSED"
+    assert precheck["audit_recommendation"] == "DO_NOT_ACCEPT"
+    assert precheck["blocking_reasons"]
+
+    bundle_check = _local_execution_bundle_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_local_execution_bundle": True},
+        decision_text="local_execution_bundle.json",
+    )
+    prompt_check = _codex_prompt_packet_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_codex_prompt_packet": True},
+        decision_text="codex_prompt_packet.json",
+    )
+    precheck_check = _audit_precheck_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_audit_precheck": True},
+        decision_text="audit_precheck_result.json",
+    )
+
+    assert bundle_check["status"] == "PASS"
+    assert prompt_check["status"] == "PASS"
+    assert precheck_check["status"] == "PASS"
+
+
+def test_local_execution_bundle_gate_check_rejects_executable_or_stale_bundle(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _add_current_handoff_supporting_artifacts(state_dir)
+    current_handoff_packet(state_dir=state_dir, write_result=True)
+    payload = local_execution_bundle(state_dir=state_dir, write_result=False)
+    payload["decision_id"] = "decision_old"
+    payload["can_dispatch"] = True
+    payload["command_plan_authority"]["bundle_can_override_command_plan"] = True
+    _write_json(state_dir / "gates" / "local_execution_bundle.json", payload)
+
+    check = _local_execution_bundle_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_local_execution_bundle": True},
+        decision_text="local_execution_bundle.json",
+    )
+
+    assert check["status"] == "FAIL"
+    assert "decision_id mismatch" in check["errors"]
+    assert "can_dispatch is not false" in check["errors"]
+    assert "bundle claims it can override command-plan" in check["errors"]
+
+
+def test_codex_prompt_packet_rejects_stale_bundle_derivation(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _add_current_handoff_supporting_artifacts(state_dir)
+    current_handoff_packet(state_dir=state_dir, write_result=True)
+    local_execution_bundle(state_dir=state_dir, write_result=True)
+    payload = codex_prompt_packet(state_dir=state_dir, write_result=False)
+    payload["source_artifacts"]["local_execution_bundle"]["sha256"] = "stale"
+    payload["can_execute"] = True
+    _write_json(state_dir / "gates" / "codex_prompt_packet.json", payload)
+
+    check = _codex_prompt_packet_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_codex_prompt_packet": True},
+        decision_text="codex_prompt_packet.json",
+    )
+
+    assert check["status"] == "FAIL"
+    assert "can_execute is not false" in check["errors"]
+    assert "source_artifacts.local_execution_bundle.sha256 does not match live artifact" in check["errors"]
+
+
+def test_audit_precheck_rejects_ready_before_current_closeout(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _add_current_handoff_supporting_artifacts(state_dir)
+    current_handoff_packet(state_dir=state_dir, write_result=True)
+    local_execution_bundle(state_dir=state_dir, write_result=True)
+    codex_prompt_packet(state_dir=state_dir, write_result=True)
+    payload = audit_precheck(state_dir=state_dir, write_result=False)
+    payload["audit_recommendation"] = "READY_FOR_GPT_AUDIT"
+    payload["blocking_reasons"] = []
+    _write_json(state_dir / "gates" / "audit_precheck_result.json", payload)
+
+    check = _audit_precheck_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        report_id="codex_report_gate",
+        decision_contract={"accepted_requires_audit_precheck": True},
+        decision_text="audit_precheck_result.json",
+    )
+
+    assert check["status"] == "FAIL"
+    assert "audit_precheck must not be READY_FOR_GPT_AUDIT before current closeout passes" in check["errors"]
+
+
+def test_audit_precheck_allows_final_check_self_reference_when_only_precheck_pending(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path, status="FAILED", acceptance="REWORK_REQUIRED")
+    _add_current_handoff_supporting_artifacts(state_dir)
+    current_handoff_packet(state_dir=state_dir, write_result=True)
+    local_execution_bundle(state_dir=state_dir, write_result=True)
+    codex_prompt_packet(state_dir=state_dir, write_result=True)
+    _write_json(
+        state_dir / "gates" / "run_closeout_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "close_round_result": {"close_status": "CLOSED"},
+            "blocking_reasons": [],
+            "warnings": [],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "audit_readiness_packet.json",
+        {
+            "schema_version": 1,
+            "gate_name": "audit-readiness-packet",
+            "gate_status": "PASSED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "readiness_status": "PENDING",
+            "recommendation": "REWORK_REQUIRED",
+            "next_action": "complete_closeout_and_rerun_final_check",
+            "limitations": ["report is not yet accepted"],
+        },
+    )
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "FAILED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "checks": [
+                {
+                    "name": "audit_precheck_valid",
+                    "status": "FAIL",
+                    "detail": "audit precheck is invalid",
+                }
+            ],
+        },
+    )
+    current_handoff_packet(state_dir=state_dir, write_result=True)
+    local_execution_bundle(state_dir=state_dir, write_result=True)
+    codex_prompt_packet(state_dir=state_dir, write_result=True)
+
+    payload = audit_precheck(state_dir=state_dir, write_result=False)
+
+    assert payload["audit_recommendation"] == "READY_FOR_GPT_AUDIT"
+    assert payload["blocking_reasons"] == []
+
+
+def test_command_plan_injects_local_execution_loop_gates_in_order(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+        extra_text="""```json decision_contract
+{
+  "accepted_requires_current_handoff_packet": true,
+  "accepted_requires_local_execution_bundle": true,
+  "accepted_requires_codex_prompt_packet": true,
+  "accepted_requires_audit_precheck": true
+}
+```
+""",
+    )
+
+    result = command_plan(state_dir=state_dir, write_result=False)
+    kinds = [command["kind"] for command in result["commands"]]
+
+    assert result["plan_status"] == "PASSED"
+    assert kinds.index("current-handoff-packet") < kinds.index("local-execution-bundle")
+    assert kinds.index("local-execution-bundle") < kinds.index("codex-prompt-packet")
+    assert kinds.index("codex-prompt-packet") < kinds.index("audit-precheck")
+    assert kinds.index("audit-precheck") < kinds.index("final-check")
+
+
+def test_build_closeout_steps_includes_local_execution_loop_gates(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    plan_result = {
+        "commands": [
+            {
+                "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+                "kind": "current-handoff-packet",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+                "kind": "local-execution-bundle",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+                "kind": "codex-prompt-packet",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+                "kind": "audit-precheck",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+                "kind": "final-check",
+                "expected_exit_codes": [0, 1],
+            },
+        ]
+    }
+
+    steps = _build_closeout_steps(
+        state_dir=state_dir,
+        round_id="round_gate",
+        plan_result=plan_result,
+    )
+    step_names = [step["name"] for step in steps]
+
+    assert step_names.index("current-handoff-packet") < step_names.index("local-execution-bundle")
+    assert step_names.index("local-execution-bundle") < step_names.index("codex-prompt-packet")
+    assert step_names.index("codex-prompt-packet") < step_names.index("audit-precheck")
+    assert step_names.index("audit-precheck") < step_names.index("final-check")
 
 
 def test_final_check_blocks_missing_required_handoff_artifacts(tmp_path: Path) -> None:

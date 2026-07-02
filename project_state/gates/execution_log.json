@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260701_current_handoff_packet_v1",
-  "round_id": "round_20260701_current_handoff_packet_v1",
-  "report_id": "codex_report_20260701_current_handoff_packet_v1",
-  "generated_at": "2026-07-01T15:21:32.017050Z",
+  "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+  "round_id": "round_20260701_local_execution_loop_foundation_v1",
+  "report_id": "codex_report_20260701_local_execution_loop_foundation_v1",
+  "generated_at": "2026-07-01T18:02:52.171508Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260701_current_handoff_packet_v1",
-    "round_id": "round_20260701_current_handoff_packet_v1",
-    "report_id": "codex_report_20260701_current_handoff_packet_v1",
+    "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+    "round_id": "round_20260701_local_execution_loop_foundation_v1",
+    "report_id": "codex_report_20260701_local_execution_loop_foundation_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "75636d9a4215111302f1ae9e1e7cdec424fc1d7e40254134bdb1519fb7ce9a99",
-        "size_bytes": 18404,
-        "command_block_count": 18
+        "sha256": "528b4d52a04fa5e016b7963695401ed6775520b326976854447a144055594d6f",
+        "size_bytes": 21334,
+        "command_block_count": 21
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "eecd8c541e22fe3a28d35b4027c7e0243ed350552a9e9727b8ba73e714b2e4a4",
-        "size_bytes": 8741,
-        "decision_id": "decision_20260701_current_handoff_packet_v1",
-        "round_id": "round_20260701_current_handoff_packet_v1",
+        "sha256": "a2db657878303d3fa6246558d5fbe8b181086feb51408b57ba0668950d6ac5bb",
+        "size_bytes": 9968,
+        "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+        "round_id": "round_20260701_local_execution_loop_foundation_v1",
         "plan_status": "PASSED",
-        "command_count": 19
+        "command_count": 22
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "48f76c8f57448f2fabb37b0c4c8dc361eee843bd02f30c56dd4bbac5fefd90c9",
-        "size_bytes": 38032,
-        "decision_id": "decision_20260701_current_handoff_packet_v1",
-        "round_id": "round_20260701_current_handoff_packet_v1",
-        "command_block_count": 19
+        "sha256": "29bb105e9b0bad4a726dbcd070b756d670a6fdd91fee161bf0b48feda2b0cecf",
+        "size_bytes": 40177,
+        "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+        "round_id": "round_20260701_local_execution_loop_foundation_v1",
+        "command_block_count": 22
       }
     },
-    "command_count": 18,
-    "command_digest": "e3508de4a12c46d5fe911a6d5842180102c67da6ec627d2a852c154e5cc812e7"
+    "command_count": 21,
+    "command_digest": "19b6b8f9d25af039f20af55f5b7c113449a7d6579c43d98de2f1139ce82385b4"
   },
   "commands": [
     {
@@ -207,6 +207,39 @@
     },
     {
       "index": 15,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "kind": "local-execution-bundle",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "kind": "codex-prompt-packet",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "kind": "audit-precheck",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 18,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -218,7 +251,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 19,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -229,7 +262,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 20,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -241,8 +274,8 @@
       "status": "PASSED"
     },
     {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_current_handoff_packet_v1",
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_local_execution_loop_foundation_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

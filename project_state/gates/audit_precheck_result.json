@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "artifact_name": "audit_precheck_result.json",
+  "gate_name": "audit-precheck",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+  "round_id": "round_20260701_local_execution_loop_foundation_v1",
+  "report_id": "codex_report_20260701_local_execution_loop_foundation_v1",
+  "generated_at": "2026-07-01T18:02:54.858814Z",
+  "checks": [
+    {
+      "name": "report_current_and_accepted",
+      "status": "PASS",
+      "detail": "report is current SUCCESS/ACCEPTED"
+    },
+    {
+      "name": "pytest_result_present_and_matching",
+      "status": "PASS",
+      "detail": "pytest_result matches report",
+      "errors": []
+    },
+    {
+      "name": "pytest_command_coverage",
+      "status": "PASS",
+      "detail": "pytest_result covers report tests",
+      "missing_report_tests": []
+    },
+    {
+      "name": "final_check_passed",
+      "status": "PASS",
+      "detail": "final-check is current and PASSED or only audit_precheck_valid remains pending"
+    },
+    {
+      "name": "run_closeout_passed",
+      "status": "PASS",
+      "detail": "run-closeout is current and PASSED"
+    },
+    {
+      "name": "close_round_closed",
+      "status": "PASS",
+      "detail": "close-round is CLOSED"
+    },
+    {
+      "name": "audit_readiness_ready",
+      "status": "PASS",
+      "detail": "audit readiness is READY/ACCEPTED/no_action_required"
+    },
+    {
+      "name": "current_handoff_packet_valid",
+      "status": "PASS",
+      "detail": "current handoff packet is current, command-plan aligned, evidence-only, and non-dispatching",
+      "required": true,
+      "artifact": "project_state/gates/current_handoff_packet.json",
+      "errors": [],
+      "gate_status": "PASSED",
+      "report_id": "codex_report_20260701_local_execution_loop_foundation_v1",
+      "evidence_only": true,
+      "executable": false,
+      "can_execute": false,
+      "mutates_state": false
+    },
+    {
+      "name": "local_execution_bundle_valid",
+      "status": "PASS",
+      "detail": "local execution bundle is current, evidence-only, and command-plan aligned",
+      "required": true,
+      "artifact": "project_state/gates/local_execution_bundle.json",
+      "errors": [],
+      "audit_recommendation": null
+    },
+    {
+      "name": "codex_prompt_packet_valid",
+      "status": "PASS",
+      "detail": "codex prompt packet is current and derived from current bundle/handoff",
+      "required": true,
+      "artifact": "project_state/gates/codex_prompt_packet.json",
+      "errors": []
+    }
+  ],
+  "audit_recommendation": "READY_FOR_GPT_AUDIT",
+  "blocking_reasons": [],
+  "warnings": [],
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "remote_mutation_allowed": false,
+  "generated_artifacts": [
+    "project_state/gates/audit_precheck_result.json"
+  ]
+}

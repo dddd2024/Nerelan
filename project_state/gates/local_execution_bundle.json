@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "artifact_name": "local_execution_bundle.json",
+  "gate_name": "local-execution-bundle",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+  "round_id": "round_20260701_local_execution_loop_foundation_v1",
+  "report_id": "codex_report_20260701_local_execution_loop_foundation_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-01T18:02:54.854911Z",
+  "decision_authority": {
+    "path": "project_state/decision_packet.md",
+    "role": "decision_authority",
+    "controls_current_round": true,
+    "task_packet_role": "background_only"
+  },
+  "command_plan_authority": {
+    "path": "project_state/gates/command_plan.json",
+    "role": "command_execution_authority",
+    "bundle_can_override_command_plan": false,
+    "plan_status": "PASSED",
+    "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+    "round_id": "round_20260701_local_execution_loop_foundation_v1",
+    "execution_order_policy": {
+      "mode": "coverage_expected_exit_not_strict_wall_clock",
+      "strict_wall_clock_order": false,
+      "coverage_authority": true,
+      "expected_exit_authority": true,
+      "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
+    }
+  },
+  "startup_contract": {
+    "required_sequence": [
+      "Set-Location F:\\reverse-agent",
+      "Get-Location",
+      "Test-Path F:\\reverse-agent",
+      "git rev-parse --show-toplevel",
+      "git status --short",
+      "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state"
+    ],
+    "startup_snapshot_first_project_gate": true,
+    "startup_snapshot_artifact": "project_state/gates/startup_snapshot.json"
+  },
+  "allowed_scope": {
+    "source_files": [
+      "reverse_agent/project_gate.py",
+      "tests/test_project_gate.py",
+      "tests/test_project_reports.py"
+    ],
+    "generated_or_updated_artifacts": [
+      "project_state/codex_execution_report.md",
+      "project_state/execution_report.md",
+      "project_state/pytest_result.txt",
+      "project_state/gates/*.json",
+      "project_state/rounds/round_20260701_local_execution_loop_foundation_v1/*"
+    ]
+  },
+  "forbidden_scope": {
+    "preserve_only_files": [
+      "reverse_agent/project_agent_runner.py",
+      "reverse_agent/project_control_plane.py",
+      "reverse_agent/project_jobs.py",
+      "reverse_agent/project_runner_contract.py",
+      "reverse_agent/project_audits.py",
+      "reverse_agent/project_rounds.py",
+      "reverse_agent/project_state.py",
+      "tests/test_project_agent_runner.py",
+      "tests/test_project_control_plane.py",
+      "tests/test_project_state.py",
+      "docs/prompts/*",
+      ".github/workflows/*"
+    ],
+    "forbidden_mutated_paths": [
+      "project_state/current_state.json",
+      "project_state/task_packet.json",
+      "project_state/artifact_index.json",
+      "project_state/negative_results.json",
+      ".codex-skills/registry.json",
+      "docs/prompts/*",
+      ".github/workflows/*",
+      "solve_reports/*"
+    ],
+    "no_runner_or_dispatcher": true,
+    "remote_mutation_allowed": false
+  },
+  "required_commands_summary": [
+    {
+      "index": 1,
+      "command": "Set-Location F:\\reverse-agent",
+      "kind": "set-location",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 2,
+      "command": "Get-Location",
+      "kind": "pwd",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 3,
+      "command": "Test-Path F:\\reverse-agent",
+      "kind": "test-path",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 4,
+      "command": "git rev-parse --show-toplevel",
+      "kind": "git rev-parse",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 5,
+      "command": "git status --short",
+      "kind": "git status",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "kind": "startup-snapshot",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+      "kind": "audit-readiness-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+      "kind": "current-handoff-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "kind": "local-execution-bundle",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "kind": "codex-prompt-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "kind": "audit-precheck",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 16,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "required": true
+    },
+    {
+      "index": 17,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "required": true
+    },
+    {
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "required": true
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+      "kind": "execution-log",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260701_local_execution_loop_foundation_v1",
+      "kind": "run-closeout",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 22,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "phase": "gate",
+      "required": true
+    }
+  ],
+  "required_tests": {
+    "pytest_commands": [
+      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q"
+    ],
+    "includes_project_reports": true
+  },
+  "required_artifacts": [
+    "project_state/gates/current_handoff_packet.json",
+    "project_state/gates/local_execution_bundle.json",
+    "project_state/gates/codex_prompt_packet.json",
+    "project_state/gates/audit_precheck_result.json",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/pytest_result.txt"
+  ],
+  "required_report_updates": {
+    "codex_execution_report": "project_state/codex_execution_report.md",
+    "execution_report": "project_state/execution_report.md",
+    "pytest_result": "project_state/pytest_result.txt",
+    "must_record_top_level_commands": true
+  },
+  "current_handoff_packet": {
+    "path": "project_state/gates/current_handoff_packet.json",
+    "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+    "round_id": "round_20260701_local_execution_loop_foundation_v1",
+    "gate_status": "PASSED",
+    "current": true,
+    "sha256": "8486e43c8930978834220942a39078719322216223845581a482f7172417c340"
+  },
+  "codex_prompt_packet": {
+    "path": "project_state/gates/codex_prompt_packet.json",
+    "required": true
+  },
+  "audit_precheck_result": {
+    "path": "project_state/gates/audit_precheck_result.json",
+    "required": true
+  },
+  "audit_inventory_status": {
+    "artifact": "project_state/gates/audit_inventory_result.json",
+    "gate_status": "PASSED",
+    "inventory_validation_status": "PASSED",
+    "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+    "round_id": "round_20260701_local_execution_loop_foundation_v1",
+    "current": true
+  },
+  "audit_readiness_status": {
+    "artifact": "project_state/gates/audit_readiness_packet.json",
+    "gate_status": "PASSED",
+    "readiness_status": "READY",
+    "recommendation": "ACCEPTED",
+    "next_action": "no_action_required",
+    "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+    "round_id": "round_20260701_local_execution_loop_foundation_v1",
+    "current": true
+  },
+  "closeout_expectations": {
+    "final_check": "PASSED",
+    "run_closeout": "PASSED",
+    "close_round": "CLOSED",
+    "post_closeout_final_check": "PASSED",
+    "round_id": "round_20260701_local_execution_loop_foundation_v1"
+  },
+  "stop_conditions": {
+    "startup_path_or_repo_root_wrong": true,
+    "startup_snapshot_not_first_project_gate": true,
+    "decision_metadata_invalid": true,
+    "command_plan_missing_or_unsafe": true,
+    "forbidden_paths_modified": true,
+    "runner_or_dispatcher_required": true,
+    "unauthorized_command_required": true
+  },
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "remote_mutation_allowed": false,
+  "warnings": [],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/local_execution_bundle.json"
+  ]
+}

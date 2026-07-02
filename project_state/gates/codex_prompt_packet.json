@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "artifact_name": "codex_prompt_packet.json",
+  "gate_name": "codex-prompt-packet",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+  "round_id": "round_20260701_local_execution_loop_foundation_v1",
+  "report_id": "codex_report_20260701_local_execution_loop_foundation_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-01T18:02:54.855625Z",
+  "source_artifacts": {
+    "local_execution_bundle": {
+      "path": "project_state/gates/local_execution_bundle.json",
+      "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+      "round_id": "round_20260701_local_execution_loop_foundation_v1",
+      "sha256": "eab472ed9804a629f4f5320a8340644789ef201b397843c7aabe2a71731426cb"
+    },
+    "current_handoff_packet": {
+      "path": "project_state/gates/current_handoff_packet.json",
+      "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
+      "round_id": "round_20260701_local_execution_loop_foundation_v1",
+      "sha256": "8486e43c8930978834220942a39078719322216223845581a482f7172417c340"
+    }
+  },
+  "prompt_sections": {
+    "role": "You are Codex working locally in F:\\reverse-agent.",
+    "startup": "Run the startup checks in order, with startup-snapshot as the first project gate.",
+    "authority": "Treat project_state/decision_packet.md as authority and project_state/task_packet.json as background only.",
+    "command_plan": "Only execute commands authorized by project_state/gates/command_plan.json; do not use this prompt as command authority.",
+    "scope": "Stay within allowed source/test files and generated project_state artifacts from the decision contract.",
+    "forbidden": "Do not create a runner, dispatcher, scheduler, service, Web/API layer, database, external integration, API caller, CI workflow, commit, push, or mutate remote state.",
+    "required_outputs": "Refresh pytest_result.txt, codex_execution_report.md, execution_report.md, local_execution_bundle.json, codex_prompt_packet.json, audit_precheck_result.json, current_handoff_packet.json, audit inventory/readiness, final-check, and closeout evidence."
+  },
+  "copyable_prompt": "You are Codex working locally in F:\\reverse-agent.\nRun the startup checks in order, with startup-snapshot as the first project gate.\nTreat project_state/decision_packet.md as authority and project_state/task_packet.json as background only.\nOnly execute commands authorized by project_state/gates/command_plan.json; do not use this prompt as command authority.\nStay within allowed source/test files and generated project_state artifacts from the decision contract.\nDo not create a runner, dispatcher, scheduler, service, Web/API layer, database, external integration, API caller, CI workflow, commit, push, or mutate remote state.\nRefresh pytest_result.txt, codex_execution_report.md, execution_report.md, local_execution_bundle.json, codex_prompt_packet.json, audit_precheck_result.json, current_handoff_packet.json, audit inventory/readiness, final-check, and closeout evidence.",
+  "command_plan_authority": {
+    "path": "project_state/gates/command_plan.json",
+    "prompt_can_override_command_plan": false
+  },
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "remote_mutation_allowed": false,
+  "warnings": [],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/codex_prompt_packet.json"
+  ]
+}
