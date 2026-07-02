@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from reverse_agent.project_gate import (
+    _generate_ci_workflow_coverage_required_audit,
     _generate_current_handoff_packet_required_audit,
     _generate_final_check_exit_and_audit_readiness_required_audit,
     _generate_local_execution_loop_required_audit,
@@ -106,6 +107,29 @@ LOCAL_EXECUTION_LOOP_QUESTIONS = [
     "Does final-check validate prompt packet freshness and derivation from the current bundle/handoff?",
     "Does final-check validate audit precheck status and recommendation?",
     "Did final report summary match pytest, changed files, generated artifacts, decision ID, round ID, current handoff status, local execution bundle status, prompt packet status, audit precheck status, audit inventory status, and audit readiness status?",
+]
+
+CI_WORKFLOW_COVERAGE_QUESTIONS = [
+    "Did startup commands confirm `F:\\reverse-agent`, repository root, and clean `git status --short` before any project gate?",
+    "Was `startup-snapshot` the immediate sixth recorded command and the first project gate command?",
+    "Did `decision_meta` remain APPROVED on engineering_branch with `reverse-agent-iteration@v2` active?",
+    "Did Codex treat `decision_packet.md` as authority and `task_packet.json` as background only?",
+    "Were `.github/workflows/ci.yml` and `.github/workflows/state-gate.yml` inspected read-only without modification?",
+    "Was `project_state/gates/ci_workflow_coverage_result.json` generated with the current decision ID, round ID, and report ID?",
+    "What workflow coverage is present or missing for baseline pytest, `tests/test_project_reports.py`, preflight, command-plan, local-execution-bundle, codex-prompt-packet, audit-precheck, report-summary, execution-log, and final-check?",
+    "Were unsafe workflow capabilities checked and were any unsafe patterns found?",
+    "Do regression tests fail or report missing required coverage in a synthetic workflow?",
+    "Do regression tests fail or report unsafe synthetic workflow patterns?",
+    "Did implementation stay within allowed source and test files?",
+    "Were forbidden and preserve-only files not modified?",
+    "Does the local execution bundle remain current, evidence-only, non-executable, non-dispatching, and non-mutating?",
+    "Does the Codex prompt packet remain current and non-executable?",
+    "Does audit precheck preserve READY_FOR_GPT_AUDIT and DO_NOT_ACCEPT semantics?",
+    "Does report-summary match pytest output, changed files, generated artifacts, and workflow coverage artifact status?",
+    "Does execution-log align command-plan and pytest_result without omitting executed top-level commands?",
+    "Did final-check pass with the CI workflow coverage artifact validated?",
+    "Did run-closeout pass, close-round become CLOSED, and post-closeout final-check pass?",
+    "Does the report state workflow files were not modified and coverage gaps are future-decision planning evidence?",
 ]
 
 
@@ -279,4 +303,34 @@ def test_final_check_exit_audit_generator_uses_dirty_startup_negative_evidence()
         assert "live clean startup alone" in item_6
     else:
         assert "Did the implementation stay within allowed source/test files?" in item_6
+    assert result["status"] == "PASS"
+
+
+def test_ci_workflow_coverage_required_audit_generator_is_substantive() -> None:
+    decision_text = (
+        "# Decision\n\n"
+        "ci workflow coverage ci_workflow_coverage_result.json "
+        "accepted_requires_ci_workflow_coverage_artifact "
+        "accepted_requires_workflow_static_validation_tests "
+        "accepted_requires_existing_workflows_read_only\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(CI_WORKFLOW_COVERAGE_QUESTIONS, start=1)
+        )
+    )
+
+    audit = _generate_ci_workflow_coverage_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == len(CI_WORKFLOW_COVERAGE_QUESTIONS)
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/ci_workflow_coverage_result.json" in audit
+    assert ".github/workflows/ci.yml" in audit
+    assert ".github/workflows/state-gate.yml" in audit
+    assert "WORKFLOW_UPDATE_RECOMMENDED" in audit or "coverage gaps" in audit
     assert result["status"] == "PASS"

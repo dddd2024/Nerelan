@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
-  "round_id": "round_20260701_local_execution_loop_foundation_v1",
-  "report_id": "codex_report_20260701_local_execution_loop_foundation_v1",
+  "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
+  "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+  "report_id": "codex_report_20260702_ci_workflow_coverage_audit_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-01T18:02:54.855625Z",
+  "generated_at": "2026-07-02T06:42:46.761271Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
-      "round_id": "round_20260701_local_execution_loop_foundation_v1",
-      "sha256": "eab472ed9804a629f4f5320a8340644789ef201b397843c7aabe2a71731426cb"
+      "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
+      "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+      "sha256": "6a4bf3a1f7bb6ceec34f00ee37448a6036be3db5abbb75b335dfba41d1b580bc"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
-      "round_id": "round_20260701_local_execution_loop_foundation_v1",
-      "sha256": "8486e43c8930978834220942a39078719322216223845581a482f7172417c340"
+      "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
+      "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
+      "sha256": "599f8fb8c2fdfc08d88393ab4b868c09224abd98eb1914d024a7dbf9f1865895"
     }
   },
   "prompt_sections": {

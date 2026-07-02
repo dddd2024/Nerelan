@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260701_local_execution_loop_foundation_v1",
-  "round_id": "round_20260701_local_execution_loop_foundation_v1",
+  "decision_id": "decision_20260702_ci_workflow_coverage_audit_gate_v1",
+  "round_id": "round_20260702_ci_workflow_coverage_audit_gate_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-01T17:50:35.442989Z",
+  "generated_at": "2026-07-02T06:25:53.369988Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -25,8 +25,18 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [],
-      "baseline_dirty_files": []
+      "startup_dirty_files": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/pytest_result.txt"
+      ],
+      "baseline_dirty_files": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/pytest_result.txt"
+      ]
     },
     {
       "name": "decision_not_dirty_in_baseline",
@@ -75,9 +85,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision consumption allowed for closeout",
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "report_id": "codex_report_20260701_local_execution_loop_foundation_v1"
+      "detail": "decision has not been consumed by a report",
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "report_id": "codex_report_20260702_ci_workflow_coverage_audit_gate_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -96,7 +106,7 @@
         "project_state/execution_report.md",
         "project_state/gates/*.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260701_local_execution_loop_foundation_v1/*",
+        "project_state/rounds/round_20260702_ci_workflow_coverage_audit_gate_v1/*",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py"
@@ -155,13 +165,18 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [],
-    "head_commit": "aec107aa6ed1"
+    "baseline_dirty_files": [
+      "project_state/gates/command_plan.json",
+      "project_state/gates/run_closeout_execution_log.json",
+      "project_state/gates/run_closeout_result.json",
+      "project_state/pytest_result.txt"
+    ],
+    "head_commit": "12f736b2f3eb"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
+    "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

@@ -43,6 +43,7 @@ from reverse_agent.project_gate import (
     _agent_runner_handoff_validation_gate_check,
     _audit_inventory_gate_check,
     _audit_precheck_gate_check,
+    _ci_workflow_coverage_gate_check,
     _codex_prompt_packet_gate_check,
     _current_handoff_packet_gate_check,
     _local_execution_bundle_gate_check,
@@ -77,6 +78,7 @@ from reverse_agent.project_gate import (
     final_check,
     audit_readiness_packet,
     audit_precheck,
+    ci_workflow_coverage,
     codex_prompt_packet,
     current_handoff_packet,
     local_execution_bundle,
@@ -17135,6 +17137,7 @@ def test_run_closeout_constants_and_allowlist():
             "local-execution-bundle",
             "codex-prompt-packet",
             "audit-precheck",
+            "ci-workflow-coverage",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -25012,6 +25015,38 @@ class TestCloseoutActiveWarningsCleanCheck:
         assert nested["status"] == "FAIL"
         assert result["gate_status"] == "FAILED"
 
+    def test_nested_failures_are_pending_during_close_round_in_progress(self, tmp_path: Path) -> None:
+        """Current run-closeout self-state is not final while after-close checks run."""
+        from reverse_agent.project_gate import final_check
+
+        state_dir = _make_gate_state(tmp_path)
+        gates_dir = state_dir / "gates"
+        _write_json(gates_dir / "run_closeout_result.json", {
+            "schema_version": 1,
+            "gate_name": "run-closeout",
+            "closeout_status": "FAILED",
+            "decision_id": "decision_gate",
+            "round_id": "round_gate",
+            "warnings": [],
+            "blocking_reasons": ["step final-check-after-close exited 1"],
+            "executed_steps": [
+                {"name": "final-check-after-close", "status": "FAILED", "exit_code": 1},
+            ],
+        })
+
+        result = final_check(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            write_result=False,
+            close_round_in_progress=True,
+        )
+
+        nested = next((c for c in result.get("checks", []) if c.get("name") == "closeout_nested_failures_absent"), None)
+        assert nested is not None
+        assert nested["status"] == "PASS"
+        assert nested["skipped_reason"] == "close_round_in_progress"
+        assert nested["pending_failures"]
+
     def test_run_closeout_internal_blockers_include_nested_failures(self) -> None:
         """run-closeout aggregation fails on failed nested close-round evidence."""
         from reverse_agent.project_gate import _run_closeout_internal_blocking_reasons
@@ -27447,3 +27482,217 @@ def test_closeout_report_covers_control_plane_and_historical_audit_artifacts(tmp
     assert "project_state/gates/control_plane_snapshot.json" in synthesized["files_changed"]
     assert "project_state/gates/control_plane_snapshot.json" in synthesized["generated_artifacts"]
     assert "project_state/gates/agent_runner_dry_run_result.json" in synthesized["generated_artifacts"]
+
+
+def _write_ci_coverage_workflows(repo_root: Path, *, state_gate_body: str, ci_body: str | None = None) -> None:
+    workflows_dir = repo_root / ".github" / "workflows"
+    workflows_dir.mkdir(parents=True, exist_ok=True)
+    (workflows_dir / "ci.yml").write_text(
+        ci_body
+        or """name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install -e .
+      - run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state"
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+""",
+        encoding="utf-8",
+    )
+    (workflows_dir / "state-gate.yml").write_text(state_gate_body, encoding="utf-8")
+
+
+def _make_ci_coverage_state(tmp_path: Path) -> Path:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_ci_workflow_coverage",
+        round_id="round_ci_workflow_coverage",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    contract = {
+        "accepted_requires_ci_workflow_coverage_artifact": True,
+        "accepted_requires_workflow_static_validation_tests": True,
+        "accepted_requires_existing_workflows_read_only": True,
+    }
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\n```json decision_contract\n"
+        + json.dumps(contract, indent=2)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    return state_dir
+
+
+def _full_state_gate_workflow() -> str:
+    return """name: State Gate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  state-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install -e .
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m reverse_agent.project_gate audit-inventory --state-dir project_state
+      - run: python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
+      - run: python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state
+      - run: python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state
+      - run: python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state
+      - run: python -m reverse_agent.project_gate audit-precheck --state-dir project_state
+      - run: python -m reverse_agent.project_gate report-summary --state-dir project_state
+      - run: python -m reverse_agent.project_gate execution-log --state-dir project_state
+      - run: python -m reverse_agent.project_gate final-check --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q
+"""
+
+
+def test_ci_workflow_coverage_accepts_complete_read_only_workflows(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
+
+    result = ci_workflow_coverage(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["recommendation"] == "NO_ACTION_REQUIRED"
+    assert result["missing_coverage"] == []
+    assert result["unsafe_patterns_found"] == []
+    assert result["evidence_only"] is True
+    assert result["can_dispatch"] is False
+    assert (state_dir / "gates" / "ci_workflow_coverage_result.json").exists()
+
+
+def test_ci_workflow_coverage_reports_missing_required_workflow_coverage(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(
+        tmp_path,
+        state_gate_body="""name: State Gate
+permissions:
+  contents: read
+jobs:
+  state-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+""",
+    )
+
+    result = ci_workflow_coverage(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["recommendation"] == "WORKFLOW_UPDATE_RECOMMENDED"
+    missing = set(result["missing_coverage"])
+    assert "tests_project_reports_py" in missing
+    assert "local_execution_bundle" in missing
+    assert "codex_prompt_packet" in missing
+    assert "audit_precheck" in missing
+    assert "report_summary" in missing
+    assert "final_check" in missing
+
+
+def test_ci_workflow_coverage_flags_unsafe_synthetic_workflow_patterns(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(
+        tmp_path,
+        ci_body="""name: CI
+permissions:
+  contents: write
+jobs:
+  unsafe:
+    runs-on: self-hosted
+    steps:
+      - run: git push origin main
+      - run: python -c "import openai"
+""",
+        state_gate_body=_full_state_gate_workflow(),
+    )
+
+    result = ci_workflow_coverage(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    assert result["gate_status"] == "FAILED"
+    found = {item["id"] for item in result["unsafe_patterns_found"]}
+    assert "write_permissions" in found
+    assert "repo_mutation_command" in found
+    assert "external_model_call" in found
+    assert "self_hosted_runner" in found
+
+
+def test_ci_workflow_coverage_gate_check_accepts_nonblocking_coverage_gaps(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(
+        tmp_path,
+        state_gate_body="""name: State Gate
+permissions:
+  contents: read
+jobs:
+  state-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+    )
+    payload = ci_workflow_coverage(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+    contract = {
+        "accepted_requires_ci_workflow_coverage_artifact": True,
+        "accepted_requires_workflow_static_validation_tests": True,
+        "accepted_requires_existing_workflows_read_only": True,
+    }
+
+    check = _ci_workflow_coverage_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_ci_workflow_coverage",
+        round_id="round_ci_workflow_coverage",
+        report_id=_expected_report_id("round_ci_workflow_coverage"),
+        decision_contract=contract,
+    )
+
+    assert payload["missing_coverage"]
+    assert check["status"] == "PASS"
+    assert check["recommendation"] == "WORKFLOW_UPDATE_RECOMMENDED"
+
+
+def test_ci_workflow_coverage_gate_check_rejects_unsafe_artifact(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(
+        tmp_path,
+        ci_body="""name: CI
+permissions:
+  contents: write
+jobs:
+  unsafe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: git push origin main
+""",
+        state_gate_body=_full_state_gate_workflow(),
+    )
+    ci_workflow_coverage(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+
+    check = _ci_workflow_coverage_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_ci_workflow_coverage",
+        round_id="round_ci_workflow_coverage",
+        report_id=_expected_report_id("round_ci_workflow_coverage"),
+        decision_contract={"accepted_requires_ci_workflow_coverage_artifact": True},
+    )
+
+    assert check["status"] == "FAIL"
+    assert "unsafe workflow patterns found" in check["errors"]
