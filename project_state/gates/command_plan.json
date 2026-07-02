@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
-  "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
+  "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-02T08:04:08.527139Z",
+  "generated_at": "2026-07-02T11:06:02.791629Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -113,19 +113,32 @@
     },
     {
       "index": 7,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "phase": "preflight",
-      "kind": "preflight",
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "phase": "gate",
+      "kind": "command-plan",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
+      "notes": "command-plan expected to exit 0"
     },
     {
       "index": 8,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 9,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "phase": "gate",
       "kind": "audit-inventory",
@@ -138,7 +151,7 @@
       "notes": "audit-inventory expected to exit 0"
     },
     {
-      "index": 9,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "phase": "gate",
       "kind": "audit-readiness-packet",
@@ -151,7 +164,7 @@
       "notes": "audit-readiness-packet expected to exit 0"
     },
     {
-      "index": 10,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "phase": "gate",
       "kind": "current-handoff-packet",
@@ -164,7 +177,7 @@
       "notes": "current-handoff-packet expected to exit 0"
     },
     {
-      "index": 11,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "phase": "gate",
       "kind": "local-execution-bundle",
@@ -177,7 +190,7 @@
       "notes": "local-execution-bundle expected to exit 0"
     },
     {
-      "index": 12,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "phase": "gate",
       "kind": "codex-prompt-packet",
@@ -190,7 +203,7 @@
       "notes": "codex-prompt-packet expected to exit 0"
     },
     {
-      "index": 13,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "phase": "gate",
       "kind": "audit-precheck",
@@ -203,7 +216,7 @@
       "notes": "audit-precheck expected to exit 0"
     },
     {
-      "index": 14,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -217,33 +230,7 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
       "index": 16,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 17,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -255,6 +242,19 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "phase": "preflight",
+      "kind": "preflight",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "preflight expected to exit 0"
     },
     {
       "index": 18,
@@ -284,6 +284,32 @@
     },
     {
       "index": 20,
+      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-run-evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-run-evidence expected to exit 0"
+    },
+    {
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+      "phase": "gate",
+      "kind": "local-ci-parity",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "local-ci-parity expected to exit 0"
+    },
+    {
+      "index": 22,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "phase": "gate",
       "kind": "execution-log",
@@ -297,7 +323,7 @@
       "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 21,
+      "index": 23,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -310,20 +336,20 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_preflight_and_workflow_readiness_v1",
-      "phase": "preflight",
-      "kind": "preflight",
+      "index": 24,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+      "phase": "gate",
+      "kind": "run-closeout",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
+      "notes": "run-closeout expected exit 0 after final-check passed"
     },
     {
-      "index": 23,
+      "index": 25,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -339,5 +365,5 @@
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_preflight_and_workflow_readiness_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_run_evidence_and_local_ci_parity_v1"
 }

@@ -39,5 +39,11 @@ jobs:
       - name: CI workflow readiness
         run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
 
+      - name: CI run evidence
+        run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
+
+      - name: Local CI parity
+        run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
+
       - name: Focused preflight tests
         run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q

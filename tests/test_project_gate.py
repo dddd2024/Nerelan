@@ -43,6 +43,7 @@ from reverse_agent.project_gate import (
     _agent_runner_handoff_validation_gate_check,
     _audit_inventory_gate_check,
     _audit_precheck_gate_check,
+    _ci_run_evidence_gate_check,
     _ci_workflow_coverage_gate_check,
     _ci_workflow_readiness_gate_check,
     _codex_prompt_packet_gate_check,
@@ -51,6 +52,7 @@ from reverse_agent.project_gate import (
     _control_plane_snapshot_gate_check,
     _job_orchestration_gate_check,
     _jobs_inventory_gate_check,
+    _local_ci_parity_gate_check,
     _runner_contract_gate_check,
     _normalize_closed_close_round_result_for_success,
     _round_baseline_matches_startup_snapshot_check,
@@ -80,11 +82,13 @@ from reverse_agent.project_gate import (
     gate_profile,
     audit_readiness_packet,
     audit_precheck,
+    ci_run_evidence,
     ci_workflow_coverage,
     ci_workflow_readiness,
     codex_prompt_packet,
     current_handoff_packet,
     local_execution_bundle,
+    local_ci_parity,
     audit_inventory,
     control_plane_snapshot,
     agent_runner_handoff_bundle,
@@ -17142,6 +17146,8 @@ def test_run_closeout_constants_and_allowlist():
             "audit-precheck",
             "ci-workflow-coverage",
             "ci-workflow-readiness",
+            "ci-run-evidence",
+            "local-ci-parity",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -27598,6 +27604,8 @@ jobs:
       - run: python -m reverse_agent.project_gate preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
+      - run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
       - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q
 """,
         encoding="utf-8",
@@ -27614,6 +27622,8 @@ def _make_ci_coverage_state(tmp_path: Path) -> Path:
     contract = {
         "accepted_requires_ci_workflow_coverage_artifact": True,
         "accepted_requires_ci_workflow_readiness_artifact": True,
+        "accepted_requires_ci_run_evidence_artifact": True,
+        "accepted_requires_local_ci_parity_artifact": True,
         "accepted_requires_workflow_static_validation_tests": True,
         "accepted_requires_existing_workflows_read_only": True,
     }
@@ -27655,6 +27665,8 @@ jobs:
       - run: python -m reverse_agent.project_gate execution-log --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
+      - run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
+      - run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
       - run: python -m reverse_agent.project_gate final-check --state-dir project_state
       - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q
 """
@@ -27691,6 +27703,170 @@ def test_ci_workflow_readiness_accepts_complete_workflow_set(tmp_path: Path) -> 
         ".github/workflows/decision-preflight.yml",
     }
     assert (state_dir / "gates" / "ci_workflow_readiness_result.json").exists()
+
+
+def _write_local_ci_parity_command_plan(state_dir: Path, commands: list[str]) -> None:
+    _write_json(
+        state_dir / "gates" / "command_plan.json",
+        {
+            "schema_version": 1,
+            "decision_id": "decision_ci_workflow_coverage",
+            "round_id": "round_ci_workflow_coverage",
+            "plan_status": "PASSED",
+            "commands": [
+                {
+                    "index": index,
+                    "command": command,
+                    "kind": _command_kind(command),
+                    "required": True,
+                    "expected_exit_codes": [0],
+                }
+                for index, command in enumerate(commands)
+            ],
+        },
+    )
+
+
+def test_ci_run_evidence_labels_missing_live_snapshot_explicitly(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+
+    payload = ci_run_evidence(state_dir=state_dir, write_result=True)
+    check = _ci_run_evidence_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_ci_workflow_coverage",
+        round_id="round_ci_workflow_coverage",
+        report_id=_expected_report_id("round_ci_workflow_coverage"),
+        decision_contract={"accepted_requires_ci_run_evidence_artifact": True},
+    )
+
+    assert payload["gate_status"] == "PASSED"
+    assert payload["ci_observation_status"] == "NOT_OBSERVED"
+    assert payload["snapshot_validation_status"] == "NOT_SUPPLIED"
+    assert payload["evidence_only"] is True
+    assert payload["can_dispatch"] is False
+    assert check["status"] == "PASS"
+    assert (state_dir / "gates" / "ci_run_evidence_result.json").exists()
+
+
+def test_ci_run_evidence_validates_supplied_bounded_snapshot(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    snapshot_path = tmp_path / "ci_snapshot.json"
+    _write_json(
+        snapshot_path,
+        {
+            "workflow": "State Gate",
+            "run_id": "12345",
+            "status": "success",
+            "commands": [
+                "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+                "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+            ],
+        },
+    )
+
+    payload = ci_run_evidence(
+        state_dir=state_dir,
+        ci_snapshot_path=snapshot_path,
+        write_result=False,
+    )
+
+    assert payload["gate_status"] == "PASSED"
+    assert payload["ci_observation_status"] == "SUPPLIED_BOUNDED_INPUT"
+    assert payload["snapshot_validation_status"] == "PASSED"
+    assert payload["snapshot"]["snapshot_run_id"] == "12345"
+    assert payload["live_ci_observed"] is False
+
+
+def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
+    commands = [
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+        "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+        "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+        "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+        "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+        "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+        "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+        "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+    ]
+    _write_local_ci_parity_command_plan(state_dir, commands)
+    (state_dir / "pytest_result.txt").write_text(
+        "```json pytest_result_summary\n"
+        + json.dumps({"status": "PASSED", "tests_ran": commands}, indent=2)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    _write_json(
+        state_dir / "gates" / "execution_log.json",
+        {
+            "decision_id": "decision_ci_workflow_coverage",
+            "round_id": "round_ci_workflow_coverage",
+            "commands": [{"command": command, "exit_code": 0} for command in commands],
+        },
+    )
+
+    payload = local_ci_parity(state_dir=state_dir, repo_root=tmp_path, write_result=True)
+    check = _local_ci_parity_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_ci_workflow_coverage",
+        round_id="round_ci_workflow_coverage",
+        report_id=_expected_report_id("round_ci_workflow_coverage"),
+        decision_contract={"accepted_requires_local_ci_parity_artifact": True},
+    )
+
+    assert payload["gate_status"] == "PASSED"
+    assert payload["required_parity_gaps"] == []
+    assert check["status"] == "PASS"
+    assert (state_dir / "gates" / "local_ci_parity_result.json").exists()
+
+
+def test_local_ci_parity_detects_omitted_workflow_command(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
+    _write_local_ci_parity_command_plan(
+        state_dir,
+        [
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        ],
+    )
+
+    payload = local_ci_parity(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    assert payload["gate_status"] == "FAILED"
+    missing = {item["command"] for item in payload["required_parity_gaps"]}
+    assert "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state" in missing
+    assert "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state" in missing
+
+
+def test_local_ci_parity_records_local_transcript_gaps_as_diagnostics(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
+    commands = [
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+        "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+    ]
+    _write_local_ci_parity_command_plan(state_dir, commands)
+
+    payload = local_ci_parity(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    assert payload["gate_status"] == "FAILED"
+    assert payload["local_transcript_gaps"]
+    assert payload["transcript_completeness_status"] == "DIAGNOSTIC_GAPS_RECORDED"
 
 
 def test_ci_workflow_readiness_rejects_missing_required_coverage(tmp_path: Path) -> None:
@@ -27809,6 +27985,25 @@ def test_command_plan_includes_ci_workflow_readiness_when_requested(tmp_path: Pa
 
     commands = [item["command"] for item in result["commands"]]
     assert "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state" in commands
+
+
+def test_command_plan_classifies_ci_run_evidence_and_local_ci_parity_as_gates(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\nCI run evidence local CI parity ci_run_evidence_result.json local_ci_parity_result.json\n"
+        + "\n## Tests\n\n```powershell\npython -m reverse_agent.project_gate final-check --state-dir project_state\n```\n",
+        encoding="utf-8",
+    )
+
+    result = command_plan(state_dir=state_dir)
+    kinds = {item["kind"] for item in result["commands"]}
+
+    assert "ci-run-evidence" in kinds
+    assert "local-ci-parity" in kinds
+    assert _command_phase("ci-run-evidence", archive_seen=False) == "gate"
+    assert _command_phase("local-ci-parity", archive_seen=False) == "gate"
 
 
 def test_gate_profile_uses_decision_contract_allowed_source_files(tmp_path: Path) -> None:

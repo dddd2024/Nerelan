@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
-  "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
-  "report_id": "codex_report_20260702_ci_preflight_and_workflow_readiness_v1",
+  "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-02T08:04:42.738736Z",
+  "generated_at": "2026-07-02T11:06:39.415022Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
-      "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
-      "sha256": "883accd7c5f76930edb7d42b4c202a810668034d492e690afd512697dc5b7183"
+      "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+      "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+      "sha256": "8b11d50d04aa2a007265bbf53508154dfc54c92f991923d614e19cbcdcac93bf"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
-      "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
-      "sha256": "8de4cebcdf79a6632e897b0b6c705115dd7d9294dec3f7925a670d042a499f2e"
+      "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+      "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+      "sha256": "0709bf7cdd2c48c5e4d25196732dc5dc70ca4c560bd68883b5bf573a7ee3370e"
     }
   },
   "prompt_sections": {

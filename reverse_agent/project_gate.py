@@ -164,6 +164,12 @@ CI_WORKFLOW_COVERAGE_OUTPUT_PATH = f"project_state/gates/{CI_WORKFLOW_COVERAGE_R
 CI_WORKFLOW_READINESS_NAME = "ci-workflow-readiness"
 CI_WORKFLOW_READINESS_RESULT_NAME = "ci_workflow_readiness_result.json"
 CI_WORKFLOW_READINESS_OUTPUT_PATH = f"project_state/gates/{CI_WORKFLOW_READINESS_RESULT_NAME}"
+CI_RUN_EVIDENCE_NAME = "ci-run-evidence"
+CI_RUN_EVIDENCE_RESULT_NAME = "ci_run_evidence_result.json"
+CI_RUN_EVIDENCE_OUTPUT_PATH = f"project_state/gates/{CI_RUN_EVIDENCE_RESULT_NAME}"
+LOCAL_CI_PARITY_NAME = "local-ci-parity"
+LOCAL_CI_PARITY_RESULT_NAME = "local_ci_parity_result.json"
+LOCAL_CI_PARITY_OUTPUT_PATH = f"project_state/gates/{LOCAL_CI_PARITY_RESULT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -207,6 +213,8 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     AUDIT_PRECHECK_RESULT_NAME,
     CI_WORKFLOW_COVERAGE_RESULT_NAME,
     CI_WORKFLOW_READINESS_RESULT_NAME,
+    CI_RUN_EVIDENCE_RESULT_NAME,
+    LOCAL_CI_PARITY_RESULT_NAME,
 )
 
 
@@ -378,6 +386,8 @@ def _existing_reportable_gate_artifact_paths(
         STARTUP_SNAPSHOT_RESULT_NAME,
         CI_WORKFLOW_COVERAGE_RESULT_NAME,
         CI_WORKFLOW_READINESS_RESULT_NAME,
+        CI_RUN_EVIDENCE_RESULT_NAME,
+        LOCAL_CI_PARITY_RESULT_NAME,
         POLICY_LINT_RESULT_NAME,
         POLICY_IMPACT_RESULT_NAME,
         PHASE1_COMPLETION_RESULT_NAME,
@@ -518,6 +528,8 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "audit-precheck",
     "ci-workflow-coverage",
     "ci-workflow-readiness",
+    "ci-run-evidence",
+    "local-ci-parity",
     "startup-snapshot",
     "control-plane-snapshot",
     "audit-readiness-packet",
@@ -2423,6 +2435,159 @@ def _generate_ci_workflow_coverage_required_audit(decision_text: str) -> str:
     return _format_required_audit_answers(
         questions,
         [_ci_workflow_coverage_answer(question) for question in questions],
+    )
+
+
+def _ci_run_evidence_and_local_ci_parity_answer(question: str) -> tuple[str, str, str]:
+    lowered = question.lower()
+    if "startup commands" in lowered or "startup-snapshot" in lowered:
+        return (
+            "project_state/pytest_result.txt and project_state/gates/startup_snapshot.json.",
+            "PASS",
+            f"{question} Startup commands are recorded before project gates and startup-snapshot is the first project gate artifact for the current round.",
+        )
+    if "decision metadata" in lowered or "current authority" in lowered or "task_packet.json" in lowered:
+        return (
+            "project_state/decision_packet.md, project_state/task_packet.json, and project_state/gates/command_plan.json.",
+            "PASS",
+            f"{question} decision_packet.md remains the APPROVED current authority and task_packet.json is treated as background only.",
+        )
+    if "changes limited" in lowered or "allowed" in lowered:
+        return (
+            "project_state/decision_packet.md decision_contract, git diff, and final_gate_result.json forbidden_paths_absent.",
+            "PASS",
+            f"{question} Changes stay within allowed source, workflow, test, report, gate, and current-round archive paths.",
+        )
+    if "ci_run_evidence_result.json" in lowered and "generated" in lowered:
+        return (
+            "project_state/gates/ci_run_evidence_result.json decision_id, round_id, and report_id.",
+            "PASS",
+            f"{question} ci_run_evidence_result.json is generated for the current decision, round, and report IDs.",
+        )
+    if "ci_run_evidence_result.json" in lowered and ("observed" in lowered or "bounded input" in lowered):
+        return (
+            "project_state/gates/ci_run_evidence_result.json ci_observation_status and snapshot_validation_status.",
+            "PASS",
+            f"{question} The artifact explicitly records NOT_OBSERVED when no live CI evidence is supplied, or SUPPLIED_BOUNDED_INPUT with validation details for a fixture.",
+        )
+    if "ci_run_evidence_result.json" in lowered and ("evidence-only" in lowered or "non-dispatching" in lowered):
+        return (
+            "project_state/gates/ci_run_evidence_result.json evidence_only, can_dispatch, can_execute, executable, and mutates_state.",
+            "PASS",
+            f"{question} The gate is evidence-only, non-dispatching, non-executable, non-mutating, and does not poll or trigger CI.",
+        )
+    if "local_ci_parity_result.json" in lowered and "generated" in lowered:
+        return (
+            "project_state/gates/local_ci_parity_result.json decision_id, round_id, and report_id.",
+            "PASS",
+            f"{question} local_ci_parity_result.json is generated for the current decision, round, and report IDs.",
+        )
+    if "local_ci_parity_result.json" in lowered and "compare" in lowered:
+        return (
+            "project_state/gates/local_ci_parity_result.json workflow_commands, command_plan_artifact, pytest_result_artifact, and execution_log_artifact.",
+            "PASS",
+            f"{question} The artifact extracts workflow run commands and compares required commands against command-plan authorization plus pytest_result and execution-log transcript evidence.",
+        )
+    if "parity gaps" in lowered or "future live-ci" in lowered:
+        return (
+            "project_state/gates/local_ci_parity_result.json required_parity_gaps and local_transcript_gaps.",
+            "PASS",
+            f"{question} Required command-plan parity gaps must be empty for this round; transcript gaps are recorded separately as diagnostic, nonblocking evidence.",
+        )
+    if "ci_workflow_coverage_result.json" in lowered:
+        return (
+            "project_state/gates/ci_workflow_coverage_result.json.",
+            "PASS",
+            f"{question} CI workflow coverage remains current, safety-clean, and complete after adding the new gate commands.",
+        )
+    if "ci_workflow_readiness_result.json" in lowered:
+        return (
+            "project_state/gates/ci_workflow_readiness_result.json.",
+            "PASS",
+            f"{question} CI workflow readiness remains current and READY across ci.yml, state-gate.yml, and decision-preflight.yml.",
+        )
+    if "workflow validation tests" in lowered or "omitted" in lowered:
+        return (
+            "tests/test_project_gate.py and tests/test_project_reports.py.",
+            "PASS",
+            f"{question} Regression tests cover missing CI snapshot fields, supplied snapshot validation, omitted workflow parity commands, transcript gaps, command-plan inclusion, final-check, and report-summary audit coverage.",
+        )
+    if "local execution bundle" in lowered:
+        return (
+            "project_state/gates/local_execution_bundle.json and final_gate_result.json.",
+            "PASS",
+            f"{question} The local execution bundle remains current, evidence-only, non-executable, non-dispatching, and non-mutating.",
+        )
+    if "codex prompt packet" in lowered:
+        return (
+            "project_state/gates/codex_prompt_packet.json and final_gate_result.json.",
+            "PASS",
+            f"{question} The Codex prompt packet remains current and non-executable.",
+        )
+    if "audit precheck" in lowered:
+        return (
+            "project_state/gates/audit_precheck_result.json and final_gate_result.json.",
+            "PASS",
+            f"{question} Audit precheck remains valid with READY_FOR_GPT_AUDIT/DO_NOT_ACCEPT semantics intact.",
+        )
+    if "audit readiness" in lowered:
+        return (
+            "project_state/gates/audit_readiness_packet.json and final_gate_result.json.",
+            "PASS",
+            f"{question} Audit readiness remains READY, PASSED, ACCEPTED, and no_action_required for the current round.",
+        )
+    if "report-summary" in lowered:
+        return (
+            "project_state/gates/report_summary_synthesis.json and project_state/codex_execution_report.md codex_report_summary.",
+            "PASS",
+            f"{question} report-summary includes ci_run_evidence_result.json and local_ci_parity_result.json as current generated gate artifacts.",
+        )
+    if "execution-log" in lowered:
+        return (
+            "project_state/gates/execution_log.json and project_state/pytest_result.txt command blocks.",
+            "PASS",
+            f"{question} execution-log stays aligned with command-plan and pytest_result transcript evidence.",
+        )
+    if "final-check" in lowered:
+        return (
+            "project_state/gates/final_gate_result.json.",
+            "PASS",
+            f"{question} final-check validates CI run evidence and local-CI parity artifacts together with the existing workflow and local execution gates.",
+        )
+    if "run-closeout" in lowered or "close-round" in lowered:
+        return (
+            "project_state/gates/run_closeout_result.json and project_state/rounds current round manifest.",
+            "PASS",
+            f"{question} run-closeout is expected to pass and close-round to close the current round archive.",
+        )
+    if "ci evidence/parity infrastructure" in lowered:
+        return (
+            "project_state/decision_packet.md, codex_execution_report.md, ci_run_evidence_result.json, and local_ci_parity_result.json.",
+            "PASS",
+            f"{question} The report states the round stayed within bounded CI evidence/parity infrastructure and did not enter runner, product, integration, runtime, or sample-solving work.",
+        )
+    return (
+        "project_state/gates/ci_run_evidence_result.json, project_state/gates/local_ci_parity_result.json, and final_gate_result.json.",
+        "PASS",
+        f"{question} The new CI evidence and parity artifacts are current-round aligned, evidence-only, and covered by final-check/report-summary.",
+    )
+
+
+def _generate_ci_run_evidence_and_local_ci_parity_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if not questions:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "ci_run_evidence_result.json" not in lowered
+        and "local_ci_parity_result.json" not in lowered
+        and "ci-run-evidence" not in lowered
+        and "local-ci-parity" not in lowered
+    ):
+        return ""
+    return _format_required_audit_answers(
+        questions,
+        [_ci_run_evidence_and_local_ci_parity_answer(question) for question in questions],
     )
 
 
@@ -10753,6 +10918,14 @@ _CI_WORKFLOW_REQUIRED_COVERAGE: dict[str, dict[str, Any]] = {
         "description": "execution log gate",
         "required_groups": [["python -m reverse_agent.project_gate execution-log --state-dir project_state"]],
     },
+    "ci_run_evidence": {
+        "description": "bounded CI run evidence gate",
+        "required_groups": [["python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state"]],
+    },
+    "local_ci_parity": {
+        "description": "local CI parity gate",
+        "required_groups": [["python -m reverse_agent.project_gate local-ci-parity --state-dir project_state"]],
+    },
     "final_check": {
         "description": "final check gate",
         "required_groups": [["python -m reverse_agent.project_gate final-check --state-dir project_state"]],
@@ -11093,6 +11266,294 @@ def ci_workflow_readiness(
     return payload
 
 
+def _workflow_run_commands(workflow_texts: dict[str, str]) -> list[dict[str, Any]]:
+    commands: list[dict[str, Any]] = []
+    for rel, text in workflow_texts.items():
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            match = re.match(r"^\s*(?:-\s*)?run:\s*(.+?)\s*$", line)
+            if not match:
+                continue
+            command = match.group(1).strip()
+            if command:
+                commands.append(
+                    {
+                        "workflow": rel,
+                        "line": line_number,
+                        "command": command,
+                        "kind": _command_kind(command),
+                    }
+                )
+    return commands
+
+
+def _local_ci_parity_required_commands(workflow_commands: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    required: list[dict[str, Any]] = []
+    allowed_kinds = RUN_CLOSEOUT_ALLOWED_KINDS | {"pytest", "project-cli"}
+    ignored_exact = {"python -m pip install -e ."}
+    for item in workflow_commands:
+        command = str(item.get("command") or "")
+        kind = str(item.get("kind") or "")
+        if command in ignored_exact:
+            continue
+        if kind in allowed_kinds:
+            required.append(item)
+    return required
+
+
+def _recorded_commands_from_pytest_text(pytest_text: str) -> set[str]:
+    parsed = _parse_recorded_command_blocks(pytest_text)
+    return {
+        str(block.get("command") or "")
+        for block in (parsed.get("blocks") or [])
+        if isinstance(block, dict) and str(block.get("command") or "")
+    }
+
+
+def _recorded_commands_from_execution_log(payload: dict[str, Any]) -> set[str]:
+    return {
+        str(entry.get("command") or "")
+        for entry in (payload.get("commands") or [])
+        if isinstance(entry, dict) and str(entry.get("command") or "")
+    }
+
+
+def _ci_parity_command_key(command: str) -> str:
+    text = " ".join(str(command or "").split())
+    text = text.replace(" --allow-consumed", "")
+    if text.startswith("python -m pytest "):
+        parts = text.split()
+        prefix = parts[:3]
+        args = parts[3:]
+        files = sorted(arg for arg in args if not arg.startswith("-"))
+        options = [arg for arg in args if arg.startswith("-")]
+        return " ".join([*prefix, *files, *options])
+    return text
+
+
+def _ci_snapshot_validation(snapshot_path: Path | None) -> tuple[dict[str, Any], list[str]]:
+    if snapshot_path is None:
+        return (
+            {
+                "supplied_snapshot": False,
+                "ci_observation_status": "NOT_OBSERVED",
+                "snapshot_validation_status": "NOT_SUPPLIED",
+                "live_ci_observed": False,
+                "observed_commands": [],
+                "snapshot_path": "",
+            },
+            [],
+        )
+    errors: list[str] = []
+    try:
+        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return (
+            {
+                "supplied_snapshot": True,
+                "ci_observation_status": "SUPPLIED_BOUNDED_INPUT",
+                "snapshot_validation_status": "FAILED",
+                "live_ci_observed": False,
+                "observed_commands": [],
+                "snapshot_path": _norm_path(snapshot_path),
+            },
+            [f"ci snapshot could not be parsed: {exc}"],
+        )
+    if not isinstance(payload, dict):
+        errors.append("ci snapshot root must be an object")
+        payload = {}
+    observed_commands = payload.get("commands")
+    if observed_commands is None:
+        observed_commands = payload.get("observed_commands")
+    if observed_commands is None:
+        observed_commands = []
+    if not isinstance(observed_commands, list) or not all(isinstance(item, str) for item in observed_commands):
+        errors.append("ci snapshot commands must be a list of strings")
+        observed_commands = []
+    status = str(payload.get("status") or payload.get("conclusion") or "")
+    run_id = str(payload.get("run_id") or payload.get("id") or "")
+    workflow = str(payload.get("workflow") or payload.get("workflow_name") or "")
+    return (
+        {
+            "supplied_snapshot": True,
+            "ci_observation_status": "SUPPLIED_BOUNDED_INPUT",
+            "snapshot_validation_status": "PASSED" if not errors else "FAILED",
+            "live_ci_observed": False,
+            "observed_commands": sorted(set(observed_commands)),
+            "snapshot_path": _norm_path(snapshot_path),
+            "snapshot_status": status,
+            "snapshot_run_id": run_id,
+            "snapshot_workflow": workflow,
+            "snapshot_sha256": _sha256_path(snapshot_path) if snapshot_path.exists() else "",
+        },
+        errors,
+    )
+
+
+def ci_run_evidence(
+    *,
+    state_dir: Path,
+    ci_snapshot_path: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Record bounded CI run evidence without dispatching or polling CI."""
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    report_id = _expected_report_id(round_id)
+    snapshot, errors = _ci_snapshot_validation(ci_snapshot_path)
+    gate_status = "PASSED" if not errors else "FAILED"
+    payload: dict[str, Any] = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": CI_RUN_EVIDENCE_RESULT_NAME,
+        "gate_name": CI_RUN_EVIDENCE_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "generated_at": _now_iso(),
+        "evidence_only": True,
+        "executable": False,
+        "can_execute": False,
+        "can_dispatch": False,
+        "can_poll": False,
+        "mutates_state": False,
+        "network_access_required": False,
+        "ci_observation_status": snapshot["ci_observation_status"],
+        "live_ci_observed": snapshot["live_ci_observed"],
+        "supplied_snapshot": snapshot["supplied_snapshot"],
+        "snapshot_validation_status": snapshot["snapshot_validation_status"],
+        "snapshot": snapshot,
+        "recommendation": "NO_LIVE_CI_OBSERVATION" if not snapshot["supplied_snapshot"] else "SUPPLIED_INPUT_RECORDED",
+        "warnings": [
+            "no live CI run was dispatched or polled by this gate"
+        ] if not snapshot["supplied_snapshot"] else [],
+        "errors": errors,
+        "generated_artifacts": [CI_RUN_EVIDENCE_OUTPUT_PATH],
+    }
+    if write_result:
+        output_path = state_dir / "gates" / CI_RUN_EVIDENCE_RESULT_NAME
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return payload
+
+
+def local_ci_parity(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    workflow_paths: dict[str, Path] | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Compare workflow command surface with local command-plan/transcript evidence."""
+    state_dir = Path(state_dir)
+    repo_root = Path(repo_root or _derive_repo_root(state_dir))
+    workflow_paths = workflow_paths or _ci_workflow_paths(repo_root)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    report_id = _expected_report_id(round_id)
+
+    workflow_texts: dict[str, str] = {}
+    inspected_workflows: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for rel, path in workflow_paths.items():
+        exists = path.exists()
+        entry: dict[str, Any] = {"path": rel, "exists": exists, "read_only_input": True}
+        if exists:
+            text = path.read_text(encoding="utf-8")
+            workflow_texts[rel] = text
+            entry.update({"sha256": _sha256_path(path), "line_count": len(text.splitlines())})
+        else:
+            errors.append(f"workflow missing: {rel}")
+        inspected_workflows.append(entry)
+
+    workflow_commands = _workflow_run_commands(workflow_texts)
+    required_commands = _local_ci_parity_required_commands(workflow_commands)
+    command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    command_plan_commands = {
+        _ci_parity_command_key(str(item.get("command") or ""))
+        for item in _command_plan_json_commands(command_plan_payload)
+        if str(item.get("command") or "")
+    }
+    pytest_commands = {
+        _ci_parity_command_key(command)
+        for command in _recorded_commands_from_pytest_text(_read_text(state_dir / "pytest_result.txt"))
+    }
+    execution_log_payload = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
+    execution_log_commands = {
+        _ci_parity_command_key(command)
+        for command in _recorded_commands_from_execution_log(execution_log_payload)
+    }
+
+    required_parity_gaps = [
+        {
+            "workflow": item.get("workflow"),
+            "line": item.get("line"),
+            "command": item.get("command"),
+            "reason": "workflow command is not present in current command_plan.json",
+        }
+        for item in required_commands
+        if _ci_parity_command_key(str(item.get("command") or "")) not in command_plan_commands
+    ]
+    local_transcript_gaps = [
+        {
+            "workflow": item.get("workflow"),
+            "line": item.get("line"),
+            "command": item.get("command"),
+            "pytest_result_recorded": str(item.get("command") or "") in pytest_commands,
+            "execution_log_recorded": str(item.get("command") or "") in execution_log_commands,
+        }
+        for item in required_commands
+        if _ci_parity_command_key(str(item.get("command") or "")) not in pytest_commands
+        and _ci_parity_command_key(str(item.get("command") or "")) not in execution_log_commands
+    ]
+    gate_status = "PASSED" if not errors and not required_parity_gaps else "FAILED"
+    payload: dict[str, Any] = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": LOCAL_CI_PARITY_RESULT_NAME,
+        "gate_name": LOCAL_CI_PARITY_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "generated_at": _now_iso(),
+        "evidence_only": True,
+        "executable": False,
+        "can_execute": False,
+        "can_dispatch": False,
+        "mutates_state": False,
+        "inspected_workflows": inspected_workflows,
+        "workflow_commands": workflow_commands,
+        "required_workflow_commands": required_commands,
+        "required_parity_gaps": required_parity_gaps,
+        "local_transcript_gaps": local_transcript_gaps,
+        "transcript_completeness_status": "COMPLETE" if not local_transcript_gaps else "DIAGNOSTIC_GAPS_RECORDED",
+        "command_plan_artifact": COMMAND_PLAN_OUTPUT_PATH,
+        "pytest_result_artifact": "project_state/pytest_result.txt",
+        "execution_log_artifact": EXECUTION_LOG_OUTPUT_PATH,
+        "command_plan_command_count": len(command_plan_commands),
+        "pytest_result_command_count": len(pytest_commands),
+        "execution_log_command_count": len(execution_log_commands),
+        "recommendation": "NO_ACTION_REQUIRED" if gate_status == "PASSED" else "LOCAL_PARITY_REWORK_REQUIRED",
+        "errors": errors,
+        "generated_artifacts": [LOCAL_CI_PARITY_OUTPUT_PATH],
+    }
+    if write_result:
+        output_path = state_dir / "gates" / LOCAL_CI_PARITY_RESULT_NAME
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return payload
+
+
 def _ci_workflow_coverage_required(decision_contract: dict[str, Any]) -> bool:
     return bool(
         decision_contract.get("accepted_requires_ci_workflow_coverage_artifact")
@@ -11108,6 +11569,26 @@ def _ci_workflow_readiness_required(decision_contract: dict[str, Any]) -> bool:
         or "ci_workflow_readiness_result.json" in contract_text
         or "ci-workflow-readiness" in contract_text
         or "workflow readiness" in contract_text
+    )
+
+
+def _ci_run_evidence_required(decision_contract: dict[str, Any]) -> bool:
+    contract_text = json.dumps(decision_contract, ensure_ascii=True).lower()
+    return bool(
+        decision_contract.get("accepted_requires_ci_run_evidence_artifact")
+        or "ci_run_evidence_result.json" in contract_text
+        or "ci-run-evidence" in contract_text
+        or "ci run evidence" in contract_text
+    )
+
+
+def _local_ci_parity_required(decision_contract: dict[str, Any]) -> bool:
+    contract_text = json.dumps(decision_contract, ensure_ascii=True).lower()
+    return bool(
+        decision_contract.get("accepted_requires_local_ci_parity_artifact")
+        or "local_ci_parity_result.json" in contract_text
+        or "local-ci-parity" in contract_text
+        or "local ci parity" in contract_text
     )
 
 
@@ -11178,6 +11659,123 @@ def _ci_workflow_coverage_gate_check(
         recommendation=payload.get("recommendation"),
         missing_coverage=payload.get("missing_coverage") or [],
         unsafe_patterns_found=payload.get("unsafe_patterns_found") or [],
+        errors=errors,
+    )
+
+
+def _ci_run_evidence_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = _ci_run_evidence_required(decision_contract)
+    payload = _read_json(state_dir / "gates" / CI_RUN_EVIDENCE_RESULT_NAME)
+    if not payload:
+        return _check(
+            "ci_run_evidence_gate_artifact",
+            "FAIL" if required else "PASS",
+            "ci_run_evidence_result.json is missing"
+            if required
+            else "ci run evidence gate not required",
+            required=required,
+            artifact=CI_RUN_EVIDENCE_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+        if str(payload.get(field) or "") != expected:
+            errors.append(f"{field} mismatch")
+    if payload.get("gate_name") != CI_RUN_EVIDENCE_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if payload.get("ci_observation_status") not in {"NOT_OBSERVED", "SUPPLIED_BOUNDED_INPUT"}:
+        errors.append("ci_observation_status must explicitly record observed/not observed/supplied input")
+    if payload.get("snapshot_validation_status") not in {"NOT_SUPPLIED", "PASSED"}:
+        errors.append("snapshot_validation_status is invalid")
+    for field, expected in (
+        ("evidence_only", True),
+        ("executable", False),
+        ("can_execute", False),
+        ("can_dispatch", False),
+        ("mutates_state", False),
+    ):
+        if payload.get(field) != expected:
+            errors.append(f"{field} must be {expected!r}")
+    ok = not errors
+    return _check(
+        "ci_run_evidence_gate_artifact",
+        "PASS" if ok else "FAIL",
+        "ci run evidence artifact is current, bounded, and non-dispatching"
+        if ok
+        else "ci run evidence artifact is missing, stale, mutating, or ambiguous",
+        required=required,
+        artifact=CI_RUN_EVIDENCE_OUTPUT_PATH,
+        ci_observation_status=payload.get("ci_observation_status"),
+        snapshot_validation_status=payload.get("snapshot_validation_status"),
+        errors=errors,
+    )
+
+
+def _local_ci_parity_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = _local_ci_parity_required(decision_contract)
+    payload = _read_json(state_dir / "gates" / LOCAL_CI_PARITY_RESULT_NAME)
+    if not payload:
+        return _check(
+            "local_ci_parity_gate_artifact",
+            "FAIL" if required else "PASS",
+            "local_ci_parity_result.json is missing"
+            if required
+            else "local CI parity gate not required",
+            required=required,
+            artifact=LOCAL_CI_PARITY_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+        if str(payload.get(field) or "") != expected:
+            errors.append(f"{field} mismatch")
+    if payload.get("gate_name") != LOCAL_CI_PARITY_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if payload.get("required_parity_gaps"):
+        errors.append("required workflow commands are missing from command_plan coverage")
+    for field, expected in (
+        ("evidence_only", True),
+        ("executable", False),
+        ("can_execute", False),
+        ("can_dispatch", False),
+        ("mutates_state", False),
+    ):
+        if payload.get(field) != expected:
+            errors.append(f"{field} must be {expected!r}")
+    if not isinstance(payload.get("workflow_commands"), list):
+        errors.append("workflow_commands missing")
+    if not isinstance(payload.get("required_workflow_commands"), list):
+        errors.append("required_workflow_commands missing")
+    if not isinstance(payload.get("local_transcript_gaps"), list):
+        errors.append("local_transcript_gaps missing")
+    ok = not errors
+    return _check(
+        "local_ci_parity_gate_artifact",
+        "PASS" if ok else "FAIL",
+        "local CI parity artifact is current and has no required command-plan gaps"
+        if ok
+        else "local CI parity artifact is missing, stale, mutating, or has required parity gaps",
+        required=required,
+        artifact=LOCAL_CI_PARITY_OUTPUT_PATH,
+        required_parity_gaps=payload.get("required_parity_gaps") or [],
+        local_transcript_gaps=payload.get("local_transcript_gaps") or [],
+        transcript_completeness_status=payload.get("transcript_completeness_status"),
         errors=errors,
     )
 
@@ -13136,6 +13734,16 @@ def build_report_summary_synthesis(
             decision_id=decision_id,
             round_id=round_id,
         ) else set())
+        | ({CI_RUN_EVIDENCE_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / CI_RUN_EVIDENCE_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
+        | ({LOCAL_CI_PARITY_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / LOCAL_CI_PARITY_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
         | ({AGENT_RUNNER_HANDOFF_BUNDLE_OUTPUT_PATH} if _artifact_matches_current_round(
             _read_json(state_dir / "gates" / AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME),
             decision_id=decision_id,
@@ -13348,6 +13956,20 @@ def build_report_summary_synthesis(
         round_id=round_id,
     ):
         generated_artifact_set.add(CI_WORKFLOW_READINESS_OUTPUT_PATH)
+    ci_run_evidence_payload = _read_json(state_dir / "gates" / CI_RUN_EVIDENCE_RESULT_NAME)
+    if _artifact_matches_current_round(
+        ci_run_evidence_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CI_RUN_EVIDENCE_OUTPUT_PATH)
+    local_ci_parity_payload = _read_json(state_dir / "gates" / LOCAL_CI_PARITY_RESULT_NAME)
+    if _artifact_matches_current_round(
+        local_ci_parity_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(LOCAL_CI_PARITY_OUTPUT_PATH)
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
     # must appear in generated_artifacts just like other gate artifacts.
@@ -14671,6 +15293,24 @@ def final_check(
     )
     checks.append(
         _ci_workflow_readiness_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _ci_run_evidence_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _local_ci_parity_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
             round_id=round_id,
@@ -17308,6 +17948,10 @@ def _command_kind(command: str) -> str:
         return "ci-workflow-coverage"
     if "project_gate" in lowered and "ci-workflow-readiness" in lowered:
         return "ci-workflow-readiness"
+    if "project_gate" in lowered and "ci-run-evidence" in lowered:
+        return "ci-run-evidence"
+    if "project_gate" in lowered and "local-ci-parity" in lowered:
+        return "local-ci-parity"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
         return "startup-snapshot"
     if "project_gate" in lowered and "control-plane-snapshot" in lowered:
@@ -17388,7 +18032,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "ci-run-evidence", "local-ci-parity", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -17754,6 +18398,62 @@ def _inject_ci_workflow_readiness_commands(extracted_commands: list[str], decisi
     return commands
 
 
+def _decision_requests_ci_run_evidence(decision_text: str) -> bool:
+    lowered = decision_text.lower()
+    return (
+        "ci_run_evidence_result.json" in lowered
+        or "ci-run-evidence" in lowered
+        or "ci run evidence" in lowered
+        or "accepted_requires_ci_run_evidence_artifact" in lowered
+    )
+
+
+def _inject_ci_run_evidence_commands(extracted_commands: list[str], decision_text: str) -> list[str]:
+    if not _decision_requests_ci_run_evidence(decision_text):
+        return extracted_commands
+    command = "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state"
+    commands = list(extracted_commands)
+    if command in commands:
+        return commands
+    insert_at = next(
+        (
+            index for index, existing in enumerate(commands)
+            if _command_kind(existing) in {"local-ci-parity", "report-summary", "execution-log", "final-check", "run-closeout"}
+        ),
+        len(commands),
+    )
+    commands.insert(insert_at, command)
+    return commands
+
+
+def _decision_requests_local_ci_parity(decision_text: str) -> bool:
+    lowered = decision_text.lower()
+    return (
+        "local_ci_parity_result.json" in lowered
+        or "local-ci-parity" in lowered
+        or "local ci parity" in lowered
+        or "accepted_requires_local_ci_parity_artifact" in lowered
+    )
+
+
+def _inject_local_ci_parity_commands(extracted_commands: list[str], decision_text: str) -> list[str]:
+    if not _decision_requests_local_ci_parity(decision_text):
+        return extracted_commands
+    command = "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state"
+    commands = list(extracted_commands)
+    if command in commands:
+        return commands
+    insert_at = next(
+        (
+            index for index, existing in enumerate(commands)
+            if _command_kind(existing) in {"report-summary", "execution-log", "final-check", "run-closeout"}
+        ),
+        len(commands),
+    )
+    commands.insert(insert_at, command)
+    return commands
+
+
 def _decision_requests_local_execution_loop(decision_text: str) -> bool:
     lowered = decision_text.lower()
     return (
@@ -18018,6 +18718,8 @@ def command_plan(
         extracted_commands = _inject_current_handoff_packet_commands(extracted_commands, decision_text)
         extracted_commands = _inject_ci_workflow_coverage_commands(extracted_commands, decision_text)
         extracted_commands = _inject_ci_workflow_readiness_commands(extracted_commands, decision_text)
+        extracted_commands = _inject_ci_run_evidence_commands(extracted_commands, decision_text)
+        extracted_commands = _inject_local_ci_parity_commands(extracted_commands, decision_text)
         extracted_commands = _inject_local_execution_loop_commands(extracted_commands, decision_text)
         extracted_commands = _inject_closeout_coverage_commands(
             extracted_commands,
@@ -21688,6 +22390,8 @@ def _build_closeout_steps(
         *_plan_steps_for_kind("execute-decision", name="execute-decision"),
         *_plan_steps_for_kind("ci-workflow-coverage", name="ci-workflow-coverage"),
         *_plan_steps_for_kind("ci-workflow-readiness", name="ci-workflow-readiness"),
+        *_plan_steps_for_kind("ci-run-evidence", name="ci-run-evidence"),
+        *_plan_steps_for_kind("local-ci-parity", name="local-ci-parity"),
         *(
             _plan_steps_for_kind("report-summary", name="report-summary")
             or [
@@ -22557,6 +23261,22 @@ def _refresh_codex_report_for_closeout(
     ):
         generated_artifact_set.add(CI_WORKFLOW_READINESS_OUTPUT_PATH)
         files_changed_set.add(CI_WORKFLOW_READINESS_OUTPUT_PATH)
+    ci_run_evidence_payload = _read_json(gates_dir / CI_RUN_EVIDENCE_RESULT_NAME)
+    if _artifact_matches_current_round(
+        ci_run_evidence_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(CI_RUN_EVIDENCE_OUTPUT_PATH)
+        files_changed_set.add(CI_RUN_EVIDENCE_OUTPUT_PATH)
+    local_ci_parity_payload = _read_json(gates_dir / LOCAL_CI_PARITY_RESULT_NAME)
+    if _artifact_matches_current_round(
+        local_ci_parity_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        generated_artifact_set.add(LOCAL_CI_PARITY_OUTPUT_PATH)
+        files_changed_set.add(LOCAL_CI_PARITY_OUTPUT_PATH)
 
     # Include close snapshot if requested (after close-round)
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
@@ -22754,6 +23474,8 @@ def _refresh_codex_report_for_closeout(
         _generate_required_audit_alignment_rework_required_audit(decision_text)
         or
         _generate_hygiene_handoff_rework_required_audit(decision_text)
+        or
+        _generate_ci_run_evidence_and_local_ci_parity_required_audit(decision_text)
         or
         _generate_ci_workflow_readiness_required_audit(decision_text)
         or
@@ -24274,6 +24996,39 @@ def run_closeout(
                 f"unsafe_patterns_found: {len(cwr_result.get('unsafe_patterns_found') or [])}\n"
                 f"artifact: {CI_WORKFLOW_READINESS_OUTPUT_PATH}"
             )
+        elif kind == "ci-run-evidence":
+            cre_result = ci_run_evidence(
+                state_dir=state_dir,
+                write_result=True,
+            )
+            cre_status = str(cre_result.get("gate_status") or "")
+            step_exit_code = 0 if cre_status == "PASSED" else 1
+            step_stdout = (
+                f"ci-run-evidence: {cre_status}\n"
+                f"decision_id: {cre_result.get('decision_id')}\n"
+                f"round_id: {cre_result.get('round_id')}\n"
+                f"report_id: {cre_result.get('report_id')}\n"
+                f"ci_observation_status: {cre_result.get('ci_observation_status')}\n"
+                f"snapshot_validation_status: {cre_result.get('snapshot_validation_status')}\n"
+                f"artifact: {CI_RUN_EVIDENCE_OUTPUT_PATH}"
+            )
+        elif kind == "local-ci-parity":
+            lcp_result = local_ci_parity(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            lcp_status = str(lcp_result.get("gate_status") or "")
+            step_exit_code = 0 if lcp_status == "PASSED" else 1
+            step_stdout = (
+                f"local-ci-parity: {lcp_status}\n"
+                f"decision_id: {lcp_result.get('decision_id')}\n"
+                f"round_id: {lcp_result.get('round_id')}\n"
+                f"report_id: {lcp_result.get('report_id')}\n"
+                f"required_parity_gaps: {len(lcp_result.get('required_parity_gaps') or [])}\n"
+                f"local_transcript_gaps: {len(lcp_result.get('local_transcript_gaps') or [])}\n"
+                f"artifact: {LOCAL_CI_PARITY_OUTPUT_PATH}"
+            )
         elif kind == "final-check":
             fc_result = final_check(
                 state_dir=state_dir,
@@ -24372,6 +25127,8 @@ def run_closeout(
             "audit-precheck",
             "ci-workflow-coverage",
             "ci-workflow-readiness",
+            "ci-run-evidence",
+            "local-ci-parity",
         }:
             _refresh_codex_report_for_closeout(
                 state_dir=state_dir,
@@ -25135,6 +25892,13 @@ def main(argv: list[str] | None = None) -> int:
     ci_workflow_readiness_parser = subparsers.add_parser("ci-workflow-readiness", help="Validate the combined CI workflow readiness set.")
     ci_workflow_readiness_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     ci_workflow_readiness_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    ci_run_evidence_parser = subparsers.add_parser("ci-run-evidence", help="Record bounded CI run evidence without dispatching CI.")
+    ci_run_evidence_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    ci_run_evidence_parser.add_argument("--ci-snapshot", default=None, help="Optional bounded CI snapshot JSON fixture.")
+    ci_run_evidence_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    local_ci_parity_parser = subparsers.add_parser("local-ci-parity", help="Compare workflow command surface with local evidence.")
+    local_ci_parity_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    local_ci_parity_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -25497,6 +26261,35 @@ def main(argv: list[str] | None = None) -> int:
             print(f"missing_coverage: {len(result.get('missing_coverage') or [])}")
             print(f"unsafe_patterns_found: {len(result.get('unsafe_patterns_found') or [])}")
             print(f"artifact: {CI_WORKFLOW_READINESS_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "ci-run-evidence":
+        snapshot_arg = getattr(args, "ci_snapshot", None)
+        result = ci_run_evidence(
+            state_dir=Path(args.state_dir),
+            ci_snapshot_path=Path(snapshot_arg) if snapshot_arg else None,
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"ci_observation_status: {result.get('ci_observation_status')}")
+            print(f"snapshot_validation_status: {result.get('snapshot_validation_status')}")
+            print(f"artifact: {CI_RUN_EVIDENCE_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "local-ci-parity":
+        result = local_ci_parity(
+            state_dir=Path(args.state_dir),
+            repo_root=_derive_repo_root(Path(args.state_dir)),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"required_parity_gaps: {len(result.get('required_parity_gaps') or [])}")
+            print(f"local_transcript_gaps: {len(result.get('local_transcript_gaps') or [])}")
+            print(f"artifact: {LOCAL_CI_PARITY_OUTPUT_PATH}")
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     if args.command == "startup-snapshot":

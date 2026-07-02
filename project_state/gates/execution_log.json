@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
-  "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
-  "report_id": "codex_report_20260702_ci_preflight_and_workflow_readiness_v1",
-  "generated_at": "2026-07-02T08:04:37.893201Z",
+  "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "generated_at": "2026-07-02T11:06:34.783144Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
-    "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
-    "report_id": "codex_report_20260702_ci_preflight_and_workflow_readiness_v1",
+    "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+    "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+    "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "3122ca90808d10c7c2e26ed76b4827aa261f1b81e3136675a5e8f41d399ed9f6",
-        "size_bytes": 21604,
-        "command_block_count": 23
+        "sha256": "63022e6635cc8c79ebee989fb5ea150a1b7e2b3d38efee36691a16a56666a184",
+        "size_bytes": 23317,
+        "command_block_count": 24
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "23e281ad55c3ae1d481a70c7431d9b6255fe3fd18f97734bf7ae3bf8af35d0a0",
-        "size_bytes": 10430,
-        "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
-        "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
+        "sha256": "e52ff157bbf0fe5d79b991d214fa409b2212ad3705060fba4a33579597923eea",
+        "size_bytes": 11227,
+        "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+        "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
         "plan_status": "PASSED",
-        "command_count": 23
+        "command_count": 25
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "474b6b4c0277f59deacd2e8b1b68d7e8ede54c7a39cb7ddb0756b48eaf932119",
-        "size_bytes": 40763,
-        "decision_id": "decision_20260702_ci_preflight_and_workflow_readiness_v1",
-        "round_id": "round_20260702_ci_preflight_and_workflow_readiness_v1",
-        "command_block_count": 24
+        "sha256": "4a67676976ae8a76b0350a25a8659de5cd379ae5a6751ffb025520ef53240665",
+        "size_bytes": 42554,
+        "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+        "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+        "command_block_count": 25
       }
     },
-    "command_count": 22,
-    "command_digest": "fc08b49f1179e2f4e02f6f06f339d0fe683ce6e4417062e32754a92a230bc056"
+    "command_count": 24,
+    "command_digest": "6ee214ead2b23a827de596236bb6b97c6e514949b3f0b5bcb15d2857f35f6711"
   },
   "commands": [
     {
@@ -195,6 +195,28 @@
     },
     {
       "index": 14,
+      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+      "kind": "ci-run-evidence",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+      "kind": "local-ci-parity",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -206,7 +228,7 @@
       "status": "PASSED"
     },
     {
-      "index": 15,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet",
       "phase": "gate",
@@ -217,7 +239,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "kind": "local-execution-bundle",
       "phase": "gate",
@@ -228,7 +250,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 19,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "kind": "codex-prompt-packet",
       "phase": "gate",
@@ -239,7 +261,7 @@
       "status": "PASSED"
     },
     {
-      "index": 18,
+      "index": 20,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "kind": "audit-precheck",
       "phase": "gate",
@@ -250,7 +272,7 @@
       "status": "PASSED"
     },
     {
-      "index": 19,
+      "index": 21,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -262,7 +284,7 @@
       "status": "PASSED"
     },
     {
-      "index": 20,
+      "index": 22,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -273,7 +295,7 @@
       "status": "PASSED"
     },
     {
-      "index": 21,
+      "index": 23,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -285,10 +307,10 @@
       "status": "PASSED"
     },
     {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_preflight_and_workflow_readiness_v1",
-      "kind": "preflight",
-      "phase": "preflight",
+      "index": 24,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+      "kind": "run-closeout",
+      "phase": "gate",
       "expected_exit_codes": [
         0
       ],

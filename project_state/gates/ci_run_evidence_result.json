@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "artifact_name": "ci_run_evidence_result.json",
+  "gate_name": "ci-run-evidence",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "round_id": "round_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "report_id": "codex_report_20260702_ci_run_evidence_and_local_ci_parity_v1",
+  "generated_at": "2026-07-02T11:06:03.959688Z",
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "can_poll": false,
+  "mutates_state": false,
+  "network_access_required": false,
+  "ci_observation_status": "NOT_OBSERVED",
+  "live_ci_observed": false,
+  "supplied_snapshot": false,
+  "snapshot_validation_status": "NOT_SUPPLIED",
+  "snapshot": {
+    "supplied_snapshot": false,
+    "ci_observation_status": "NOT_OBSERVED",
+    "snapshot_validation_status": "NOT_SUPPLIED",
+    "live_ci_observed": false,
+    "observed_commands": [],
+    "snapshot_path": ""
+  },
+  "recommendation": "NO_LIVE_CI_OBSERVATION",
+  "warnings": [
+    "no live CI run was dispatched or polled by this gate"
+  ],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/ci_run_evidence_result.json"
+  ]
+}

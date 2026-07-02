@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from reverse_agent.project_gate import (
+    _generate_ci_run_evidence_and_local_ci_parity_required_audit,
     _generate_ci_workflow_coverage_required_audit,
     _generate_ci_workflow_readiness_required_audit,
     _generate_current_handoff_packet_required_audit,
@@ -155,6 +156,32 @@ CI_WORKFLOW_READINESS_QUESTIONS = [
     "Did final-check pass?",
     "Did run-closeout pass and close-round close?",
     "Did the report clearly state that the round stayed within CI validation infrastructure?",
+]
+
+CI_RUN_EVIDENCE_PARITY_QUESTIONS = [
+    "Were startup commands recorded before project gates?",
+    "Was startup-snapshot the first project gate?",
+    "Did decision metadata remain valid and approved?",
+    "Was this decision treated as current authority and `task_packet.json` as background only?",
+    "Were changes limited to allowed workflow/source/test/artifact files?",
+    "Was `ci_run_evidence_result.json` generated with current decision ID, round ID, and report ID?",
+    "Does `ci_run_evidence_result.json` clearly state whether CI run evidence was observed, not observed, or supplied as bounded input?",
+    "Is `ci_run_evidence_result.json` evidence-only and non-dispatching?",
+    "Was `local_ci_parity_result.json` generated with current decision ID, round ID, and report ID?",
+    "Does `local_ci_parity_result.json` compare workflow commands against command-plan, pytest_result, and execution-log evidence?",
+    "Does `local_ci_parity_result.json` report no required parity gaps for this round, or clearly classify any nonblocking future live-CI observation gap?",
+    "Did `ci_workflow_coverage_result.json` remain current and complete?",
+    "Did `ci_workflow_readiness_result.json` remain current and READY?",
+    "Did workflow validation tests cover omitted parity inputs and omitted run evidence fields?",
+    "Did local execution bundle remain valid?",
+    "Did codex prompt packet remain valid?",
+    "Did audit precheck remain valid?",
+    "Did audit readiness remain ready and accepted?",
+    "Did report-summary include CI run evidence and local-CI parity status?",
+    "Did execution-log align with command-plan and pytest_result?",
+    "Did final-check pass?",
+    "Did run-closeout pass and close-round close?",
+    "Did the report clearly state that this round stayed within CI evidence/parity infrastructure?",
 ]
 
 
@@ -385,4 +412,32 @@ def test_ci_workflow_readiness_required_audit_generator_is_substantive() -> None
     assert "project_state/gates/ci_workflow_readiness_result.json" in audit
     assert ".github/workflows/decision-preflight.yml" in audit
     assert "bounded CI validation infrastructure" in audit
+    assert result["status"] == "PASS"
+
+
+def test_ci_run_evidence_and_local_ci_parity_required_audit_generator_is_substantive() -> None:
+    decision_text = (
+        "# Decision\n\n"
+        "ci-run-evidence local-ci-parity ci_run_evidence_result.json local_ci_parity_result.json "
+        "accepted_requires_ci_run_evidence_artifact accepted_requires_local_ci_parity_artifact\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(CI_RUN_EVIDENCE_PARITY_QUESTIONS, start=1)
+        )
+    )
+
+    audit = _generate_ci_run_evidence_and_local_ci_parity_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == len(CI_RUN_EVIDENCE_PARITY_QUESTIONS)
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/ci_run_evidence_result.json" in audit
+    assert "project_state/gates/local_ci_parity_result.json" in audit
+    assert "NOT_OBSERVED" in audit
+    assert "bounded CI evidence/parity infrastructure" in audit
     assert result["status"] == "PASS"
