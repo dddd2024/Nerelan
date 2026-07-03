@@ -1,16 +1,19 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
-  "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
-  "head_commit": "6cace40cd695",
+  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
+  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+  "head_commit": "fa14ed41690a",
   "baseline_available": true,
   "baseline_git_status_short": [
-    " M reverse_agent/project_gate.py",
-    " M tests/test_project_reports.py"
+    " M project_state/gates/command_plan.json"
   ],
-  "baseline_git_diff_name_only": [],
-  "baseline_dirty_files": [],
+  "baseline_git_diff_name_only": [
+    "project_state/gates/command_plan.json"
+  ],
+  "baseline_dirty_files": [
+    "project_state/gates/command_plan.json"
+  ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
   "final_git_status_short": [
@@ -31,6 +34,7 @@
     " M project_state/gates/codex_report_auto_summary.json",
     " M project_state/gates/command_plan.json",
     " M project_state/gates/current_handoff_packet.json",
+    " M project_state/gates/execute_decision_result.json",
     " M project_state/gates/execution_log.json",
     " M project_state/gates/execution_report_auto_summary.json",
     " M project_state/gates/final_gate_result.json",
@@ -48,12 +52,21 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    " M tests/test_project_reports.py",
-    "?? project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/execution_report.md",
-    "?? project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/round_manifest.json"
+    "?? docs/user_solve_layer.md",
+    "?? project_state/gates/user_solve_layer_result.json",
+    "?? project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
+    "?? project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json",
+    "?? reverse_agent/evidence_quality.py",
+    "?? reverse_agent/user_solve.py",
+    "?? reverse_agent/user_solve_contract.py",
+    "?? reverse_agent/user_solve_state.py",
+    "?? tests/test_evidence_quality.py",
+    "?? tests/test_user_solve.py",
+    "?? tests/test_user_solve_contract.py",
+    "?? tests/test_user_solve_state.py"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -73,6 +86,7 @@
     "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/current_handoff_packet.json",
+    "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
@@ -89,10 +103,10 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/pytest_result.txt",
     "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_reports.py"
+    "tests/test_project_gate.py"
   ],
   "final_dirty_files": [
+    "docs/user_solve_layer.md",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/gates/audit_inventory_result.json",
@@ -110,6 +124,7 @@
     "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/current_handoff_packet.json",
+    "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
@@ -124,17 +139,26 @@
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/startup_snapshot.json",
+    "project_state/gates/user_solve_layer_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json",
+    "reverse_agent/evidence_quality.py",
     "reverse_agent/project_gate.py",
+    "reverse_agent/user_solve.py",
+    "reverse_agent/user_solve_contract.py",
+    "reverse_agent/user_solve_state.py",
+    "tests/test_evidence_quality.py",
     "tests/test_project_gate.py",
-    "tests/test_project_reports.py"
+    "tests/test_user_solve.py",
+    "tests/test_user_solve_contract.py",
+    "tests/test_user_solve_state.py"
   ],
   "new_dirty_files_since_baseline": [
+    "docs/user_solve_layer.md",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/gates/audit_inventory_result.json",
@@ -150,8 +174,8 @@
     "project_state/gates/ci_workflow_readiness_result.json",
     "project_state/gates/codex_prompt_packet.json",
     "project_state/gates/codex_report_auto_summary.json",
-    "project_state/gates/command_plan.json",
     "project_state/gates/current_handoff_packet.json",
+    "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
@@ -166,17 +190,27 @@
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
     "project_state/gates/startup_snapshot.json",
+    "project_state/gates/user_solve_layer_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
+    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json",
+    "reverse_agent/evidence_quality.py",
     "reverse_agent/project_gate.py",
+    "reverse_agent/user_solve.py",
+    "reverse_agent/user_solve_contract.py",
+    "reverse_agent/user_solve_state.py",
+    "tests/test_evidence_quality.py",
     "tests/test_project_gate.py",
-    "tests/test_project_reports.py"
+    "tests/test_user_solve.py",
+    "tests/test_user_solve_contract.py",
+    "tests/test_user_solve_state.py"
   ],
-  "inherited_dirty_files": [],
+  "inherited_dirty_files": [
+    "project_state/gates/command_plan.json"
+  ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-07-03T04:34:03.191645Z"
+  "generated_at": "2026-07-03T09:05:59.866037Z"
 }

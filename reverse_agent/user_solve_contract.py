@@ -1,0 +1,226 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any, Mapping
+
+
+class UserSolveStatus(StrEnum):
+    UPLOADED = "uploaded"
+    FAST_ANALYZING = "fast_analyzing"
+    CANDIDATE_FOUND = "candidate_found"
+    VALIDATING = "validating"
+    VERIFIED = "verified"
+    DEEP_ANALYSIS_RUNNING = "deep_analysis_running"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+
+
+class ValidationStatus(StrEnum):
+    NOT_STARTED = "not_started"
+    PENDING = "pending"
+    PASSED = "passed"
+    FAILED = "failed"
+    UNAVAILABLE = "unavailable"
+
+
+class EvidenceStatus(StrEnum):
+    NONE = "none"
+    PARTIAL = "partial"
+    BUILDING = "building"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+class UserSolveMode(StrEnum):
+    FAST = "fast"
+    DEEP = "deep"
+    AUTO = "auto"
+
+
+INTERNAL_REFERENCE_TOKENS = (
+    "project_state/",
+    "project_state\\",
+    "decision_packet.md",
+    "command_plan.json",
+    "artifact_index.json",
+    "negative_results.json",
+    "codex_execution_report.md",
+    "pytest_result.txt",
+)
+
+
+def _coerce_enum(enum_type: type[StrEnum], value: StrEnum | str, field_name: str) -> StrEnum:
+    if isinstance(value, enum_type):
+        return value
+    try:
+        return enum_type(str(value))
+    except ValueError as exc:
+        allowed = ", ".join(item.value for item in enum_type)
+        raise ValueError(f"{field_name} must be one of: {allowed}") from exc
+
+
+def redact_internal_references(value: Any) -> Any:
+    if isinstance(value, str):
+        redacted = value
+        for token in INTERNAL_REFERENCE_TOKENS:
+            redacted = redacted.replace(token, "[internal]")
+        return redacted
+    if isinstance(value, list):
+        return [redact_internal_references(item) for item in value]
+    if isinstance(value, tuple):
+        return [redact_internal_references(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): redact_internal_references(item)
+            for key, item in value.items()
+        }
+    return value
+
+
+def contains_internal_reference(value: Any) -> bool:
+    text = str(value)
+    lowered = text.lower()
+    return any(token.lower() in lowered for token in INTERNAL_REFERENCE_TOKENS)
+
+
+@dataclass(frozen=True)
+class UserSolveCandidate:
+    value: str
+    confidence: float | None = None
+    label: str = ""
+    validation_status: ValidationStatus = ValidationStatus.NOT_STARTED
+    developer_trace_ref: str = ""
+
+    def __post_init__(self) -> None:
+        value = str(self.value or "").strip()
+        if not value:
+            raise ValueError("candidate value must be non-empty")
+        object.__setattr__(self, "value", value)
+        object.__setattr__(
+            self,
+            "validation_status",
+            _coerce_enum(ValidationStatus, self.validation_status, "candidate.validation_status"),
+        )
+        if self.confidence is not None:
+            confidence = float(self.confidence)
+            if confidence < 0.0 or confidence > 1.0:
+                raise ValueError("candidate confidence must be between 0.0 and 1.0")
+            object.__setattr__(self, "confidence", confidence)
+
+    def to_user_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "value": self.value,
+            "validation_status": self.validation_status.value,
+        }
+        if self.confidence is not None:
+            payload["confidence"] = self.confidence
+        if self.label:
+            payload["label"] = redact_internal_references(self.label)
+        return payload
+
+    def to_developer_dict(self) -> dict[str, Any]:
+        payload = self.to_user_dict()
+        if self.developer_trace_ref:
+            payload["developer_trace_ref"] = self.developer_trace_ref
+        return payload
+
+
+@dataclass(frozen=True)
+class UserSolveResult:
+    status: UserSolveStatus
+    validation_status: ValidationStatus = ValidationStatus.NOT_STARTED
+    evidence_status: EvidenceStatus = EvidenceStatus.NONE
+    mode: UserSolveMode = UserSolveMode.AUTO
+    answer: str = ""
+    candidates: list[UserSolveCandidate] = field(default_factory=list)
+    confidence: float | None = None
+    message: str = ""
+    reason: str = ""
+    developer_trace_ref: str = ""
+    internal_references: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "status", _coerce_enum(UserSolveStatus, self.status, "status"))
+        object.__setattr__(
+            self,
+            "validation_status",
+            _coerce_enum(ValidationStatus, self.validation_status, "validation_status"),
+        )
+        object.__setattr__(
+            self,
+            "evidence_status",
+            _coerce_enum(EvidenceStatus, self.evidence_status, "evidence_status"),
+        )
+        object.__setattr__(self, "mode", _coerce_enum(UserSolveMode, self.mode, "mode"))
+        candidates = [
+            candidate if isinstance(candidate, UserSolveCandidate) else UserSolveCandidate(**candidate)
+            for candidate in self.candidates
+        ]
+        object.__setattr__(self, "candidates", candidates)
+        if self.confidence is not None:
+            confidence = float(self.confidence)
+            if confidence < 0.0 or confidence > 1.0:
+                raise ValueError("confidence must be between 0.0 and 1.0")
+            object.__setattr__(self, "confidence", confidence)
+        self.validate()
+
+    @property
+    def usable_answer(self) -> str:
+        return str(self.answer or "").strip() or (self.candidates[0].value if self.candidates else "")
+
+    def validate(self) -> None:
+        if self.status == UserSolveStatus.VERIFIED:
+            if self.validation_status != ValidationStatus.PASSED:
+                raise ValueError("verified requires validation_status=passed")
+            if not self.usable_answer:
+                raise ValueError("verified requires an answer or candidate")
+        if self.status == UserSolveStatus.BLOCKED and not (self.reason or self.message):
+            raise ValueError("blocked requires a reason or message")
+        if self.status == UserSolveStatus.CANDIDATE_FOUND and not self.candidates and not self.answer:
+            raise ValueError("candidate_found requires an answer or candidate")
+
+    def to_user_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "status": self.status.value,
+            "validation_status": self.validation_status.value,
+            "evidence_status": self.evidence_status.value,
+            "mode": self.mode.value,
+            "message": self.message,
+            "reason": self.reason,
+            "candidates": [candidate.to_user_dict() for candidate in self.candidates],
+        }
+        if self.answer:
+            payload["answer"] = self.answer
+        if self.confidence is not None:
+            payload["confidence"] = self.confidence
+        return redact_internal_references(payload)
+
+    def to_developer_dict(self) -> dict[str, Any]:
+        payload = self.to_user_dict()
+        payload["developer_trace_ref"] = self.developer_trace_ref
+        payload["internal_references"] = list(self.internal_references)
+        payload["candidates"] = [candidate.to_developer_dict() for candidate in self.candidates]
+        return payload
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "UserSolveResult":
+        candidates = payload.get("candidates") or []
+        if not isinstance(candidates, list):
+            raise ValueError("candidates must be a list")
+        return cls(
+            status=payload.get("status", UserSolveStatus.FAILED),
+            validation_status=payload.get("validation_status", ValidationStatus.NOT_STARTED),
+            evidence_status=payload.get("evidence_status", EvidenceStatus.NONE),
+            mode=payload.get("mode", UserSolveMode.AUTO),
+            answer=str(payload.get("answer") or ""),
+            candidates=[
+                candidate if isinstance(candidate, UserSolveCandidate) else UserSolveCandidate(**candidate)
+                for candidate in candidates
+            ],
+            confidence=payload.get("confidence"),
+            message=str(payload.get("message") or ""),
+            reason=str(payload.get("reason") or ""),
+            developer_trace_ref=str(payload.get("developer_trace_ref") or ""),
+            internal_references=[str(item) for item in payload.get("internal_references") or []],
+        )

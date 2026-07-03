@@ -43,6 +43,7 @@ from reverse_agent.project_gate import (
     _agent_runner_handoff_validation_gate_check,
     _audit_inventory_gate_check,
     _audit_precheck_gate_check,
+    _user_solve_layer_gate_check,
     _ci_run_evidence_gate_check,
     _ci_bridge_gate_check,
     _ci_bridge_closeout_consistency_check,
@@ -84,6 +85,7 @@ from reverse_agent.project_gate import (
     gate_profile,
     audit_readiness_packet,
     audit_precheck,
+    user_solve_layer,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -17160,6 +17162,7 @@ def test_run_closeout_constants_and_allowlist():
             "ci-observation-reconcile",
             "ci-artifact-manifest",
             "ci-audit-handoff-bundle",
+            "user-solve-layer",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -25382,6 +25385,122 @@ def test_jobs_inventory_gate_writes_current_artifact_for_existing_jobs(tmp_path:
     assert artifact["invalid_file_errors"] == []
     assert artifact["dispatch_safety_status"] == "PASSED"
     assert artifact["dispatch_enabled"] is False
+
+
+def test_user_solve_layer_gate_writes_current_safe_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_user_solve_layer",
+        round_id="round_user_solve_layer",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    contract = {
+        "accepted_requires_user_solve_contract": True,
+        "accepted_requires_state_machine": True,
+        "accepted_requires_safe_fast_wrapper": True,
+        "accepted_requires_evidence_quality_mapper": True,
+        "accepted_requires_gate_artifact": True,
+    }
+
+    result = user_solve_layer(state_dir=state_dir, repo_root=Path.cwd(), write_result=True)
+
+    artifact_path = state_dir / "gates" / "user_solve_layer_result.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert result["gate_status"] == "PASSED"
+    assert artifact["decision_id"] == "decision_user_solve_layer"
+    assert artifact["round_id"] == "round_user_solve_layer"
+    assert artifact["report_id"] == "codex_report_user_solve_layer"
+    assert artifact["evidence_only"] is True
+    assert artifact["executable"] is False
+    assert artifact["can_execute"] is False
+    assert artifact["can_dispatch"] is False
+    assert artifact["mutates_state"] is False
+    assert all(check["status"] == "PASS" for check in artifact["checks"])
+
+    check = _user_solve_layer_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_user_solve_layer",
+        round_id="round_user_solve_layer",
+        report_id="codex_report_user_solve_layer",
+        decision_contract=contract,
+    )
+    assert check["status"] == "PASS"
+
+
+def test_user_solve_layer_gate_check_rejects_stale_or_failed_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_user_solve_required",
+        round_id="round_user_solve_required",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "gates" / "user_solve_layer_result.json",
+        {
+            "gate_name": "user-solve-layer",
+            "gate_status": "FAILED",
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+            "report_id": "codex_report_previous",
+            "evidence_only": True,
+            "executable": False,
+            "can_execute": False,
+            "can_dispatch": False,
+            "mutates_state": False,
+            "checks": [{"name": "safe_fast_wrapper_static_policy", "status": "FAIL"}],
+        },
+    )
+
+    check = _user_solve_layer_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_user_solve_required",
+        round_id="round_user_solve_required",
+        report_id="codex_report_user_solve_required",
+        decision_contract={"accepted_requires_gate_artifact": True},
+    )
+
+    assert check["status"] == "FAIL"
+    assert check["errors"]
+
+
+def test_command_kind_recognizes_user_solve_layer_gate() -> None:
+    command = "python -m reverse_agent.project_gate user-solve-layer --state-dir project_state"
+
+    assert _command_kind(command) == "user-solve-layer"
+    assert _command_phase("user-solve-layer", archive_seen=False) == "gate"
+    assert "user-solve-layer" in RUN_CLOSEOUT_ALLOWED_KINDS
+
+
+def test_preflight_ignores_negated_runtime_terms_in_engineering_scope(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_negated_runtime_scope",
+        round_id="round_negated_runtime_scope",
+        skill_profiles=["reverse-agent-iteration@v2"],
+        goal="Implement UserSolveResult foundation.",
+        implementation_scope="""Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated files:
+
+- `project_state/gates/preflight_result.json`
+
+Constraints:
+
+- Do not call external tools, sample binaries, IDA, Ghidra, debuggers, harnesses, subprocesses, web, network, or runner adapters.
+- The implementation must work on synthetic tests without local samples or IDA.
+""",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path, allow_consumed=False)
+
+    assert result["gate_status"] == "PASSED"
+    assert _check(result, "mainline_scope_policy")["status"] == "PASS"
 
 
 def test_jobs_inventory_gate_accepts_missing_jobs_directory(tmp_path: Path) -> None:

@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "artifact_name": "user_solve_layer_result.json",
+  "gate_name": "user-solve-layer",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
+  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+  "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-03T09:05:06.123568Z",
+  "artifact_path": "project_state/gates/user_solve_layer_result.json",
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "external_invocations": {
+    "sample_execution": false,
+    "subprocess": false,
+    "network": false,
+    "runner_dispatch": false,
+    "github_actions": false
+  },
+  "checks": [
+    {
+      "name": "enum_coverage",
+      "status": "PASS",
+      "detail": "user solve enums cover required values",
+      "errors": [],
+      "user_statuses": [
+        "blocked",
+        "candidate_found",
+        "deep_analysis_running",
+        "failed",
+        "fast_analyzing",
+        "uploaded",
+        "validating",
+        "verified"
+      ],
+      "validation_statuses": [
+        "failed",
+        "not_started",
+        "passed",
+        "pending",
+        "unavailable"
+      ],
+      "evidence_statuses": [
+        "building",
+        "complete",
+        "failed",
+        "none",
+        "partial"
+      ]
+    },
+    {
+      "name": "verified_requires_passed_validation",
+      "status": "PASS",
+      "detail": "verified results require passed validation"
+    },
+    {
+      "name": "candidate_pending_redaction",
+      "status": "PASS",
+      "detail": "candidate_found supports pending validation and hides internal references",
+      "user_payload": {
+        "status": "candidate_found",
+        "validation_status": "pending",
+        "evidence_status": "building",
+        "mode": "fast",
+        "message": "A candidate answer is available while validation evidence is still pending.",
+        "reason": "",
+        "candidates": [
+          {
+            "value": "flag{candidate}",
+            "validation_status": "pending"
+          }
+        ],
+        "answer": "flag{candidate}"
+      }
+    },
+    {
+      "name": "developer_trace_serialization",
+      "status": "PASS",
+      "detail": "developer serialization retains explicit trace references"
+    },
+    {
+      "name": "state_machine_transitions",
+      "status": "PASS",
+      "detail": "state machine accepts valid flow and rejects invalid transitions"
+    },
+    {
+      "name": "evidence_quality_mapping",
+      "status": "PASS",
+      "detail": "missing engineering evidence maps to non-terminal user status without internal leaks",
+      "user_payload": {
+        "status": "deep_analysis_running",
+        "validation_status": "unavailable",
+        "evidence_status": "building",
+        "mode": "auto",
+        "message": "More analysis evidence is still being collected before a final answer can be verified.",
+        "reason": "",
+        "candidates": []
+      }
+    },
+    {
+      "name": "safe_fast_wrapper_static_policy",
+      "status": "PASS",
+      "detail": "fast wrapper source has no forbidden execution or dispatch calls",
+      "forbidden_terms_found": []
+    }
+  ],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/user_solve_layer_result.json"
+  ]
+}
