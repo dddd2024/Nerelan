@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,28 +13,29 @@
 
 ```json decision_contract
 {
-  "follows_accepted_decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
-  "follows_accepted_round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
-  "previous_audit_outcome": "ACCEPTED",
-  "phase_label": "phase_2_33_user_solve_layer_foundation_big_step",
-  "primary_goal": "Implement the first usable User Solve Layer foundation in one larger engineering round: result contract, state machine, safe fast wrapper adapter, evidence-quality mapper, and project gate/test coverage.",
+  "follows_decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
+  "follows_round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
+  "phase_label": "phase_2_34_user_solve_trace_fallback_ladder",
+  "primary_goal": "Extend the accepted User Solve Layer foundation with internal solve-task trace contracts and a non-executing fallback ladder, while fixing the misleading inherited-baseline report wording observed in the previous audit.",
   "command_plan_authority_required": true,
-  "accepted_requires_user_solve_contract": true,
-  "accepted_requires_state_machine": true,
-  "accepted_requires_safe_fast_wrapper": true,
-  "accepted_requires_evidence_quality_mapper": true,
-  "accepted_requires_gate_artifact": true,
+  "accepted_requires_report_baseline_wording_fix": true,
+  "accepted_requires_user_solve_trace_contract": true,
+  "accepted_requires_fallback_ladder_contract": true,
+  "accepted_requires_trace_fallback_gate_artifact": true,
   "allowed_source_files": [
-    "reverse_agent/user_solve_contract.py",
-    "reverse_agent/user_solve_state.py",
+    "reverse_agent/user_solve_trace.py",
+    "reverse_agent/fallback_ladder.py",
     "reverse_agent/user_solve.py",
+    "reverse_agent/user_solve_contract.py",
     "reverse_agent/evidence_quality.py",
     "reverse_agent/project_gate.py",
-    "tests/test_user_solve_contract.py",
-    "tests/test_user_solve_state.py",
+    "tests/test_user_solve_trace.py",
+    "tests/test_fallback_ladder.py",
     "tests/test_user_solve.py",
     "tests/test_evidence_quality.py",
-    "tests/test_project_gate.py"
+    "tests/test_project_gate.py",
+    "tests/test_project_reports.py"
   ],
   "allowed_documentation_files": [
     "docs/user_solve_layer.md"
@@ -44,7 +45,7 @@
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/*"
+    "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -68,7 +69,8 @@
     "sample_execution",
     "runtime_probe",
     "dynamic_debugging",
-    "reverse_solving_candidate_search"
+    "reverse_solving_candidate_search",
+    "persistent_user_task_creation_outside_tests"
   ]
 }
 ```
@@ -77,100 +79,99 @@
 
 ## 1. Goal
 
-Implement **User Solve Layer Foundation Big Step v1**.
+Implement **User Solve Trace + Fallback Ladder v1**.
 
-This round is intentionally larger than a narrow evidence-sync round. It creates the first project-level user-facing solve abstraction, while still remaining an `engineering_branch` task. The target is not to solve a concrete sample. The target is to make future user-facing solving calls return a structured, safe, auditable result without exposing internal engineering files.
+This is an `engineering_branch` continuation after the accepted User Solve Layer foundation round. The previous round landed the user-facing result contract, state machine, safe fast wrapper, evidence-quality mapper, gate artifact, tests, and documentation. Audit accepted the implementation with one limitation: the report body included an "Allowed Inherited Dirty Baseline Files" section that listed current-round source/test changes even though startup evidence showed only `project_state/gates/command_plan.json` was inherited dirty. This round must fix that report wording problem and then add the next user-solve foundation layer.
 
-The round must deliver all of the following in one accepted execution:
+Primary objectives:
 
-1. `UserSolveResult` contract and validation rules.
-2. `UserSolveStateMachine` with explicit state transitions.
-3. Safe `FastSolveWrapper` that adapts existing in-memory or pipeline-like result dictionaries into user-facing results without executing tools or samples.
-4. `EvidenceQualityMapper` that maps engineering evidence gaps to user-facing statuses/messages.
-5. A project gate artifact, for example `project_state/gates/user_solve_layer_result.json`, proving the contract/state/wrapper/evidence-quality checks are present and current.
-6. Focused tests covering valid and invalid states, visibility redaction, no internal path leakage by default, candidate-before-validation behavior, verified-result validation requirements, and evidence-gap mapping.
-7. Updated execution reports and pytest record with current decision/round IDs.
+1. Fix report generation or report-summary synthesis so inherited baseline dirty files are not mislabeled as current-round source/test changes, and current-round changed files are not mislabeled as inherited dirty files.
+2. Add an internal `UserSolveTaskTrace` contract for recording user-solve progress, candidate sources, missing evidence, fallback steps, validation status, and artifact references without exposing internal project paths by default.
+3. Add a non-executing `FallbackLadder` contract for ordered user-solve fallback steps, risk levels, timeout metadata, permission requirements, and stop reasons.
+4. Integrate the existing `FastSolveWrapper` / `EvidenceQualityMapper` with trace and fallback metadata at the data-contract level only.
+5. Add a project gate artifact, for example `project_state/gates/user_solve_trace_fallback_result.json`, proving trace schema, fallback ladder policy, redaction, and no-execution constraints.
+6. Add focused tests for trace serialization, fallback policy, risk gating, no-execution safety, report wording, and wrapper/evidence mapper integration.
+7. Preserve the previous User Solve Layer behavior: `candidate_found` may return before validation, `verified` requires passed validation, and default user output must hide internal engineering references.
 
 Accepted target:
 
-- Users can receive `candidate_found` with `validation_status=pending` and `evidence_status=building`.
-- Users can receive `verified` only when validation has passed.
-- User-visible serialization does not expose `decision_packet.md`, `command_plan.json`, `artifact_index.json`, `negative_results.json`, `codex_execution_report.md`, `pytest_result.txt`, or raw `project_state/` paths by default.
-- Engineering trace references may exist internally but must be hidden from normal user-visible output unless an explicit developer/debug serialization is requested.
-- No sample, IDA, Ghidra, OllyDbg, debugger, harness, runtime probe, Web/API endpoint, database, queue, scheduler, remote runner, Codex adapter, Trae adapter, or GitHub Actions dispatch is implemented or executed in this round.
+- The final report no longer has a misleading "Allowed Inherited Dirty Baseline Files" section that contains current-round source/test changes.
+- A solve trace can represent: task id, user status, engineering status, candidate sources, fallback steps, missing evidence, validation result, artifact references, and user/developer serialization modes.
+- A fallback ladder can represent at least these steps: `fast_strings`, `ida_summary`, `targeted_decompile`, `constant_material_extract`, `solver_attempt`, and `runtime_validation`.
+- Fallback steps carry risk level, timeout, required capability, `can_run_in_fast_mode`, `writes_artifact`, and permission requirements.
+- The ladder can select safe next steps from synthetic state without executing any tool or sample.
+- Static-only steps may be considered automatically eligible; local execution, dynamic debug, network, and manual-review steps must require explicit permission and remain non-executed in this round.
+- No Web/API, database, queue, scheduler, remote runner, GitHub Actions dispatch/polling, IDA MCP, IDA/Ghidra/OllyDbg execution, sample execution, runtime probe, dynamic debugging, or concrete reverse solving is implemented or executed.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-The previous accepted round was:
+`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only and still states `execution_scope=decision_packet_controls_current_round`.
 
-- `decision_20260703_required_audit_direct_evidence_rework_v1`
-- `round_20260703_required_audit_direct_evidence_rework_v1`
-- audit outcome: `ACCEPTED`
+Previous round:
 
-Evidence from the previous accepted round:
+- `decision_20260703_user_solve_layer_foundation_big_step_v1`
+- `round_20260703_user_solve_layer_foundation_big_step_v1`
+- audit outcome: `ACCEPTED_WITH_LIMITATIONS`
 
-1. `codex_execution_report.md` reported `SUCCESS` and `acceptance_recommendation=ACCEPTED` for `decision_20260703_required_audit_direct_evidence_rework_v1`.
-2. `pytest_result.txt` reported `PASSED` for the same decision/report/round and included the required startup sequence plus focused pytest.
-3. `final_gate_result.json` passed, including decision/report matching, pytest matching, Required Audit coverage, command-plan authority, and closeout checks.
-4. `run_closeout_result.json` passed and close-round reached `CLOSED`.
-5. Required Audit direct-evidence validation was repaired; reports now cite direct artifacts and no longer use `ci_audit_handoff_bundle.json` as a generic substitute.
+Evidence from the previous round:
 
-Background project architecture evidence:
+1. `codex_execution_report.md` reported `SUCCESS` and `acceptance_recommendation=ACCEPTED` for the User Solve Layer foundation round.
+2. `pytest_result.txt` reported `PASSED` for the same decision/report/round and recorded focused user-solve tests plus broad project gate/job/runner tests.
+3. `final_gate_result.json` passed, including decision/report matching, pytest matching, command-plan authority, Required Audit coverage, and the `user_solve_layer_gate_artifact` check.
+4. `project_state/gates/user_solve_layer_result.json` passed and showed the user-solve layer is evidence-only, not executable, cannot dispatch, does not mutate state, and has no sample/subprocess/network/runner/GitHub Actions invocation.
+5. The previous audit limitation was not a code/gate failure, but a report-body semantics problem: the report's "Allowed Inherited Dirty Baseline Files" section listed current-round source/test files, while startup evidence showed only `project_state/gates/command_plan.json` was dirty at startup.
 
-- `project_state/task_packet.json` remains background and states `execution_scope=decision_packet_controls_current_round`; it does not control this round.
-- `current_state.json` and `artifact_index.json` still describe the older `samplereverse` sample-state backlog. Those sample artifacts are not current execution evidence for this engineering round.
-- `negative_results.json` blocks repeated reverse-solving failures such as old sample_solver blind search, budget-only beam expansion, compare_semantics_agree=false primary frontier, and full solve_reports commits. This round does not enter those directions.
-- Existing runner/job/CI/orchestration capabilities exist in project history and current gates, including command-plan, execution-log, local execution bundle, codex prompt packet, agent runner dry-run artifacts, and execute-decision evidence. Do not duplicate those capabilities. Build the new User Solve Layer as a user-facing result abstraction above existing pipeline/runner concepts.
+Existing capabilities to preserve:
 
-Uploaded long-term planning context establishes two relevant constraints:
-
-1. The broader system should evolve toward Web console, Planner/Auditor API, command-plan authorization, AgentRunner execution, GitHub CI verification, Project Gate final-check, and project_state evidence. This round contributes only the user-facing result layer, not the full web/control-plane system.
-2. User Solve Layer should separate user-facing quick results from engineering evidence: user side returns answer/candidate/status/confidence/message, while engineering side continues recording evidence, artifact, execution_log, missing_evidence, and audit data.
+- `reverse_agent/user_solve_contract.py` implements `UserSolveResult`, candidate/result serialization, validation rules, redaction, and developer serialization.
+- `reverse_agent/user_solve_state.py` implements the state machine.
+- `reverse_agent/user_solve.py` implements safe in-memory `FastSolveWrapper` adaptation.
+- `reverse_agent/evidence_quality.py` maps missing evidence to user-facing fallback/deep-analysis status.
+- `reverse_agent/project_gate.py` already has `user-solve-layer` gate support.
+- Existing command-plan, execution-log, job, AgentRunner, pipeline, solver, harness, and project gate capabilities must not be duplicated or replaced.
 
 Artifact freshness policy:
 
-- Current-round gate/report artifacts must carry `decision_20260703_user_solve_layer_foundation_big_step_v1` and `round_20260703_user_solve_layer_foundation_big_step_v1`.
-- Historical sample artifacts remain background only.
-- New user-solve test fixtures must be synthetic and local to tests; do not use real sample binaries.
+- Current-round generated gate/report artifacts must carry `decision_20260703_user_solve_trace_fallback_ladder_v1` and `round_20260703_user_solve_trace_fallback_ladder_v1`.
+- Historical sample artifacts in `current_state.json` / `artifact_index.json` are backlog context only and remain non-blocking for this engineering round.
+- New tests must use synthetic trace/fallback payloads only. Do not use real local samples.
+
+Negative results:
+
+- `negative_results.json` blocks old sample_solver blind search, budget-only search expansion, compare_semantics_agree=false frontier use, full solve_reports commits, and repeated sample diagnostics without new runtime evidence.
+- This round must not enter any of those reverse-solving directions.
 
 Command-plan policy:
 
-- `project_state/gates/command_plan.json` is the execution authority.
+- `project_state/gates/command_plan.json` is the only command execution authority.
 - Codex may execute only commands authorized by `command_plan.commands`.
 - `command_plan.omitted_commands` must not be executed.
-- Tests in this decision are targets; command-plan is the binding execution authority.
+- The Tests section lists intended validation targets, but command-plan is binding.
 - Valid profiles are `fast`, `standard`, and `full`; do not use `medium`.
 
 ## 3. Do Not Do
 
 Do not solve a concrete reverse sample.
 
-Do not run IDA, Ghidra, OllyDbg, debuggers, emulators, harnesses, runtime probes, or sample execution.
+Do not execute samples, solvers, IDA, Ghidra, OllyDbg, debuggers, emulators, harnesses, runtime probes, network calls, Web/API endpoints, databases, queues, schedulers, services, remote runners, GitHub Actions dispatch/polling, Codex adapter execution, Trae adapter execution, Claude Code adapter execution, Aider adapter execution, or IDA MCP adapter.
 
-Do not implement Web/API endpoints, database, queue, scheduler, service, remote runner dispatch, GitHub Actions dispatch/polling, Codex adapter execution, Trae adapter execution, Claude Code adapter execution, Aider adapter execution, IDA MCP adapter, or dynamic debugging.
+Do not create persistent live user solve tasks under `project_state/solve_tasks/` in this round. Implement the trace contract and tests using temporary test directories or in-memory synthetic data. Gate evidence should be written under `project_state/gates/` only.
 
-Do not rewrite existing pipeline, solver, harness, command-plan, execution-log, job, or AgentRunner capabilities. The user-solve layer must wrap or adapt existing result concepts, not replace the mature internal tools.
+Do not mutate forbidden files listed in `decision_contract`.
 
-Do not expose internal engineering files in default user-visible output. In particular, do not expose raw references to:
+Do not add dynamic facts to `.codex-skills/`.
 
-- `project_state/decision_packet.md`
-- `project_state/gates/command_plan.json`
-- `project_state/artifact_index.json`
-- `project_state/negative_results.json`
-- `project_state/codex_execution_report.md`
-- `project_state/pytest_result.txt`
-
-Do not mutate forbidden paths listed in `decision_contract`.
-
-Do not add new dynamic facts to `.codex-skills/`.
+Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
 Do not claim any sample is solved, static_verified, runtime_validated, or audit_verified.
 
-Do not treat filename/category metadata as solve evidence.
+Do not treat filename, category, queue item, metadata, or user-solve trace fields as solve evidence.
 
-Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+Do not replace existing User Solve Layer behavior from the previous accepted round.
+
+Do not introduce Web/API, database, or runner abstractions beyond the static trace/fallback contracts.
 
 ## 4. Files To Inspect
 
@@ -186,130 +187,127 @@ Read first:
 8. `project_state/pytest_result.txt`
 9. `.codex-skills/registry.json`
 
-Inspect existing orchestration and result-adjacent code before implementing:
+Inspect current user-solve implementation:
 
-1. `reverse_agent/pipeline.py`
-2. `reverse_agent/harness.py`
-3. `reverse_agent/project_jobs.py`
-4. `reverse_agent/project_agent_runner.py`
-5. `reverse_agent/project_runner_contract.py`
-6. `reverse_agent/project_gate.py`
-7. `tests/test_pipeline.py`
-8. `tests/test_harness.py`
-9. `tests/test_project_jobs.py`
-10. `tests/test_project_agent_runner.py`
-11. `tests/test_project_runner_contract.py`
-12. `tests/test_project_gate.py`
+1. `reverse_agent/user_solve_contract.py`
+2. `reverse_agent/user_solve_state.py`
+3. `reverse_agent/user_solve.py`
+4. `reverse_agent/evidence_quality.py`
+5. `tests/test_user_solve_contract.py`
+6. `tests/test_user_solve_state.py`
+7. `tests/test_user_solve.py`
+8. `tests/test_evidence_quality.py`
+9. `docs/user_solve_layer.md`
 
-Inspect relevant gates:
+Inspect report/gate code before changing report wording:
 
-1. `project_state/gates/final_gate_result.json`
-2. `project_state/gates/command_plan.json`
-3. `project_state/gates/execution_log.json`
-4. `project_state/gates/local_execution_bundle.json`
-5. `project_state/gates/codex_prompt_packet.json`
-6. `project_state/gates/agent_runner_dry_run_result.json`
-7. `project_state/gates/execute_decision_result.json`
-8. `project_state/gates/run_closeout_result.json`
+1. `reverse_agent/project_gate.py`
+2. `tests/test_project_gate.py`
+3. `tests/test_project_reports.py`
+4. `project_state/gates/round_delta_summary.json`
+5. `project_state/gates/final_gate_result.json`
+6. `project_state/gates/run_closeout_result.json`
+7. `project_state/gates/user_solve_layer_result.json`
 
-Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`.
+Inspect orchestration code only to avoid duplication:
+
+1. `reverse_agent/project_jobs.py`
+2. `reverse_agent/project_agent_runner.py`
+3. `reverse_agent/project_runner_contract.py`
+4. `reverse_agent/pipeline.py`
+5. `reverse_agent/harness.py`
+
+Do not inspect full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt` unless a command-plan-authorized diagnostic requires it.
 
 ## 5. Required Audit
 
 The execution report must answer each item with direct evidence and `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Was the current `decision_packet.md` treated as the only execution authority and `task_packet.json` as background only?
+1. Was the current `decision_packet.md` treated as execution authority and `task_packet.json` as background only?
 2. Did decision metadata remain valid, approved, on `engineering_branch`, and aligned with active `reverse-agent-iteration@v2`?
-3. Were startup commands recorded before project gates?
-4. Was startup-snapshot recorded before substantive gate/test execution?
-5. Did Codex inspect existing pipeline, harness, job, runner, runner contract, and project gate code before implementing user-solve code?
-6. Did implementation avoid duplicating existing pipeline, solver, harness, command-plan, execution-log, job, and AgentRunner capabilities?
-7. Were changes limited to the allowed source/test/documentation/generated artifact paths?
-8. Were forbidden files not modified?
-9. Was `UserSolveResult` implemented with stable JSON/dict serialization?
-10. Were user statuses restricted to an explicit enum including `uploaded`, `fast_analyzing`, `candidate_found`, `validating`, `verified`, `deep_analysis_running`, `failed`, and `blocked`?
-11. Were validation statuses restricted to an explicit enum including `not_started`, `pending`, `passed`, `failed`, and `unavailable`?
-12. Were evidence statuses restricted to an explicit enum including `none`, `partial`, `building`, `complete`, and `failed`?
-13. Does `verified` require passed validation and a usable answer or candidate?
-14. Does `candidate_found` allow validation to remain pending?
-15. Does default user-visible serialization hide internal engineering paths and developer trace references?
-16. Is there an explicit developer/debug serialization path that can retain trace references for engineering use without becoming the default user output?
-17. Was `UserSolveStateMachine` implemented with allowed transitions and rejection of invalid transitions?
-18. Does `blocked` require a clear reason/message?
-19. Was `EvidenceQualityMapper` implemented to translate engineering missing_evidence into user-facing status/message without exposing raw internal files?
-20. Does missing targeted decompile/static evidence map to `deep_analysis_running` or equivalent non-terminal user status rather than immediate user failure?
-21. Was `FastSolveWrapper` implemented as a safe adapter over in-memory or pipeline-like result data without executing samples/tools?
-22. Does the wrapper convert a high-confidence candidate into `candidate_found` with pending validation when validation evidence is absent?
-23. Does the wrapper convert passed validation into `verified` only when validation evidence supports it?
-24. Does the wrapper return a clear `failed` or no-candidate result when no candidate exists?
-25. Does the wrapper return `blocked` with reason when the input indicates tool/environment/policy blocking?
-26. Did tests cover invalid verified-without-validation cases?
-27. Did tests cover candidate-before-validation behavior?
-28. Did tests cover user-visible redaction of `project_state`, `decision_packet`, `command_plan`, `artifact_index`, `negative_results`, `codex_execution_report`, and `pytest_result` references?
-29. Did tests cover state machine valid and invalid transitions?
-30. Did tests cover evidence-quality mapping from missing engineering evidence to user-facing fallback status?
-31. Did tests cover the fast wrapper candidate/verified/no-candidate/blocked branches?
-32. Was a current gate artifact generated for the user-solve layer foundation?
-33. Did final-check pass with current decision/report/round IDs?
-34. Did `pytest_result.txt` match `tests_ran` in the report?
-35. Did command-plan authorize all executed commands and omit no executed commands?
-36. Did run-closeout pass and archive the corrected reports if command-plan authorized closeout?
-37. Did the round avoid Web/API, DB/queue/scheduler, remote runner, GitHub Actions dispatch/polling, IDA/Ghidra/OllyDbg, IDA MCP, runtime probe, dynamic debugging, and concrete reverse solving?
-38. Did the final report avoid claiming solved/static_verified/runtime_validated/audit_verified for any sample?
+3. Were startup commands recorded before project gates/tests?
+4. Were current IDs used in reports, pytest_result, gate artifacts, and closeout artifacts?
+5. Was the previous audit limitation addressed by fixing misleading inherited-baseline report wording?
+6. Does the final report distinguish inherited startup dirty files from current-round changed source/test files?
+7. Does the final report avoid listing current-round source/test files under an inherited-dirty heading unless they were truly inherited dirty at startup?
+8. Was `UserSolveTaskTrace` implemented as a structured internal contract?
+9. Does trace serialization include task id, user status, engineering status, candidate sources, fallback steps, missing evidence, validation result, artifact references, and timestamps or equivalent ordering metadata?
+10. Does trace default user serialization hide internal engineering paths and developer references?
+11. Does trace developer/debug serialization preserve internal trace/artifact references explicitly?
+12. Does trace validation reject inconsistent states, such as verified user status without passed validation evidence?
+13. Was `FallbackLadder` implemented as a non-executing data/policy contract?
+14. Does the ladder include `fast_strings`, `ida_summary`, `targeted_decompile`, `constant_material_extract`, `solver_attempt`, and `runtime_validation` steps?
+15. Does each fallback step include risk level, timeout, required capability, fast-mode eligibility, artifact-write flag, and permission requirement metadata?
+16. Does fallback selection choose a safe next step from synthetic state without executing tools or samples?
+17. Are local execution, dynamic debugging, network, and manual-review steps blocked unless explicit permission is represented in synthetic policy input?
+18. Does fallback ladder logic record stop reasons when no safe step is eligible?
+19. Did `EvidenceQualityMapper` integrate missing evidence with fallback recommendations without exposing internal paths to user output?
+20. Did `FastSolveWrapper` preserve previous behavior for candidate_found, verified, failed, blocked, and missing-evidence branches?
+21. Did the implementation avoid duplicating pipeline, solver, harness, job, AgentRunner, command-plan, or execution-log responsibilities?
+22. Did the implementation avoid Web/API, DB/queue/scheduler, remote runner, GitHub Actions dispatch/polling, IDA/Ghidra/OllyDbg, IDA MCP, runtime probe, dynamic debugging, and concrete reverse solving?
+23. Were changes limited to allowed source/test/documentation/generated artifact paths?
+24. Were forbidden files untouched?
+25. Was a current gate artifact generated, for example `project_state/gates/user_solve_trace_fallback_result.json`?
+26. Does the gate artifact prove no external invocation or dispatch capability was added?
+27. Did tests cover trace user/developer serialization and redaction?
+28. Did tests cover trace validation errors?
+29. Did tests cover fallback ladder step ordering and permission/risk gating?
+30. Did tests cover fallback no-eligible-step stop reasons?
+31. Did tests cover report baseline wording fix?
+32. Did tests cover wrapper/evidence mapper integration with fallback metadata?
+33. Did pytest_result record the real commands and exit codes?
+34. Did command-plan authorize all executed commands and omit no executed commands?
+35. Did final-check pass with current decision/report/round IDs?
+36. Did run-closeout pass and archive corrected reports if command-plan authorized closeout?
+37. Did the final report avoid claiming solved/static_verified/runtime_validated/audit_verified for any sample?
+38. Did the final report use direct artifact evidence rather than generic summaries for Required Audit answers?
 
 ## 6. Implementation Scope
 
-This is a large but bounded engineering implementation round.
-
 Allowed implementation:
 
-1. Add `reverse_agent/user_solve_contract.py`.
-   - Define enums or equivalent validated constants for user status, validation status, evidence status, and mode.
-   - Define `UserSolveCandidate` and `UserSolveResult` as dataclasses or structured objects.
-   - Provide validation and serialization helpers.
-   - Provide default user-visible serialization that redacts internal engineering paths.
-   - Provide explicit developer/debug serialization that can include `developer_trace_ref` and internal references.
+1. Add `reverse_agent/user_solve_trace.py`.
+   - Define `UserSolveTaskTrace`, `CandidateSource`, `FallbackStepRecord`, and validation/serialization helpers or equivalent names.
+   - Keep default user serialization redacted and developer serialization explicit.
+   - Support synthetic trace creation in tests without writing live `project_state/solve_tasks/` files.
 
-2. Add `reverse_agent/user_solve_state.py`.
-   - Define allowed state transitions.
-   - Reject invalid transitions.
-   - Require reason/message for `blocked`.
-   - Keep transition logic independent from real sample execution.
+2. Add `reverse_agent/fallback_ladder.py`.
+   - Define fallback step schema, risk levels, permission policy, and selection logic.
+   - Required first ladder steps: `fast_strings`, `ida_summary`, `targeted_decompile`, `constant_material_extract`, `solver_attempt`, `runtime_validation`.
+   - Logic must be policy-only and non-executing.
 
-3. Add `reverse_agent/evidence_quality.py`.
-   - Define `EvidenceQuality` / `MissingEvidenceAssessment` or equivalent.
-   - Map missing engineering evidence to user-facing status/message.
-   - Treat evidence gaps as fallback/deep-analysis triggers where appropriate, not immediate user failure.
-   - Avoid exposing raw `project_state` internals in default user messages.
+3. Update `reverse_agent/evidence_quality.py` and/or `reverse_agent/user_solve.py` minimally.
+   - Attach fallback recommendations or trace hints to missing-evidence paths where appropriate.
+   - Preserve existing public behavior and tests from the previous accepted round.
 
-4. Add `reverse_agent/user_solve.py`.
-   - Implement a safe `FastSolveWrapper` that accepts in-memory or pipeline-like result dictionaries/objects.
-   - Convert candidates and validation fields into `UserSolveResult`.
-   - Do not call external tools, sample binaries, IDA, Ghidra, debuggers, harnesses, subprocesses, web, network, or runner adapters.
-   - Do not implement Web/API endpoints.
+4. Update `reverse_agent/project_gate.py`.
+   - Add or extend a gate such as `user-solve-trace-fallback`.
+   - Gate must generate `project_state/gates/user_solve_trace_fallback_result.json` or equivalent.
+   - Gate must verify importability, enum/step coverage, redaction, no-execution/no-dispatch policy, and report baseline wording support.
 
-5. Update `reverse_agent/project_gate.py` minimally.
-   - Add a current-round gate command or final-check hook for the User Solve Layer foundation, for example `user-solve-layer`.
-   - The gate should verify importability, enum coverage, redaction behavior, and safe/no-execution policy through static checks or test-backed evidence.
-   - The gate must write `project_state/gates/user_solve_layer_result.json` or equivalent with current decision/round/report IDs.
+5. Fix report generation/report-summary wording.
+   - Do not call current-round source/test changes "inherited dirty" unless they were dirty in startup/baseline evidence.
+   - Prefer separate terms such as `Inherited Dirty Baseline Files`, `Allowed Changed Source/Test Files`, and `Generated/Updated Artifacts`.
+   - Add tests so the old misleading wording cannot recur.
 
 6. Add tests:
-   - `tests/test_user_solve_contract.py`
-   - `tests/test_user_solve_state.py`
-   - `tests/test_evidence_quality.py`
-   - `tests/test_user_solve.py`
-   - Update `tests/test_project_gate.py` only for the new gate/final-check integration.
+   - `tests/test_user_solve_trace.py`
+   - `tests/test_fallback_ladder.py`
+   - update `tests/test_user_solve.py`
+   - update `tests/test_evidence_quality.py`
+   - update `tests/test_project_gate.py`
+   - update `tests/test_project_reports.py`
 
-7. Optional documentation:
-   - Add `docs/user_solve_layer.md` summarizing the user-facing contract and engineering boundary.
-   - Documentation must not replace tests or gate evidence.
+7. Update documentation:
+   - Update `docs/user_solve_layer.md` to describe trace and fallback ladder boundaries.
+   - Documentation must remain secondary to tests/gates.
 
 Compatibility rules:
 
-- Do not break existing pipeline/harness/project_gate/job/runner tests.
-- Do not rename existing public functions unless tests and compatibility adapters prove it is safe.
-- New modules must be importable without optional reverse tooling installed.
-- The implementation must work on synthetic tests without local samples or IDA.
+- Existing user-solve contract/state/wrapper/evidence-quality tests must keep passing.
+- New modules must import without optional reverse-engineering tools installed.
+- No real samples, local sample paths, IDA/Ghidra/OllyDbg paths, subprocesses, or network are required for tests.
+- Existing project gate/report/closeout semantics must remain compatible.
 
 ## 7. Tests
 
@@ -324,19 +322,19 @@ git status --short
 python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 ```
 
-Required command policy:
+Execution policy:
 
-- First generate or read `project_state/gates/command_plan.json` through the existing command-plan flow.
+- First generate/read `project_state/gates/command_plan.json` through the existing command-plan flow.
 - Execute only commands authorized by `command_plan.commands`.
 - Do not execute any command listed in `command_plan.omitted_commands`.
-- If this Tests section conflicts with command-plan, command-plan wins.
+- If this section conflicts with command-plan, command-plan wins.
 
 Expected validation coverage, subject to command-plan authorization:
 
 ```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_project_gate.py tests/test_project_reports.py -q
-python -m reverse_agent.project_gate user-solve-layer --state-dir project_state
+python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q
+python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
@@ -351,34 +349,37 @@ python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/
 If command-plan authorizes closeout:
 
 ```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_layer_foundation_big_step_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_trace_fallback_ladder_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-`project_state/pytest_result.txt` must record actual commands and exit codes. `codex_execution_report.md` and `execution_report.md` must list the real tests in `tests_ran`.
+`project_state/pytest_result.txt` must record actual commands and exit codes. `codex_execution_report.md` and `execution_report.md` must list real tests in `tests_ran`.
 
 ## 8. Stop Conditions
 
 Stop and report `REWORK_REQUIRED` or `BLOCKED` if any condition occurs:
 
-1. The current decision/report/round IDs do not match.
+1. Current decision/report/round IDs do not match.
 2. `skill_profiles` do not match active registry entries.
 3. `task_packet.json` is treated as execution authority.
 4. Any forbidden path is modified.
-5. The implementation executes or attempts to execute a sample, solver search, harness, IDA, Ghidra, OllyDbg, debugger, emulator, runtime probe, web/network call, Web/API endpoint, database, queue, scheduler, remote runner, Codex adapter, Trae adapter, GitHub Actions dispatch/polling, or IDA MCP adapter.
-6. Existing pipeline/harness/job/runner capabilities are duplicated or replaced instead of wrapped/adapted.
-7. `verified` can be created without passed validation.
-8. Default user-visible serialization leaks internal engineering paths or raw project_state artifacts.
-9. `candidate_found` requires complete validation before returning a candidate.
-10. Missing static evidence immediately becomes user-visible hard failure when fallback/deep-analysis status is appropriate.
-11. The fast wrapper invokes external tools, subprocesses, samples, runners, or network.
-12. Tests are missing for contract validation, state transitions, redaction, evidence-quality mapping, and wrapper branches.
-13. `project_state/gates/user_solve_layer_result.json` or equivalent current gate artifact is missing when the new gate is implemented.
-14. `pytest_result.txt` is missing, stale, or inconsistent with report `tests_ran`.
-15. command-plan is missing, stale, or not respected.
-16. final-check fails.
-17. closeout is executed without command-plan authorization.
-18. closeout is required but missing or failed.
-19. The final report claims any concrete sample is solved, static_verified, runtime_validated, or audit_verified.
+5. Any sample, IDA, Ghidra, OllyDbg, debugger, emulator, harness, runtime probe, Web/API endpoint, database, queue, scheduler, remote runner, GitHub Actions dispatch/polling, Codex/Trae/Claude/Aider adapter, or IDA MCP adapter is executed or implemented.
+6. Persistent live `project_state/solve_tasks/` files are created outside tests.
+7. Fallback ladder selection executes tools rather than returning policy decisions.
+8. Static-only/local-execution/dynamic-debug/network/manual-review risk gates are not explicit.
+9. User-visible trace or fallback output leaks internal project paths by default.
+10. `verified` can be represented without passed validation evidence.
+11. Missing evidence is treated as solved/static_verified/runtime_validated evidence.
+12. Current-round source/test files are mislabeled as inherited dirty baseline files in the final report.
+13. Existing user-solve foundation behavior regresses.
+14. Existing pipeline/harness/job/runner/command-plan/execution-log capabilities are duplicated or replaced.
+15. Required focused tests are missing.
+16. `project_state/gates/user_solve_trace_fallback_result.json` or equivalent current gate artifact is missing.
+17. `pytest_result.txt` is missing, stale, or inconsistent with report `tests_ran`.
+18. command-plan is missing, stale, or not respected.
+19. final-check fails.
+20. closeout is executed without command-plan authorization.
+21. closeout is required but missing or failed.
+22. The final report claims any concrete sample is solved, static_verified, runtime_validated, or audit_verified.
 
-If only part of the User Solve Layer foundation is implemented, do not claim `SUCCESS`; report `PARTIAL` or `REWORK_REQUIRED` with exact missing modules/tests/gates.
+If only trace or fallback is completed, but not both, do not claim `SUCCESS`; report `PARTIAL` or `REWORK_REQUIRED` with exact missing pieces.
