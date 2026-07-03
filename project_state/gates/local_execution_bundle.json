@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-  "round_id": "round_20260703_user_solve_session_bundle_v1",
-  "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+  "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+  "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+  "report_id": "codex_report_20260703_user_solve_offline_control_plane_big_step_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-03T13:49:59.194775Z",
+  "generated_at": "2026-07-03T16:00:14.014317Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-    "round_id": "round_20260703_user_solve_session_bundle_v1",
+    "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,6 +43,11 @@
   },
   "allowed_scope": {
     "source_files": [
+      "reverse_agent/user_solve_request.py",
+      "reverse_agent/user_solve_response.py",
+      "reverse_agent/user_solve_handoff.py",
+      "reverse_agent/user_solve_controller.py",
+      "reverse_agent/user_solve_cli.py",
       "reverse_agent/user_solve_session.py",
       "reverse_agent/user_solve.py",
       "reverse_agent/user_solve_contract.py",
@@ -50,6 +55,11 @@
       "reverse_agent/fallback_ladder.py",
       "reverse_agent/evidence_quality.py",
       "reverse_agent/project_gate.py",
+      "tests/test_user_solve_request.py",
+      "tests/test_user_solve_response.py",
+      "tests/test_user_solve_handoff.py",
+      "tests/test_user_solve_controller.py",
+      "tests/test_user_solve_cli.py",
       "tests/test_user_solve_session.py",
       "tests/test_user_solve.py",
       "tests/test_user_solve_contract.py",
@@ -64,7 +74,7 @@
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
       "project_state/gates/*.json",
-      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/*"
+      "project_state/rounds/round_20260703_user_solve_offline_control_plane_big_step_v1/*"
     ]
   },
   "forbidden_scope": {
@@ -78,7 +88,8 @@
       "solve_reports/*",
       ".github/workflows/*",
       "training_materials/local_reverse/*",
-      "project_state/solve_tasks/*"
+      "project_state/solve_tasks/*",
+      "project_state/user_sessions/*"
     ],
     "no_runner_or_dispatcher": true,
     "remote_mutation_allowed": false
@@ -149,49 +160,70 @@
     },
     {
       "index": 10,
+      "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
+      "kind": "prework-provenance",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 11,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight",
       "phase": "preflight",
       "required": true
     },
     {
-      "index": 11,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "index": 12,
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "phase": "test",
       "required": true
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate user-solve-session-bundle --state-dir project_state",
-      "kind": "user-solve-session-bundle",
+      "index": 13,
+      "command": "python -m reverse_agent.user_solve_cli --demo candidate",
+      "kind": "user-solve-cli",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.user_solve_cli --demo missing-evidence",
+      "kind": "user-solve-cli",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate user-solve-control-plane --state-dir project_state",
+      "kind": "user-solve-control-plane",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 13,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 14,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 15,
+      "index": 18,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q",
       "kind": "pytest",
       "phase": "test",
       "required": true
     },
     {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_session_bundle_v1",
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_offline_control_plane_big_step_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "required": true
@@ -199,7 +231,7 @@
   ],
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q"
     ],
     "includes_project_reports": true
@@ -221,11 +253,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-    "round_id": "round_20260703_user_solve_session_bundle_v1",
+    "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "9544933462eeab4120fcd42dce0102770e1df238f20dfdfba78ee03df73f44a6"
+    "sha256": "fbc2c09b70bc109d68c41097d79bbe32f56578b02f3f85d78a5734babd6beb0f"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -249,8 +281,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-    "round_id": "round_20260703_user_solve_session_bundle_v1",
+    "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -258,7 +290,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260703_user_solve_session_bundle_v1"
+    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

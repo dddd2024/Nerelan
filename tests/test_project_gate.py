@@ -46,6 +46,8 @@ from reverse_agent.project_gate import (
     _user_solve_layer_gate_check,
     _user_solve_trace_fallback_gate_check,
     _user_solve_session_bundle_gate_check,
+    _prework_provenance_gate_check,
+    _user_solve_control_plane_gate_check,
     _ci_run_evidence_gate_check,
     _ci_bridge_gate_check,
     _ci_bridge_closeout_consistency_check,
@@ -90,6 +92,8 @@ from reverse_agent.project_gate import (
     user_solve_layer,
     user_solve_trace_fallback,
     user_solve_session_bundle,
+    prework_provenance,
+    user_solve_control_plane,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -17172,6 +17176,9 @@ def test_run_closeout_constants_and_allowlist():
             "user-solve-layer",
             "user-solve-trace-fallback",
             "user-solve-session-bundle",
+            "prework-provenance",
+            "user-solve-control-plane",
+            "user-solve-cli",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -28687,3 +28694,240 @@ jobs:
 
     assert check["status"] == "FAIL"
     assert "unsafe workflow patterns found" in check["errors"]
+
+
+def _write_startup_snapshot_fixture(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    dirty_files: list[str] | None = None,
+) -> None:
+    dirty = dirty_files or []
+    _write_json(
+        state_dir / "gates" / "startup_snapshot.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "startup_snapshot.json",
+            "gate_status": "PASSED",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "raw_git_status_short": dirty,
+            "dirty_files": dirty,
+            "source_test_dirty_files": [
+                path
+                for path in dirty
+                if path.startswith("reverse_agent/") or path.startswith("tests/")
+            ],
+            "source_test_clean_start": not any(
+                path.startswith("reverse_agent/") or path.startswith("tests/")
+                for path in dirty
+            ),
+        },
+    )
+
+
+def test_prework_provenance_writes_current_clean_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_plane_prework",
+        round_id="round_control_plane_prework",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_startup_snapshot_fixture(
+        state_dir,
+        decision_id="decision_control_plane_prework",
+        round_id="round_control_plane_prework",
+    )
+
+    result = prework_provenance(state_dir=state_dir, repo_root=tmp_path)
+    check = _prework_provenance_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_control_plane_prework",
+        round_id="round_control_plane_prework",
+        report_id=_expected_report_id("round_control_plane_prework"),
+        decision_contract={"accepted_requires_prework_provenance_hardening": True},
+    )
+
+    assert result["gate_status"] == "PASSED"
+    assert result["artifact_name"] == "prework_provenance_result.json"
+    assert result["undeclared_dirty_source_test_doc_files"] == []
+    assert check["status"] == "PASS"
+
+
+def test_prework_provenance_blocks_undeclared_dirty_source_test_doc(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_plane_dirty",
+        round_id="round_control_plane_dirty",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_startup_snapshot_fixture(
+        state_dir,
+        decision_id="decision_control_plane_dirty",
+        round_id="round_control_plane_dirty",
+        dirty_files=["reverse_agent/project_gate.py", "docs/user_solve_layer.md"],
+    )
+
+    result = prework_provenance(state_dir=state_dir, repo_root=tmp_path)
+    check = _prework_provenance_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_control_plane_dirty",
+        round_id="round_control_plane_dirty",
+        report_id=_expected_report_id("round_control_plane_dirty"),
+        decision_contract={"accepted_requires_prework_provenance_hardening": True},
+    )
+
+    assert result["gate_status"] == "FAILED"
+    assert result["undeclared_dirty_source_test_doc_files"] == [
+        "docs/user_solve_layer.md",
+        "reverse_agent/project_gate.py",
+    ]
+    assert check["status"] == "FAIL"
+    assert "undeclared startup source/test/doc dirty files" in check["errors"]
+
+
+def test_prework_provenance_accepts_explicit_inherited_baseline(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_plane_inherited",
+        round_id="round_control_plane_inherited",
+        skill_profiles=["reverse-agent-iteration@v2"],
+        implementation_scope="""Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+### Allowed Inherited Dirty Baseline Files
+
+- `reverse_agent/project_gate.py`
+- `docs/user_solve_layer.md`
+""",
+    )
+    _write_startup_snapshot_fixture(
+        state_dir,
+        decision_id="decision_control_plane_inherited",
+        round_id="round_control_plane_inherited",
+        dirty_files=["reverse_agent/project_gate.py", "docs/user_solve_layer.md"],
+    )
+
+    result = prework_provenance(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["dirty_source_test_doc_files"] == [
+        "docs/user_solve_layer.md",
+        "reverse_agent/project_gate.py",
+    ]
+    assert result["undeclared_dirty_source_test_doc_files"] == []
+
+
+def test_user_solve_control_plane_gate_writes_safe_fixture_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_plane_gate",
+        round_id="round_control_plane_gate",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+
+    result = user_solve_control_plane(state_dir=state_dir, repo_root=Path.cwd())
+    check = _user_solve_control_plane_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_control_plane_gate",
+        round_id="round_control_plane_gate",
+        report_id=_expected_report_id("round_control_plane_gate"),
+        decision_contract={"accepted_requires_control_plane_gate_artifact": True},
+    )
+
+    assert result["gate_status"] == "PASSED"
+    assert result["fixture_only"] is True
+    assert result["external_invocations"]["external_tool_execution"] is False
+    assert _check(result, "candidate_fixture_response")["status"] == "PASS"
+    assert _check(result, "missing_evidence_fixture_response")["status"] == "PASS"
+    assert _check(result, "non_invasive_source_surface")["status"] == "PASS"
+    assert check["status"] == "PASS"
+
+
+def test_user_solve_control_plane_gate_rejects_stale_required_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_plane_current",
+        round_id="round_control_plane_current",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "gates" / "user_solve_control_plane_result.json",
+        {
+            "artifact_name": "user_solve_control_plane_result.json",
+            "gate_name": "user-solve-control-plane",
+            "gate_status": "PASSED",
+            "decision_id": "decision_old",
+            "round_id": "round_old",
+            "report_id": "codex_report_old",
+            "evidence_only": True,
+            "fixture_only": True,
+            "executable": False,
+            "can_execute": False,
+            "can_dispatch": False,
+            "mutates_state": False,
+            "creates_persistent_session": False,
+            "processes_real_binaries": False,
+            "checks": [{"name": "candidate_fixture_response", "status": "PASS"}],
+        },
+    )
+
+    check = _user_solve_control_plane_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_control_plane_current",
+        round_id="round_control_plane_current",
+        report_id=_expected_report_id("round_control_plane_current"),
+        decision_contract={"accepted_requires_control_plane_gate_artifact": True},
+    )
+
+    assert check["status"] == "FAIL"
+    assert "decision_id mismatch" in check["errors"]
+    assert "round_id mismatch" in check["errors"]
+
+
+def test_control_plane_command_kinds_are_narrowly_recognized() -> None:
+    assert (
+        _command_kind("python -m reverse_agent.project_gate prework-provenance --state-dir project_state")
+        == "prework-provenance"
+    )
+    assert (
+        _command_kind("python -m reverse_agent.project_gate user-solve-control-plane --state-dir project_state")
+        == "user-solve-control-plane"
+    )
+    assert _command_kind("python -m reverse_agent.user_solve_cli --demo candidate") == "user-solve-cli"
+    assert "user-solve-cli" in RUN_CLOSEOUT_ALLOWED_KINDS
+
+
+def test_build_closeout_steps_includes_user_solve_cli_preview(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_control_plane_steps",
+        round_id="round_control_plane_steps",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    plan_result = {
+        "commands": [
+            {
+                "command": "python -m reverse_agent.user_solve_cli --demo candidate",
+                "kind": "user-solve-cli",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.user_solve_cli --demo missing-evidence",
+                "kind": "user-solve-cli",
+                "expected_exit_codes": [0],
+            },
+        ]
+    }
+
+    steps = _build_closeout_steps(
+        state_dir=state_dir,
+        round_id="round_control_plane_steps",
+        plan_result=plan_result,
+    )
+    commands = [step["command"] for step in steps]
+
+    assert "python -m reverse_agent.user_solve_cli --demo candidate" in commands
+    assert "python -m reverse_agent.user_solve_cli --demo missing-evidence" in commands

@@ -47,3 +47,20 @@ use. Session validation preserves the lower-level rules: `candidate_found` may
 remain pending validation, `verified` requires passed validation and complete
 evidence, missing evidence maps to deep-analysis/fallback guidance, and
 fallback decisions remain non-executing metadata.
+
+## Offline Control Plane
+
+The offline control plane adds a fixture-only request, response, handoff,
+controller, and CLI preview surface above the session bundle. It is intended for
+safe local demos and future UI/API shaping, not for live uploads or execution.
+
+`UserSolveRequest` accepts only synthetic fixture/demo input kinds. The
+controller routes those requests through `FastSolveWrapper`,
+`UserSolveSessionBundle`, `UserSolveHandoffPacket`, and
+`UserSolveResponseEnvelope` so existing result, trace, fallback, validation, and
+evidence behavior stays authoritative.
+
+The CLI preview is deliberately narrow: it emits JSON for the `candidate` and
+`missing-evidence` demos and can print explicit developer audit fields when
+requested. It does not create persistent sessions, call external services,
+process real files, dispatch runners, or execute binaries.

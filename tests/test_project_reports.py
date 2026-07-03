@@ -11,6 +11,7 @@ from reverse_agent.project_gate import (
     _generate_local_execution_loop_required_audit,
     _generate_required_audit_direct_evidence_rework_required_audit,
     _generate_required_audit_alignment_rework_required_audit,
+    _generate_user_solve_control_plane_required_audit,
     _generate_user_solve_session_bundle_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
@@ -260,6 +261,44 @@ USER_SOLVE_SESSION_BUNDLE_QUESTIONS = [
     "Did run-closeout pass and archive corrected reports if command-plan authorized closeout?",
     "Were forbidden files untouched?",
     "Did the final report avoid claiming solved/static_verified/runtime_validated/audit_verified for any sample?",
+]
+
+USER_SOLVE_CONTROL_PLANE_QUESTIONS = [
+    "Was the current decision treated as execution authority and task_packet as background only?",
+    "Did decision metadata remain valid and aligned with active `reverse-agent-iteration@v2`?",
+    "Did this decision supersede the smaller handoff/provenance plan without mixing scopes?",
+    "Were startup commands recorded before gates/tests?",
+    "Was prework provenance captured and enforced?",
+    "Did undeclared startup dirty source/test/doc files block `SUCCESS`?",
+    "Was `prework_provenance_result.json` or equivalent generated with current IDs?",
+    "Was `UserSolveRequest` implemented and tested?",
+    "Does request validation reject real-file execution semantics and unsafe internal references?",
+    "Was `UserSolveResponseEnvelope` implemented and tested?",
+    "Does response serialization include status, answer/candidate, confidence, validation status, evidence status, public message, next action, fallback summary, warnings/errors, and developer audit fields?",
+    "Was `UserSolveHandoffPacket` implemented and derived from `UserSolveSessionBundle`?",
+    "Does handoff serialization preserve user/developer boundaries?",
+    "Was `UserSolveController` implemented and tested?",
+    "Does the controller compose existing result/trace/fallback/evidence/session/handoff components?",
+    "Does the controller avoid external tool execution, persistence, dispatch, and real binary processing?",
+    "Was fixture-only CLI preview implemented and tested?",
+    "Does CLI preview emit safe response envelopes for candidate and missing-evidence demos?",
+    "Does CLI preview avoid persistence, external calls, real-file processing, and dispatch?",
+    "Does the control plane preserve candidate_found pending-validation behavior?",
+    "Does the control plane preserve verified requires passed validation behavior?",
+    "Does the control plane preserve missing-evidence to fallback/deep-analysis behavior?",
+    "Does user serialization hide internal paths and developer trace refs by default?",
+    "Does developer serialization retain audit references explicitly?",
+    "Was `user_solve_control_plane_result.json` or equivalent generated with current IDs?",
+    "Does the gate artifact prove non-invasive behavior and fixture-only operation?",
+    "Did tests cover prework provenance clean start, dirty-start block, and explicit inherited baseline?",
+    "Did tests cover request, response, handoff, controller, CLI, and report generation?",
+    "Did existing user-solve/session/trace/fallback/evidence tests continue passing?",
+    "Did pytest_result record real commands and exit codes?",
+    "Did command-plan authorize all executed commands and omit no executed commands?",
+    "Did final-check pass with current IDs?",
+    "Did run-closeout pass and archive corrected reports if authorized?",
+    "Were forbidden files untouched?",
+    "Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?",
 ]
 
 
@@ -631,6 +670,42 @@ def test_user_solve_session_bundle_required_audit_generator_is_substantive() -> 
     ]:
         assert step_name in audit
     assert "generic filler" in audit
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
+
+
+def test_user_solve_control_plane_required_audit_generator_is_substantive() -> None:
+    decision_text = (
+        "# Decision\n\n"
+        "Offline User Solve Control Plane Big Step "
+        "accepted_requires_prework_provenance_hardening "
+        "accepted_requires_offline_controller "
+        "accepted_requires_fixture_only_cli_preview "
+        "accepted_requires_control_plane_gate_artifact\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(USER_SOLVE_CONTROL_PLANE_QUESTIONS, start=1)
+        )
+    )
+
+    audit = _generate_user_solve_control_plane_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == len(USER_SOLVE_CONTROL_PLANE_QUESTIONS)
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/prework_provenance_result.json" in audit
+    assert "project_state/gates/user_solve_control_plane_result.json" in audit
+    assert "reverse_agent/user_solve_request.py" in audit
+    assert "reverse_agent/user_solve_response.py" in audit
+    assert "reverse_agent/user_solve_handoff.py" in audit
+    assert "reverse_agent/user_solve_controller.py" in audit
+    assert "reverse_agent/user_solve_cli.py" in audit
+    assert "non-invasive" in audit
     assert result["status"] == "PASS"
     assert result["alignment_failures"] == []
 

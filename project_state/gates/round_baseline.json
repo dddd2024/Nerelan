@@ -1,31 +1,15 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-  "round_id": "round_20260703_user_solve_session_bundle_v1",
-  "head_commit": "418c36bb3ed5",
-  "baseline_git_status_short": [
-    " M docs/user_solve_layer.md",
-    " M reverse_agent/project_gate.py",
-    " M reverse_agent/user_solve.py",
-    " M tests/test_project_gate.py",
-    " M tests/test_project_reports.py",
-    " M tests/test_user_solve.py",
-    "?? reverse_agent/user_solve_session.py",
-    "?? tests/test_user_solve_session.py"
-  ],
-  "baseline_git_diff_name_only": [
-    "docs/user_solve_layer.md"
-  ],
-  "baseline_dirty_files": [
-    "docs/user_solve_layer.md"
-  ],
-  "baseline_untracked_files": [
-    "reverse_agent/user_solve_session.py",
-    "tests/test_user_solve_session.py"
-  ],
-  "baseline_has_untracked_implementation_files": true,
+  "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+  "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+  "head_commit": "d764aaeffbbb",
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
+  "baseline_untracked_files": [],
+  "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-03T12:18:58.810950Z"
+  "generated_at": "2026-07-03T14:39:36.231526Z"
 }

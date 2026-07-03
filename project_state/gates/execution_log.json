@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-  "round_id": "round_20260703_user_solve_session_bundle_v1",
-  "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
-  "generated_at": "2026-07-03T13:49:54.049968Z",
+  "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+  "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+  "report_id": "codex_report_20260703_user_solve_offline_control_plane_big_step_v1",
+  "generated_at": "2026-07-03T16:00:08.730463Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-    "round_id": "round_20260703_user_solve_session_bundle_v1",
-    "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+    "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+    "report_id": "codex_report_20260703_user_solve_offline_control_plane_big_step_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "d052dd2bda06c97b465a0f0b6a072b0b2ff0b53fd48ea4ec1c645c8744cf79f0",
-        "size_bytes": 18664,
-        "command_block_count": 16
+        "sha256": "a710cb2ebe5d6446faff5f0ca1d5d3ab4dc0e08f51577465105b65bff173a770",
+        "size_bytes": 24170,
+        "command_block_count": 19
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "a72bb6e96913b8a876c736c680665f8a220a320a76138771af33822958b55acd",
-        "size_bytes": 7837,
-        "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-        "round_id": "round_20260703_user_solve_session_bundle_v1",
+        "sha256": "d9855eabdf3291c0e7b14567397d50628497ef6fadfee585342032ed0d7171c7",
+        "size_bytes": 9194,
+        "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+        "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
         "plan_status": "PASSED",
-        "command_count": 16
+        "command_count": 19
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "3398f95cb0208eb0e2d90cf97253261d5ce7f8a866f3ff38407577e980be0753",
-        "size_bytes": 37387,
-        "decision_id": "decision_20260703_user_solve_session_bundle_v1",
-        "round_id": "round_20260703_user_solve_session_bundle_v1",
-        "command_block_count": 16
+        "sha256": "18641b264e53fed9c87100f29862e46f20cb40ba9cca51122f0012408a13ebd2",
+        "size_bytes": 44780,
+        "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+        "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+        "command_block_count": 19
       }
     },
-    "command_count": 16,
-    "command_digest": "6bd977e2bd0a88046cc1c28c473a8c39cca893a8f1e28201cf18147e723860d2"
+    "command_count": 19,
+    "command_digest": "6485aba11e8db358e30d6a47007d701f87b6e4b9fe9b1cc07f99776a6e76cc61"
   },
   "commands": [
     {
@@ -129,7 +129,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -173,8 +173,8 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate user-solve-session-bundle --state-dir project_state",
-      "kind": "user-solve-session-bundle",
+      "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
+      "kind": "prework-provenance",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -184,6 +184,39 @@
     },
     {
       "index": 13,
+      "command": "python -m reverse_agent.user_solve_cli --demo candidate",
+      "kind": "user-solve-cli",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.user_solve_cli --demo missing-evidence",
+      "kind": "user-solve-cli",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate user-solve-control-plane --state-dir project_state",
+      "kind": "user-solve-control-plane",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -195,7 +228,7 @@
       "status": "PASSED"
     },
     {
-      "index": 14,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -206,7 +239,7 @@
       "status": "PASSED"
     },
     {
-      "index": 15,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -218,8 +251,8 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_session_bundle_v1",
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_offline_control_plane_big_step_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

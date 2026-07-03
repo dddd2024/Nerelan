@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "artifact_name": "user_solve_control_plane_result.json",
+  "gate_name": "user-solve-control-plane",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
+  "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+  "report_id": "codex_report_20260703_user_solve_offline_control_plane_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-03T15:59:34.743281Z",
+  "artifact_path": "project_state/gates/user_solve_control_plane_result.json",
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "fixture_only": true,
+  "creates_persistent_session": false,
+  "processes_real_binaries": false,
+  "external_invocations": {
+    "web_api": false,
+    "database_or_queue": false,
+    "scheduler_or_service": false,
+    "remote_runner_dispatch": false,
+    "ci_dispatch_or_polling": false,
+    "external_tool_execution": false,
+    "real_binary_processing": false,
+    "candidate_search": false,
+    "persistent_user_task_or_session_creation": false,
+    "real_user_upload_ingestion": false
+  },
+  "checks": [
+    {
+      "name": "session_bundle_gate_current",
+      "status": "PASS",
+      "detail": "session bundle gate artifact is current for the control-plane dependency",
+      "artifact": "project_state/gates/user_solve_session_bundle_result.json",
+      "gate_status": "PASSED"
+    },
+    {
+      "name": "candidate_fixture_response",
+      "status": "PASS",
+      "detail": "candidate fixture response preserves pending validation and safe user serialization",
+      "user_payload": {
+        "request": {
+          "request_id": "demo-candidate",
+          "mode": "fast",
+          "input_kind": "fixture",
+          "fixture_name": "candidate",
+          "candidate": "flag{demo_candidate}",
+          "missing_evidence": [],
+          "public_context": {
+            "source": "fixture"
+          }
+        },
+        "status": "candidate_found",
+        "answer": "flag{demo_candidate}",
+        "candidates": [
+          {
+            "value": "flag{demo_candidate}",
+            "validation_status": "pending",
+            "confidence": 0.64
+          }
+        ],
+        "confidence": 0.64,
+        "validation_status": "pending",
+        "evidence_status": "building",
+        "public_message": "Offline fixture preview only.",
+        "next_action": {
+          "kind": "validate_candidate",
+          "label": "Validate the candidate before final acceptance.",
+          "safe_to_show": true
+        },
+        "fallback_summary": {
+          "selected_step": {
+            "name": "fast_strings",
+            "risk_level": "low",
+            "timeout_seconds": 20,
+            "required_capability": "static_strings",
+            "fast_mode_eligible": true,
+            "writes_artifact": false,
+            "permission_requirement": "automatic",
+            "requires_local_execution": false,
+            "requires_dynamic_debug": false,
+            "requires_network": false,
+            "executable_by_default": true
+          },
+          "eligible_steps": [
+            "fast_strings"
+          ],
+          "blocked_steps": [],
+          "missing_evidence": [],
+          "stop_reason": "selected_next_safe_step",
+          "executed": false
+        },
+        "handoff": {
+          "handoff_id": "handoff-demo-candidate",
+          "session_id": "demo-candidate",
+          "user_summary": {
+            "status": "candidate_found",
+            "validation_status": "pending",
+            "evidence_status": "building",
+            "public_message": "Offline fixture preview only."
+          },
+          "next_action": {
+            "kind": "validate_candidate",
+            "label": "Validate the candidate before final acceptance.",
+            "safe_to_show": true
+          },
+          "fallback_summary": {
+            "selected_step": {
+              "name": "fast_strings",
+              "risk_level": "low",
+              "timeout_seconds": 20,
+              "required_capability": "static_strings",
+              "fast_mode_eligible": true,
+              "writes_artifact": false,
+              "permission_requirement": "automatic",
+              "requires_local_execution": false,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": true
+            },
+            "eligible_steps": [
+              "fast_strings"
+            ],
+            "blocked_steps": [],
+            "missing_evidence": [],
+            "stop_reason": "selected_next_safe_step",
+            "executed": false
+          }
+        },
+        "warnings": [
+          "fixture_only_preview"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "missing_evidence_fixture_response",
+      "status": "PASS",
+      "detail": "missing-evidence fixture maps to non-executing fallback/deep-analysis response",
+      "user_payload": {
+        "request": {
+          "request_id": "demo-missing-evidence",
+          "mode": "fast",
+          "input_kind": "fixture",
+          "fixture_name": "missing-evidence",
+          "candidate": "",
+          "missing_evidence": [
+            "targeted_decompile_missing"
+          ],
+          "public_context": {
+            "source": "fixture"
+          }
+        },
+        "status": "deep_analysis_running",
+        "answer": "",
+        "candidates": [],
+        "confidence": null,
+        "validation_status": "unavailable",
+        "evidence_status": "building",
+        "public_message": "Offline fixture preview only.",
+        "next_action": {
+          "kind": "fallback",
+          "label": "Collect more evidence with fast_strings.",
+          "safe_to_show": true
+        },
+        "fallback_summary": {
+          "selected_step": {
+            "name": "fast_strings",
+            "risk_level": "low",
+            "timeout_seconds": 20,
+            "required_capability": "static_strings",
+            "fast_mode_eligible": true,
+            "writes_artifact": false,
+            "permission_requirement": "automatic",
+            "requires_local_execution": false,
+            "requires_dynamic_debug": false,
+            "requires_network": false,
+            "executable_by_default": true
+          },
+          "eligible_steps": [
+            "fast_strings"
+          ],
+          "blocked_steps": [],
+          "missing_evidence": [
+            "targeted_decompile_missing"
+          ],
+          "stop_reason": "selected_next_safe_step",
+          "executed": false
+        },
+        "handoff": {
+          "handoff_id": "handoff-demo-missing-evidence",
+          "session_id": "demo-missing-evidence",
+          "user_summary": {
+            "status": "deep_analysis_running",
+            "validation_status": "unavailable",
+            "evidence_status": "building",
+            "public_message": "Offline fixture preview only."
+          },
+          "next_action": {
+            "kind": "fallback",
+            "label": "Collect more evidence with fast_strings.",
+            "safe_to_show": true
+          },
+          "fallback_summary": {
+            "selected_step": {
+              "name": "fast_strings",
+              "risk_level": "low",
+              "timeout_seconds": 20,
+              "required_capability": "static_strings",
+              "fast_mode_eligible": true,
+              "writes_artifact": false,
+              "permission_requirement": "automatic",
+              "requires_local_execution": false,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": true
+            },
+            "eligible_steps": [
+              "fast_strings"
+            ],
+            "blocked_steps": [],
+            "missing_evidence": [
+              "targeted_decompile_missing"
+            ],
+            "stop_reason": "selected_next_safe_step",
+            "executed": false
+          }
+        },
+        "warnings": [
+          "fixture_only_preview"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "non_invasive_source_surface",
+      "status": "PASS",
+      "detail": "control-plane source contains no forbidden execution, persistence, network, or dispatch calls",
+      "found_forbidden": {}
+    }
+  ],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/user_solve_session_bundle_result.json",
+    "project_state/gates/user_solve_control_plane_result.json"
+  ]
+}
