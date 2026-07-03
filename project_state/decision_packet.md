@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+  "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,15 +13,15 @@
 
 ```json decision_contract
 {
-  "reworks_decision_id": "decision_20260702_ci_evidence_bridge_and_audit_handoff_v1",
-  "reworks_round_id": "round_20260702_ci_evidence_bridge_and_audit_handoff_v1",
+  "reworks_decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "reworks_round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "phase_label": "phase_2_31_ci_evidence_bridge_closeout_consistency_rework",
-  "primary_goal": "Fix post-closeout consistency for CI evidence bridge artifacts so reconcile and audit handoff bundle reflect final final-check/run-closeout/close-round state instead of stale pre-closeout diagnostic snapshots.",
+  "phase_label": "phase_2_32_required_audit_direct_evidence_rework",
+  "primary_goal": "Fix Required Audit report prose so each audit item cites direct artifact evidence and does not use ci_audit_handoff_bundle.json as a generic substitute for unrelated claims.",
   "command_plan_authority_required": true,
-  "accepted_requires_reconcile_post_closeout_consistency": true,
-  "accepted_requires_audit_bundle_post_closeout_consistency": true,
-  "accepted_requires_final_check_hardening": true,
+  "accepted_requires_required_audit_direct_evidence": true,
+  "accepted_requires_generic_answer_guard": true,
+  "accepted_requires_final_check_or_audit_readiness_hardening": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "reverse_agent/project_ci.py",
@@ -29,16 +29,12 @@
     "tests/test_project_reports.py",
     "tests/test_project_ci.py"
   ],
-  "allowed_config_files": [
-    ".github/workflows/state-gate.yml",
-    ".github/workflows/decision-preflight.yml"
-  ],
   "allowed_generated_or_updated_artifacts": [
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1/*"
+    "project_state/rounds/round_20260703_required_audit_direct_evidence_rework_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -47,7 +43,8 @@
     "project_state/negative_results.json",
     ".codex-skills/registry.json",
     "docs/prompts/*",
-    "solve_reports/*"
+    "solve_reports/*",
+    ".github/workflows/*"
   ]
 }
 ```
@@ -56,74 +53,119 @@
 
 ## 1. Goal
 
-Implement **CI Evidence Bridge Closeout Consistency Rework v1**.
+Implement **Required Audit Direct Evidence Rework v1**.
 
-This is an `engineering_branch` rework round. The previous round implemented the CI evidence bridge, but audit found that `ci_audit_handoff_bundle.json` and `ci_observation_reconcile_result.json` preserved stale pre-closeout diagnostic state even though final-check and run-closeout ultimately passed. This round must fix that consistency failure without expanding the CI bridge feature set.
+This is an `engineering_branch` rework round. The previous round fixed the CI evidence bridge closeout consistency problem at the artifact/gate level: `ci_observation_reconcile_result.json` reached final consistency, `ci_audit_handoff_bundle.json` reached audit readiness, and `final-check` passed after closeout. However, audit found that the human-readable Required Audit answers in `execution_report.md` / `codex_execution_report.md` still use generic prose and over-broad evidence references.
 
 Primary objectives:
 
-1. Fix `ci_observation_reconcile_result.json` so it does not report plain `RECONCILED` while referenced execution evidence is still failed, incomplete, or pre-closeout diagnostic unless that state is explicitly classified as non-final.
-2. Fix `ci_audit_handoff_bundle.json` so it reflects final post-closeout evidence, or explicitly separates pre-closeout diagnostic snapshots from post-closeout final status.
-3. Harden `final-check` so a bundle containing stale `final_check: FAILED`, `run_closeout: IN_PROGRESS`, or unresolved `pending_diagnostic_sources` cannot pass as a final accepted audit bundle.
-4. Refresh report-summary and closeout behavior so the final audit handoff bundle is not stale after final-check/run-closeout/close-round.
-5. Keep existing CI evidence bridge capabilities intact: observation schema, observation handoff, observation reconcile, artifact manifest, audit handoff bundle, workflow coverage/readiness, CI run evidence, and local-CI parity.
-6. Do not introduce remote CI dispatch, polling, repository mutation, product UI/API, database/queue/scheduler, AgentRunner execution, reverse-solving, or sample execution.
+1. Fix Required Audit answer generation so each Required Audit item cites direct artifact evidence that corresponds to the specific assertion being made.
+2. Prevent `ci_audit_handoff_bundle.json` from being used as a generic substitute for unrelated Required Audit answers.
+3. Add or harden final-check / audit-readiness checks so generic, template-like, or mismatched Required Audit answers cannot pass for an accepted report.
+4. Preserve the closeout consistency behavior from the previous round; do not rework CI bridge semantics unless a minimal report-evidence mapping fix requires it.
+5. Keep this round limited to report/audit evidence quality. Do not introduce remote CI dispatch, polling, repository mutation, product UI/API, database/queue/scheduler, AgentRunner execution, reverse-solving, sample execution, or User Solve Layer work.
 
 Accepted target:
 
-- `codex_execution_report.md` status is `SUCCESS` and recommendation is `ACCEPTED`.
+- `codex_execution_report.md` and `execution_report.md` status is `SUCCESS` and recommendation is `ACCEPTED` only if Required Audit answers are direct, specific, and artifact-aligned.
 - `pytest_result.txt` status is `PASSED`.
-- `ci_observation_reconcile_result.json` is current and has an accurate final consistency state.
-- `ci_audit_handoff_bundle.json` is current and has accurate final post-closeout status for final-check, run-closeout, close-round, execution-log, pytest, report status, workflow coverage/readiness, local-CI parity, and CI observation state.
-- `ci_audit_handoff_bundle.json` must not retain stale `final_check: FAILED`, `run_closeout: IN_PROGRESS`, or unresolved `pending_diagnostic_sources` while claiming `READY_FOR_AUDIT` and report `SUCCESS`.
-- `final_gate_result.json` hard-checks bundle/reconcile consistency and passes only after the stale bundle/reconcile condition is fixed.
-- `run_closeout_result.json` passes and close-round is `CLOSED`.
+- Required Audit item 30 is no longer self-contradictory: it must not cite only `ci_audit_handoff_bundle.json` while claiming that generic bundle substitution was avoided.
+- Required Audit items for `ci_run_evidence`, `local_ci_parity`, workflow coverage/readiness, local execution bundle, codex prompt packet, audit precheck, audit readiness, final-check, run-closeout, and close-round cite their own direct artifacts or the specific direct artifacts needed for the claim.
+- `final_gate_result.json` or `audit_readiness_packet.json` detects generic/placeholder Required Audit answers and blocks accepted status when necessary.
+- `run_closeout_result.json`, if run by command-plan, passes and archives the corrected report artifacts.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` is background only.
+`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` is background only and still describes older sample/reverse-solving context; it must not control this engineering round.
 
 Reworked round:
 
-- `decision_20260702_ci_evidence_bridge_and_audit_handoff_v1`
-- `round_20260702_ci_evidence_bridge_and_audit_handoff_v1`
+- `decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1`
+- `round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1`
 - audit outcome: `REWORK_REQUIRED`
 
-Blocking evidence from the audit:
+Evidence from the previous round:
 
-1. `ci_audit_handoff_bundle.json` was current but internally recorded `final_check.gate_status: FAILED`, `run_closeout.status: IN_PROGRESS`, and pending diagnostic sources even though final `final_gate_result.json` passed and `run_closeout_result.json` closed the round.
-2. `ci_observation_reconcile_result.json` reported `reconcile_status: RECONCILED` while its referenced `execution_log` source was still failed/incomplete.
-3. The prior final-check did not hard-fail on stale internal bundle status.
-4. Several Required Audit answers used `ci_audit_handoff_bundle.json` as broad evidence instead of directly citing the specific artifact being asserted.
+1. `decision_packet.md` was valid and approved, with `mainline=engineering_branch` and `skill_profiles=["reverse-agent-iteration@v2"]`.
+2. `.codex-skills/registry.json` defines `reverse-agent-iteration` as active version 2.
+3. `pytest_result.txt` reported `PASSED` with the gate and pytest commands recorded.
+4. `ci_observation_reconcile_result.json` was current, `reconcile_status=RECONCILED`, `final_consistency_status=FINAL_CONSISTENT`, and `pending_diagnostic_sources=[]`.
+5. `ci_audit_handoff_bundle.json` was current, `handoff_status=READY_FOR_AUDIT`, and post-closeout status showed `final_check_gate_status=PASSED`, `run_closeout_status=PASSED`, and `close_round_status=CLOSED`.
+6. `final_gate_result.json` was `PASSED` and included `ci_bridge_closeout_consistency` with final consistent status.
+7. The blocking issue was in Required Audit prose: several answers used generic artifact summaries, and item 30 still cited `ci_audit_handoff_bundle.json` as broad evidence while claiming direct evidence use.
 
 Artifact freshness policy:
 
-- Current-round generated artifacts must carry `decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1` and `round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1` when regenerated.
-- Historical artifacts from the failed bridge round may be referenced only as rework evidence; they must not be treated as current accepted evidence.
-- Reverse-solving sample artifacts remain out of scope for this engineering round.
+- Current-round generated artifacts must carry `decision_20260703_required_audit_direct_evidence_rework_v1` and `round_20260703_required_audit_direct_evidence_rework_v1` when regenerated.
+- Historical artifacts from the previous closeout consistency round may be referenced only as rework evidence; they must not be treated as current accepted evidence after this round generates new artifacts.
+- `project_state/artifact_index.json` currently contains sample/reverse-solving artifact freshness data and many missing sample artifacts. That is non-blocking for this engineering round unless the implementation incorrectly relies on those sample artifacts.
+- Reverse-solving sample artifacts remain out of scope.
+
+Negative results:
+
+- `negative_results.json` blocks old sample_solver blind search, budget-only search expansion, compare_semantics_agree=false frontier use, full solve_reports commits, and repeated sample diagnostics without new runtime evidence.
+- This round must not touch those reverse-solving directions.
+
+Existing capabilities to preserve:
+
+- decision metadata validation
+- command-plan authority checks
+- pytest/report/final-check consistency checks
+- CI evidence bridge artifacts
+- closeout consistency checks
+- audit readiness packet generation
+- report summary synthesis
+- execution report alias parity
 
 Command-plan policy:
 
-- `project_state/gates/command_plan.json` remains the only local command authority.
+- `project_state/gates/command_plan.json` is the only local command authority.
 - Codex may execute only commands authorized by `command_plan.commands`.
 - `command_plan.omitted_commands` must not be executed.
 - The Tests section does not override command-plan.
+- Current profiles are `fast`, `standard`, and `full`; do not use `medium`.
+
+Heavy artifact policy:
+
+- Do not scan full `solve_reports/`.
+- Do not scan full `PROJECT_PROGRESS_LOG.txt`.
+- Do not run reverse-solving tools, dynamic debugging, IDA, Ghidra, OllyDbg, emulator, or runtime probes.
+
+Closeout policy:
+
+- Closeout may run only if command-plan authorizes it.
+- If closeout is run, generated archive artifacts must be current for this round and final-check must pass after closeout.
 
 ## 3. Do Not Do
 
-Do not expand beyond closeout consistency rework.
+Do not expand beyond Required Audit direct-evidence rework.
 
-Do not implement live GitHub Actions polling, workflow dispatch, GitHub API ingestion, product UI/API, database, queue, scheduler, autonomous AgentRunner execution, debugger integration, reverse-solving behavior, or sample execution.
+Do not rework the CI evidence bridge unless a minimal report-evidence mapping fix requires touching bridge summary code.
 
-Do not add new CI bridge artifact types beyond what is necessary to fix reconcile/bundle/final-check consistency.
+Do not implement live GitHub Actions polling, workflow dispatch, GitHub API ingestion, product UI/API, database, queue, scheduler, autonomous AgentRunner execution, debugger integration, reverse-solving behavior, User Solve Layer behavior, or sample execution.
 
-Do not modify files outside the allowed source/config/artifact lists in `decision_contract`.
+Do not modify files outside the allowed source/test/artifact lists in `decision_contract`.
 
 Do not weaken command-plan authority, workflow safety checks, report-summary semantics, audit readiness, final-check, closeout, or report status rules.
 
 Do not use `COMPLETED_WITH_LIMITATIONS` as report status.
+
+Do not use `ci_audit_handoff_bundle.json` as a generic substitute for Required Audit answers that need direct evidence from other artifacts.
+
+Do not allow placeholder/template answers such as repeated "bundle summarizes..." or "bridge artifacts are current-round aligned..." to satisfy Required Audit coverage when the question asks about a specific artifact or check.
+
+Do not mutate:
+
+- `project_state/current_state.json`
+- `project_state/task_packet.json`
+- `project_state/artifact_index.json`
+- `project_state/negative_results.json`
+- `.codex-skills/registry.json`
+- `docs/prompts/*`
+- `solve_reports/*`
+- `.github/workflows/*`
 
 ## 4. Files To Inspect
 
@@ -141,27 +183,21 @@ Read first:
 
 Inspect current gate artifacts:
 
-1. `project_state/gates/ci_observation_schema_result.json`
-2. `project_state/gates/ci_observation_handoff_packet.json`
-3. `project_state/gates/ci_observation_reconcile_result.json`
-4. `project_state/gates/ci_artifact_manifest_result.json`
+1. `project_state/gates/final_gate_result.json`
+2. `project_state/gates/audit_readiness_packet.json`
+3. `project_state/gates/audit_precheck_result.json`
+4. `project_state/gates/ci_observation_reconcile_result.json`
 5. `project_state/gates/ci_audit_handoff_bundle.json`
 6. `project_state/gates/ci_run_evidence_result.json`
 7. `project_state/gates/local_ci_parity_result.json`
 8. `project_state/gates/ci_workflow_coverage_result.json`
 9. `project_state/gates/ci_workflow_readiness_result.json`
-10. `project_state/gates/command_plan.json`
-11. `project_state/gates/execution_log.json`
-12. `project_state/gates/report_summary_synthesis.json`
-13. `project_state/gates/final_gate_result.json`
+10. `project_state/gates/local_execution_bundle.json`
+11. `project_state/gates/codex_prompt_packet.json`
+12. `project_state/gates/execution_log.json`
+13. `project_state/gates/report_summary_synthesis.json`
 14. `project_state/gates/run_closeout_result.json`
-15. `project_state/gates/audit_readiness_packet.json`
-16. `project_state/gates/audit_precheck_result.json`
-
-Inspect workflow files only if needed:
-
-1. `.github/workflows/state-gate.yml`
-2. `.github/workflows/decision-preflight.yml`
+15. `project_state/gates/command_plan.json`
 
 Inspect implementation and tests:
 
@@ -177,37 +213,37 @@ Do not scan full `project_state/rounds/`, full `solve_reports/`, or full `PROJEC
 
 The execution report must answer these items with evidence and `PASS`, `FAIL`, `BLOCKED`, or `NOT_APPLICABLE`.
 
-1. Were startup commands recorded before project gates?
-2. Was startup-snapshot the first project gate?
-3. Did decision metadata remain valid and approved?
-4. Was this rework decision treated as current authority and `task_packet.json` as background only?
-5. Were changes limited to allowed source/test/workflow/artifact files?
-6. Did the report clearly identify the previous bridge round as `REWORK_REQUIRED` rather than accepted?
-7. Was `ci_observation_reconcile_result.json` regenerated with current decision ID, round ID, and report ID?
-8. Does `ci_observation_reconcile_result.json` accurately classify reconcile state when execution-log or other diagnostic sources are not final?
-9. Does `ci_observation_reconcile_result.json` avoid plain `RECONCILED` when any required source is failed or stale?
-10. Was `ci_audit_handoff_bundle.json` regenerated with current decision ID, round ID, and report ID?
-11. Does `ci_audit_handoff_bundle.json` reflect final post-closeout `final_gate_result.json` status?
-12. Does `ci_audit_handoff_bundle.json` reflect final post-closeout `run_closeout_result.json` and close-round status?
-13. Does `ci_audit_handoff_bundle.json` avoid stale `final_check: FAILED` while claiming `READY_FOR_AUDIT`?
-14. Does `ci_audit_handoff_bundle.json` avoid stale `run_closeout: IN_PROGRESS` while claiming `READY_FOR_AUDIT`?
-15. Does `ci_audit_handoff_bundle.json` avoid unresolved `pending_diagnostic_sources` when report status is `SUCCESS` and recommendation is `ACCEPTED`?
-16. Did final-check add or enforce a hard check for stale bundle/reconcile internal status?
-17. Did final-check fail in tests or fixtures when bundle final_check/run_closeout states are stale?
-18. Did report-summary include the corrected reconcile and audit handoff bundle statuses?
-19. Did execution-log align with command-plan and pytest_result, or was any diagnostic gap explicitly non-final before closeout?
-20. Did `ci_run_evidence_result.json` remain current and honest about live observation state?
-21. Did `local_ci_parity_result.json` remain current with no required parity gaps?
-22. Did `ci_workflow_coverage_result.json` remain current and complete?
-23. Did `ci_workflow_readiness_result.json` remain current and READY?
-24. Did local execution bundle remain valid?
-25. Did codex prompt packet remain valid?
-26. Did audit precheck remain valid?
-27. Did audit readiness become ready and accepted after closeout?
-28. Did final-check pass only after the corrected bundle/reconcile state was produced?
-29. Did run-closeout pass and close-round close?
-30. Did Required Audit answers cite direct artifact evidence rather than using `ci_audit_handoff_bundle.json` as a generic substitute for all claims?
-31. Did this round avoid remote CI dispatch/poll/repository mutation and stay within closeout consistency rework?
+1. Was the current `decision_packet.md` treated as the only execution authority and `task_packet.json` as background only?
+2. Did decision metadata remain valid, approved, and aligned with an active skill profile?
+3. Were startup commands recorded before project gates?
+4. Was startup-snapshot recorded before substantive gate/test execution?
+5. Were changes limited to allowed source/test/generated artifact paths?
+6. Did the implementation avoid reverse-solving, sample execution, User Solve Layer work, remote CI dispatch/polling, UI/API, database, queue, and scheduler work?
+7. Did the report generator produce Required Audit answers for every item in this decision?
+8. Did each Required Audit answer cite direct artifacts specific to its claim?
+9. Did the implementation prevent `ci_audit_handoff_bundle.json` from being used as a generic substitute for unrelated Required Audit claims?
+10. Did item-specific CI evidence questions cite `ci_run_evidence_result.json`, `local_ci_parity_result.json`, `ci_workflow_coverage_result.json`, or `ci_workflow_readiness_result.json` directly where appropriate?
+11. Did local execution bundle claims cite `local_execution_bundle.json` directly?
+12. Did codex prompt packet claims cite `codex_prompt_packet.json` directly?
+13. Did audit precheck claims cite `audit_precheck_result.json` directly?
+14. Did audit readiness claims cite `audit_readiness_packet.json` directly?
+15. Did final-check claims cite `final_gate_result.json` directly?
+16. Did run-closeout and close-round claims cite `run_closeout_result.json` and current round archive evidence directly?
+17. Did reconcile claims cite `ci_observation_reconcile_result.json` directly and mention `reconcile_status`, `final_consistency_status`, and `pending_diagnostic_sources` when relevant?
+18. Did audit handoff bundle claims cite `ci_audit_handoff_bundle.json` directly only when the claim is actually about the bundle?
+19. Did Required Audit item 30 from the previous decision stop using `ci_audit_handoff_bundle.json` as the sole/generic evidence for direct-evidence compliance?
+20. Did final-check or audit-readiness harden against placeholder, generic, or repeated Required Audit answers?
+21. Did tests include a failing fixture for generic bundle-substitute Required Audit answers?
+22. Did tests include a passing fixture for direct artifact-specific Required Audit answers?
+23. Did report-summary synthesis remain consistent with `execution_report.md` and `codex_execution_report.md`?
+24. Did `pytest_result.txt` match `tests_ran` in the execution report?
+25. Did execution-log align with command-plan and pytest_result?
+26. Did command-plan authorize all executed commands and omit no executed commands?
+27. Did `ci_observation_reconcile_result.json` remain current and final-consistent after this report-quality rework?
+28. Did `ci_audit_handoff_bundle.json` remain current and ready for audit after this report-quality rework?
+29. Did `final_gate_result.json` pass only after corrected Required Audit prose was produced?
+30. If run-closeout was authorized and executed, did it pass and archive the corrected report artifacts?
+31. Did the final report avoid generic/template prose and provide direct, claim-specific evidence for every Required Audit answer?
 
 ## 6. Implementation Scope
 
@@ -215,22 +251,35 @@ Allowed changes are restricted to the paths listed in `decision_contract`.
 
 Required behavior:
 
-1. Fix the logic that builds `ci_observation_reconcile_result.json` so its status model distinguishes final success from diagnostic/pre-closeout gaps.
-2. Fix the logic that builds `ci_audit_handoff_bundle.json` so it either runs after final closeout evidence is available or records both pre-closeout and post-closeout states without contradiction.
-3. Add final-check validation that rejects an accepted report when `ci_audit_handoff_bundle.json` internally contains stale `final_check: FAILED`, `run_closeout: IN_PROGRESS`, or unresolved pending diagnostic sources.
-4. Add tests for stale bundle failure modes and corrected post-closeout bundle success modes.
-5. Add tests for reconcile status classification when execution-log is failed/incomplete versus post-closeout converged.
-6. Ensure report-summary and audit readiness consume the corrected final bundle state.
-7. Preserve all existing CI evidence bridge artifacts and workflow safety checks.
-8. Keep compatibility with old reports and old gate artifacts.
+1. Identify the report generation path that creates `## Required Audit` answers in `execution_report.md` and `codex_execution_report.md`.
+2. Replace generic answer templates with item-specific evidence mapping.
+3. Ensure each Required Audit answer contains evidence that directly supports the question being answered.
+4. Add checks that reject generic bundle-substitute answers, especially answers that cite only `ci_audit_handoff_bundle.json` for claims about other artifacts.
+5. Add tests for the previous failure mode: generic prose marked PASS despite mismatched evidence.
+6. Add tests for the accepted mode: each Required Audit item has direct, artifact-specific evidence.
+7. Preserve semantic parity between `execution_report.md` and `codex_execution_report.md`.
+8. Preserve current closeout consistency behavior for CI reconcile and audit handoff bundle artifacts.
+9. Regenerate only authorized current-round project_state artifacts.
 
-Expected commands remain the current bridge commands plus final consistency validation:
+Implementation must be small, testable, backward-compatible with old report fields, and limited to engineering/audit report quality.
 
-- `python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state`
-- `python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state`
-- `python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state`
-- `python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state`
-- `python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state`
+Suggested evidence mapping expectations:
+
+- startup and startup-snapshot claims: `startup_snapshot.json`, `pytest_result.txt`
+- decision authority claims: `decision_packet.md`, `preflight_result.json`
+- source/test scope claims: `round_delta_summary.json`, `final_gate_result.json`
+- CI run evidence claims: `ci_run_evidence_result.json`
+- local CI parity claims: `local_ci_parity_result.json`
+- workflow coverage claims: `ci_workflow_coverage_result.json`
+- workflow readiness claims: `ci_workflow_readiness_result.json`
+- local execution bundle claims: `local_execution_bundle.json`
+- codex prompt packet claims: `codex_prompt_packet.json`
+- audit precheck claims: `audit_precheck_result.json`
+- audit readiness claims: `audit_readiness_packet.json`
+- final-check claims: `final_gate_result.json`
+- run-closeout / close-round claims: `run_closeout_result.json`, current round archive files
+- reconcile claims: `ci_observation_reconcile_result.json`
+- audit handoff bundle claims: `ci_audit_handoff_bundle.json`, only when the claim is about the bundle itself
 
 ## 7. Tests
 
@@ -245,68 +294,48 @@ git status --short
 python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 ```
 
-Required command-plan and gate flow:
+Required command policy:
+
+- First run or regenerate `project_state/gates/command_plan.json` using the existing project gate command-plan flow.
+- Then execute only commands authorized by `command_plan.commands`.
+- If `command_plan.omitted_commands` lists a command, do not execute it.
+- If this Tests section conflicts with command-plan, command-plan wins.
+
+Expected validation coverage, subject to command-plan authorization:
 
 ```powershell
-python -m reverse_agent.project_gate command-plan --state-dir project_state
-python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state
-python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
-python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
-python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
-python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state
-python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state
-python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state
-python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state
-python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
-python -m reverse_agent.project_gate audit-inventory --state-dir project_state
-python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
-python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state
-python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state
-python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state
-python -m reverse_agent.project_gate audit-precheck --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
-python -m reverse_agent.project_gate execution-log --state-dir project_state
+python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_ci.py -q
+```
+
+If command-plan authorizes full closeout, also run:
+
+```powershell
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_required_audit_direct_evidence_rework_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-Required focused pytest:
-
-```powershell
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_ci.py -q
-```
-
-If `tests/test_project_jobs.py` remains authorized by command-plan, include it as well:
-
-```powershell
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q
-```
-
-Required closeout path:
-
-```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1
-python -m reverse_agent.project_gate final-check --state-dir project_state
-```
-
-Required regression coverage:
-
-- Stale audit handoff bundle with internal `final_check: FAILED` must cause final-check failure.
-- Stale audit handoff bundle with internal `run_closeout: IN_PROGRESS` must cause final-check failure.
-- Bundle with unresolved pending diagnostic sources must not be accepted with report `SUCCESS` and recommendation `ACCEPTED`.
-- Reconcile artifact must not report plain `RECONCILED` when required source evidence is failed or stale.
-- Corrected post-closeout bundle must reflect final `final_gate_result.json`, `run_closeout_result.json`, and close-round status.
-- Existing CI observation schema/handoff/reconcile/manifest/bundle tests still pass.
-- Existing workflow coverage/readiness/local-CI parity tests still pass.
-
-Write all top-level commands, exit codes, and pytest pass/fail counts to `project_state/pytest_result.txt`.
-
-The Tests section does not itself authorize execution. If Tests and `command_plan.json` conflict, `command_plan.json` is authoritative.
+`project_state/pytest_result.txt` must record the actual commands and exit codes. The execution report `tests_ran` must match the recorded commands.
 
 ## 8. Stop Conditions
 
-Stop with `BLOCKED` if startup, repository root, decision metadata, skill profile, command-plan, or required rework artifacts cannot be established.
+Stop and report `REWORK_REQUIRED` or `BLOCKED` if any of the following occurs:
 
-Stop with `REWORK_REQUIRED` if `ci_audit_handoff_bundle.json` still contains stale internal `final_check: FAILED`, `run_closeout: IN_PROGRESS`, or unresolved pending diagnostic sources while claiming `READY_FOR_AUDIT`; if `ci_observation_reconcile_result.json` still reports plain `RECONCILED` while required sources are failed/stale; if final-check does not hard-fail those conditions; if tests are incomplete; if changed files exceed allowed scope; if final-check fails; if closeout fails; if close-round is not closed; or if report status is `SUCCESS` without real pytest and gate evidence.
-```
+1. Any Required Audit answer is missing, empty, placeholder-like, or generic.
+2. Any Required Audit answer cites an artifact that does not directly support the claim.
+3. `ci_audit_handoff_bundle.json` is used as the sole evidence for claims about unrelated artifacts.
+4. Required Audit item 30 still claims direct evidence compliance while citing only generic bundle evidence.
+5. `pytest_result.txt` is missing, stale, or inconsistent with `tests_ran`.
+6. `execution_log.json` is missing, stale, or inconsistent with command-plan and pytest_result.
+7. Any command outside command-plan is executed.
+8. Any `command_plan.omitted_commands` command is executed.
+9. `final-check` fails.
+10. `run-closeout` is executed without command-plan authorization.
+11. `run-closeout` fails or close-round does not close when closeout is required.
+12. Any forbidden path is modified.
+13. The round expands into reverse-solving, sample execution, User Solve Layer, Web/API, database, queue, scheduler, remote CI dispatch/polling, or AgentRunner execution.
+
+If only report prose remains incomplete, do not claim `SUCCESS`; report `PARTIAL` or `REWORK_REQUIRED` with exact missing Required Audit item numbers.
