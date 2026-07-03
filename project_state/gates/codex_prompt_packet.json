@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "report_id": "codex_report_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+  "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
+  "report_id": "codex_report_20260703_required_audit_direct_evidence_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-02T16:31:05.241505Z",
+  "generated_at": "2026-07-03T04:33:24.346337Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-      "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-      "sha256": "e0386a8ef7af2ed21abf69518c4c9920ae90604c894a3d4ea2c35b371bf6f193"
+      "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+      "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
+      "sha256": "227ab5f731fb0f57ba0aee77a7cbd48f8a2a2ddd049409c30c2443a73264d279"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-      "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-      "sha256": "4d3df82d68cf4b7481f802b55f06117df0dcdd9910b54786eb34301ecf980305"
+      "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+      "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
+      "sha256": "784c988fc9ea6b3ac6012ebf906afcfb3e051a0d8130060c1dace505aac9bce2"
     }
   },
   "prompt_sections": {

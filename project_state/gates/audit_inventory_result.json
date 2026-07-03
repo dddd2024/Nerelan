@@ -3,10 +3,10 @@
   "artifact_name": "audit_inventory_result.json",
   "gate_name": "audit-inventory",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+  "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+  "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-02T16:30:23.537520Z",
+  "generated_at": "2026-07-03T04:32:43.531872Z",
   "inventory_validation_status": "PASSED",
   "audit_count": 4,
   "outcome_counts": {

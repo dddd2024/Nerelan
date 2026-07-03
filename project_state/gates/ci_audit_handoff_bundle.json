@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "report_id": "codex_report_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "generated_at": "2026-07-02T16:30:54.688081Z",
+  "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+  "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
+  "report_id": "codex_report_20260703_required_audit_direct_evidence_rework_v1",
+  "generated_at": "2026-07-03T04:33:50.674277Z",
   "handoff_status": "READY_FOR_AUDIT",
   "source_artifacts": {
     "ci_observation_schema": {

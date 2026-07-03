@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "report_id": "codex_report_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-  "generated_at": "2026-07-02T16:31:00.230453Z",
+  "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+  "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
+  "report_id": "codex_report_20260703_required_audit_direct_evidence_rework_v1",
+  "generated_at": "2026-07-03T04:33:38.118756Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-    "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-    "report_id": "codex_report_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+    "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+    "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
+    "report_id": "codex_report_20260703_required_audit_direct_evidence_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "952290c08f40e44b29fff48cf7e0bacdd17d8a148ebf225f96e4ff9ae7bb30f7",
-        "size_bytes": 33248,
+        "sha256": "e1e0b7c9563cb9ae32b2997fb05a65f703db76204f2e1323c28e9c4a782ca739",
+        "size_bytes": 28642,
         "command_block_count": 29
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "a24e8293b082f2b00674b84880d32be5ee0a922df6645136657ad628eb0efca1",
-        "size_bytes": 13336,
-        "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-        "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+        "sha256": "6a89c39a1fca812ea2df104c0076f8cc85029d45ccce127cdadcf9d262c4eb40",
+        "size_bytes": 13300,
+        "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+        "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
         "plan_status": "PASSED",
         "command_count": 30
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "5a0e2ce660ce9d5beb75a410e80f676ac2ca2ec29ad0714aaa57cc0da7a545bc",
-        "size_bytes": 53667,
-        "decision_id": "decision_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
-        "round_id": "round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+        "sha256": "9498e6712be925c20fb6dacd8576d2f4065407c2460ae29c7b1367c10c2e11a2",
+        "size_bytes": 49617,
+        "decision_id": "decision_20260703_required_audit_direct_evidence_rework_v1",
+        "round_id": "round_20260703_required_audit_direct_evidence_rework_v1",
         "command_block_count": 30
       }
     },
     "command_count": 29,
-    "command_digest": "67dfb5081947fcda72988aefbb61d4d2d85eaabe6bd367ebffa95f9671abf698"
+    "command_digest": "ff3247790f1d64eeb47e9121240191b451ceddffc85324190d5ec475ef0f7963"
   },
   "commands": [
     {
@@ -363,7 +363,7 @@
     },
     {
       "index": 29,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260702_ci_evidence_bridge_closeout_consistency_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_required_audit_direct_evidence_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

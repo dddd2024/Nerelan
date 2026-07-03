@@ -28017,6 +28017,41 @@ def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tm
     assert (state_dir / "gates" / "local_ci_parity_result.json").exists()
 
 
+def test_command_plan_adds_superset_pytest_for_local_ci_parity(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": "decision_ci_workflow_coverage",
+                "round_id": "round_ci_workflow_coverage",
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+            }
+        )
+        + "\n```\n\n"
+        + "# Decision\n\nlocal_ci_parity_result.json\n\n"
+        + "## Tests\n\n```powershell\n"
+        + "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_ci.py -q\n"
+        + "```\n",
+        encoding="utf-8",
+    )
+
+    result = command_plan(state_dir=state_dir, write_result=False)
+    commands = [entry["command"] for entry in result["commands"]]
+
+    assert (
+        "python -m pytest tests/test_project_gate.py tests/test_project_reports.py "
+        "tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q"
+    ) in commands
+    assert (
+        "python -m pytest tests/test_project_gate.py tests/test_project_reports.py "
+        "tests/test_project_ci.py -q"
+    ) not in commands
+    assert "python -m reverse_agent.project_gate execution-log --state-dir project_state" in commands
+
+
 def test_local_ci_parity_detects_omitted_workflow_command(tmp_path: Path) -> None:
     state_dir = _make_ci_coverage_state(tmp_path)
     _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())

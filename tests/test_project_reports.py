@@ -9,6 +9,7 @@ from reverse_agent.project_gate import (
     _generate_current_handoff_packet_required_audit,
     _generate_final_check_exit_and_audit_readiness_required_audit,
     _generate_local_execution_loop_required_audit,
+    _generate_required_audit_direct_evidence_rework_required_audit,
     _generate_required_audit_alignment_rework_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
@@ -48,6 +49,40 @@ REQUIRED_AUDIT_ALIGNMENT_QUESTIONS = [
     "If any internal final-check command exits `1` while status is treated as PASSED, is the expected-exit and non-blocking semantics explicitly documented and validated?",
     "Did `closeout_nested_failures_absent` pass?",
     "Does `codex_report_summary` match `pytest_result.txt`, artifact taxonomy, generated/updated artifacts, changed files, decision ID, and round ID?",
+]
+
+REQUIRED_AUDIT_DIRECT_EVIDENCE_QUESTIONS = [
+    "Was the current `decision_packet.md` treated as the only execution authority and `task_packet.json` as background only?",
+    "Did decision metadata remain valid, approved, and aligned with an active skill profile?",
+    "Were startup commands recorded before project gates?",
+    "Was startup-snapshot recorded before substantive gate/test execution?",
+    "Were changes limited to allowed source/test/generated artifact paths?",
+    "Did the implementation avoid reverse-solving, sample execution, User Solve Layer work, remote CI dispatch/polling, UI/API, database, queue, and scheduler work?",
+    "Did the report generator produce Required Audit answers for every item in this decision?",
+    "Did each Required Audit answer cite direct artifacts specific to its claim?",
+    "Did the implementation prevent `ci_audit_handoff_bundle.json` from being used as a generic substitute for unrelated Required Audit claims?",
+    "Did item-specific CI evidence questions cite `ci_run_evidence_result.json`, `local_ci_parity_result.json`, `ci_workflow_coverage_result.json`, or `ci_workflow_readiness_result.json` directly where appropriate?",
+    "Did local execution bundle claims cite `local_execution_bundle.json` directly?",
+    "Did codex prompt packet claims cite `codex_prompt_packet.json` directly?",
+    "Did audit precheck claims cite `audit_precheck_result.json` directly?",
+    "Did audit readiness claims cite `audit_readiness_packet.json` directly?",
+    "Did final-check claims cite `final_gate_result.json` directly?",
+    "Did run-closeout and close-round claims cite `run_closeout_result.json` and current round archive evidence directly?",
+    "Did reconcile claims cite `ci_observation_reconcile_result.json` directly and mention `reconcile_status`, `final_consistency_status`, and `pending_diagnostic_sources` when relevant?",
+    "Did audit handoff bundle claims cite `ci_audit_handoff_bundle.json` directly only when the claim is actually about the bundle?",
+    "Did Required Audit item 30 from the previous decision stop using `ci_audit_handoff_bundle.json` as the sole/generic evidence for direct-evidence compliance?",
+    "Did final-check or audit-readiness harden against placeholder, generic, or repeated Required Audit answers?",
+    "Did tests include a failing fixture for generic bundle-substitute Required Audit answers?",
+    "Did tests include a passing fixture for direct artifact-specific Required Audit answers?",
+    "Did report-summary synthesis remain consistent with `execution_report.md` and `codex_execution_report.md`?",
+    "Did `pytest_result.txt` match `tests_ran` in the execution report?",
+    "Did execution-log align with command-plan and pytest_result?",
+    "Did command-plan authorize all executed commands and omit no executed commands?",
+    "Did `ci_observation_reconcile_result.json` remain current and final-consistent after this report-quality rework?",
+    "Did `ci_audit_handoff_bundle.json` remain current and ready for audit after this report-quality rework?",
+    "Did `final_gate_result.json` pass only after corrected Required Audit prose was produced?",
+    "If run-closeout was authorized and executed, did it pass and archive the corrected report artifacts?",
+    "Did the final report avoid generic/template prose and provide direct, claim-specific evidence for every Required Audit answer?",
 ]
 
 CURRENT_HANDOFF_PACKET_QUESTIONS = [
@@ -198,6 +233,19 @@ def _decision_text() -> str:
     )
 
 
+def _direct_evidence_decision_text() -> str:
+    return (
+        "# Decision\n\n"
+        "decision_20260703_required_audit_direct_evidence_rework_v1 "
+        "Required Audit Direct Evidence Rework accepted_requires_required_audit_direct_evidence\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(REQUIRED_AUDIT_DIRECT_EVIDENCE_QUESTIONS, start=1)
+        )
+    )
+
+
 def test_required_audit_alignment_rework_generator_is_substantive() -> None:
     decision_text = _decision_text()
     audit = _generate_required_audit_alignment_rework_required_audit(decision_text)
@@ -208,6 +256,33 @@ def test_required_audit_alignment_rework_generator_is_substantive() -> None:
     )
 
     assert audit.count("### ") == 31
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
+    assert result["placeholder_answers"] == []
+
+
+def test_required_audit_direct_evidence_rework_generator_is_substantive() -> None:
+    decision_text = _direct_evidence_decision_text()
+    audit = _generate_required_audit_direct_evidence_rework_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 31
+    assert "project_state/gates/ci_run_evidence_result.json" in audit
+    assert "project_state/gates/local_ci_parity_result.json" in audit
+    assert "project_state/gates/ci_workflow_coverage_result.json" in audit
+    assert "project_state/gates/ci_workflow_readiness_result.json" in audit
+    assert "project_state/gates/local_execution_bundle.json" in audit
+    assert "project_state/gates/codex_prompt_packet.json" in audit
+    assert "project_state/gates/audit_precheck_result.json" in audit
+    assert "project_state/gates/audit_readiness_packet.json" in audit
+    assert "project_state/gates/final_gate_result.json" in audit
+    assert "project_state/gates/run_closeout_result.json" in audit
+    assert "project_state/gates/ci_observation_reconcile_result.json" in audit
+    assert "project_state/gates/ci_audit_handoff_bundle.json" in audit
     assert result["status"] == "PASS"
     assert result["alignment_failures"] == []
     assert result["placeholder_answers"] == []
@@ -293,6 +368,43 @@ def test_required_audit_rejects_rotated_evidence_templates() -> None:
     failures = _required_audit_alignment_failures(questions, section)
 
     assert [failure["reason"] for failure in failures].count("evidence_domain_mismatch") >= 3
+
+
+def test_required_audit_rejects_generic_bundle_substitute_answers() -> None:
+    questions = [
+        "Did item-specific CI evidence questions cite `ci_run_evidence_result.json`, `local_ci_parity_result.json`, `ci_workflow_coverage_result.json`, or `ci_workflow_readiness_result.json` directly where appropriate?",
+        "Did local execution bundle claims cite `local_execution_bundle.json` directly?",
+        "Did final-check claims cite `final_gate_result.json` directly?",
+        "Did Required Audit item 30 from the previous decision stop using `ci_audit_handoff_bundle.json` as the sole/generic evidence for direct-evidence compliance?",
+    ]
+    section = """### 1. Did item-specific CI evidence questions cite `ci_run_evidence_result.json`, `local_ci_parity_result.json`, `ci_workflow_coverage_result.json`, or `ci_workflow_readiness_result.json` directly where appropriate?
+
+- Evidence: project_state/gates/ci_audit_handoff_bundle.json summarizes all CI evidence.
+- Status: PASS
+- Answer: The bundle summarizes CI evidence.
+
+### 2. Did local execution bundle claims cite `local_execution_bundle.json` directly?
+
+- Evidence: project_state/gates/ci_audit_handoff_bundle.json summarizes all execution evidence.
+- Status: PASS
+- Answer: The bundle summarizes local execution evidence.
+
+### 3. Did final-check claims cite `final_gate_result.json` directly?
+
+- Evidence: project_state/gates/ci_audit_handoff_bundle.json summarizes final-check status.
+- Status: PASS
+- Answer: The bundle summarizes final-check status.
+
+### 4. Did Required Audit item 30 from the previous decision stop using `ci_audit_handoff_bundle.json` as the sole/generic evidence for direct-evidence compliance?
+
+- Evidence: project_state/gates/ci_audit_handoff_bundle.json summarizes direct evidence.
+- Status: PASS
+- Answer: The bundle proves direct-evidence compliance.
+"""
+
+    failures = _required_audit_alignment_failures(questions, section)
+
+    assert [failure["reason"] for failure in failures].count("evidence_domain_mismatch") >= 4
 
 
 def test_command_plan_keeps_required_project_reports_pytest(tmp_path: Path) -> None:
