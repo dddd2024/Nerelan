@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+  "round_id": "round_20260703_user_solve_session_bundle_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,26 +13,30 @@
 
 ```json decision_contract
 {
-  "follows_decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "follows_round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+  "follows_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "follows_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
   "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
-  "phase_label": "phase_2_34_user_solve_trace_fallback_ladder",
-  "primary_goal": "Extend the accepted User Solve Layer foundation with internal solve-task trace contracts and a non-executing fallback ladder, while fixing the misleading inherited-baseline report wording observed in the previous audit.",
+  "phase_label": "phase_2_35_user_solve_session_bundle",
+  "primary_goal": "Consolidate UserSolveResult, UserSolveTaskTrace, and FallbackLadder metadata into an in-memory user-solve session bundle contract, while cleaning up Required Audit answer precision and duplicate changed-file reporting from the previous round.",
   "command_plan_authority_required": true,
-  "accepted_requires_report_baseline_wording_fix": true,
-  "accepted_requires_user_solve_trace_contract": true,
-  "accepted_requires_fallback_ladder_contract": true,
-  "accepted_requires_trace_fallback_gate_artifact": true,
+  "accepted_requires_required_audit_answer_precision_fix": true,
+  "accepted_requires_changed_file_deduplication": true,
+  "accepted_requires_user_solve_session_bundle_contract": true,
+  "accepted_requires_public_private_serialization_boundary": true,
+  "accepted_requires_session_bundle_gate_artifact": true,
   "allowed_source_files": [
-    "reverse_agent/user_solve_trace.py",
-    "reverse_agent/fallback_ladder.py",
+    "reverse_agent/user_solve_session.py",
     "reverse_agent/user_solve.py",
     "reverse_agent/user_solve_contract.py",
+    "reverse_agent/user_solve_trace.py",
+    "reverse_agent/fallback_ladder.py",
     "reverse_agent/evidence_quality.py",
     "reverse_agent/project_gate.py",
+    "tests/test_user_solve_session.py",
+    "tests/test_user_solve.py",
+    "tests/test_user_solve_contract.py",
     "tests/test_user_solve_trace.py",
     "tests/test_fallback_ladder.py",
-    "tests/test_user_solve.py",
     "tests/test_evidence_quality.py",
     "tests/test_project_gate.py",
     "tests/test_project_reports.py"
@@ -45,7 +49,7 @@
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/*"
+    "project_state/rounds/round_20260703_user_solve_session_bundle_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -55,7 +59,8 @@
     ".codex-skills/registry.json",
     "solve_reports/*",
     ".github/workflows/*",
-    "training_materials/local_reverse/*"
+    "training_materials/local_reverse/*",
+    "project_state/solve_tasks/*"
   ],
   "forbidden_capabilities_this_round": [
     "web_api_endpoint",
@@ -70,7 +75,8 @@
     "runtime_probe",
     "dynamic_debugging",
     "reverse_solving_candidate_search",
-    "persistent_user_task_creation_outside_tests"
+    "persistent_user_task_creation",
+    "real_user_upload_ingestion"
   ]
 }
 ```
@@ -79,76 +85,99 @@
 
 ## 1. Goal
 
-Implement **User Solve Trace + Fallback Ladder v1**.
+Implement **User Solve Session Bundle v1**.
 
-This is an `engineering_branch` continuation after the accepted User Solve Layer foundation round. The previous round landed the user-facing result contract, state machine, safe fast wrapper, evidence-quality mapper, gate artifact, tests, and documentation. Audit accepted the implementation with one limitation: the report body included an "Allowed Inherited Dirty Baseline Files" section that listed current-round source/test changes even though startup evidence showed only `project_state/gates/command_plan.json` was inherited dirty. This round must fix that report wording problem and then add the next user-solve foundation layer.
+This is an `engineering_branch` continuation after the accepted trace/fallback round. The previous round delivered `UserSolveTaskTrace`, `FallbackLadder`, a trace/fallback gate artifact, and focused tests. The previous audit accepted it with limitations: several Required Audit answers were too generic, one answer about fallback step coverage described only three static steps even though the gate proved all six steps, and the `Allowed Changed Source/Test Files` list duplicated `tests/test_user_solve_trace.py`.
+
+This round must clean up those report-quality limitations and then consolidate the user-solve layer into a first session-level contract. The session bundle is the future UI/API boundary, but this round must remain in-memory and non-executing. It must not implement a Web endpoint, database row, queue job, scheduler, persistent task directory, file upload ingestion, or runner dispatch.
 
 Primary objectives:
 
-1. Fix report generation or report-summary synthesis so inherited baseline dirty files are not mislabeled as current-round source/test changes, and current-round changed files are not mislabeled as inherited dirty files.
-2. Add an internal `UserSolveTaskTrace` contract for recording user-solve progress, candidate sources, missing evidence, fallback steps, validation status, and artifact references without exposing internal project paths by default.
-3. Add a non-executing `FallbackLadder` contract for ordered user-solve fallback steps, risk levels, timeout metadata, permission requirements, and stop reasons.
-4. Integrate the existing `FastSolveWrapper` / `EvidenceQualityMapper` with trace and fallback metadata at the data-contract level only.
-5. Add a project gate artifact, for example `project_state/gates/user_solve_trace_fallback_result.json`, proving trace schema, fallback ladder policy, redaction, and no-execution constraints.
-6. Add focused tests for trace serialization, fallback policy, risk gating, no-execution safety, report wording, and wrapper/evidence mapper integration.
-7. Preserve the previous User Solve Layer behavior: `candidate_found` may return before validation, `verified` requires passed validation, and default user output must hide internal engineering references.
+1. Fix report generation/report-summary so Required Audit answers are precise and evidence-specific, especially fallback step coverage and report wording items.
+2. Deduplicate changed source/test file reporting in execution reports and generated summaries.
+3. Add an in-memory `UserSolveSessionBundle` contract that packages:
+   - user-facing result;
+   - user-facing trace summary;
+   - fallback decision / next safe step;
+   - validation status;
+   - evidence status;
+   - missing evidence summary;
+   - public message;
+   - developer-only trace/artifact references.
+4. Add safe public/private serialization boundaries for the session bundle.
+5. Add a non-executing session builder/factory that adapts already-supplied in-memory analysis payloads through existing `FastSolveWrapper`, `UserSolveTaskTrace`, `FallbackLadder`, and `EvidenceQualityMapper` components.
+6. Add a project gate artifact, for example `project_state/gates/user_solve_session_bundle_result.json`, proving session bundle schema, redaction, fallback linkage, no-execution safety, and report-quality fixes.
+7. Add focused tests covering session serialization, trace/fallback/result consistency, no internal path leakage, developer serialization, changed-file deduplication, and precise Required Audit answer generation.
+8. Preserve all previously accepted behavior: `candidate_found` may be returned before validation, `verified` requires passed validation, fallback selection remains non-executing, and high-risk/local/dynamic steps remain blocked without explicit synthetic policy.
 
 Accepted target:
 
-- The final report no longer has a misleading "Allowed Inherited Dirty Baseline Files" section that contains current-round source/test changes.
-- A solve trace can represent: task id, user status, engineering status, candidate sources, fallback steps, missing evidence, validation result, artifact references, and user/developer serialization modes.
-- A fallback ladder can represent at least these steps: `fast_strings`, `ida_summary`, `targeted_decompile`, `constant_material_extract`, `solver_attempt`, and `runtime_validation`.
-- Fallback steps carry risk level, timeout, required capability, `can_run_in_fast_mode`, `writes_artifact`, and permission requirements.
-- The ladder can select safe next steps from synthetic state without executing any tool or sample.
-- Static-only steps may be considered automatically eligible; local execution, dynamic debug, network, and manual-review steps must require explicit permission and remain non-executed in this round.
-- No Web/API, database, queue, scheduler, remote runner, GitHub Actions dispatch/polling, IDA MCP, IDA/Ghidra/OllyDbg execution, sample execution, runtime probe, dynamic debugging, or concrete reverse solving is implemented or executed.
+- The report does not duplicate source/test paths in `Allowed Changed Source/Test Files`, `files_changed`, or summary-derived changed-file sections.
+- Required Audit answers cite the specific gate/source/test evidence for each item and do not use broad generic filler answers when the item asks for a concrete implementation fact.
+- `UserSolveSessionBundle` has stable `to_user_dict()` and `to_developer_dict()` or equivalent.
+- Default user serialization contains only safe user-facing fields and no raw `project_state/`, `decision_packet.md`, `command_plan.json`, `artifact_index.json`, `negative_results.json`, `codex_execution_report.md`, `pytest_result.txt`, internal artifact paths, or developer trace references.
+- Developer serialization may retain explicit internal references for audit use.
+- Session bundle creation is in-memory only and does not create persistent `project_state/solve_tasks/` artifacts.
+- The session builder/factory returns data decisions only; it must not execute samples, tools, solvers, subprocesses, network calls, runners, or debuggers.
+- No concrete reverse sample is solved or claimed solved.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
-`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only and still states `execution_scope=decision_packet_controls_current_round`.
+`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only and states `execution_scope=decision_packet_controls_current_round`; it must not control this round.
 
 Previous round:
 
-- `decision_20260703_user_solve_layer_foundation_big_step_v1`
-- `round_20260703_user_solve_layer_foundation_big_step_v1`
+- `decision_20260703_user_solve_trace_fallback_ladder_v1`
+- `round_20260703_user_solve_trace_fallback_ladder_v1`
 - audit outcome: `ACCEPTED_WITH_LIMITATIONS`
 
-Evidence from the previous round:
+Evidence from the previous accepted-with-limitations round:
 
-1. `codex_execution_report.md` reported `SUCCESS` and `acceptance_recommendation=ACCEPTED` for the User Solve Layer foundation round.
-2. `pytest_result.txt` reported `PASSED` for the same decision/report/round and recorded focused user-solve tests plus broad project gate/job/runner tests.
-3. `final_gate_result.json` passed, including decision/report matching, pytest matching, command-plan authority, Required Audit coverage, and the `user_solve_layer_gate_artifact` check.
-4. `project_state/gates/user_solve_layer_result.json` passed and showed the user-solve layer is evidence-only, not executable, cannot dispatch, does not mutate state, and has no sample/subprocess/network/runner/GitHub Actions invocation.
-5. The previous audit limitation was not a code/gate failure, but a report-body semantics problem: the report's "Allowed Inherited Dirty Baseline Files" section listed current-round source/test files, while startup evidence showed only `project_state/gates/command_plan.json` was dirty at startup.
+1. `codex_execution_report.md` reported `SUCCESS` and `acceptance_recommendation=ACCEPTED` for the trace/fallback round.
+2. `pytest_result.txt` reported `PASSED` with focused user-solve/trace/fallback/report tests and broader project gate/job/runner tests.
+3. `project_state/gates/user_solve_trace_fallback_result.json` passed and proved the gate was evidence-only, non-executable, non-dispatching, and free of sample/subprocess/network/runner/GitHub Actions invocation.
+4. The fallback ladder gate proved coverage for six required steps: `fast_strings`, `ida_summary`, `targeted_decompile`, `constant_material_extract`, `solver_attempt`, and `runtime_validation`.
+5. The trace contract proved user/developer serialization boundaries and rejects verified traces without passed validation.
+6. `final_gate_result.json` passed and marked `user_solve_trace_fallback_gate_artifact` as required and current.
+7. `run_closeout_result.json` passed and close-round reached `CLOSED`.
+
+Previous audit limitations to address:
+
+1. Required Audit answer precision was uneven. At least one answer about fallback step coverage mentioned only the three static steps even though the artifact proved all six required steps.
+2. Some Required Audit answers used broad statements such as "current-round source, tests, gate artifact, and report evidence directly cover this item" instead of specific evidence and direct explanation.
+3. `Allowed Changed Source/Test Files` duplicated `tests/test_user_solve_trace.py`.
 
 Existing capabilities to preserve:
 
-- `reverse_agent/user_solve_contract.py` implements `UserSolveResult`, candidate/result serialization, validation rules, redaction, and developer serialization.
-- `reverse_agent/user_solve_state.py` implements the state machine.
-- `reverse_agent/user_solve.py` implements safe in-memory `FastSolveWrapper` adaptation.
-- `reverse_agent/evidence_quality.py` maps missing evidence to user-facing fallback/deep-analysis status.
-- `reverse_agent/project_gate.py` already has `user-solve-layer` gate support.
-- Existing command-plan, execution-log, job, AgentRunner, pipeline, solver, harness, and project gate capabilities must not be duplicated or replaced.
+- `reverse_agent/user_solve_contract.py`: user result contract, validation rules, redaction, developer serialization.
+- `reverse_agent/user_solve_state.py`: user solve state machine.
+- `reverse_agent/user_solve.py`: safe in-memory `FastSolveWrapper` and trace adapter behavior.
+- `reverse_agent/user_solve_trace.py`: trace contract and serialization.
+- `reverse_agent/fallback_ladder.py`: fallback policy, step metadata, selection, and non-execution semantics.
+- `reverse_agent/evidence_quality.py`: missing-evidence mapping and fallback recommendation metadata.
+- `reverse_agent/project_gate.py`: user-solve-layer and trace/fallback gate integration.
+
+Existing orchestration, pipeline, harness, solver, command-plan, execution-log, job, and AgentRunner capabilities must not be duplicated or replaced.
 
 Artifact freshness policy:
 
-- Current-round generated gate/report artifacts must carry `decision_20260703_user_solve_trace_fallback_ladder_v1` and `round_20260703_user_solve_trace_fallback_ladder_v1`.
-- Historical sample artifacts in `current_state.json` / `artifact_index.json` are backlog context only and remain non-blocking for this engineering round.
-- New tests must use synthetic trace/fallback payloads only. Do not use real local samples.
+- Current-round gate/report artifacts must carry `decision_20260703_user_solve_session_bundle_v1` and `round_20260703_user_solve_session_bundle_v1`.
+- Historical sample artifacts in `current_state.json` and `artifact_index.json` are backlog context only and remain non-blocking for this engineering round.
+- New tests must use synthetic in-memory payloads only.
 
 Negative results:
 
-- `negative_results.json` blocks old sample_solver blind search, budget-only search expansion, compare_semantics_agree=false frontier use, full solve_reports commits, and repeated sample diagnostics without new runtime evidence.
-- This round must not enter any of those reverse-solving directions.
+- `negative_results.json` blocks old sample_solver blind search, budget-only search expansion, compare_semantics_agree=false primary frontier use, full solve_reports commits, and repeated sample diagnostics without new runtime evidence.
+- This round must not enter those reverse-solving directions.
 
 Command-plan policy:
 
-- `project_state/gates/command_plan.json` is the only command execution authority.
+- `project_state/gates/command_plan.json` is the command execution authority.
 - Codex may execute only commands authorized by `command_plan.commands`.
 - `command_plan.omitted_commands` must not be executed.
-- The Tests section lists intended validation targets, but command-plan is binding.
+- The Tests section lists validation targets; command-plan remains binding if there is any conflict.
 - Valid profiles are `fast`, `standard`, and `full`; do not use `medium`.
 
 ## 3. Do Not Do
@@ -157,9 +186,9 @@ Do not solve a concrete reverse sample.
 
 Do not execute samples, solvers, IDA, Ghidra, OllyDbg, debuggers, emulators, harnesses, runtime probes, network calls, Web/API endpoints, databases, queues, schedulers, services, remote runners, GitHub Actions dispatch/polling, Codex adapter execution, Trae adapter execution, Claude Code adapter execution, Aider adapter execution, or IDA MCP adapter.
 
-Do not create persistent live user solve tasks under `project_state/solve_tasks/` in this round. Implement the trace contract and tests using temporary test directories or in-memory synthetic data. Gate evidence should be written under `project_state/gates/` only.
+Do not create `project_state/solve_tasks/` or any persistent user task/session files in this round. The session bundle must be in-memory or synthetic-test-only. Gate evidence belongs under `project_state/gates/` only.
 
-Do not mutate forbidden files listed in `decision_contract`.
+Do not mutate forbidden paths listed in `decision_contract`.
 
 Do not add dynamic facts to `.codex-skills/`.
 
@@ -167,11 +196,11 @@ Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
 Do not claim any sample is solved, static_verified, runtime_validated, or audit_verified.
 
-Do not treat filename, category, queue item, metadata, or user-solve trace fields as solve evidence.
+Do not treat user-solve session, trace, fallback, filename, category, queue metadata, or candidate metadata as solve evidence.
 
-Do not replace existing User Solve Layer behavior from the previous accepted round.
+Do not replace or regress the accepted `UserSolveResult`, `UserSolveTaskTrace`, `FallbackLadder`, or `EvidenceQualityMapper` behavior.
 
-Do not introduce Web/API, database, or runner abstractions beyond the static trace/fallback contracts.
+Do not add Web/API, database, runner, or upload-ingestion abstractions beyond the in-memory session-bundle contract.
 
 ## 4. Files To Inspect
 
@@ -192,22 +221,26 @@ Inspect current user-solve implementation:
 1. `reverse_agent/user_solve_contract.py`
 2. `reverse_agent/user_solve_state.py`
 3. `reverse_agent/user_solve.py`
-4. `reverse_agent/evidence_quality.py`
-5. `tests/test_user_solve_contract.py`
-6. `tests/test_user_solve_state.py`
-7. `tests/test_user_solve.py`
-8. `tests/test_evidence_quality.py`
-9. `docs/user_solve_layer.md`
+4. `reverse_agent/user_solve_trace.py`
+5. `reverse_agent/fallback_ladder.py`
+6. `reverse_agent/evidence_quality.py`
+7. `tests/test_user_solve_contract.py`
+8. `tests/test_user_solve_state.py`
+9. `tests/test_user_solve.py`
+10. `tests/test_user_solve_trace.py`
+11. `tests/test_fallback_ladder.py`
+12. `tests/test_evidence_quality.py`
+13. `docs/user_solve_layer.md`
 
-Inspect report/gate code before changing report wording:
+Inspect report/gate code before modifying report wording:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
 3. `tests/test_project_reports.py`
 4. `project_state/gates/round_delta_summary.json`
-5. `project_state/gates/final_gate_result.json`
-6. `project_state/gates/run_closeout_result.json`
-7. `project_state/gates/user_solve_layer_result.json`
+5. `project_state/gates/report_summary_synthesis.json`
+6. `project_state/gates/final_gate_result.json`
+7. `project_state/gates/user_solve_trace_fallback_result.json`
 
 Inspect orchestration code only to avoid duplication:
 
@@ -227,86 +260,88 @@ The execution report must answer each item with direct evidence and `PASS`, `FAI
 2. Did decision metadata remain valid, approved, on `engineering_branch`, and aligned with active `reverse-agent-iteration@v2`?
 3. Were startup commands recorded before project gates/tests?
 4. Were current IDs used in reports, pytest_result, gate artifacts, and closeout artifacts?
-5. Was the previous audit limitation addressed by fixing misleading inherited-baseline report wording?
-6. Does the final report distinguish inherited startup dirty files from current-round changed source/test files?
-7. Does the final report avoid listing current-round source/test files under an inherited-dirty heading unless they were truly inherited dirty at startup?
-8. Was `UserSolveTaskTrace` implemented as a structured internal contract?
-9. Does trace serialization include task id, user status, engineering status, candidate sources, fallback steps, missing evidence, validation result, artifact references, and timestamps or equivalent ordering metadata?
-10. Does trace default user serialization hide internal engineering paths and developer references?
-11. Does trace developer/debug serialization preserve internal trace/artifact references explicitly?
-12. Does trace validation reject inconsistent states, such as verified user status without passed validation evidence?
-13. Was `FallbackLadder` implemented as a non-executing data/policy contract?
-14. Does the ladder include `fast_strings`, `ida_summary`, `targeted_decompile`, `constant_material_extract`, `solver_attempt`, and `runtime_validation` steps?
-15. Does each fallback step include risk level, timeout, required capability, fast-mode eligibility, artifact-write flag, and permission requirement metadata?
-16. Does fallback selection choose a safe next step from synthetic state without executing tools or samples?
-17. Are local execution, dynamic debugging, network, and manual-review steps blocked unless explicit permission is represented in synthetic policy input?
-18. Does fallback ladder logic record stop reasons when no safe step is eligible?
-19. Did `EvidenceQualityMapper` integrate missing evidence with fallback recommendations without exposing internal paths to user output?
-20. Did `FastSolveWrapper` preserve previous behavior for candidate_found, verified, failed, blocked, and missing-evidence branches?
-21. Did the implementation avoid duplicating pipeline, solver, harness, job, AgentRunner, command-plan, or execution-log responsibilities?
-22. Did the implementation avoid Web/API, DB/queue/scheduler, remote runner, GitHub Actions dispatch/polling, IDA/Ghidra/OllyDbg, IDA MCP, runtime probe, dynamic debugging, and concrete reverse solving?
-23. Were changes limited to allowed source/test/documentation/generated artifact paths?
-24. Were forbidden files untouched?
-25. Was a current gate artifact generated, for example `project_state/gates/user_solve_trace_fallback_result.json`?
-26. Does the gate artifact prove no external invocation or dispatch capability was added?
-27. Did tests cover trace user/developer serialization and redaction?
-28. Did tests cover trace validation errors?
-29. Did tests cover fallback ladder step ordering and permission/risk gating?
-30. Did tests cover fallback no-eligible-step stop reasons?
-31. Did tests cover report baseline wording fix?
-32. Did tests cover wrapper/evidence mapper integration with fallback metadata?
+5. Were the previous audit limitations explicitly addressed?
+6. Does the final report avoid duplicate entries in `Allowed Changed Source/Test Files`, `files_changed`, and summary-derived changed-file sections?
+7. Are Required Audit answers precise, item-specific, and supported by direct source/test/gate/report evidence rather than generic filler?
+8. Did the fallback step coverage answer explicitly account for all six required fallback steps?
+9. Was `UserSolveSessionBundle` or equivalent session-level contract implemented?
+10. Does the session bundle include user-facing result, trace summary, fallback decision, validation status, evidence status, missing-evidence summary, public message, and developer-only trace/artifact references?
+11. Does default session user serialization hide internal project paths and developer trace references?
+12. Does session developer/debug serialization preserve internal references explicitly for audit use?
+13. Does session validation reject inconsistent states such as `verified` without passed validation or a verified result with missing evidence marked as unresolved?
+14. Does the session builder/factory use existing `FastSolveWrapper`, `UserSolveTaskTrace`, `FallbackLadder`, and `EvidenceQualityMapper` instead of duplicating pipeline/solver/harness/job/runner responsibilities?
+15. Does the session builder/factory remain in-memory and non-executing?
+16. Does fallback metadata remain non-executing, with local/dynamic/high-risk steps blocked unless explicit synthetic policy allows them?
+17. Does explicit synthetic permission still avoid actual tool/sample execution in this round?
+18. Does the bundle preserve previous `candidate_found` pending-validation behavior?
+19. Does the bundle preserve previous `verified` requires passed validation behavior?
+20. Does the bundle preserve previous missing-evidence to deep-analysis/fallback behavior?
+21. Does the bundle produce a clear user-facing `next_action` or equivalent field without exposing internal gate/report paths?
+22. Does the bundle produce developer-only audit references without making them default user output?
+23. Was a current gate artifact generated, for example `project_state/gates/user_solve_session_bundle_result.json`?
+24. Does the gate artifact prove no external invocation or dispatch capability was added?
+25. Did tests cover session user/developer serialization and redaction?
+26. Did tests cover session validation errors?
+27. Did tests cover session creation from candidate-found payloads?
+28. Did tests cover session creation from verified payloads?
+29. Did tests cover session creation from missing-evidence payloads with fallback recommendation?
+30. Did tests cover changed-file/report deduplication?
+31. Did tests cover Required Audit answer precision, including six-step fallback coverage wording?
+32. Did existing user-solve/trace/fallback/evidence tests continue passing?
 33. Did pytest_result record the real commands and exit codes?
 34. Did command-plan authorize all executed commands and omit no executed commands?
 35. Did final-check pass with current decision/report/round IDs?
 36. Did run-closeout pass and archive corrected reports if command-plan authorized closeout?
-37. Did the final report avoid claiming solved/static_verified/runtime_validated/audit_verified for any sample?
-38. Did the final report use direct artifact evidence rather than generic summaries for Required Audit answers?
+37. Were forbidden files untouched?
+38. Did the final report avoid claiming solved/static_verified/runtime_validated/audit_verified for any sample?
 
 ## 6. Implementation Scope
 
 Allowed implementation:
 
-1. Add `reverse_agent/user_solve_trace.py`.
-   - Define `UserSolveTaskTrace`, `CandidateSource`, `FallbackStepRecord`, and validation/serialization helpers or equivalent names.
-   - Keep default user serialization redacted and developer serialization explicit.
-   - Support synthetic trace creation in tests without writing live `project_state/solve_tasks/` files.
+1. Add `reverse_agent/user_solve_session.py`.
+   - Define `UserSolveSessionBundle`, `SessionPublicView`, `SessionDeveloperView`, `SessionNextAction`, or equivalent names.
+   - Provide stable dict/JSON-like serialization.
+   - Default user serialization must be redacted and must not include internal artifact paths or developer trace references.
+   - Developer serialization may include internal trace/artifact references.
+   - Validation must reject inconsistent session states.
 
-2. Add `reverse_agent/fallback_ladder.py`.
-   - Define fallback step schema, risk levels, permission policy, and selection logic.
-   - Required first ladder steps: `fast_strings`, `ida_summary`, `targeted_decompile`, `constant_material_extract`, `solver_attempt`, `runtime_validation`.
-   - Logic must be policy-only and non-executing.
+2. Update `reverse_agent/user_solve.py` minimally.
+   - Add a non-executing helper that builds a session bundle from an already-supplied in-memory payload, existing result, trace, fallback decision, and evidence metadata.
+   - Preserve `adapt()` and existing `adapt_with_trace()` behavior.
 
-3. Update `reverse_agent/evidence_quality.py` and/or `reverse_agent/user_solve.py` minimally.
-   - Attach fallback recommendations or trace hints to missing-evidence paths where appropriate.
-   - Preserve existing public behavior and tests from the previous accepted round.
+3. Update `reverse_agent/evidence_quality.py`, `reverse_agent/user_solve_trace.py`, and `reverse_agent/fallback_ladder.py` only if needed for session-bundle metadata compatibility.
+   - Do not change accepted semantics unless tests show a bug.
 
 4. Update `reverse_agent/project_gate.py`.
-   - Add or extend a gate such as `user-solve-trace-fallback`.
-   - Gate must generate `project_state/gates/user_solve_trace_fallback_result.json` or equivalent.
-   - Gate must verify importability, enum/step coverage, redaction, no-execution/no-dispatch policy, and report baseline wording support.
+   - Add or extend a gate such as `user-solve-session-bundle`.
+   - Generate `project_state/gates/user_solve_session_bundle_result.json` or equivalent.
+   - Gate must verify importability, schema coverage, redaction, session consistency, fallback linkage, no-execution/no-dispatch policy, report-answer precision, and changed-file deduplication.
 
-5. Fix report generation/report-summary wording.
-   - Do not call current-round source/test changes "inherited dirty" unless they were dirty in startup/baseline evidence.
-   - Prefer separate terms such as `Inherited Dirty Baseline Files`, `Allowed Changed Source/Test Files`, and `Generated/Updated Artifacts`.
-   - Add tests so the old misleading wording cannot recur.
+5. Fix report generation/report-summary wording and deduplication.
+   - Deduplicate source/test file lists before rendering.
+   - Ensure Required Audit answers are specific and align with their item text.
+   - Specifically ensure fallback step coverage answers name all six required steps when that item is asked.
 
 6. Add tests:
-   - `tests/test_user_solve_trace.py`
-   - `tests/test_fallback_ladder.py`
+   - `tests/test_user_solve_session.py`
    - update `tests/test_user_solve.py`
+   - update `tests/test_user_solve_contract.py` if needed for session validation helpers
+   - update `tests/test_user_solve_trace.py`
+   - update `tests/test_fallback_ladder.py`
    - update `tests/test_evidence_quality.py`
    - update `tests/test_project_gate.py`
    - update `tests/test_project_reports.py`
 
-7. Update documentation:
-   - Update `docs/user_solve_layer.md` to describe trace and fallback ladder boundaries.
-   - Documentation must remain secondary to tests/gates.
+7. Update `docs/user_solve_layer.md`.
+   - Explain result/trace/fallback/session boundaries.
+   - Explain that session bundle is an in-memory contract, not Web/API/persistence.
 
 Compatibility rules:
 
-- Existing user-solve contract/state/wrapper/evidence-quality tests must keep passing.
+- Existing accepted tests from user-solve foundation and trace/fallback rounds must continue passing.
 - New modules must import without optional reverse-engineering tools installed.
-- No real samples, local sample paths, IDA/Ghidra/OllyDbg paths, subprocesses, or network are required for tests.
+- No real samples, local sample paths, IDA/Ghidra/OllyDbg paths, subprocesses, or network calls are required.
 - Existing project gate/report/closeout semantics must remain compatible.
 
 ## 7. Tests
@@ -324,17 +359,17 @@ python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 
 Execution policy:
 
-- First generate/read `project_state/gates/command_plan.json` through the existing command-plan flow.
+- Generate/read `project_state/gates/command_plan.json` through the existing command-plan flow.
 - Execute only commands authorized by `command_plan.commands`.
-- Do not execute any command listed in `command_plan.omitted_commands`.
+- Do not execute commands listed in `command_plan.omitted_commands`.
 - If this section conflicts with command-plan, command-plan wins.
 
 Expected validation coverage, subject to command-plan authorization:
 
 ```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q
-python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state
+python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_project_gate.py tests/test_project_reports.py -q
+python -m reverse_agent.project_gate user-solve-session-bundle --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
@@ -349,7 +384,7 @@ python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/
 If command-plan authorizes closeout:
 
 ```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_trace_fallback_ladder_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_session_bundle_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -364,22 +399,25 @@ Stop and report `REWORK_REQUIRED` or `BLOCKED` if any condition occurs:
 3. `task_packet.json` is treated as execution authority.
 4. Any forbidden path is modified.
 5. Any sample, IDA, Ghidra, OllyDbg, debugger, emulator, harness, runtime probe, Web/API endpoint, database, queue, scheduler, remote runner, GitHub Actions dispatch/polling, Codex/Trae/Claude/Aider adapter, or IDA MCP adapter is executed or implemented.
-6. Persistent live `project_state/solve_tasks/` files are created outside tests.
-7. Fallback ladder selection executes tools rather than returning policy decisions.
-8. Static-only/local-execution/dynamic-debug/network/manual-review risk gates are not explicit.
-9. User-visible trace or fallback output leaks internal project paths by default.
-10. `verified` can be represented without passed validation evidence.
-11. Missing evidence is treated as solved/static_verified/runtime_validated evidence.
-12. Current-round source/test files are mislabeled as inherited dirty baseline files in the final report.
-13. Existing user-solve foundation behavior regresses.
-14. Existing pipeline/harness/job/runner/command-plan/execution-log capabilities are duplicated or replaced.
-15. Required focused tests are missing.
-16. `project_state/gates/user_solve_trace_fallback_result.json` or equivalent current gate artifact is missing.
-17. `pytest_result.txt` is missing, stale, or inconsistent with report `tests_ran`.
-18. command-plan is missing, stale, or not respected.
-19. final-check fails.
-20. closeout is executed without command-plan authorization.
-21. closeout is required but missing or failed.
-22. The final report claims any concrete sample is solved, static_verified, runtime_validated, or audit_verified.
+6. Persistent `project_state/solve_tasks/` files are created.
+7. The session builder/factory executes tools rather than returning data-only contracts.
+8. Fallback ladder selection executes tools or samples.
+9. User-visible session output leaks internal project paths by default.
+10. Developer-only references appear in default user output.
+11. `verified` can be represented without passed validation evidence.
+12. Missing evidence is treated as solved/static_verified/runtime_validated evidence.
+13. Required Audit answers remain generic or imprecise for concrete implementation checks.
+14. Fallback step coverage answer fails to name all six required steps.
+15. Changed-file/report lists contain duplicate paths after report refresh.
+16. Existing user-solve result/trace/fallback behavior regresses.
+17. Existing pipeline/harness/job/runner/command-plan/execution-log capabilities are duplicated or replaced.
+18. Required focused tests are missing.
+19. `project_state/gates/user_solve_session_bundle_result.json` or equivalent current gate artifact is missing.
+20. `pytest_result.txt` is missing, stale, or inconsistent with report `tests_ran`.
+21. command-plan is missing, stale, or not respected.
+22. final-check fails.
+23. closeout is executed without command-plan authorization.
+24. closeout is required but missing or failed.
+25. The final report claims any concrete sample is solved, static_verified, runtime_validated, or audit_verified.
 
-If only trace or fallback is completed, but not both, do not claim `SUCCESS`; report `PARTIAL` or `REWORK_REQUIRED` with exact missing pieces.
+If only report cleanup or only session bundle is completed, but not both, do not claim `SUCCESS`; report `PARTIAL` or `REWORK_REQUIRED` with exact missing pieces.
