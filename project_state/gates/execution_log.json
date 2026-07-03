@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
-  "generated_at": "2026-07-03T09:05:39.879808Z",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
+  "generated_at": "2026-07-03T12:01:03.460666Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-    "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
+    "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+    "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "969667e6fe27976f7a84635dd7faee62900cfbcbf17c468500ae7393dd9da28b",
-        "size_bytes": 32315,
-        "command_block_count": 32
+        "sha256": "d14c2c8b02c72e3c3cb0b9ef6f50bcba5afae46cb1c33c0ab08bed96a2d681b2",
+        "size_bytes": 17234,
+        "command_block_count": 16
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "f64e2f6cf6115cec774c108bbf59a7e7e71f05819d788d8201553cb29dc1efb7",
-        "size_bytes": 14276,
-        "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-        "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+        "sha256": "47786925ba2c08e8fed8a85b77b82dcb73c5b69ecc4a8eaa70710f4323b3d612",
+        "size_bytes": 7832,
+        "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+        "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
         "plan_status": "PASSED",
-        "command_count": 32
+        "command_count": 16
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "809629faf835169d09d821bfead8cb425614ef4dc10439838b80b90904936d80",
-        "size_bytes": 53745,
-        "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-        "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-        "command_block_count": 31
+        "sha256": "1784b3571c3091f79ac57b50f7c326cf297e05af4c4fe21f949140bfea0c4448",
+        "size_bytes": 40640,
+        "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+        "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+        "command_block_count": 16
       }
     },
-    "command_count": 32,
-    "command_digest": "54c30bdaab2803a8888819793d9e591bf0a7e3e7325db35df10c7cda2293be78"
+    "command_count": 16,
+    "command_digest": "9734d4b5532c7c199466197925537e416146569eb9a08adc9cea1220101ff97b"
   },
   "commands": [
     {
@@ -129,7 +129,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -173,8 +173,8 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
-      "kind": "audit-inventory",
+      "command": "python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state",
+      "kind": "user-solve-trace-fallback",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -184,127 +184,6 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260703_user_solve_layer_foundation_big_step_v1 --dry-run",
-      "kind": "execute-decision",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
-      "kind": "ci-workflow-coverage",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
-      "kind": "ci-workflow-readiness",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
-      "kind": "ci-run-evidence",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-      "kind": "local-ci-parity",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-      "kind": "ci-observation-schema",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-      "kind": "ci-observation-handoff",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-      "kind": "ci-observation-reconcile",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 21,
-      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-      "kind": "ci-artifact-manifest",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-      "kind": "ci-audit-handoff-bundle",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 23,
-      "command": "python -m reverse_agent.project_gate user-solve-layer --state-dir project_state",
-      "kind": "user-solve-layer",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 24,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -316,7 +195,7 @@
       "status": "PASSED"
     },
     {
-      "index": 25,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -327,63 +206,7 @@
       "status": "PASSED"
     },
     {
-      "index": 26,
-      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
-      "kind": "current-handoff-packet",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 27,
-      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
-      "kind": "local-execution-bundle",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 28,
-      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
-      "kind": "codex-prompt-packet",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 29,
-      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
-      "kind": "audit-precheck",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 30,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 31,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -395,8 +218,8 @@
       "status": "PASSED"
     },
     {
-      "index": 32,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_layer_foundation_big_step_v1",
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_trace_fallback_ladder_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

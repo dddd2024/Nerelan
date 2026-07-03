@@ -76,3 +76,21 @@ def test_fast_wrapper_missing_evidence_uses_deep_analysis_status() -> None:
     assert user_payload["status"] == "deep_analysis_running"
     assert user_payload["validation_status"] == "unavailable"
     assert not contains_internal_reference(user_payload)
+
+
+def test_fast_wrapper_adapt_with_trace_keeps_result_behavior_and_metadata() -> None:
+    payload = {
+        "task_id": "task-trace",
+        "missing_evidence": ["targeted_decompile_missing", "project_state/artifact_index.json"],
+        "artifact_path": "project_state/gates/user_solve_trace_fallback_result.json",
+    }
+
+    bundle = FastSolveWrapper().adapt_with_trace(payload)
+    result = bundle["result"]
+    trace = bundle["trace"]
+    fallback_decision = bundle["fallback_decision"]
+
+    assert result.status.value == "deep_analysis_running"
+    assert fallback_decision.executed is False
+    assert trace.to_user_dict()["task_id"] == "task-trace"
+    assert not contains_internal_reference(trace.to_user_dict())

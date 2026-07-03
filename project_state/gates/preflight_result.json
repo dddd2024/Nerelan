@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-03T08:47:19.179505Z",
+  "generated_at": "2026-07-03T11:42:50.727265Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -25,12 +25,8 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ],
-      "baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ]
+      "startup_dirty_files": [],
+      "baseline_dirty_files": []
     },
     {
       "name": "decision_not_dirty_in_baseline",
@@ -81,7 +77,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1"
+      "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -96,37 +92,32 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "Define allowed state transitions.",
-        "Define enums or equivalent validated constants for user status, validation status, evidence status, and mode.",
-        "Do not break existing pipeline/harness/project_gate/job/runner tests.",
-        "Do not call external tools, sample binaries, IDA, Ghidra, debuggers, harnesses, subprocesses, web, network, or runner adapters.",
-        "Do not implement Web/API endpoints.",
-        "Do not rename existing public functions unless tests and compatibility adapters prove it is safe.",
-        "Documentation must not replace tests or gate evidence.",
-        "EvidenceQuality",
-        "FastSolveWrapper",
-        "Keep transition logic independent from real sample execution.",
-        "Map missing engineering evidence to user-facing status/message.",
-        "New modules must be importable without optional reverse tooling installed.",
-        "Provide default user-visible serialization that redacts internal engineering paths.",
-        "Provide validation and serialization helpers.",
-        "Reject invalid transitions.",
-        "The gate should verify importability, enum coverage, redaction behavior, and safe/no-execution policy through static checks or test-backed evidence.",
-        "The implementation must work on synthetic tests without local samples or IDA.",
-        "Treat evidence gaps as fallback/deep-analysis triggers where appropriate, not immediate user failure.",
-        "UserSolveCandidate",
-        "UserSolveResult",
-        "blocked",
-        "developer_trace_ref",
+        "Add tests so the old misleading wording cannot recur.",
+        "Attach fallback recommendations or trace hints to missing-evidence paths where appropriate.",
+        "Define fallback step schema, risk levels, permission policy, and selection logic.",
+        "Do not call current-round source/test changes \"inherited dirty\" unless they were dirty in startup/baseline evidence.",
+        "Documentation must remain secondary to tests/gates.",
+        "Existing project gate/report/closeout semantics must remain compatible.",
+        "Existing user-solve contract/state/wrapper/evidence-quality tests must keep passing.",
+        "Gate must verify importability, enum/step coverage, redaction, no-execution/no-dispatch policy, and report baseline wording support.",
+        "Inherited Dirty Baseline Files",
+        "Keep default user serialization redacted and developer serialization explicit.",
+        "Logic must be policy-only and non-executing.",
+        "New modules must import without optional reverse-engineering tools installed.",
+        "No real samples, local sample paths, IDA/Ghidra/OllyDbg paths, subprocesses, or network are required for tests.",
+        "Preserve existing public behavior and tests from the previous accepted round.",
+        "UserSolveTaskTrace",
         "docs/user_solve_layer.md",
-        "project_state",
-        "project_state/gates/user_solve_layer_result.json",
+        "fast_strings",
+        "project_state/gates/user_solve_trace_fallback_result.json",
+        "project_state/solve_tasks/",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
+        "tests/test_project_reports.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py",
-        "user-solve-layer"
+        "tests/test_user_solve_trace.py",
+        "user-solve-trace-fallback"
       ]
     },
     {
@@ -165,15 +156,17 @@
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
         "reverse_agent/evidence_quality.py",
+        "reverse_agent/fallback_ladder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/user_solve.py",
         "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_trace.py",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
+        "tests/test_project_reports.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py"
+        "tests/test_user_solve_trace.py"
       ],
       "baseline_source_test_dirty": []
     },
@@ -189,10 +182,8 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [
-      "project_state/gates/command_plan.json"
-    ],
-    "head_commit": "fa14ed41690a"
+    "baseline_dirty_files": [],
+    "head_commit": "3be9fd00288b"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

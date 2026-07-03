@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-  "generated_at": "2026-07-03T09:05:59.605267Z",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+  "generated_at": "2026-07-03T12:01:20.733096Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -64,7 +64,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260703_user_solve_layer_foundation_big_step_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260703_user_solve_trace_fallback_ladder_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -96,33 +96,23 @@
       "detail": "round delta summary is baseline-aware",
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
-      "inherited_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ],
+      "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
         "docs/user_solve_layer.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
-        "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -132,49 +122,40 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/user_solve_layer_result.json",
+        "project_state/gates/user_solve_trace_fallback_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json",
         "reverse_agent/evidence_quality.py",
+        "reverse_agent/fallback_ladder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/user_solve.py",
-        "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_trace.py",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py"
+        "tests/test_user_solve_trace.py"
       ],
       "final_dirty_files": [
         "docs/user_solve_layer.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
-        "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -184,32 +165,30 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/user_solve_layer_result.json",
+        "project_state/gates/user_solve_trace_fallback_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json",
         "reverse_agent/evidence_quality.py",
+        "reverse_agent/fallback_ladder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/user_solve.py",
-        "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_trace.py",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py"
+        "tests/test_user_solve_trace.py"
       ]
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
       "status": "PASS",
       "detail": "files_changed excludes inherited baseline dirty files",
-      "inherited_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ]
+      "inherited_dirty_files": []
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -220,27 +199,18 @@
         "docs/user_solve_layer.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
-        "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -250,48 +220,40 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/user_solve_layer_result.json",
+        "project_state/gates/user_solve_trace_fallback_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json",
         "reverse_agent/evidence_quality.py",
+        "reverse_agent/fallback_ladder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/user_solve.py",
-        "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_trace.py",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py"
+        "tests/test_user_solve_trace.py"
       ],
       "required_round_delta_files": [
         "docs/user_solve_layer.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
-        "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -301,27 +263,25 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/user_solve_layer_result.json",
+        "project_state/gates/user_solve_trace_fallback_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json",
         "reverse_agent/evidence_quality.py",
+        "reverse_agent/fallback_ladder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/user_solve.py",
-        "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_trace.py",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py"
+        "tests/test_user_solve_trace.py"
       ],
-      "inherited_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ]
+      "inherited_dirty_files": []
     },
     {
       "name": "files_changed_covers_substantive_changes",
@@ -329,15 +289,15 @@
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
         "reverse_agent/evidence_quality.py",
+        "reverse_agent/fallback_ladder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/user_solve.py",
-        "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_trace.py",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py"
+        "tests/test_user_solve_trace.py"
       ],
       "claimed_source_test_paths": []
     },
@@ -361,29 +321,21 @@
       "close_source_test_dirty": [],
       "allowed_inherited_dirty_files": [
         "reverse_agent/evidence_quality.py",
+        "reverse_agent/fallback_ladder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/user_solve.py",
         "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_trace.py",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
+        "tests/test_project_reports.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py"
+        "tests/test_user_solve_trace.py"
       ],
-      "generated_or_archive_baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ],
+      "generated_or_archive_baseline_dirty_files": [],
       "close_worktree_clean": false,
       "close_snapshot_available": true
-    },
-    {
-      "name": "baseline_inherited_allowlist_explained",
-      "status": "PASS",
-      "detail": "no source/test inherited baseline explanation is required",
-      "inherited_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ]
     },
     {
       "name": "baseline_capture_order",
@@ -392,15 +344,17 @@
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
         "reverse_agent/evidence_quality.py",
+        "reverse_agent/fallback_ladder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/user_solve.py",
         "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_trace.py",
         "tests/test_evidence_quality.py",
+        "tests/test_fallback_ladder.py",
         "tests/test_project_gate.py",
+        "tests/test_project_reports.py",
         "tests/test_user_solve.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_state.py"
+        "tests/test_user_solve_trace.py"
       ],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
@@ -426,26 +380,17 @@
       "detail": "all live project_state/ generated artifact paths exist on disk",
       "live_paths": [
         "project_state/codex_execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
-        "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -455,7 +400,7 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/user_solve_layer_result.json",
+        "project_state/gates/user_solve_trace_fallback_result.json",
         "project_state/pytest_result.txt"
       ]
     },
@@ -519,9 +464,7 @@
       "status": "PASS",
       "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
       "startup_source_test_dirty": [],
-      "baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ],
+      "baseline_dirty_files": [],
       "missing_from_baseline": []
     },
     {
@@ -536,7 +479,6 @@
       "detail": "generated_artifacts or referenced_artifacts cover all existing gate artifacts",
       "missing_artifacts": [],
       "existing_gate_artifacts": [
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
         "project_state/gates/ci_artifact_manifest_result.json",
@@ -544,19 +486,14 @@
         "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
         "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
-        "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -566,9 +503,11 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/user_solve_layer_result.json"
+        "project_state/gates/user_solve_layer_result.json",
+        "project_state/gates/user_solve_trace_fallback_result.json"
       ],
       "referenced_artifacts": [
+        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/run_round_result.json"
       ],
@@ -576,33 +515,43 @@
         "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/agent_runner_handoff_bundle.json",
         "project_state/gates/agent_runner_handoff_validation.json",
+        "project_state/gates/audit_inventory_result.json",
+        "project_state/gates/ci_artifact_manifest_result.json",
+        "project_state/gates/ci_observation_handoff_packet.json",
+        "project_state/gates/ci_observation_schema_result.json",
+        "project_state/gates/ci_run_evidence_result.json",
+        "project_state/gates/ci_workflow_coverage_result.json",
+        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/control_plane_snapshot.json",
+        "project_state/gates/execute_decision_result.json",
         "project_state/gates/job_orchestration_result.json",
         "project_state/gates/jobs_inventory_result.json",
+        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/naming_migration_plan.json",
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
-        "project_state/gates/state_hygiene_inventory.json"
+        "project_state/gates/state_hygiene_inventory.json",
+        "project_state/gates/user_solve_layer_result.json"
       ]
     },
     {
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-      "closeout_log_round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-      "expected_decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-      "expected_round_id": "round_20260703_user_solve_layer_foundation_big_step_v1"
+      "closeout_log_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+      "closeout_log_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+      "expected_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+      "expected_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
-      "expected_report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1"
+      "execution_log_report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
+      "expected_report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -610,6 +559,7 @@
       "detail": "no required closeout artifacts declared in decision",
       "required_closeout_artifacts": [],
       "referenced_artifacts": [
+        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/run_round_result.json"
       ],
@@ -627,8 +577,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-      "command_plan_round_id": "round_20260703_user_solve_layer_foundation_big_step_v1"
+      "command_plan_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+      "command_plan_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1"
     },
     {
       "name": "command_plan_execution_order_policy",
@@ -773,12 +723,8 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ],
-      "baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ]
+      "startup_dirty_files": [],
+      "baseline_dirty_files": []
     },
     {
       "name": "github_ci_state_gate_workflows",
@@ -805,200 +751,30 @@
     {
       "name": "ci_workflow_coverage_gate_artifact",
       "status": "PASS",
-      "detail": "ci workflow coverage artifact is current, scope-aware, and safety-clean",
+      "detail": "ci workflow coverage audit not required",
       "required": false,
-      "artifact": "project_state/gates/ci_workflow_coverage_result.json",
-      "recommendation": "NO_ACTION_REQUIRED",
-      "missing_coverage": [],
-      "unsafe_patterns_found": [],
-      "errors": []
+      "artifact": "project_state/gates/ci_workflow_coverage_result.json"
     },
     {
       "name": "ci_workflow_readiness_gate_artifact",
       "status": "PASS",
-      "detail": "ci workflow readiness artifact is current, complete, and safety-clean",
+      "detail": "ci workflow readiness gate not required",
       "required": false,
-      "artifact": "project_state/gates/ci_workflow_readiness_result.json",
-      "readiness_status": "READY",
-      "missing_coverage": [],
-      "unsafe_patterns_found": [],
-      "errors": []
+      "artifact": "project_state/gates/ci_workflow_readiness_result.json"
     },
     {
       "name": "ci_run_evidence_gate_artifact",
       "status": "PASS",
-      "detail": "ci run evidence artifact is current, bounded, and non-dispatching",
+      "detail": "ci run evidence gate not required",
       "required": false,
-      "artifact": "project_state/gates/ci_run_evidence_result.json",
-      "ci_observation_status": "NOT_OBSERVED",
-      "snapshot_validation_status": "NOT_SUPPLIED",
-      "errors": []
+      "artifact": "project_state/gates/ci_run_evidence_result.json"
     },
     {
       "name": "local_ci_parity_gate_artifact",
       "status": "PASS",
-      "detail": "local CI parity artifact is current and has no required command-plan gaps",
+      "detail": "local CI parity gate not required",
       "required": false,
-      "artifact": "project_state/gates/local_ci_parity_result.json",
-      "required_parity_gaps": [],
-      "local_transcript_gaps": [
-        {
-          "workflow": ".github/workflows/ci.yml",
-          "line": 32,
-          "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 50,
-          "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 53,
-          "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 56,
-          "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 59,
-          "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 62,
-          "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 65,
-          "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 80,
-          "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 83,
-          "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 86,
-          "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 89,
-          "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 92,
-          "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 95,
-          "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 98,
-          "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/state-gate.yml",
-          "line": 101,
-          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/decision-preflight.yml",
-          "line": 49,
-          "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/decision-preflight.yml",
-          "line": 52,
-          "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/decision-preflight.yml",
-          "line": 55,
-          "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/decision-preflight.yml",
-          "line": 58,
-          "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/decision-preflight.yml",
-          "line": 61,
-          "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/decision-preflight.yml",
-          "line": 64,
-          "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        },
-        {
-          "workflow": ".github/workflows/decision-preflight.yml",
-          "line": 67,
-          "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q",
-          "pytest_result_recorded": false,
-          "execution_log_recorded": false
-        }
-      ],
-      "transcript_completeness_status": "DIAGNOSTIC_GAPS_RECORDED",
-      "errors": []
+      "artifact": "project_state/gates/local_ci_parity_result.json"
     },
     {
       "name": "project_job_schema_validation",
@@ -1140,10 +916,13 @@
     {
       "name": "audit_inventory_gate_artifact",
       "status": "PASS",
-      "detail": "audit inventory gate artifact is current and validated",
+      "detail": "audit inventory gate artifact is stale and not required for this decision",
       "required": false,
       "artifact": "project_state/gates/audit_inventory_result.json",
-      "errors": [],
+      "errors": [
+        "decision_id mismatch",
+        "round_id mismatch"
+      ],
       "gate_status": "PASSED",
       "inventory_validation_status": "PASSED",
       "audit_count": 4,
@@ -1205,33 +984,22 @@
       "missing_fields": [],
       "generated_mismatch": [],
       "historical_overlap": [],
-      "historical_only_claimed_current": [
-        "project_state/gates/audit_inventory_result.json"
-      ],
+      "historical_only_claimed_current": [],
       "generated_or_updated_artifacts": [
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
-        "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/execute_decision_result.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -1241,35 +1009,45 @@
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/user_solve_layer_result.json",
+        "project_state/gates/user_solve_trace_fallback_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json"
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json"
       ],
       "historical_nonblocking_artifacts": [
         "project_state/gates/agent_runner_dry_run_result.json",
         "project_state/gates/agent_runner_handoff_bundle.json",
         "project_state/gates/agent_runner_handoff_validation.json",
+        "project_state/gates/audit_inventory_result.json",
+        "project_state/gates/ci_artifact_manifest_result.json",
+        "project_state/gates/ci_observation_handoff_packet.json",
+        "project_state/gates/ci_observation_schema_result.json",
+        "project_state/gates/ci_run_evidence_result.json",
+        "project_state/gates/ci_workflow_coverage_result.json",
+        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/control_plane_snapshot.json",
+        "project_state/gates/execute_decision_result.json",
         "project_state/gates/job_orchestration_result.json",
         "project_state/gates/jobs_inventory_result.json",
+        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/naming_migration_plan.json",
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/run_round_result.json",
         "project_state/gates/runner_contract_result.json",
-        "project_state/gates/state_hygiene_inventory.json"
+        "project_state/gates/state_hygiene_inventory.json",
+        "project_state/gates/user_solve_layer_result.json"
       ],
       "archived_artifacts": [
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/round_manifest.json"
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
+        "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json"
       ]
     },
     {
@@ -1286,56 +1064,37 @@
     {
       "name": "ci_observation_schema_gate_artifact",
       "status": "PASS",
-      "detail": "ci_observation_schema_result.json is current, bounded, and evidence-only",
+      "detail": "ci-observation-schema gate not required",
       "required": false,
-      "artifact": "project_state/gates/ci_observation_schema_result.json",
-      "errors": [],
-      "artifact_status": "DEFINED",
-      "warnings": []
+      "artifact": "project_state/gates/ci_observation_schema_result.json"
     },
     {
       "name": "ci_observation_handoff_gate_artifact",
       "status": "PASS",
-      "detail": "ci_observation_handoff_packet.json is current, bounded, and evidence-only",
+      "detail": "ci-observation-handoff gate not required",
       "required": false,
-      "artifact": "project_state/gates/ci_observation_handoff_packet.json",
-      "errors": [],
-      "artifact_status": "AWAITING_EXTERNAL_OBSERVATION",
-      "warnings": [
-        "external CI observation has not been supplied"
-      ]
+      "artifact": "project_state/gates/ci_observation_handoff_packet.json"
     },
     {
       "name": "ci_observation_reconcile_gate_artifact",
       "status": "PASS",
-      "detail": "ci_observation_reconcile_result.json is current, bounded, and evidence-only",
+      "detail": "ci-observation-reconcile gate not required",
       "required": false,
-      "artifact": "project_state/gates/ci_observation_reconcile_result.json",
-      "errors": [],
-      "artifact_status": "RECONCILED",
-      "warnings": [
-        "external CI observation is still pending"
-      ]
+      "artifact": "project_state/gates/ci_observation_reconcile_result.json"
     },
     {
       "name": "ci_artifact_manifest_gate_artifact",
       "status": "PASS",
-      "detail": "ci_artifact_manifest_result.json is current, bounded, and evidence-only",
+      "detail": "ci-artifact-manifest gate not required",
       "required": false,
-      "artifact": "project_state/gates/ci_artifact_manifest_result.json",
-      "errors": [],
-      "artifact_status": "READY",
-      "warnings": []
+      "artifact": "project_state/gates/ci_artifact_manifest_result.json"
     },
     {
       "name": "ci_audit_handoff_bundle_gate_artifact",
       "status": "PASS",
-      "detail": "ci_audit_handoff_bundle.json is current, bounded, and evidence-only",
+      "detail": "ci-audit-handoff-bundle gate not required",
       "required": false,
-      "artifact": "project_state/gates/ci_audit_handoff_bundle.json",
-      "errors": [],
-      "artifact_status": "READY_FOR_AUDIT",
-      "warnings": []
+      "artifact": "project_state/gates/ci_audit_handoff_bundle.json"
     },
     {
       "name": "ci_bridge_closeout_consistency",
@@ -1346,50 +1105,44 @@
     {
       "name": "current_handoff_packet_valid",
       "status": "PASS",
-      "detail": "current handoff packet is current, command-plan aligned, evidence-only, and non-dispatching",
+      "detail": "current handoff packet not required",
       "required": false,
-      "artifact": "project_state/gates/current_handoff_packet.json",
-      "errors": [],
-      "gate_status": "PASSED",
-      "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
-      "evidence_only": true,
-      "executable": false,
-      "can_execute": false,
-      "mutates_state": false
+      "artifact": "project_state/gates/current_handoff_packet.json"
     },
     {
       "name": "local_execution_bundle_valid",
       "status": "PASS",
-      "detail": "local execution bundle is current, evidence-only, and command-plan aligned",
-      "required": true,
-      "artifact": "project_state/gates/local_execution_bundle.json",
-      "errors": [],
-      "audit_recommendation": null
+      "detail": "local execution bundle not required",
+      "required": false,
+      "artifact": "project_state/gates/local_execution_bundle.json"
     },
     {
       "name": "codex_prompt_packet_valid",
       "status": "PASS",
-      "detail": "codex prompt packet is current and derived from current bundle/handoff",
-      "required": true,
-      "artifact": "project_state/gates/codex_prompt_packet.json",
-      "errors": []
+      "detail": "codex prompt packet not required",
+      "required": false,
+      "artifact": "project_state/gates/codex_prompt_packet.json"
     },
     {
       "name": "audit_precheck_valid",
       "status": "PASS",
-      "detail": "audit precheck is current and gives a structurally valid recommendation",
-      "required": true,
-      "artifact": "project_state/gates/audit_precheck_result.json",
-      "errors": [],
-      "audit_recommendation": "READY_FOR_GPT_AUDIT",
-      "blocking_reasons": []
+      "detail": "audit precheck not required",
+      "required": false,
+      "artifact": "project_state/gates/audit_precheck_result.json"
     },
     {
       "name": "user_solve_layer_gate_artifact",
       "status": "PASS",
-      "detail": "user solve layer gate artifact is current, safe, and complete",
+      "detail": "user solve layer gate not required",
+      "required": false,
+      "artifact": "project_state/gates/user_solve_layer_result.json"
+    },
+    {
+      "name": "user_solve_trace_fallback_gate_artifact",
+      "status": "PASS",
+      "detail": "user solve trace/fallback gate artifact is current, safe, and complete",
       "required": true,
-      "artifact": "project_state/gates/user_solve_layer_result.json",
+      "artifact": "project_state/gates/user_solve_trace_fallback_result.json",
       "errors": [],
       "gate_status": "PASSED"
     },
@@ -1401,20 +1154,18 @@
     {
       "name": "execute_decision_contract",
       "status": "PASS",
-      "detail": "execute-decision artifact satisfies command-plan authority contract",
+      "detail": "execute_decision_result.json is stale and not required for this decision",
       "path": "project_state/gates/execute_decision_result.json",
       "required": false,
-      "errors": [],
-      "mode": "plan-validation",
-      "transcript_parity_status": "NOT_APPLICABLE_PLAN_ONLY",
-      "command_count": 32
+      "payload_decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
+      "payload_round_id": "round_20260703_user_solve_layer_foundation_big_step_v1"
     },
     {
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-      "gate_profile_round_id": "round_20260703_user_solve_layer_foundation_big_step_v1"
+      "gate_profile_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+      "gate_profile_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -1449,44 +1200,44 @@
       "status": "PASS",
       "detail": "report covers all 38 Required Audit items with substantive aligned answers",
       "required_audit_items": [
-        "Was the current `decision_packet.md` treated as the only execution authority and `task_packet.json` as background only?",
+        "Was the current `decision_packet.md` treated as execution authority and `task_packet.json` as background only?",
         "Did decision metadata remain valid, approved, on `engineering_branch`, and aligned with active `reverse-agent-iteration@v2`?",
-        "Were startup commands recorded before project gates?",
-        "Was startup-snapshot recorded before substantive gate/test execution?",
-        "Did Codex inspect existing pipeline, harness, job, runner, runner contract, and project gate code before implementing user-solve code?",
-        "Did implementation avoid duplicating existing pipeline, solver, harness, command-plan, execution-log, job, and AgentRunner capabilities?",
-        "Were changes limited to the allowed source/test/documentation/generated artifact paths?",
-        "Were forbidden files not modified?",
-        "Was `UserSolveResult` implemented with stable JSON/dict serialization?",
-        "Were user statuses restricted to an explicit enum including `uploaded`, `fast_analyzing`, `candidate_found`, `validating`, `verified`, `deep_analysis_running`, `failed`, and `blocked`?",
-        "Were validation statuses restricted to an explicit enum including `not_started`, `pending`, `passed`, `failed`, and `unavailable`?",
-        "Were evidence statuses restricted to an explicit enum including `none`, `partial`, `building`, `complete`, and `failed`?",
-        "Does `verified` require passed validation and a usable answer or candidate?",
-        "Does `candidate_found` allow validation to remain pending?",
-        "Does default user-visible serialization hide internal engineering paths and developer trace references?",
-        "Is there an explicit developer/debug serialization path that can retain trace references for engineering use without becoming the default user output?",
-        "Was `UserSolveStateMachine` implemented with allowed transitions and rejection of invalid transitions?",
-        "Does `blocked` require a clear reason/message?",
-        "Was `EvidenceQualityMapper` implemented to translate engineering missing_evidence into user-facing status/message without exposing raw internal files?",
-        "Does missing targeted decompile/static evidence map to `deep_analysis_running` or equivalent non-terminal user status rather than immediate user failure?",
-        "Was `FastSolveWrapper` implemented as a safe adapter over in-memory or pipeline-like result data without executing samples/tools?",
-        "Does the wrapper convert a high-confidence candidate into `candidate_found` with pending validation when validation evidence is absent?",
-        "Does the wrapper convert passed validation into `verified` only when validation evidence supports it?",
-        "Does the wrapper return a clear `failed` or no-candidate result when no candidate exists?",
-        "Does the wrapper return `blocked` with reason when the input indicates tool/environment/policy blocking?",
-        "Did tests cover invalid verified-without-validation cases?",
-        "Did tests cover candidate-before-validation behavior?",
-        "Did tests cover user-visible redaction of `project_state`, `decision_packet`, `command_plan`, `artifact_index`, `negative_results`, `codex_execution_report`, and `pytest_result` references?",
-        "Did tests cover state machine valid and invalid transitions?",
-        "Did tests cover evidence-quality mapping from missing engineering evidence to user-facing fallback status?",
-        "Did tests cover the fast wrapper candidate/verified/no-candidate/blocked branches?",
-        "Was a current gate artifact generated for the user-solve layer foundation?",
-        "Did final-check pass with current decision/report/round IDs?",
-        "Did `pytest_result.txt` match `tests_ran` in the report?",
+        "Were startup commands recorded before project gates/tests?",
+        "Were current IDs used in reports, pytest_result, gate artifacts, and closeout artifacts?",
+        "Was the previous audit limitation addressed by fixing misleading inherited-baseline report wording?",
+        "Does the final report distinguish inherited startup dirty files from current-round changed source/test files?",
+        "Does the final report avoid listing current-round source/test files under an inherited-dirty heading unless they were truly inherited dirty at startup?",
+        "Was `UserSolveTaskTrace` implemented as a structured internal contract?",
+        "Does trace serialization include task id, user status, engineering status, candidate sources, fallback steps, missing evidence, validation result, artifact references, and timestamps or equivalent ordering metadata?",
+        "Does trace default user serialization hide internal engineering paths and developer references?",
+        "Does trace developer/debug serialization preserve internal trace/artifact references explicitly?",
+        "Does trace validation reject inconsistent states, such as verified user status without passed validation evidence?",
+        "Was `FallbackLadder` implemented as a non-executing data/policy contract?",
+        "Does the ladder include `fast_strings`, `ida_summary`, `targeted_decompile`, `constant_material_extract`, `solver_attempt`, and `runtime_validation` steps?",
+        "Does each fallback step include risk level, timeout, required capability, fast-mode eligibility, artifact-write flag, and permission requirement metadata?",
+        "Does fallback selection choose a safe next step from synthetic state without executing tools or samples?",
+        "Are local execution, dynamic debugging, network, and manual-review steps blocked unless explicit permission is represented in synthetic policy input?",
+        "Does fallback ladder logic record stop reasons when no safe step is eligible?",
+        "Did `EvidenceQualityMapper` integrate missing evidence with fallback recommendations without exposing internal paths to user output?",
+        "Did `FastSolveWrapper` preserve previous behavior for candidate_found, verified, failed, blocked, and missing-evidence branches?",
+        "Did the implementation avoid duplicating pipeline, solver, harness, job, AgentRunner, command-plan, or execution-log responsibilities?",
+        "Did the implementation avoid Web/API, DB/queue/scheduler, remote runner, GitHub Actions dispatch/polling, IDA/Ghidra/OllyDbg, IDA MCP, runtime probe, dynamic debugging, and concrete reverse solving?",
+        "Were changes limited to allowed source/test/documentation/generated artifact paths?",
+        "Were forbidden files untouched?",
+        "Was a current gate artifact generated, for example `project_state/gates/user_solve_trace_fallback_result.json`?",
+        "Does the gate artifact prove no external invocation or dispatch capability was added?",
+        "Did tests cover trace user/developer serialization and redaction?",
+        "Did tests cover trace validation errors?",
+        "Did tests cover fallback ladder step ordering and permission/risk gating?",
+        "Did tests cover fallback no-eligible-step stop reasons?",
+        "Did tests cover report baseline wording fix?",
+        "Did tests cover wrapper/evidence mapper integration with fallback metadata?",
+        "Did pytest_result record the real commands and exit codes?",
         "Did command-plan authorize all executed commands and omit no executed commands?",
-        "Did run-closeout pass and archive the corrected reports if command-plan authorized closeout?",
-        "Did the round avoid Web/API, DB/queue/scheduler, remote runner, GitHub Actions dispatch/polling, IDA/Ghidra/OllyDbg, IDA MCP, runtime probe, dynamic debugging, and concrete reverse solving?",
-        "Did the final report avoid claiming solved/static_verified/runtime_validated/audit_verified for any sample?"
+        "Did final-check pass with current decision/report/round IDs?",
+        "Did run-closeout pass and archive corrected reports if command-plan authorized closeout?",
+        "Did the final report avoid claiming solved/static_verified/runtime_validated/audit_verified for any sample?",
+        "Did the final report use direct artifact evidence rather than generic summaries for Required Audit answers?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],

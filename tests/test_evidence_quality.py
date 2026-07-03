@@ -40,3 +40,16 @@ def test_complete_evidence_is_nonterminal_candidate_ready() -> None:
 
     assert assessment.user_status == UserSolveStatus.CANDIDATE_FOUND
     assert assessment.evidence_status == EvidenceStatus.COMPLETE
+
+
+def test_fallback_recommendation_is_static_and_redacted() -> None:
+    decision = EvidenceQualityMapper().fallback_recommendation(
+        missing_evidence=["targeted_decompile_missing", "project_state/artifact_index.json"]
+    )
+
+    payload = decision.to_user_dict()
+
+    assert decision.selected_step is not None
+    assert decision.selected_step.name.value == "fast_strings"
+    assert decision.executed is False
+    assert not contains_internal_reference(payload)

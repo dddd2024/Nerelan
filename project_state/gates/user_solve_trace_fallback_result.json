@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "artifact_name": "user_solve_trace_fallback_result.json",
+  "gate_name": "user-solve-trace-fallback",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-03T12:00:32.551069Z",
+  "artifact_path": "project_state/gates/user_solve_trace_fallback_result.json",
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "external_invocations": {
+    "sample_execution": false,
+    "subprocess": false,
+    "network": false,
+    "runner_dispatch": false,
+    "github_actions": false
+  },
+  "checks": [
+    {
+      "name": "fallback_step_coverage",
+      "status": "PASS",
+      "detail": "fallback ladder covers the required ordered policy steps",
+      "required_steps": [
+        "fast_strings",
+        "ida_summary",
+        "targeted_decompile",
+        "constant_material_extract",
+        "solver_attempt",
+        "runtime_validation"
+      ],
+      "actual_steps": [
+        "fast_strings",
+        "ida_summary",
+        "targeted_decompile",
+        "constant_material_extract",
+        "solver_attempt",
+        "runtime_validation"
+      ],
+      "step_metadata": [
+        {
+          "name": "fast_strings",
+          "risk_level": "low",
+          "timeout_seconds": 20,
+          "required_capability": "static_strings",
+          "fast_mode_eligible": true,
+          "writes_artifact": false,
+          "permission_requirement": "automatic",
+          "requires_local_execution": false,
+          "requires_dynamic_debug": false,
+          "requires_network": false,
+          "executable_by_default": true
+        },
+        {
+          "name": "ida_summary",
+          "risk_level": "low",
+          "timeout_seconds": 60,
+          "required_capability": "ida_summary",
+          "fast_mode_eligible": true,
+          "writes_artifact": true,
+          "permission_requirement": "automatic",
+          "requires_local_execution": false,
+          "requires_dynamic_debug": false,
+          "requires_network": false,
+          "executable_by_default": true
+        },
+        {
+          "name": "targeted_decompile",
+          "risk_level": "medium",
+          "timeout_seconds": 180,
+          "required_capability": "targeted_static_analysis",
+          "fast_mode_eligible": true,
+          "writes_artifact": true,
+          "permission_requirement": "automatic",
+          "requires_local_execution": false,
+          "requires_dynamic_debug": false,
+          "requires_network": false,
+          "executable_by_default": true
+        },
+        {
+          "name": "constant_material_extract",
+          "risk_level": "medium",
+          "timeout_seconds": 240,
+          "required_capability": "material_extraction",
+          "fast_mode_eligible": false,
+          "writes_artifact": true,
+          "permission_requirement": "explicit_permission",
+          "requires_local_execution": true,
+          "requires_dynamic_debug": false,
+          "requires_network": false,
+          "executable_by_default": false
+        },
+        {
+          "name": "solver_attempt",
+          "risk_level": "high",
+          "timeout_seconds": 600,
+          "required_capability": "solver",
+          "fast_mode_eligible": false,
+          "writes_artifact": true,
+          "permission_requirement": "explicit_permission",
+          "requires_local_execution": true,
+          "requires_dynamic_debug": false,
+          "requires_network": false,
+          "executable_by_default": false
+        },
+        {
+          "name": "runtime_validation",
+          "risk_level": "high",
+          "timeout_seconds": 300,
+          "required_capability": "runtime_validation",
+          "fast_mode_eligible": false,
+          "writes_artifact": true,
+          "permission_requirement": "explicit_permission",
+          "requires_local_execution": true,
+          "requires_dynamic_debug": true,
+          "requires_network": false,
+          "executable_by_default": false
+        }
+      ]
+    },
+    {
+      "name": "static_fallback_selection",
+      "status": "PASS",
+      "detail": "static fallback selection returns the next safe non-executed step",
+      "decision": {
+        "selected_step": {
+          "name": "ida_summary",
+          "risk_level": "low",
+          "timeout_seconds": 60,
+          "required_capability": "ida_summary",
+          "fast_mode_eligible": true,
+          "writes_artifact": true,
+          "permission_requirement": "automatic",
+          "requires_local_execution": false,
+          "requires_dynamic_debug": false,
+          "requires_network": false,
+          "executable_by_default": true
+        },
+        "eligible_steps": [
+          {
+            "name": "ida_summary",
+            "risk_level": "low",
+            "timeout_seconds": 60,
+            "required_capability": "ida_summary",
+            "fast_mode_eligible": true,
+            "writes_artifact": true,
+            "permission_requirement": "automatic",
+            "requires_local_execution": false,
+            "requires_dynamic_debug": false,
+            "requires_network": false,
+            "executable_by_default": true
+          }
+        ],
+        "blocked_steps": [],
+        "missing_evidence": [
+          "ida_summary_missing",
+          "project_state/artifact_index.json"
+        ],
+        "stop_reason": "selected_next_safe_step",
+        "executed": false
+      }
+    },
+    {
+      "name": "local_dynamic_steps_blocked",
+      "status": "PASS",
+      "detail": "local execution, solver, and runtime validation fallback steps remain blocked by policy",
+      "decision": {
+        "selected_step": null,
+        "eligible_steps": [],
+        "blocked_steps": [
+          {
+            "name": "constant_material_extract",
+            "reasons": [
+              "not_fast_mode_eligible",
+              "capability_not_allowed:material_extraction",
+              "permission_required:explicit_permission",
+              "requires_local_execution"
+            ],
+            "step": {
+              "name": "constant_material_extract",
+              "risk_level": "medium",
+              "timeout_seconds": 240,
+              "required_capability": "material_extraction",
+              "fast_mode_eligible": false,
+              "writes_artifact": true,
+              "permission_requirement": "explicit_permission",
+              "requires_local_execution": true,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": false
+            }
+          },
+          {
+            "name": "solver_attempt",
+            "reasons": [
+              "not_fast_mode_eligible",
+              "capability_not_allowed:solver",
+              "permission_required:explicit_permission",
+              "requires_local_execution"
+            ],
+            "step": {
+              "name": "solver_attempt",
+              "risk_level": "high",
+              "timeout_seconds": 600,
+              "required_capability": "solver",
+              "fast_mode_eligible": false,
+              "writes_artifact": true,
+              "permission_requirement": "explicit_permission",
+              "requires_local_execution": true,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": false
+            }
+          },
+          {
+            "name": "runtime_validation",
+            "reasons": [
+              "not_fast_mode_eligible",
+              "capability_not_allowed:runtime_validation",
+              "permission_required:explicit_permission",
+              "requires_local_execution",
+              "requires_dynamic_debug"
+            ],
+            "step": {
+              "name": "runtime_validation",
+              "risk_level": "high",
+              "timeout_seconds": 300,
+              "required_capability": "runtime_validation",
+              "fast_mode_eligible": false,
+              "writes_artifact": true,
+              "permission_requirement": "explicit_permission",
+              "requires_local_execution": true,
+              "requires_dynamic_debug": true,
+              "requires_network": false,
+              "executable_by_default": false
+            }
+          }
+        ],
+        "missing_evidence": [
+          "runtime_validation_missing"
+        ],
+        "stop_reason": "no_safe_step_available_without_permission",
+        "executed": false
+      }
+    },
+    {
+      "name": "explicit_permission_remains_non_executing",
+      "status": "PASS",
+      "detail": "explicit permission metadata does not cause the ladder to execute local steps",
+      "decision": {
+        "selected_step": null,
+        "eligible_steps": [],
+        "blocked_steps": [
+          {
+            "name": "constant_material_extract",
+            "reasons": [
+              "requires_local_execution"
+            ],
+            "step": {
+              "name": "constant_material_extract",
+              "risk_level": "medium",
+              "timeout_seconds": 240,
+              "required_capability": "material_extraction",
+              "fast_mode_eligible": false,
+              "writes_artifact": true,
+              "permission_requirement": "explicit_permission",
+              "requires_local_execution": true,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": false
+            }
+          },
+          {
+            "name": "solver_attempt",
+            "reasons": [
+              "capability_not_allowed:solver",
+              "requires_local_execution"
+            ],
+            "step": {
+              "name": "solver_attempt",
+              "risk_level": "high",
+              "timeout_seconds": 600,
+              "required_capability": "solver",
+              "fast_mode_eligible": false,
+              "writes_artifact": true,
+              "permission_requirement": "explicit_permission",
+              "requires_local_execution": true,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": false
+            }
+          },
+          {
+            "name": "runtime_validation",
+            "reasons": [
+              "capability_not_allowed:runtime_validation",
+              "requires_local_execution",
+              "requires_dynamic_debug"
+            ],
+            "step": {
+              "name": "runtime_validation",
+              "risk_level": "high",
+              "timeout_seconds": 300,
+              "required_capability": "runtime_validation",
+              "fast_mode_eligible": false,
+              "writes_artifact": true,
+              "permission_requirement": "explicit_permission",
+              "requires_local_execution": true,
+              "requires_dynamic_debug": true,
+              "requires_network": false,
+              "executable_by_default": false
+            }
+          }
+        ],
+        "missing_evidence": [],
+        "stop_reason": "no_safe_step_available_without_permission",
+        "executed": false
+      }
+    },
+    {
+      "name": "trace_serialization_and_wrapper_metadata",
+      "status": "PASS",
+      "detail": "trace metadata is user-redacted, developer-auditable, and non-executing",
+      "user_trace": {
+        "task_id": "gate-trace",
+        "user_status": "deep_analysis_running",
+        "engineering_status": "building",
+        "validation": {
+          "status": "unavailable",
+          "result": "More analysis evidence is still being collected before a final answer can be verified.",
+          "validator": ""
+        },
+        "candidate_sources": [],
+        "fallback_steps": [
+          {
+            "name": "fast_strings",
+            "status": "suggested",
+            "sequence": 1,
+            "missing_evidence": [
+              "targeted_decompile_missing",
+              "[internal][internal]"
+            ],
+            "executed": false
+          }
+        ],
+        "missing_evidence": [
+          "targeted_decompile_missing",
+          "[internal][internal]",
+          "targeted_decompile_missing",
+          "[internal][internal]"
+        ],
+        "artifact_references": [],
+        "created_at": "",
+        "updated_at": "",
+        "sequence": 1
+      },
+      "developer_trace": {
+        "task_id": "gate-trace",
+        "user_status": "deep_analysis_running",
+        "engineering_status": "building",
+        "validation": {
+          "status": "unavailable",
+          "result": "More analysis evidence is still being collected before a final answer can be verified.",
+          "validator": ""
+        },
+        "candidate_sources": [],
+        "fallback_steps": [
+          {
+            "name": "fast_strings",
+            "status": "suggested",
+            "sequence": 1,
+            "missing_evidence": [
+              "targeted_decompile_missing",
+              "[internal][internal]"
+            ],
+            "executed": false,
+            "developer_trace_ref": ""
+          }
+        ],
+        "missing_evidence": [
+          "targeted_decompile_missing",
+          "[internal][internal]",
+          "targeted_decompile_missing",
+          "[internal][internal]"
+        ],
+        "artifact_references": [
+          {
+            "label": "internal_artifact",
+            "path": "project_state/gates/user_solve_trace_fallback_result.json",
+            "public": false
+          },
+          {
+            "label": "internal_artifact",
+            "path": "project_state/decision_packet.md",
+            "public": false
+          }
+        ],
+        "created_at": "",
+        "updated_at": "",
+        "sequence": 1,
+        "developer_trace_ref": "project_state/decision_packet.md"
+      }
+    },
+    {
+      "name": "trace_verified_requires_passed_validation",
+      "status": "PASS",
+      "detail": "trace contract rejects verified status without passed validation"
+    },
+    {
+      "name": "evidence_mapper_fallback_metadata",
+      "status": "PASS",
+      "detail": "evidence quality mapper exposes redacted fallback metadata",
+      "recommendation": {
+        "selected_step": {
+          "name": "fast_strings",
+          "risk_level": "low",
+          "timeout_seconds": 20,
+          "required_capability": "static_strings",
+          "fast_mode_eligible": true,
+          "writes_artifact": false,
+          "permission_requirement": "automatic",
+          "requires_local_execution": false,
+          "requires_dynamic_debug": false,
+          "requires_network": false,
+          "executable_by_default": true
+        },
+        "eligible_steps": [
+          "fast_strings"
+        ],
+        "blocked_steps": [],
+        "missing_evidence": [
+          "targeted_decompile_missing",
+          "[internal][internal]"
+        ],
+        "stop_reason": "selected_next_safe_step",
+        "executed": false
+      }
+    },
+    {
+      "name": "artifact_reference_user_redaction",
+      "status": "PASS",
+      "detail": "internal artifact references are omitted from user trace serialization"
+    },
+    {
+      "name": "no_execution_or_dispatch_terms",
+      "status": "PASS",
+      "detail": "trace and fallback source files contain no forbidden execution or dispatch calls",
+      "found_forbidden": {}
+    },
+    {
+      "name": "report_baseline_wording_support",
+      "status": "PASS",
+      "detail": "report refresh distinguishes inherited baseline files from current-round source/test changes"
+    }
+  ],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/user_solve_trace_fallback_result.json"
+  ]
+}

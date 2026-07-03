@@ -2,20 +2,20 @@
   "schema_version": 1,
   "artifact_name": "ci_observation_reconcile_result.json",
   "gate_name": "ci-observation-reconcile",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
-  "generated_at": "2026-07-03T09:05:34.121430Z",
-  "reconcile_status": "RECONCILED",
-  "final_consistency_status": "FINAL_CONSISTENT",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
+  "generated_at": "2026-07-03T12:00:57.998893Z",
+  "reconcile_status": "REWORK_REQUIRED",
+  "final_consistency_status": "REWORK_REQUIRED",
   "pending_diagnostic_sources": [],
   "observation_state": "AWAITING_EXTERNAL_OBSERVATION",
   "source_artifacts": {
     "ci_observation_schema": {
       "artifact": "project_state/gates/ci_observation_schema_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -28,7 +28,7 @@
     "ci_observation_handoff": {
       "artifact": "project_state/gates/ci_observation_handoff_packet.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": "AWAITING_EXTERNAL_OBSERVATION",
       "close_round_status": null,
@@ -43,7 +43,7 @@
     "ci_run_evidence": {
       "artifact": "project_state/gates/ci_run_evidence_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": "NOT_OBSERVED",
       "close_round_status": null,
@@ -58,7 +58,7 @@
     "local_ci_parity": {
       "artifact": "project_state/gates/local_ci_parity_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -71,7 +71,7 @@
     "ci_workflow_coverage": {
       "artifact": "project_state/gates/ci_workflow_coverage_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -84,7 +84,7 @@
     "ci_workflow_readiness": {
       "artifact": "project_state/gates/ci_workflow_readiness_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": "READY",
       "close_round_status": null,
@@ -142,7 +142,9 @@
   "generated_artifacts": [
     "project_state/gates/ci_observation_reconcile_result.json"
   ],
-  "errors": [],
+  "errors": [
+    "source artifacts are stale: ci_observation_schema, ci_observation_handoff, ci_run_evidence, local_ci_parity, ci_workflow_coverage, ci_workflow_readiness"
+  ],
   "warnings": [
     "external CI observation is still pending"
   ]

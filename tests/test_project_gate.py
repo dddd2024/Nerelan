@@ -44,6 +44,7 @@ from reverse_agent.project_gate import (
     _audit_inventory_gate_check,
     _audit_precheck_gate_check,
     _user_solve_layer_gate_check,
+    _user_solve_trace_fallback_gate_check,
     _ci_run_evidence_gate_check,
     _ci_bridge_gate_check,
     _ci_bridge_closeout_consistency_check,
@@ -86,6 +87,7 @@ from reverse_agent.project_gate import (
     audit_readiness_packet,
     audit_precheck,
     user_solve_layer,
+    user_solve_trace_fallback,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -1647,7 +1649,7 @@ def test_close_round_reports_legacy_fallback_when_neutral_report_missing(tmp_pat
     assert "compatibility fallback" in check["detail"]
 
 
-def test_refresh_report_explains_allowed_source_files_dirty_baseline(
+def test_refresh_report_lists_current_source_changes_separately_from_inherited_baseline(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     state_dir = _make_gate_state(tmp_path)
@@ -1678,7 +1680,8 @@ def test_refresh_report_explains_allowed_source_files_dirty_baseline(
     )
 
     report_text = (state_dir / "codex_execution_report.md").read_text(encoding="utf-8")
-    assert "## Allowed Inherited Dirty Baseline Files" in report_text
+    assert "## Allowed Inherited Dirty Baseline Files" not in report_text
+    assert "## Allowed Changed Source/Test Files" in report_text
     assert "- reverse_agent/project_gate.py" in report_text
     assert "- tests/test_project_gate.py" in report_text
 
@@ -17163,6 +17166,7 @@ def test_run_closeout_constants_and_allowlist():
             "ci-artifact-manifest",
             "ci-audit-handoff-bundle",
             "user-solve-layer",
+            "user-solve-trace-fallback",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -25469,6 +25473,91 @@ def test_command_kind_recognizes_user_solve_layer_gate() -> None:
     assert _command_kind(command) == "user-solve-layer"
     assert _command_phase("user-solve-layer", archive_seen=False) == "gate"
     assert "user-solve-layer" in RUN_CLOSEOUT_ALLOWED_KINDS
+
+
+def test_user_solve_trace_fallback_gate_writes_current_safe_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_user_solve_trace_fallback",
+        round_id="round_user_solve_trace_fallback",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    contract = {
+        "accepted_requires_user_solve_trace_contract": True,
+        "accepted_requires_fallback_ladder": True,
+        "accepted_requires_user_solve_trace_fallback_gate": True,
+    }
+
+    result = user_solve_trace_fallback(state_dir=state_dir, repo_root=Path.cwd(), write_result=True)
+
+    artifact_path = state_dir / "gates" / "user_solve_trace_fallback_result.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert result["gate_status"] == "PASSED"
+    assert artifact["decision_id"] == "decision_user_solve_trace_fallback"
+    assert artifact["round_id"] == "round_user_solve_trace_fallback"
+    assert artifact["report_id"] == "codex_report_user_solve_trace_fallback"
+    assert artifact["evidence_only"] is True
+    assert artifact["executable"] is False
+    assert artifact["can_execute"] is False
+    assert artifact["can_dispatch"] is False
+    assert artifact["mutates_state"] is False
+    assert {item["name"] for item in artifact["checks"]} >= {
+        "fallback_step_coverage",
+        "trace_serialization_and_wrapper_metadata",
+        "no_execution_or_dispatch_terms",
+    }
+
+    check = _user_solve_trace_fallback_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_user_solve_trace_fallback",
+        round_id="round_user_solve_trace_fallback",
+        report_id="codex_report_user_solve_trace_fallback",
+        decision_contract=contract,
+    )
+    assert check["status"] == "PASS"
+
+
+def test_user_solve_trace_fallback_gate_check_rejects_stale_or_failed_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_trace_required",
+        round_id="round_trace_required",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "gates" / "user_solve_trace_fallback_result.json",
+        {
+            "gate_name": "user-solve-trace-fallback",
+            "gate_status": "FAILED",
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+            "report_id": "codex_report_previous",
+            "evidence_only": True,
+            "executable": False,
+            "can_execute": False,
+            "can_dispatch": False,
+            "mutates_state": False,
+        },
+    )
+
+    check = _user_solve_trace_fallback_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_trace_required",
+        round_id="round_trace_required",
+        report_id="codex_report_trace_required",
+        decision_contract={"accepted_requires_user_solve_trace_contract": True},
+    )
+
+    assert check["status"] == "FAIL"
+    assert check["required"] is True
+
+
+def test_command_kind_recognizes_user_solve_trace_fallback_gate() -> None:
+    command = "python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state"
+
+    assert _command_kind(command) == "user-solve-trace-fallback"
+    assert _command_phase("user-solve-trace-fallback", archive_seen=False) == "gate"
+    assert "user-solve-trace-fallback" in RUN_CLOSEOUT_ALLOWED_KINDS
 
 
 def test_preflight_ignores_negated_runtime_terms_in_engineering_scope(tmp_path: Path) -> None:

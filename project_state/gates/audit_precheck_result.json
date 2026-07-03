@@ -3,10 +3,10 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
-  "generated_at": "2026-07-03T09:05:44.884579Z",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
+  "generated_at": "2026-07-03T12:01:08.039685Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
@@ -47,13 +47,15 @@
     },
     {
       "name": "current_handoff_packet_valid",
-      "status": "PASS",
-      "detail": "current handoff packet is current, command-plan aligned, evidence-only, and non-dispatching",
+      "status": "FAIL",
+      "detail": "current handoff packet is missing required current evidence or safety fields",
       "required": true,
       "artifact": "project_state/gates/current_handoff_packet.json",
-      "errors": [],
+      "errors": [
+        "audit_inventory_status.current is not true"
+      ],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
+      "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,
@@ -77,8 +79,10 @@
       "errors": []
     }
   ],
-  "audit_recommendation": "READY_FOR_GPT_AUDIT",
-  "blocking_reasons": [],
+  "audit_recommendation": "DO_NOT_ACCEPT",
+  "blocking_reasons": [
+    "current_handoff_packet_valid: current handoff packet is missing required current evidence or safety fields"
+  ],
   "warnings": [],
   "evidence_only": true,
   "executable": false,

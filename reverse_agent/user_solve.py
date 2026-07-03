@@ -11,6 +11,7 @@ from .user_solve_contract import (
     UserSolveStatus,
     ValidationStatus,
 )
+from .user_solve_trace import ArtifactReference, UserSolveTaskTrace
 
 
 NEGATIVE_CANDIDATES = {"", "NOT_FOUND", "UNKNOWN", "N/A", "NONE", "NULL"}
@@ -203,6 +204,34 @@ class FastSolveWrapper:
             developer_trace_ref=_string(payload.get("developer_trace_ref")),
             internal_references=internal_refs,
         )
+
+    def adapt_with_trace(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        result = self.adapt(payload)
+        missing = payload.get("missing_evidence") or []
+        if isinstance(missing, str):
+            missing = [missing]
+        missing_list = [str(item) for item in missing if str(item).strip()]
+        fallback_decision = self.evidence_mapper.fallback_recommendation(
+            missing_evidence=missing_list,
+            completed_steps=payload.get("completed_fallback_steps") or [],
+        )
+        artifacts = [
+            ArtifactReference(label="internal_artifact", path=path, public=False)
+            for path in _internal_references(payload)
+        ]
+        trace = UserSolveTaskTrace.from_result(
+            task_id=_string(payload.get("task_id")) or "user_solve_task",
+            result=result,
+            fallback_decision=fallback_decision,
+            missing_evidence=missing_list,
+            artifact_references=artifacts,
+            developer_trace_ref=_string(payload.get("developer_trace_ref")),
+        )
+        return {
+            "result": result,
+            "trace": trace,
+            "fallback_decision": fallback_decision,
+        }
 
 
 def adapt_fast_result(payload: Mapping[str, Any]) -> UserSolveResult:

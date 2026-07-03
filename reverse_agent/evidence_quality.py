@@ -10,6 +10,7 @@ from .user_solve_contract import (
     ValidationStatus,
     redact_internal_references,
 )
+from .fallback_ladder import FallbackDecision, FallbackLadder, FallbackPolicy
 
 
 TARGETED_EVIDENCE_KEYWORDS = (
@@ -100,4 +101,19 @@ class EvidenceQualityMapper:
             message=assessment.message,
             reason=redact_internal_references(reason),
             internal_references=[*assessment.missing_evidence, *assessment.blockers],
+        )
+
+    def fallback_recommendation(
+        self,
+        *,
+        missing_evidence: Iterable[str] | None = None,
+        completed_steps: Iterable[str] | None = None,
+        ladder: FallbackLadder | None = None,
+        policy: FallbackPolicy | None = None,
+    ) -> FallbackDecision:
+        active_ladder = ladder or FallbackLadder.default()
+        return active_ladder.select_next(
+            completed_steps=completed_steps,
+            missing_evidence=missing_evidence,
+            policy=policy,
         )

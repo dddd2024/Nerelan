@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-03T09:05:44.860660Z",
+  "generated_at": "2026-07-03T12:01:08.029272Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+    "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,23 +43,25 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/user_solve_contract.py",
-      "reverse_agent/user_solve_state.py",
+      "reverse_agent/user_solve_trace.py",
+      "reverse_agent/fallback_ladder.py",
       "reverse_agent/user_solve.py",
+      "reverse_agent/user_solve_contract.py",
       "reverse_agent/evidence_quality.py",
       "reverse_agent/project_gate.py",
-      "tests/test_user_solve_contract.py",
-      "tests/test_user_solve_state.py",
+      "tests/test_user_solve_trace.py",
+      "tests/test_fallback_ladder.py",
       "tests/test_user_solve.py",
       "tests/test_evidence_quality.py",
-      "tests/test_project_gate.py"
+      "tests/test_project_gate.py",
+      "tests/test_project_reports.py"
     ],
     "generated_or_updated_artifacts": [
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
       "project_state/gates/*.json",
-      "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/*"
+      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/*"
     ]
   },
   "forbidden_scope": {
@@ -79,7 +81,7 @@
   },
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q"
     ],
     "includes_project_reports": true
@@ -94,12 +96,12 @@
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
       "project_state/gates/*.json",
-      "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/*"
+      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/*"
     ]
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-    "current_round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+    "current_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+    "current_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -109,7 +111,7 @@
     "inventory_validation_status": "PASSED",
     "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
     "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-    "current": true
+    "current": false
   },
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
@@ -117,8 +119,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+    "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -126,7 +128,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1"
+    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,
@@ -174,7 +176,9 @@
   "executable": false,
   "can_execute": false,
   "mutates_state": false,
-  "warnings": [],
+  "warnings": [
+    "audit_inventory_result.json is missing or historical"
+  ],
   "errors": [],
   "generated_artifacts": [
     "project_state/gates/current_handoff_packet.json"

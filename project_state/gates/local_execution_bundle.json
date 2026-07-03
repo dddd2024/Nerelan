@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
+  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-03T09:05:44.865838Z",
+  "generated_at": "2026-07-03T12:01:08.032007Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+    "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,23 +43,25 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/user_solve_contract.py",
-      "reverse_agent/user_solve_state.py",
+      "reverse_agent/user_solve_trace.py",
+      "reverse_agent/fallback_ladder.py",
       "reverse_agent/user_solve.py",
+      "reverse_agent/user_solve_contract.py",
       "reverse_agent/evidence_quality.py",
       "reverse_agent/project_gate.py",
-      "tests/test_user_solve_contract.py",
-      "tests/test_user_solve_state.py",
+      "tests/test_user_solve_trace.py",
+      "tests/test_fallback_ladder.py",
       "tests/test_user_solve.py",
       "tests/test_evidence_quality.py",
-      "tests/test_project_gate.py"
+      "tests/test_project_gate.py",
+      "tests/test_project_reports.py"
     ],
     "generated_or_updated_artifacts": [
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
       "project_state/gates/*.json",
-      "project_state/rounds/round_20260703_user_solve_layer_foundation_big_step_v1/*"
+      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/*"
     ]
   },
   "forbidden_scope": {
@@ -136,176 +138,64 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
-      "kind": "ci-workflow-coverage",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
-      "kind": "ci-workflow-readiness",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
-      "kind": "ci-run-evidence",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-      "kind": "local-ci-parity",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-      "kind": "ci-observation-schema",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-      "kind": "ci-observation-handoff",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-      "kind": "ci-observation-reconcile",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-      "kind": "ci-artifact-manifest",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-      "kind": "ci-audit-handoff-bundle",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
-      "kind": "audit-inventory",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
-      "kind": "local-execution-bundle",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
-      "kind": "codex-prompt-packet",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 21,
-      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
-      "kind": "audit-precheck",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "phase": "preflight",
-      "required": true
-    },
-    {
-      "index": 23,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260703_user_solve_layer_foundation_big_step_v1 --dry-run",
-      "kind": "execute-decision",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 24,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 25,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 26,
-      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
-      "kind": "audit-readiness-packet",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 27,
-      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
-      "kind": "current-handoff-packet",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 28,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 29,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_layer_foundation_big_step_v1",
-      "kind": "run-closeout",
-      "phase": "gate",
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
       "required": true
     },
     {
-      "index": 30,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "index": 11,
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "phase": "test",
       "required": true
     },
     {
-      "index": 31,
-      "command": "python -m reverse_agent.project_gate user-solve-layer --state-dir project_state",
-      "kind": "user-solve-layer",
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state",
+      "kind": "user-solve-trace-fallback",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 32,
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+      "kind": "audit-readiness-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 15,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q",
       "kind": "pytest",
       "phase": "test",
+      "required": true
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_trace_fallback_ladder_v1",
+      "kind": "run-closeout",
+      "phase": "gate",
       "required": true
     }
   ],
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q"
     ],
     "includes_project_reports": true
@@ -327,11 +217,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+    "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "04e8800dbded49b8f9fe6a547b2b608a3cce475698544e99738350b80effca5a"
+    "sha256": "d4617636b747ff67a4ff52d90d6bcbd47324caea2fa8030e898a28522a7903a6"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -347,7 +237,7 @@
     "inventory_validation_status": "PASSED",
     "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
     "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-    "current": true
+    "current": false
   },
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
@@ -355,8 +245,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
+    "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -364,7 +254,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1"
+    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,
@@ -381,7 +271,9 @@
   "can_dispatch": false,
   "mutates_state": false,
   "remote_mutation_allowed": false,
-  "warnings": [],
+  "warnings": [
+    "audit_inventory_result.json is missing or historical"
+  ],
   "errors": [],
   "generated_artifacts": [
     "project_state/gates/local_execution_bundle.json"
