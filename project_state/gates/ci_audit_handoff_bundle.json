@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
-  "generated_at": "2026-07-03T12:00:58.001987Z",
+  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+  "round_id": "round_20260703_user_solve_session_bundle_v1",
+  "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+  "generated_at": "2026-07-03T13:49:48.271905Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {

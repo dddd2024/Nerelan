@@ -94,3 +94,23 @@ def test_fast_wrapper_adapt_with_trace_keeps_result_behavior_and_metadata() -> N
     assert fallback_decision.executed is False
     assert trace.to_user_dict()["task_id"] == "task-trace"
     assert not contains_internal_reference(trace.to_user_dict())
+
+
+def test_fast_wrapper_adapt_session_bundle_is_in_memory_and_redacted() -> None:
+    bundle = FastSolveWrapper().adapt_session_bundle(
+        {
+            "session_id": "session-wrapper",
+            "task_id": "task-wrapper",
+            "selected_flag": "flag{candidate}",
+            "artifact_path": "project_state/gates/user_solve_session_bundle_result.json",
+        }
+    )
+
+    user_payload = bundle.to_user_dict()
+    developer_payload = bundle.to_developer_dict()
+
+    assert user_payload["session_id"] == "session-wrapper"
+    assert user_payload["result"]["status"] == "candidate_found"
+    assert user_payload["next_action"]["kind"] == "validate_candidate"
+    assert not contains_internal_reference(user_payload)
+    assert contains_internal_reference(developer_payload["artifact_references"])

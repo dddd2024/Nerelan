@@ -3,16 +3,16 @@
   "artifact_name": "codex_report_auto_summary.json",
   "gate_name": "report-auto-summary",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
-  "generated_at": "2026-07-03T12:01:07.800550Z",
+  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+  "round_id": "round_20260703_user_solve_session_bundle_v1",
+  "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+  "generated_at": "2026-07-03T13:49:58.973865Z",
   "source": "synthesized_from_structured_evidence",
   "summary": {
     "schema_version": 1,
-    "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
-    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-    "based_on_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
+    "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+    "round_id": "round_20260703_user_solve_session_bundle_v1",
+    "based_on_decision_id": "decision_20260703_user_solve_session_bundle_v1",
     "status": "SUCCESS",
     "acceptance_recommendation": "ACCEPTED",
     "files_changed": [
@@ -40,23 +40,20 @@
       "project_state/gates/run_closeout_execution_log.json",
       "project_state/gates/run_closeout_result.json",
       "project_state/gates/startup_snapshot.json",
-      "project_state/gates/user_solve_trace_fallback_result.json",
+      "project_state/gates/user_solve_session_bundle_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json",
-      "reverse_agent/evidence_quality.py",
-      "reverse_agent/fallback_ladder.py",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/decision_packet.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/execution_report.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/pytest_result.txt",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/round_manifest.json",
       "reverse_agent/project_gate.py",
       "reverse_agent/user_solve.py",
-      "reverse_agent/user_solve_trace.py",
-      "tests/test_evidence_quality.py",
-      "tests/test_fallback_ladder.py",
+      "reverse_agent/user_solve_session.py",
       "tests/test_project_gate.py",
+      "tests/test_project_reports.py",
       "tests/test_user_solve.py",
-      "tests/test_user_solve_trace.py"
+      "tests/test_user_solve_session.py"
     ],
     "tests_ran": [
       "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
@@ -64,12 +61,12 @@
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q",
-      "python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state",
+      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "python -m reverse_agent.project_gate user-solve-session-bundle --state-dir project_state",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_trace_fallback_ladder_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_session_bundle_v1"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -95,13 +92,13 @@
       "project_state/gates/run_closeout_execution_log.json",
       "project_state/gates/run_closeout_result.json",
       "project_state/gates/startup_snapshot.json",
-      "project_state/gates/user_solve_trace_fallback_result.json",
+      "project_state/gates/user_solve_session_bundle_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json"
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/decision_packet.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/execution_report.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/pytest_result.txt",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/round_manifest.json"
     ],
     "referenced_artifacts": [
       "project_state/gates/policy_lint_result.json"
@@ -142,14 +139,15 @@
       "project_state/gates/run_round_result.json",
       "project_state/gates/startup_snapshot.json",
       "project_state/gates/user_solve_layer_result.json",
+      "project_state/gates/user_solve_session_bundle_result.json",
       "project_state/gates/user_solve_trace_fallback_result.json"
     ],
     "archive_paths": [
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/decision_packet.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/execution_report.md",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/pytest_result.txt",
-      "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json"
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/decision_packet.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/execution_report.md",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/pytest_result.txt",
+      "project_state/rounds/round_20260703_user_solve_session_bundle_v1/round_manifest.json"
     ],
     "status_source": "final_gate_result.json",
     "final_gate_result": "project_state/gates/final_gate_result.json"

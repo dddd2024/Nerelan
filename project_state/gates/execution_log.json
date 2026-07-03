@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
-  "generated_at": "2026-07-03T12:01:03.460666Z",
+  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+  "round_id": "round_20260703_user_solve_session_bundle_v1",
+  "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+  "generated_at": "2026-07-03T13:49:54.049968Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-    "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
+    "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+    "round_id": "round_20260703_user_solve_session_bundle_v1",
+    "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "d14c2c8b02c72e3c3cb0b9ef6f50bcba5afae46cb1c33c0ab08bed96a2d681b2",
-        "size_bytes": 17234,
+        "sha256": "d052dd2bda06c97b465a0f0b6a072b0b2ff0b53fd48ea4ec1c645c8744cf79f0",
+        "size_bytes": 18664,
         "command_block_count": 16
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "47786925ba2c08e8fed8a85b77b82dcb73c5b69ecc4a8eaa70710f4323b3d612",
-        "size_bytes": 7832,
-        "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-        "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+        "sha256": "a72bb6e96913b8a876c736c680665f8a220a320a76138771af33822958b55acd",
+        "size_bytes": 7837,
+        "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+        "round_id": "round_20260703_user_solve_session_bundle_v1",
         "plan_status": "PASSED",
         "command_count": 16
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "1784b3571c3091f79ac57b50f7c326cf297e05af4c4fe21f949140bfea0c4448",
-        "size_bytes": 40640,
-        "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-        "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+        "sha256": "3398f95cb0208eb0e2d90cf97253261d5ce7f8a866f3ff38407577e980be0753",
+        "size_bytes": 37387,
+        "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+        "round_id": "round_20260703_user_solve_session_bundle_v1",
         "command_block_count": 16
       }
     },
     "command_count": 16,
-    "command_digest": "9734d4b5532c7c199466197925537e416146569eb9a08adc9cea1220101ff97b"
+    "command_digest": "6bd977e2bd0a88046cc1c28c473a8c39cca893a8f1e28201cf18147e723860d2"
   },
   "commands": [
     {
@@ -129,7 +129,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -173,8 +173,8 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state",
-      "kind": "user-solve-trace-fallback",
+      "command": "python -m reverse_agent.project_gate user-solve-session-bundle --state-dir project_state",
+      "kind": "user-solve-session-bundle",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -219,7 +219,7 @@
     },
     {
       "index": 16,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_trace_fallback_ladder_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_session_bundle_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

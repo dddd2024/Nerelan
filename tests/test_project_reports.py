@@ -11,6 +11,7 @@ from reverse_agent.project_gate import (
     _generate_local_execution_loop_required_audit,
     _generate_required_audit_direct_evidence_rework_required_audit,
     _generate_required_audit_alignment_rework_required_audit,
+    _generate_user_solve_session_bundle_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
     command_plan,
@@ -218,6 +219,47 @@ CI_RUN_EVIDENCE_PARITY_QUESTIONS = [
     "Did final-check pass?",
     "Did run-closeout pass and close-round close?",
     "Did the report clearly state that this round stayed within CI evidence/parity infrastructure?",
+]
+
+USER_SOLVE_SESSION_BUNDLE_QUESTIONS = [
+    "Was the current `decision_packet.md` treated as execution authority and `task_packet.json` as background only?",
+    "Did decision metadata remain valid, approved, on `engineering_branch`, and aligned with active `reverse-agent-iteration@v2`?",
+    "Were startup commands recorded before project gates/tests?",
+    "Were current IDs used in reports, pytest_result, gate artifacts, and closeout artifacts?",
+    "Were the previous audit limitations explicitly addressed?",
+    "Does the final report avoid duplicate entries in `Allowed Changed Source/Test Files`, `files_changed`, and summary-derived changed-file sections?",
+    "Are Required Audit answers precise, item-specific, and supported by direct source/test/gate/report evidence rather than generic filler?",
+    "Did the fallback step coverage answer explicitly account for all six required fallback steps?",
+    "Was `UserSolveSessionBundle` or equivalent session-level contract implemented?",
+    "Does the session bundle include user-facing result, trace summary, fallback decision, validation status, evidence status, missing-evidence summary, public message, and developer-only trace/artifact references?",
+    "Does default session user serialization hide internal project paths and developer trace references?",
+    "Does session developer/debug serialization preserve internal references explicitly for audit use?",
+    "Does session validation reject inconsistent states such as `verified` without passed validation or a verified result with missing evidence marked as unresolved?",
+    "Does the session builder/factory use existing `FastSolveWrapper`, `UserSolveTaskTrace`, `FallbackLadder`, and `EvidenceQualityMapper` instead of duplicating pipeline/solver/harness/job/runner responsibilities?",
+    "Does the session builder/factory remain in-memory and non-executing?",
+    "Does fallback metadata remain non-executing, with local/dynamic/high-risk steps blocked unless explicit synthetic policy allows them?",
+    "Does explicit synthetic permission still avoid actual tool/sample execution in this round?",
+    "Does the bundle preserve previous `candidate_found` pending-validation behavior?",
+    "Does the bundle preserve previous `verified` requires passed validation behavior?",
+    "Does the bundle preserve previous missing-evidence to deep-analysis/fallback behavior?",
+    "Does the bundle produce a clear user-facing `next_action` or equivalent field without exposing internal gate/report paths?",
+    "Does the bundle produce developer-only audit references without making them default user output?",
+    "Was a current gate artifact generated, for example `project_state/gates/user_solve_session_bundle_result.json`?",
+    "Does the gate artifact prove no external invocation or dispatch capability was added?",
+    "Did tests cover session user/developer serialization and redaction?",
+    "Did tests cover session validation errors?",
+    "Did tests cover session creation from candidate-found payloads?",
+    "Did tests cover session creation from verified payloads?",
+    "Did tests cover session creation from missing-evidence payloads with fallback recommendation?",
+    "Did tests cover changed-file/report deduplication?",
+    "Did tests cover Required Audit answer precision, including six-step fallback coverage wording?",
+    "Did existing user-solve/trace/fallback/evidence tests continue passing?",
+    "Did pytest_result record the real commands and exit codes?",
+    "Did command-plan authorize all executed commands and omit no executed commands?",
+    "Did final-check pass with current decision/report/round IDs?",
+    "Did run-closeout pass and archive corrected reports if command-plan authorized closeout?",
+    "Were forbidden files untouched?",
+    "Did the final report avoid claiming solved/static_verified/runtime_validated/audit_verified for any sample?",
 ]
 
 
@@ -554,6 +596,43 @@ def test_ci_run_evidence_and_local_ci_parity_required_audit_generator_is_substan
     assert "NOT_OBSERVED" in audit
     assert "bounded CI evidence/parity infrastructure" in audit
     assert result["status"] == "PASS"
+
+
+def test_user_solve_session_bundle_required_audit_generator_is_substantive() -> None:
+    decision_text = (
+        "# Decision\n\n"
+        "User Solve Session Bundle accepted_requires_user_solve_session_bundle_contract "
+        "accepted_requires_public_private_serialization_boundary "
+        "accepted_requires_session_bundle_gate_artifact\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(USER_SOLVE_SESSION_BUNDLE_QUESTIONS, start=1)
+        )
+    )
+
+    audit = _generate_user_solve_session_bundle_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == len(USER_SOLVE_SESSION_BUNDLE_QUESTIONS)
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/user_solve_session_bundle_result.json" in audit
+    for step_name in [
+        "fast_strings",
+        "ida_summary",
+        "targeted_decompile",
+        "constant_material_extract",
+        "solver_attempt",
+        "runtime_validation",
+    ]:
+        assert step_name in audit
+    assert "generic filler" in audit
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
 
 
 def test_ci_observation_bridge_required_audit_generator_is_substantive() -> None:

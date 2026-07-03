@@ -12,6 +12,7 @@ from .user_solve_contract import (
     ValidationStatus,
 )
 from .user_solve_trace import ArtifactReference, UserSolveTaskTrace
+from .user_solve_session import UserSolveSessionBundle, build_session_bundle
 
 
 NEGATIVE_CANDIDATES = {"", "NOT_FOUND", "UNKNOWN", "N/A", "NONE", "NULL"}
@@ -233,6 +234,29 @@ class FastSolveWrapper:
             "fallback_decision": fallback_decision,
         }
 
+    def adapt_session_bundle(self, payload: Mapping[str, Any]) -> UserSolveSessionBundle:
+        result_bundle = self.adapt_with_trace(payload)
+        internal_refs = _internal_references(payload)
+        missing = payload.get("missing_evidence") or []
+        if isinstance(missing, str):
+            missing = [missing]
+        return build_session_bundle(
+            session_id=_string(payload.get("session_id")) or _string(payload.get("task_id")) or "user_solve_session",
+            result=result_bundle["result"],
+            trace=result_bundle["trace"],
+            fallback_decision=result_bundle["fallback_decision"],
+            missing_evidence=[str(item) for item in missing if str(item).strip()],
+            public_message=_string(payload.get("public_message")) or result_bundle["result"].message,
+            developer_trace_refs=[
+                ref for ref in [_string(payload.get("developer_trace_ref")), *internal_refs] if ref
+            ],
+            artifact_references=internal_refs,
+        )
+
 
 def adapt_fast_result(payload: Mapping[str, Any]) -> UserSolveResult:
     return FastSolveWrapper().adapt(payload)
+
+
+def adapt_fast_session_bundle(payload: Mapping[str, Any]) -> UserSolveSessionBundle:
+    return FastSolveWrapper().adapt_session_bundle(payload)

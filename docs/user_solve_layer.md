@@ -30,3 +30,20 @@ steps can be selected automatically from synthetic state. Steps that imply local
 execution, dynamic validation, solver activity, or other elevated capability
 remain blocked unless explicitly authorized elsewhere, and the ladder itself
 never executes or dispatches them.
+
+## Session Bundle
+
+`UserSolveSessionBundle` packages the user-facing result, trace summary,
+fallback decision, validation status, evidence status, missing-evidence summary,
+public message, next action, and developer-only audit references into one
+in-memory contract. It is the future UI/API boundary shape, but it is not a
+Web/API endpoint, database row, queue job, scheduler task, upload-ingestion
+record, runner dispatch, or persistent `project_state/solve_tasks` artifact.
+
+Default session serialization is user-safe and redacts internal project-state
+paths, report paths, command-plan paths, and developer trace references.
+Developer serialization is explicit and may retain those references for audit
+use. Session validation preserves the lower-level rules: `candidate_found` may
+remain pending validation, `verified` requires passed validation and complete
+evidence, missing evidence maps to deep-analysis/fallback guidance, and
+fallback decisions remain non-executing metadata.

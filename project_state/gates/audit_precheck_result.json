@@ -3,10 +3,10 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-  "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
-  "generated_at": "2026-07-03T12:01:08.039685Z",
+  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+  "round_id": "round_20260703_user_solve_session_bundle_v1",
+  "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+  "generated_at": "2026-07-03T13:49:59.204181Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
@@ -55,7 +55,7 @@
         "audit_inventory_status.current is not true"
       ],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
+      "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,

@@ -1,0 +1,478 @@
+{
+  "schema_version": 1,
+  "artifact_name": "user_solve_session_bundle_result.json",
+  "gate_name": "user-solve-session-bundle",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+  "round_id": "round_20260703_user_solve_session_bundle_v1",
+  "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-03T13:49:20.331004Z",
+  "artifact_path": "project_state/gates/user_solve_session_bundle_result.json",
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "creates_persistent_session": false,
+  "external_invocations": {
+    "sample_execution": false,
+    "subprocess": false,
+    "network": false,
+    "runner_dispatch": false,
+    "github_actions": false,
+    "web_api": false,
+    "database_or_queue": false,
+    "scheduler_or_service": false,
+    "persistent_solve_tasks": false
+  },
+  "checks": [
+    {
+      "name": "candidate_session_serialization",
+      "status": "PASS",
+      "detail": "candidate-found session is user-redacted, developer-auditable, and pending validation",
+      "user_payload": {
+        "session_id": "gate-session-candidate",
+        "result": {
+          "status": "candidate_found",
+          "validation_status": "pending",
+          "evidence_status": "building",
+          "mode": "fast",
+          "message": "A candidate answer is available while validation evidence is still pending.",
+          "reason": "",
+          "candidates": [
+            {
+              "value": "flag{candidate}",
+              "validation_status": "pending",
+              "confidence": 0.7
+            }
+          ],
+          "answer": "flag{candidate}",
+          "confidence": 0.7
+        },
+        "trace_summary": {
+          "task_id": "gate-task-candidate",
+          "user_status": "candidate_found",
+          "engineering_status": "building",
+          "validation": {
+            "status": "pending",
+            "result": "A candidate answer is available while validation evidence is still pending.",
+            "validator": ""
+          },
+          "candidate_sources": [
+            {
+              "name": "supplied_candidate",
+              "source_type": "in_memory_result",
+              "confidence": 0.7
+            }
+          ],
+          "fallback_steps": [
+            {
+              "name": "fast_strings",
+              "status": "suggested",
+              "sequence": 1,
+              "missing_evidence": [],
+              "executed": false
+            }
+          ],
+          "missing_evidence": [],
+          "artifact_references": [],
+          "created_at": "",
+          "updated_at": "",
+          "sequence": 1
+        },
+        "fallback_decision": {
+          "selected_step": {
+            "name": "fast_strings",
+            "risk_level": "low",
+            "timeout_seconds": 20,
+            "required_capability": "static_strings",
+            "fast_mode_eligible": true,
+            "writes_artifact": false,
+            "permission_requirement": "automatic",
+            "requires_local_execution": false,
+            "requires_dynamic_debug": false,
+            "requires_network": false,
+            "executable_by_default": true
+          },
+          "eligible_steps": [
+            "fast_strings"
+          ],
+          "blocked_steps": [],
+          "missing_evidence": [],
+          "stop_reason": "selected_next_safe_step",
+          "executed": false
+        },
+        "validation_status": "pending",
+        "evidence_status": "building",
+        "missing_evidence_summary": [],
+        "public_message": "A candidate answer is available while validation evidence is still pending.",
+        "next_action": {
+          "kind": "validate_candidate",
+          "label": "Validate the candidate before final acceptance.",
+          "safe_to_show": true
+        }
+      },
+      "developer_payload": {
+        "session_id": "gate-session-candidate",
+        "result": {
+          "status": "candidate_found",
+          "validation_status": "pending",
+          "evidence_status": "building",
+          "mode": "fast",
+          "message": "A candidate answer is available while validation evidence is still pending.",
+          "reason": "",
+          "candidates": [
+            {
+              "value": "flag{candidate}",
+              "validation_status": "pending",
+              "confidence": 0.7
+            }
+          ],
+          "answer": "flag{candidate}",
+          "confidence": 0.7,
+          "developer_trace_ref": "project_state/decision_packet.md",
+          "internal_references": [
+            "project_state/gates/user_solve_session_bundle_result.json",
+            "project_state/decision_packet.md"
+          ]
+        },
+        "trace_summary": {
+          "task_id": "gate-task-candidate",
+          "user_status": "candidate_found",
+          "engineering_status": "building",
+          "validation": {
+            "status": "pending",
+            "result": "A candidate answer is available while validation evidence is still pending.",
+            "validator": ""
+          },
+          "candidate_sources": [
+            {
+              "name": "supplied_candidate",
+              "source_type": "in_memory_result",
+              "confidence": 0.7
+            }
+          ],
+          "fallback_steps": [
+            {
+              "name": "fast_strings",
+              "status": "suggested",
+              "sequence": 1,
+              "missing_evidence": [],
+              "executed": false
+            }
+          ],
+          "missing_evidence": [],
+          "artifact_references": [],
+          "created_at": "",
+          "updated_at": "",
+          "sequence": 1
+        },
+        "fallback_decision": {
+          "selected_step": {
+            "name": "fast_strings",
+            "risk_level": "low",
+            "timeout_seconds": 20,
+            "required_capability": "static_strings",
+            "fast_mode_eligible": true,
+            "writes_artifact": false,
+            "permission_requirement": "automatic",
+            "requires_local_execution": false,
+            "requires_dynamic_debug": false,
+            "requires_network": false,
+            "executable_by_default": true
+          },
+          "eligible_steps": [
+            {
+              "name": "fast_strings",
+              "risk_level": "low",
+              "timeout_seconds": 20,
+              "required_capability": "static_strings",
+              "fast_mode_eligible": true,
+              "writes_artifact": false,
+              "permission_requirement": "automatic",
+              "requires_local_execution": false,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": true
+            }
+          ],
+          "blocked_steps": [],
+          "missing_evidence": [],
+          "stop_reason": "selected_next_safe_step",
+          "executed": false
+        },
+        "validation_status": "pending",
+        "evidence_status": "building",
+        "missing_evidence_summary": [],
+        "public_message": "A candidate answer is available while validation evidence is still pending.",
+        "next_action": {
+          "kind": "validate_candidate",
+          "label": "Validate the candidate before final acceptance.",
+          "safe_to_show": true,
+          "developer_trace_ref": ""
+        },
+        "trace": {
+          "task_id": "gate-task-candidate",
+          "user_status": "candidate_found",
+          "engineering_status": "building",
+          "validation": {
+            "status": "pending",
+            "result": "A candidate answer is available while validation evidence is still pending.",
+            "validator": ""
+          },
+          "candidate_sources": [
+            {
+              "name": "supplied_candidate",
+              "source_type": "in_memory_result",
+              "confidence": 0.7,
+              "developer_trace_ref": "project_state/decision_packet.md"
+            }
+          ],
+          "fallback_steps": [
+            {
+              "name": "fast_strings",
+              "status": "suggested",
+              "sequence": 1,
+              "missing_evidence": [],
+              "executed": false,
+              "developer_trace_ref": ""
+            }
+          ],
+          "missing_evidence": [],
+          "artifact_references": [
+            {
+              "label": "internal_artifact",
+              "path": "project_state/gates/user_solve_session_bundle_result.json",
+              "public": false
+            },
+            {
+              "label": "internal_artifact",
+              "path": "project_state/decision_packet.md",
+              "public": false
+            }
+          ],
+          "created_at": "",
+          "updated_at": "",
+          "sequence": 1,
+          "developer_trace_ref": "project_state/decision_packet.md"
+        },
+        "developer_trace_refs": [
+          "project_state/decision_packet.md",
+          "project_state/gates/user_solve_session_bundle_result.json",
+          "project_state/decision_packet.md"
+        ],
+        "artifact_references": [
+          "project_state/gates/user_solve_session_bundle_result.json",
+          "project_state/decision_packet.md"
+        ]
+      }
+    },
+    {
+      "name": "verified_session_consistency",
+      "status": "PASS",
+      "detail": "verified session requires passed validation and complete evidence",
+      "user_payload": {
+        "session_id": "gate-session-verified",
+        "result": {
+          "status": "verified",
+          "validation_status": "passed",
+          "evidence_status": "complete",
+          "mode": "fast",
+          "message": "A candidate answer is verified by supplied validation evidence.",
+          "reason": "",
+          "candidates": [
+            {
+              "value": "flag{verified}",
+              "validation_status": "passed"
+            }
+          ],
+          "answer": "flag{verified}"
+        },
+        "trace_summary": {
+          "task_id": "gate-task-verified",
+          "user_status": "verified",
+          "engineering_status": "complete",
+          "validation": {
+            "status": "passed",
+            "result": "A candidate answer is verified by supplied validation evidence.",
+            "validator": ""
+          },
+          "candidate_sources": [
+            {
+              "name": "supplied_candidate",
+              "source_type": "in_memory_result"
+            }
+          ],
+          "fallback_steps": [
+            {
+              "name": "fast_strings",
+              "status": "suggested",
+              "sequence": 1,
+              "missing_evidence": [],
+              "executed": false
+            }
+          ],
+          "missing_evidence": [],
+          "artifact_references": [],
+          "created_at": "",
+          "updated_at": "",
+          "sequence": 1
+        },
+        "fallback_decision": {
+          "selected_step": {
+            "name": "fast_strings",
+            "risk_level": "low",
+            "timeout_seconds": 20,
+            "required_capability": "static_strings",
+            "fast_mode_eligible": true,
+            "writes_artifact": false,
+            "permission_requirement": "automatic",
+            "requires_local_execution": false,
+            "requires_dynamic_debug": false,
+            "requires_network": false,
+            "executable_by_default": true
+          },
+          "eligible_steps": [
+            "fast_strings"
+          ],
+          "blocked_steps": [],
+          "missing_evidence": [],
+          "stop_reason": "selected_next_safe_step",
+          "executed": false
+        },
+        "validation_status": "passed",
+        "evidence_status": "complete",
+        "missing_evidence_summary": [],
+        "public_message": "A candidate answer is verified by supplied validation evidence.",
+        "next_action": {
+          "kind": "return_answer",
+          "label": "Return the verified answer.",
+          "safe_to_show": true
+        }
+      }
+    },
+    {
+      "name": "missing_evidence_fallback_linkage",
+      "status": "PASS",
+      "detail": "missing-evidence session links to a redacted non-executing fallback recommendation",
+      "user_payload": {
+        "session_id": "gate-session-missing",
+        "result": {
+          "status": "deep_analysis_running",
+          "validation_status": "unavailable",
+          "evidence_status": "building",
+          "mode": "fast",
+          "message": "More analysis evidence is still being collected before a final answer can be verified.",
+          "reason": "",
+          "candidates": []
+        },
+        "trace_summary": {
+          "task_id": "gate-task-missing",
+          "user_status": "deep_analysis_running",
+          "engineering_status": "building",
+          "validation": {
+            "status": "unavailable",
+            "result": "More analysis evidence is still being collected before a final answer can be verified.",
+            "validator": ""
+          },
+          "candidate_sources": [],
+          "fallback_steps": [
+            {
+              "name": "fast_strings",
+              "status": "suggested",
+              "sequence": 1,
+              "missing_evidence": [
+                "targeted_decompile_missing",
+                "[internal][internal]"
+              ],
+              "executed": false
+            }
+          ],
+          "missing_evidence": [
+            "targeted_decompile_missing",
+            "[internal][internal]",
+            "targeted_decompile_missing",
+            "[internal][internal]"
+          ],
+          "artifact_references": [],
+          "created_at": "",
+          "updated_at": "",
+          "sequence": 1
+        },
+        "fallback_decision": {
+          "selected_step": {
+            "name": "fast_strings",
+            "risk_level": "low",
+            "timeout_seconds": 20,
+            "required_capability": "static_strings",
+            "fast_mode_eligible": true,
+            "writes_artifact": false,
+            "permission_requirement": "automatic",
+            "requires_local_execution": false,
+            "requires_dynamic_debug": false,
+            "requires_network": false,
+            "executable_by_default": true
+          },
+          "eligible_steps": [
+            "fast_strings"
+          ],
+          "blocked_steps": [],
+          "missing_evidence": [
+            "targeted_decompile_missing",
+            "[internal][internal]"
+          ],
+          "stop_reason": "selected_next_safe_step",
+          "executed": false
+        },
+        "validation_status": "unavailable",
+        "evidence_status": "building",
+        "missing_evidence_summary": [
+          "targeted_decompile_missing",
+          "[internal][internal]"
+        ],
+        "public_message": "More analysis evidence is still being collected before a final answer can be verified.",
+        "next_action": {
+          "kind": "fallback",
+          "label": "Collect more evidence with fast_strings.",
+          "safe_to_show": true
+        }
+      }
+    },
+    {
+      "name": "session_validation_rejects_inconsistent_states",
+      "status": "PASS",
+      "detail": "session validation rejects verified sessions with unresolved missing evidence"
+    },
+    {
+      "name": "fallback_step_coverage",
+      "status": "PASS",
+      "detail": "fallback coverage names all six required steps",
+      "steps": [
+        "fast_strings",
+        "ida_summary",
+        "targeted_decompile",
+        "constant_material_extract",
+        "solver_attempt",
+        "runtime_validation"
+      ]
+    },
+    {
+      "name": "no_execution_or_dispatch_terms",
+      "status": "PASS",
+      "detail": "session bundle source files contain no forbidden execution, dispatch, network, or persistent solve-task calls",
+      "found_forbidden": {}
+    },
+    {
+      "name": "report_quality_fix_support",
+      "status": "PASS",
+      "detail": "report generation supports changed-file deduplication and precise six-step Required Audit wording",
+      "dedup_ok": true,
+      "audit_ok": true
+    }
+  ],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/user_solve_session_bundle_result.json"
+  ]
+}

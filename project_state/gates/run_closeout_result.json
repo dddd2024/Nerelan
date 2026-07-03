@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-  "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-  "generated_at": "2026-07-03T12:00:41.200146Z",
+  "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+  "round_id": "round_20260703_user_solve_session_bundle_v1",
+  "generated_at": "2026-07-03T13:49:29.559767Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -38,7 +38,7 @@
     },
     {
       "name": "pytest",
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "expected_exit_codes": [
         0
@@ -87,9 +87,9 @@
       "status": "PASSED"
     },
     {
-      "name": "user-solve-trace-fallback",
-      "command": "python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state",
-      "kind": "user-solve-trace-fallback",
+      "name": "user-solve-session-bundle",
+      "command": "python -m reverse_agent.project_gate user-solve-session-bundle --state-dir project_state",
+      "kind": "user-solve-session-bundle",
       "expected_exit_codes": [
         0
       ],
@@ -104,7 +104,7 @@
         0,
         1
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "status": "PASSED"
     },
     {
@@ -141,7 +141,7 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260703_user_solve_trace_fallback_ladder_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260703_user_solve_session_bundle_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
@@ -166,13 +166,13 @@
     "schema_version": 1,
     "gate_name": "close-round",
     "close_status": "CLOSED",
-    "decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-    "report_id": "codex_report_20260703_user_solve_trace_fallback_ladder_v1",
-    "round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-    "decision_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-    "report_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
+    "decision_id": "decision_20260703_user_solve_session_bundle_v1",
+    "report_id": "codex_report_20260703_user_solve_session_bundle_v1",
+    "round_id": "round_20260703_user_solve_session_bundle_v1",
+    "decision_round_id": "round_20260703_user_solve_session_bundle_v1",
+    "report_round_id": "round_20260703_user_solve_session_bundle_v1",
     "report_status": "SUCCESS",
-    "generated_at": "2026-07-03T12:00:39.718173Z",
+    "generated_at": "2026-07-03T13:49:27.914510Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -199,15 +199,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-        "decision_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1",
-        "report_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1"
+        "requested_round_id": "round_20260703_user_solve_session_bundle_v1",
+        "decision_round_id": "round_20260703_user_solve_session_bundle_v1",
+        "report_round_id": "round_20260703_user_solve_session_bundle_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1"
+        "report_based_on_decision_id": "decision_20260703_user_solve_session_bundle_v1"
       },
       {
         "name": "pytest_result_match",
@@ -233,8 +233,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260703_user_solve_trace_fallback_ladder_v1",
-        "command_plan_round_id": "round_20260703_user_solve_trace_fallback_ladder_v1"
+        "command_plan_decision_id": "decision_20260703_user_solve_session_bundle_v1",
+        "command_plan_round_id": "round_20260703_user_solve_session_bundle_v1"
       },
       {
         "name": "command_plan_execution_order_policy",
@@ -296,7 +296,7 @@
         "detail": "closeout-tail command recording is pending until run-closeout completes",
         "errors": [
           {
-            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_trace_fallback_ladder_v1",
+            "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_session_bundle_v1",
             "error": "missing recorded command block",
             "expected_count": 1,
             "recorded_count": 0
@@ -311,9 +311,10 @@
         "detail": "round delta summary is baseline-aware",
         "path": "project_state/gates/round_delta_summary.json",
         "baseline_available": true,
-        "inherited_dirty_files": [],
+        "inherited_dirty_files": [
+          "docs/user_solve_layer.md"
+        ],
         "new_dirty_files_since_baseline": [
-          "docs/user_solve_layer.md",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/audit_precheck_result.json",
@@ -336,18 +337,15 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
-          "project_state/gates/user_solve_trace_fallback_result.json",
+          "project_state/gates/user_solve_session_bundle_result.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/evidence_quality.py",
-          "reverse_agent/fallback_ladder.py",
           "reverse_agent/project_gate.py",
           "reverse_agent/user_solve.py",
-          "reverse_agent/user_solve_trace.py",
-          "tests/test_evidence_quality.py",
-          "tests/test_fallback_ladder.py",
+          "reverse_agent/user_solve_session.py",
           "tests/test_project_gate.py",
+          "tests/test_project_reports.py",
           "tests/test_user_solve.py",
-          "tests/test_user_solve_trace.py"
+          "tests/test_user_solve_session.py"
         ],
         "final_dirty_files": [
           "docs/user_solve_layer.md",
@@ -373,25 +371,16 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
-          "project_state/gates/user_solve_trace_fallback_result.json",
+          "project_state/gates/user_solve_session_bundle_result.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/evidence_quality.py",
-          "reverse_agent/fallback_ladder.py",
           "reverse_agent/project_gate.py",
           "reverse_agent/user_solve.py",
-          "reverse_agent/user_solve_trace.py",
-          "tests/test_evidence_quality.py",
-          "tests/test_fallback_ladder.py",
+          "reverse_agent/user_solve_session.py",
           "tests/test_project_gate.py",
+          "tests/test_project_reports.py",
           "tests/test_user_solve.py",
-          "tests/test_user_solve_trace.py"
+          "tests/test_user_solve_session.py"
         ]
-      },
-      {
-        "name": "files_changed_excludes_inherited_dirty_files",
-        "status": "PASS",
-        "detail": "files_changed excludes inherited baseline dirty files",
-        "inherited_dirty_files": []
       },
       {
         "name": "files_changed_covers_git_diff",
@@ -422,21 +411,17 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
-          "project_state/gates/user_solve_trace_fallback_result.json",
+          "project_state/gates/user_solve_session_bundle_result.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/evidence_quality.py",
-          "reverse_agent/fallback_ladder.py",
           "reverse_agent/project_gate.py",
           "reverse_agent/user_solve.py",
-          "reverse_agent/user_solve_trace.py",
-          "tests/test_evidence_quality.py",
-          "tests/test_fallback_ladder.py",
+          "reverse_agent/user_solve_session.py",
           "tests/test_project_gate.py",
+          "tests/test_project_reports.py",
           "tests/test_user_solve.py",
-          "tests/test_user_solve_trace.py"
+          "tests/test_user_solve_session.py"
         ],
         "required_round_delta_files": [
-          "docs/user_solve_layer.md",
           "project_state/codex_execution_report.md",
           "project_state/execution_report.md",
           "project_state/gates/audit_precheck_result.json",
@@ -459,37 +444,33 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
-          "project_state/gates/user_solve_trace_fallback_result.json",
+          "project_state/gates/user_solve_session_bundle_result.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json",
-          "reverse_agent/evidence_quality.py",
-          "reverse_agent/fallback_ladder.py",
+          "project_state/rounds/round_20260703_user_solve_session_bundle_v1/round_manifest.json",
           "reverse_agent/project_gate.py",
           "reverse_agent/user_solve.py",
-          "reverse_agent/user_solve_trace.py",
-          "tests/test_evidence_quality.py",
-          "tests/test_fallback_ladder.py",
+          "reverse_agent/user_solve_session.py",
           "tests/test_project_gate.py",
+          "tests/test_project_reports.py",
           "tests/test_user_solve.py",
-          "tests/test_user_solve_trace.py"
+          "tests/test_user_solve_session.py"
         ],
-        "inherited_dirty_files": []
+        "inherited_dirty_files": [
+          "docs/user_solve_layer.md"
+        ]
       },
       {
         "name": "files_changed_covers_substantive_changes",
         "status": "PASS",
         "detail": "files_changed covers substantive source/test/artifact changes",
         "substantive_dirty_files": [
-          "reverse_agent/evidence_quality.py",
-          "reverse_agent/fallback_ladder.py",
           "reverse_agent/project_gate.py",
           "reverse_agent/user_solve.py",
-          "reverse_agent/user_solve_trace.py",
-          "tests/test_evidence_quality.py",
-          "tests/test_fallback_ladder.py",
+          "reverse_agent/user_solve_session.py",
           "tests/test_project_gate.py",
+          "tests/test_project_reports.py",
           "tests/test_user_solve.py",
-          "tests/test_user_solve_trace.py"
+          "tests/test_user_solve_session.py"
         ],
         "claimed_source_test_paths": []
       },
@@ -502,8 +483,16 @@
       {
         "name": "baseline_lifecycle_violation",
         "status": "PASS",
-        "detail": "baseline was captured before implementation; no untracked implementation files in baseline",
-        "baseline_untracked_implementation_files": []
+        "detail": "baseline untracked implementation files are explicitly allowed by decision contract scope",
+        "baseline_untracked_implementation_files": [
+          "reverse_agent/user_solve_session.py",
+          "tests/test_user_solve_session.py"
+        ],
+        "allowed_inherited_untracked_implementation_files": [
+          "reverse_agent/user_solve_session.py",
+          "tests/test_user_solve_session.py"
+        ],
+        "unauthorized_untracked_implementation_files": []
       },
       {
         "name": "baseline_lifecycle_guard",
@@ -516,15 +505,26 @@
           "reverse_agent/project_gate.py",
           "reverse_agent/user_solve.py",
           "reverse_agent/user_solve_contract.py",
+          "reverse_agent/user_solve_session.py",
           "reverse_agent/user_solve_trace.py",
           "tests/test_evidence_quality.py",
           "tests/test_fallback_ladder.py",
           "tests/test_project_gate.py",
           "tests/test_project_reports.py",
           "tests/test_user_solve.py",
+          "tests/test_user_solve_contract.py",
+          "tests/test_user_solve_session.py",
           "tests/test_user_solve_trace.py"
         ],
         "generated_or_archive_baseline_dirty_files": []
+      },
+      {
+        "name": "baseline_inherited_allowlist_explained",
+        "status": "PASS",
+        "detail": "no source/test inherited baseline explanation is required",
+        "inherited_dirty_files": [
+          "docs/user_solve_layer.md"
+        ]
       },
       {
         "name": "baseline_capture_order",
@@ -537,12 +537,15 @@
           "reverse_agent/project_gate.py",
           "reverse_agent/user_solve.py",
           "reverse_agent/user_solve_contract.py",
+          "reverse_agent/user_solve_session.py",
           "reverse_agent/user_solve_trace.py",
           "tests/test_evidence_quality.py",
           "tests/test_fallback_ladder.py",
           "tests/test_project_gate.py",
           "tests/test_project_reports.py",
           "tests/test_user_solve.py",
+          "tests/test_user_solve_contract.py",
+          "tests/test_user_solve_session.py",
           "tests/test_user_solve_trace.py"
         ],
         "baseline_dirty_source_test_files": [],
@@ -588,7 +591,7 @@
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
-          "project_state/gates/user_solve_trace_fallback_result.json",
+          "project_state/gates/user_solve_session_bundle_result.json",
           "project_state/pytest_result.txt"
         ]
       },
@@ -652,7 +655,9 @@
         "status": "PASS",
         "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
         "startup_source_test_dirty": [],
-        "baseline_dirty_files": [],
+        "baseline_dirty_files": [
+          "docs/user_solve_layer.md"
+        ],
         "missing_from_baseline": []
       },
       {
@@ -687,7 +692,7 @@
         "status": "WARN",
         "detail": "generated_artifacts omits round archive files",
         "missing_artifacts": [
-          "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json"
+          "project_state/rounds/round_20260703_user_solve_session_bundle_v1/round_manifest.json"
         ]
       },
       {
@@ -698,7 +703,8 @@
           "project_state/gates/ci_artifact_manifest_result.json",
           "project_state/gates/ci_observation_handoff_packet.json",
           "project_state/gates/ci_observation_schema_result.json",
-          "project_state/gates/user_solve_layer_result.json"
+          "project_state/gates/user_solve_layer_result.json",
+          "project_state/gates/user_solve_trace_fallback_result.json"
         ],
         "existing_gate_artifacts": [
           "project_state/gates/audit_precheck_result.json",
@@ -725,6 +731,7 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/gates/user_solve_layer_result.json",
+          "project_state/gates/user_solve_session_bundle_result.json",
           "project_state/gates/user_solve_trace_fallback_result.json"
         ],
         "referenced_artifacts": [
@@ -768,8 +775,8 @@
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260703_user_solve_trace_fallback_ladder_v1",
-        "manifest": "project_state\\rounds\\round_20260703_user_solve_trace_fallback_ladder_v1\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260703_user_solve_session_bundle_v1",
+        "manifest": "project_state\\rounds\\round_20260703_user_solve_session_bundle_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
@@ -786,7 +793,7 @@
     ],
     "archive": {
       "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260703_user_solve_trace_fallback_ladder_v1/round_manifest.json",
+      "round_manifest_path": "project_state/rounds/round_20260703_user_solve_session_bundle_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",

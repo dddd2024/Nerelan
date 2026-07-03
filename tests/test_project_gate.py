@@ -45,6 +45,7 @@ from reverse_agent.project_gate import (
     _audit_precheck_gate_check,
     _user_solve_layer_gate_check,
     _user_solve_trace_fallback_gate_check,
+    _user_solve_session_bundle_gate_check,
     _ci_run_evidence_gate_check,
     _ci_bridge_gate_check,
     _ci_bridge_closeout_consistency_check,
@@ -88,6 +89,7 @@ from reverse_agent.project_gate import (
     audit_precheck,
     user_solve_layer,
     user_solve_trace_fallback,
+    user_solve_session_bundle,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -1684,6 +1686,8 @@ def test_refresh_report_lists_current_source_changes_separately_from_inherited_b
     assert "## Allowed Changed Source/Test Files" in report_text
     assert "- reverse_agent/project_gate.py" in report_text
     assert "- tests/test_project_gate.py" in report_text
+    assert report_text.count("- reverse_agent/project_gate.py") == 1
+    assert report_text.count("- tests/test_project_gate.py") == 1
 
 
 def test_refresh_report_ignores_previous_run_closeout_failure_during_closeout(
@@ -17167,6 +17171,7 @@ def test_run_closeout_constants_and_allowlist():
             "ci-audit-handoff-bundle",
             "user-solve-layer",
             "user-solve-trace-fallback",
+            "user-solve-session-bundle",
             "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -25552,12 +25557,126 @@ def test_user_solve_trace_fallback_gate_check_rejects_stale_or_failed_artifact(t
     assert check["required"] is True
 
 
+def test_user_solve_trace_fallback_gate_check_allows_stale_optional_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_trace_optional",
+        round_id="round_trace_optional",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "gates" / "user_solve_trace_fallback_result.json",
+        {
+            "gate_name": "user-solve-trace-fallback",
+            "gate_status": "PASSED",
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+            "report_id": "codex_report_previous",
+        },
+    )
+
+    check = _user_solve_trace_fallback_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_trace_optional",
+        round_id="round_trace_optional",
+        report_id="codex_report_trace_optional",
+        decision_contract={},
+    )
+
+    assert check["status"] == "PASS"
+    assert check["required"] is False
+    assert "stale and not required" in check["detail"]
+
+
 def test_command_kind_recognizes_user_solve_trace_fallback_gate() -> None:
     command = "python -m reverse_agent.project_gate user-solve-trace-fallback --state-dir project_state"
 
     assert _command_kind(command) == "user-solve-trace-fallback"
     assert _command_phase("user-solve-trace-fallback", archive_seen=False) == "gate"
     assert "user-solve-trace-fallback" in RUN_CLOSEOUT_ALLOWED_KINDS
+
+
+def test_user_solve_session_bundle_gate_writes_current_safe_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_user_solve_session_bundle",
+        round_id="round_user_solve_session_bundle",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    contract = {
+        "accepted_requires_user_solve_session_bundle_contract": True,
+        "accepted_requires_public_private_serialization_boundary": True,
+        "accepted_requires_session_bundle_gate_artifact": True,
+    }
+
+    result = user_solve_session_bundle(state_dir=state_dir, repo_root=Path.cwd(), write_result=True)
+
+    artifact_path = state_dir / "gates" / "user_solve_session_bundle_result.json"
+    artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+    assert result["gate_status"] == "PASSED"
+    assert artifact["decision_id"] == "decision_user_solve_session_bundle"
+    assert artifact["round_id"] == "round_user_solve_session_bundle"
+    assert artifact["report_id"] == "codex_report_user_solve_session_bundle"
+    assert artifact["evidence_only"] is True
+    assert artifact["executable"] is False
+    assert artifact["can_execute"] is False
+    assert artifact["can_dispatch"] is False
+    assert artifact["mutates_state"] is False
+    assert artifact["creates_persistent_session"] is False
+    assert artifact["external_invocations"]["sample_execution"] is False
+    assert artifact["external_invocations"]["persistent_solve_tasks"] is False
+
+    check = _user_solve_session_bundle_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_user_solve_session_bundle",
+        round_id="round_user_solve_session_bundle",
+        report_id="codex_report_user_solve_session_bundle",
+        decision_contract=contract,
+    )
+    assert check["status"] == "PASS"
+
+
+def test_user_solve_session_bundle_gate_check_rejects_stale_or_failed_artifact(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_session_required",
+        round_id="round_session_required",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_json(
+        state_dir / "gates" / "user_solve_session_bundle_result.json",
+        {
+            "gate_name": "user-solve-session-bundle",
+            "gate_status": "FAILED",
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+            "report_id": "codex_report_previous",
+            "evidence_only": True,
+            "executable": False,
+            "can_execute": False,
+            "can_dispatch": False,
+            "mutates_state": False,
+            "creates_persistent_session": False,
+        },
+    )
+
+    check = _user_solve_session_bundle_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_session_required",
+        round_id="round_session_required",
+        report_id="codex_report_session_required",
+        decision_contract={"accepted_requires_user_solve_session_bundle_contract": True},
+    )
+
+    assert check["status"] == "FAIL"
+
+
+def test_command_kind_recognizes_user_solve_session_bundle_gate() -> None:
+    command = "python -m reverse_agent.project_gate user-solve-session-bundle --state-dir project_state"
+
+    assert _command_kind(command) == "user-solve-session-bundle"
+    assert _command_phase("user-solve-session-bundle", archive_seen=False) == "gate"
+    assert "user-solve-session-bundle" in RUN_CLOSEOUT_ALLOWED_KINDS
 
 
 def test_preflight_ignores_negated_runtime_terms_in_engineering_scope(tmp_path: Path) -> None:
