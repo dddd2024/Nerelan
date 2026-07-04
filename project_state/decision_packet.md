@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260704_user_solve_tool_profile_capability_v1",
-  "round_id": "round_20260704_user_solve_tool_profile_capability_v1",
+  "decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
+  "round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,39 +13,71 @@
 
 ```json decision_contract
 {
+  "supersedes_decision_id": "decision_20260704_user_solve_tool_profile_capability_v1",
+  "supersedes_round_id": "round_20260704_user_solve_tool_profile_capability_v1",
   "follows_last_accepted_decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
   "follows_last_accepted_round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
   "previous_audit_outcome": "ACCEPTED",
-  "phase_label": "phase_2_38_user_solve_tool_profile_capability_v1",
-  "primary_goal": "Add a deterministic tool profile and runner capability contract layer for future user-solve real-analysis routing, without invoking IDA/Ghidra/debuggers, processing binaries, creating services, or dispatching runners.",
+  "phase_label": "phase_2_38_user_solve_workbench_foundation_big_step",
+  "primary_goal": "Build a larger User Solve Workbench Foundation over the accepted local frontend MVP: tool profiles, runner capability metadata, route planning, local in-process workbench API facade, synthetic task trace contract, workbench fixtures, schema snapshots, CLI preview, gates, reports, docs, and focused tests. This round remains metadata-only and fixture-only; it must not perform real sample analysis or call external analysis tools.",
   "command_plan_authority_required": true,
   "accepted_requires_tool_profile_contract": true,
   "accepted_requires_runner_capability_contract": true,
-  "accepted_requires_example_config": true,
-  "accepted_requires_gate_artifact": true,
-  "accepted_requires_no_external_tool_invocation": true,
+  "accepted_requires_route_planner_contract": true,
+  "accepted_requires_workbench_api_facade": true,
+  "accepted_requires_synthetic_task_trace_contract": true,
+  "accepted_requires_workbench_gate_artifact": true,
   "allowed_source_files": [
     "reverse_agent/tool_profiles.py",
     "reverse_agent/tool_capabilities.py",
+    "reverse_agent/user_solve_route_plan.py",
+    "reverse_agent/user_solve_workbench.py",
+    "reverse_agent/user_solve_workbench_api.py",
+    "reverse_agent/user_solve_task_trace.py",
+    "reverse_agent/user_solve_fixtures.py",
+    "reverse_agent/user_solve_api_schema.py",
+    "reverse_agent/user_solve_cli.py",
+    "reverse_agent/user_solve_controller.py",
+    "reverse_agent/user_solve_frontend_bridge.py",
+    "reverse_agent/user_solve_ui_state.py",
+    "reverse_agent/user_solve_errors.py",
     "reverse_agent/project_gate.py",
     "tests/test_tool_profiles.py",
     "tests/test_tool_capabilities.py",
+    "tests/test_user_solve_route_plan.py",
+    "tests/test_user_solve_workbench.py",
+    "tests/test_user_solve_workbench_api.py",
+    "tests/test_user_solve_task_trace.py",
+    "tests/test_user_solve_api_schema.py",
+    "tests/test_user_solve_fixtures.py",
+    "tests/test_user_solve_cli.py",
     "tests/test_project_gate.py",
     "tests/test_project_reports.py"
   ],
+  "allowed_frontend_files": [
+    "frontend/user_solve_demo/app.js",
+    "frontend/user_solve_demo/index.html",
+    "frontend/user_solve_demo/style.css",
+    "frontend/user_solve_demo/README.md",
+    "frontend/user_solve_demo/fixtures/*.json"
+  ],
   "allowed_config_files": [
-    ".reverse-agent/config/tool_profiles.example.json"
+    ".reverse-agent/config/tool_profiles.example.json",
+    ".reverse-agent/config/user_solve_workbench.example.json"
   ],
   "allowed_documentation_files": [
-    "docs/user_solve_tool_profiles.md",
-    "docs/user_solve_layer.md"
+    "docs/user_solve_layer.md",
+    "docs/user_solve_control_plane.md",
+    "docs/user_solve_local_frontend_mvp.md",
+    "docs/user_solve_workbench.md",
+    "docs/user_solve_tool_profiles.md"
   ],
   "allowed_generated_or_updated_artifacts": [
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260704_user_solve_tool_profile_capability_v1/*"
+    "project_state/rounds/round_20260704_user_solve_workbench_foundation_big_step_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -58,28 +90,22 @@
     "training_materials/local_reverse/*",
     "project_state/solve_tasks/*",
     "project_state/user_sessions/*",
-    "frontend/user_solve_demo/*"
+    "project_state/jobs/*"
   ],
   "forbidden_capabilities_this_round": [
-    "ida_execution",
-    "ghidra_execution",
-    "ollydbg_execution",
-    "debugger_execution",
-    "emulator_execution",
-    "external_process_invocation",
-    "real_binary_processing",
+    "external_analysis_tool_invocation",
+    "real_sample_analysis_execution",
     "real_user_upload_ingestion",
-    "candidate_search",
-    "solver_execution",
-    "runtime_probe",
-    "dynamic_debug",
-    "ida_mcp_adapter",
+    "candidate_search_on_real_samples",
+    "runtime_validation_on_real_samples",
+    "interactive_tool_adapter",
     "production_http_service",
     "database_or_queue",
     "scheduler_or_service",
     "remote_runner_dispatch",
     "ci_dispatch_or_polling",
-    "persistent_user_task_or_session_creation"
+    "persistent_user_task_or_session_creation",
+    "auto_iteration"
   ]
 }
 ```
@@ -88,34 +114,42 @@
 
 ## 1. Goal
 
-Implement **User Solve Tool Profile and Runner Capability Contract v1**.
+Implement **User Solve Workbench Foundation Big Step v1**.
 
-The previous accepted round delivered a local, fixture-only frontend MVP over the offline user-solve control plane. The next safe step is not real upload handling, real IDA/Ghidra execution, IDA MCP, Web service infrastructure, or reverse sample solving. The next step is to add the configuration and capability contract layer that future user-solve routing will need before any real analysis backend is enabled.
+This supersedes the smaller tool-profile-only plan. The accepted baseline already has a local fixture frontend MVP. The next step should be larger: connect the existing user-solve contracts, frontend bridge, local API shape, capability metadata, route planning, synthetic task trace, CLI preview, gates, docs, and tests into one coherent local workbench foundation.
 
-Deliver in this round:
+Deliver in one round:
 
-1. A deterministic `ToolProfile` contract for configured reverse-engineering tools such as IDA, Ghidra, OllyDbg, x64dbg, radare2, solver, harness, and local script capabilities.
-2. A deterministic `RunnerCapability` contract describing what a runner can support without dispatching the runner or invoking tools.
-3. A bounded loader for example config, environment-provided paths, explicit overrides, and synthetic test fixtures. It must not execute external processes.
-4. A `.reverse-agent/config/tool_profiles.example.json` file showing portable configuration structure without storing local secrets or mandatory machine-specific paths.
-5. A `project_gate` check that emits `project_state/gates/tool_profile_capability_result.json` and proves the contract layer is schema-valid, deterministic, non-dispatching, and non-invasive.
-6. Tests for profile normalization, path-source priority, runner capability serialization, forbidden execution behavior, example config validity, gate output, and report/final-check integration.
-7. Documentation explaining how tool profiles and runner capabilities will later support real user-solve routing, while preserving command-plan, execution-log, artifact, and permission boundaries.
+1. Tool profile and runner capability contracts for future routing.
+2. A route planner that maps request state, missing evidence, risk level, permissions, and capability metadata into safe planned next actions.
+3. A local workbench facade that composes existing controller/session/result/UI/error/fixture behavior instead of duplicating it.
+4. A local in-process workbench API adapter with route-shaped pure functions for fixture catalog, solve preview, route plan preview, capability snapshot, task trace preview, and schema snapshot.
+5. A synthetic task trace contract for workbench demo tasks. It may serialize in memory and in gate artifacts, but must not create persistent task/session files.
+6. Expanded deterministic fixtures and schema snapshots shared by CLI, local API, frontend bridge, and tests.
+7. Optional static demo refresh under `frontend/user_solve_demo/` to display the larger workbench fixture payloads, without adding a framework or backend service.
+8. Project gate integration that emits `project_state/gates/user_solve_workbench_result.json` and `project_state/gates/user_solve_workbench_snapshot.json` or equivalent artifacts.
+9. CLI previews for candidate, missing-evidence, blocked, verified, route-plan, capability, and workbench states.
+10. Documentation for the new workbench foundation and future execution boundary.
+11. Focused tests plus required report-summary/final-check/run-closeout integration.
 
 Accepted target:
 
-- This is an engineering foundation round.
-- No real binary is processed.
-- No IDA, Ghidra, debugger, emulator, solver, harness, or external process is invoked.
-- No production API, scheduler, queue, database, remote runner, persistent session, or upload pipeline is added.
-- No concrete sample is claimed solved, static verified, runtime validated, or audit verified.
-- The result should make later real-analysis routing safer by eliminating hidden hardcoded assumptions about the local Windows machine or IDA path.
+- The implementation is a large engineering foundation step, not a reverse-solving step.
+- It is local, deterministic, synthetic, fixture-backed, and non-persistent.
+- It does not perform real sample analysis or call external analysis tools.
+- It does not create a production service, database, queue, scheduler, remote dispatch, CI polling, persistent task/session store, or auto-iteration loop.
+- It does not claim any concrete sample is solved, statically verified, runtime validated, or audit verified.
 
 ## 2. Current Evidence
 
 Mainline: `engineering_branch`.
 
 `project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only and states `execution_scope=decision_packet_controls_current_round`.
+
+This decision supersedes:
+
+- `decision_20260704_user_solve_tool_profile_capability_v1`
+- `round_20260704_user_solve_tool_profile_capability_v1`
 
 Last accepted baseline:
 
@@ -134,26 +168,21 @@ Evidence from the accepted baseline:
 
 Existing capabilities to preserve and not duplicate:
 
-- User-solve contracts, trace, fallback ladder, evidence quality mapper, session bundle, request/response/handoff/controller/CLI, frontend bridge, local API, schema, UI state, errors, fixtures, static demo, command-plan, execution-log, project gates, jobs, AgentRunner, pipeline, harness, solver/tool interfaces.
-- Mature external reverse-engineering tools remain responsible for disassembly, decompilation, debugging, and evidence extraction. This project only records configuration/capability metadata in this round.
+- User-solve result/state/trace/fallback/evidence-quality/session/request/response/handoff/controller/CLI/frontend/local API/schema/UI/error/fixture contracts.
+- command-plan, execution-log, project gates, jobs, AgentRunner, pipeline, harness, solver/tool interfaces.
+- External specialist tools remain outside this round; this round only prepares metadata, route plans, API contracts, and synthetic trace representation.
 
 Artifact freshness policy:
 
-- Current-round artifacts must carry `decision_20260704_user_solve_tool_profile_capability_v1` and `round_20260704_user_solve_tool_profile_capability_v1`.
+- Current-round artifacts must carry `decision_20260704_user_solve_workbench_foundation_big_step_v1` and `round_20260704_user_solve_workbench_foundation_big_step_v1`.
 - Historical sample artifacts in `current_state.json` and `artifact_index.json` are backlog context only and must not be used as current evidence.
 - Missing historical sample artifacts are non-blocking for this engineering round.
-- Any generated tool-profile gate artifact must be synthetic/configuration evidence only, not proof that IDA/Ghidra/debugger execution works.
+- Any generated workbench gate artifact must be synthetic/configuration/fixture evidence only.
 
 Negative results:
 
 - `negative_results.json` blocks old solver blind search, budget-only expansion, invalid frontier reuse, full solve_reports commits, and repeated stale diagnostics.
 - This round is engineering-only and must not enter those reverse-solving directions.
-
-Tool-interface caution:
-
-- Before implementing, inspect the existing runner, pipeline, harness, solver, and project gate surfaces to avoid duplicating established responsibilities.
-- If any relevant tool-profile or capability module already exists, extend it compatibly rather than creating a parallel mechanism.
-- Do not assume the project lacks IDA/Ghidra/debugger interfaces.
 
 Command-plan policy:
 
@@ -167,13 +196,13 @@ Command-plan policy:
 
 Do not solve a concrete reverse sample.
 
-Do not process real binaries, real user uploads, or training samples.
+Do not process real samples, real user uploads, or training samples.
 
-Do not invoke IDA, Ghidra, OllyDbg, x64dbg, radare2, emulators, debuggers, solvers, harness runtime probes, or arbitrary external commands.
+Do not invoke external analysis tools or add external process execution.
 
-Do not implement IDA MCP, MCP adapters, remote mutation, patching, decompilation calls, xref queries, or interactive tool control.
+Do not implement interactive tool adapters, production HTTP infrastructure, database, queue, scheduler, remote runner dispatch, CI dispatch/polling, persistent user task/session storage, or real upload ingestion.
 
-Do not implement production HTTP infrastructure, database, queue, scheduler, remote runner dispatch, CI dispatch/polling, persistent user task/session storage, or real upload ingestion.
+Do not create files under `project_state/solve_tasks/`, `project_state/user_sessions/`, or `project_state/jobs/` in this round. Use in-memory synthetic fixtures and gate artifacts only.
 
 Do not add dynamic machine-specific facts to `.codex-skills/`.
 
@@ -181,9 +210,9 @@ Do not mutate forbidden paths listed in `decision_contract`.
 
 Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
-Do not claim any sample is solved, static verified, runtime validated, or audit verified.
+Do not claim any sample is solved, statically verified, runtime validated, or audit verified.
 
-Do not hardcode the user's local IDA/Ghidra/debugger path as a required default. Example config may show placeholder paths only.
+Do not hardcode local machine paths as required defaults. Example config may show placeholders only.
 
 Do not duplicate existing command-plan, execution-log, jobs, AgentRunner, pipeline, harness, solver/tool, result/trace/fallback/session/control-plane/frontend responsibilities.
 
@@ -220,9 +249,12 @@ Inspect accepted user-solve/frontend control plane:
 15. `reverse_agent/user_solve_ui_state.py`
 16. `reverse_agent/user_solve_errors.py`
 17. `reverse_agent/user_solve_fixtures.py`
-18. existing user-solve tests and docs
+18. `frontend/user_solve_demo/README.md`
+19. `frontend/user_solve_demo/app.js`
+20. `frontend/user_solve_demo/fixtures/catalog.json`
+21. existing user-solve tests and docs
 
-Inspect orchestration/tool-adjacent code to avoid duplication:
+Inspect orchestration/tool-adjacent code only to avoid duplication:
 
 1. `reverse_agent/project_gate.py`
 2. `tests/test_project_gate.py`
@@ -232,7 +264,6 @@ Inspect orchestration/tool-adjacent code to avoid duplication:
 6. `reverse_agent/project_runner_contract.py`
 7. `reverse_agent/pipeline.py`
 8. `reverse_agent/harness.py`
-9. existing solver/tool interface modules discovered by bounded file-name search, if command-plan authorizes such inspection
 
 Do not inspect full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt` unless command-plan authorizes a bounded diagnostic.
 
@@ -242,80 +273,65 @@ The execution report must answer each item with direct evidence and `PASS`, `FAI
 
 1. Was the current decision treated as execution authority and task_packet as background only?
 2. Did decision metadata remain valid and aligned with active `reverse-agent-iteration@v2`?
-3. Was the last accepted local frontend MVP treated as the baseline, without reopening that round's scope?
-4. Were startup and prework provenance commands recorded before implementation validation?
-5. Was an existing tool/profile/capability implementation searched for or boundedly inspected before adding new modules?
-6. Was `reverse_agent/tool_profiles.py` implemented or compatibly extended?
-7. Does `ToolProfile` support stable tool identity, category, configured path, path source, availability metadata, capability flags, risk level, and safe serialization?
-8. Does tool profile loading use deterministic precedence without executing external processes?
-9. Does the implementation avoid hardcoding a required local IDA/Ghidra/debugger path?
+3. Did this decision supersede the smaller tool-profile-only plan without mixing scopes?
+4. Was the last accepted local frontend MVP treated as baseline?
+5. Were startup and prework provenance commands recorded before implementation validation?
+6. Was existing related functionality inspected before adding new modules?
+7. Was `reverse_agent/tool_profiles.py` implemented or compatibly extended?
+8. Does `ToolProfile` support stable identity, category, path source, availability metadata, capability flags, risk level, disabled/unavailable states, and safe serialization?
+9. Does tool profile loading use deterministic precedence without external process execution?
 10. Was `reverse_agent/tool_capabilities.py` implemented or compatibly extended?
-11. Does `RunnerCapability` represent runner id, platform metadata, available/missing tools, permission flags, and supported analysis features without dispatching work?
-12. Can runner capability serialization distinguish configured, discovered, unavailable, and disabled tools?
-13. Was `.reverse-agent/config/tool_profiles.example.json` added with portable placeholders and no secrets?
-14. Was documentation added for tool profile/capability usage and future routing semantics?
-15. Was a `project_gate` check added for tool profile/capability validation?
-16. Was a current `project_state/gates/tool_profile_capability_result.json` or equivalent gate artifact generated?
-17. Does the gate artifact carry current decision/report/round IDs?
-18. Does the gate artifact prove no external tool invocation, no binary processing, no dispatch, and no persistence?
-19. Do tests cover valid profile normalization and serialization?
-20. Do tests cover invalid profile rejection?
-21. Do tests cover path-source precedence and explicit override behavior using synthetic fixtures only?
-22. Do tests cover runner capability serialization and missing-tool reporting?
-23. Do tests cover example config validity?
-24. Do tests cover gate behavior and final-check/report-summary integration?
-25. Do existing user-solve/frontend/control-plane tests continue passing or remain unaffected under command-plan coverage?
-26. Did pytest_result record real commands and exit codes?
-27. Did command-plan authorize all executed commands and omit no executed commands?
-28. Did final-check pass with current IDs?
-29. Did run-closeout pass and archive current reports if authorized?
-30. Were forbidden files untouched?
-31. Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?
-32. Did the implementation avoid IDA MCP, real Web/API service behavior, database/queue, scheduler, remote dispatch, and CI polling?
+11. Does `RunnerCapability` represent runner id, platform metadata, available/missing/disabled tools, permission flags, and supported analysis features without dispatching work?
+12. Was `reverse_agent/user_solve_route_plan.py` implemented or compatibly extended?
+13. Does route planning map request state, missing evidence, capability availability, risk level, and permissions into safe planned next actions without executing them?
+14. Was `reverse_agent/user_solve_task_trace.py` implemented or compatibly extended?
+15. Does synthetic task trace capture request metadata, fixture/demo source, candidate state, missing evidence, route plan, validation state, and artifact placeholders without persistent task files?
+16. Was `reverse_agent/user_solve_workbench.py` implemented or compatibly extended?
+17. Does the workbench facade compose existing controller/session/result/UI/error/fixture behavior instead of duplicating it?
+18. Was `reverse_agent/user_solve_workbench_api.py` implemented or compatibly extended?
+19. Does the workbench API provide route-shaped pure-function handling without production service behavior?
+20. Were fixture catalog and frontend/demo fixtures expanded consistently if touched?
+21. Were schema snapshots expanded for tool profiles, runner capabilities, route plans, workbench API routes, task traces, fixtures, UI states, and public/developer payloads?
+22. Were example configs added with portable placeholders and no secrets?
+23. Were CLI previews added for candidate, missing-evidence, blocked, verified, route-plan, capability, and workbench states?
+24. Was documentation added or updated for the workbench foundation and future execution boundary?
+25. Was a current `user_solve_workbench_result.json` or equivalent gate artifact generated?
+26. Was a current `user_solve_workbench_snapshot.json` or equivalent snapshot generated?
+27. Do gate artifacts carry current decision/report/round IDs?
+28. Do gate artifacts prove no external tool invocation, no real sample analysis, no dispatch, no persistence, and no production service behavior?
+29. Do tests cover profile normalization, invalid profile rejection, capability serialization, route planner behavior, task trace serialization/redaction, workbench facade/API behavior, example config validity, schema stability, gates, reports, and CLI previews?
+30. Do existing user-solve/frontend/control-plane tests continue passing under command-plan coverage?
+31. Did pytest_result record real commands and exit codes?
+32. Did command-plan authorize all executed commands and omit no executed commands?
+33. Did final-check pass with current IDs?
+34. Did run-closeout pass and archive current reports if authorized?
+35. Were forbidden files untouched?
+36. Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?
 
 ## 6. Implementation Scope
 
 Allowed implementation:
 
-1. Add or extend `reverse_agent/tool_profiles.py`.
-   - Define stable data structures for tool profiles.
-   - Include categories such as `static_analyzer`, `decompiler`, `debugger`, `emulator`, `solver`, `harness`, and `local_script` only as metadata.
-   - Represent path source such as `explicit`, `environment`, `config`, `path_hint`, `common_path_candidate`, `disabled`, and `unavailable`.
-   - Provide deterministic loaders from in-memory dictionaries, explicit overrides, environment mappings, and example config data.
-   - Do not run subprocesses or invoke the configured tools.
-
-2. Add or extend `reverse_agent/tool_capabilities.py`.
-   - Define `RunnerCapability` and related serialization helpers.
-   - Represent runner/platform metadata and available/missing/disabled tool capabilities.
-   - Represent whether a future runner could support static extraction, decompilation, dynamic debugging, runtime validation, or solver execution, but do not execute those actions.
-   - Make permission-sensitive capabilities explicit and default-safe.
-
-3. Add `.reverse-agent/config/tool_profiles.example.json`.
-   - Use placeholders and portable examples.
-   - Do not include local secrets.
-   - Do not require the user's machine-specific `F:\reverse-agent` or IDA path.
-
-4. Update `reverse_agent/project_gate.py`.
-   - Add a `tool-profile-capability` gate or equivalent.
-   - Generate `project_state/gates/tool_profile_capability_result.json`.
-   - Integrate the artifact into report-summary/final-check only for this decision when required.
-
-5. Add tests.
-   - `tests/test_tool_profiles.py`
-   - `tests/test_tool_capabilities.py`
-   - Focused updates to `tests/test_project_gate.py` and `tests/test_project_reports.py` only as needed.
-
-6. Add documentation.
-   - `docs/user_solve_tool_profiles.md`
-   - Optionally update `docs/user_solve_layer.md` with a short pointer to the new tool profile/capability layer.
+1. Add or extend `reverse_agent/tool_profiles.py` for deterministic tool metadata.
+2. Add or extend `reverse_agent/tool_capabilities.py` for deterministic runner capability metadata.
+3. Add or extend `reverse_agent/user_solve_route_plan.py` for planned next-action metadata.
+4. Add or extend `reverse_agent/user_solve_task_trace.py` for synthetic workbench task traces.
+5. Add or extend `reverse_agent/user_solve_workbench.py` to compose existing user-solve controller, fixtures, UI state mapping, route plans, capabilities, and task trace.
+6. Add or extend `reverse_agent/user_solve_workbench_api.py` for route-shaped pure-function local workbench previews.
+7. Update existing user-solve modules only as needed for compatibility: fixtures, schema, CLI, controller, frontend bridge, UI state, and errors.
+8. Add `.reverse-agent/config/tool_profiles.example.json` and `.reverse-agent/config/user_solve_workbench.example.json` with safe placeholders.
+9. Update static demo files only if needed, keeping the demo static and fixture-only.
+10. Update `reverse_agent/project_gate.py` with a `user-solve-workbench` gate or equivalent.
+11. Add focused tests for the new contracts, facade, API, CLI, schema, gate, and report integration.
+12. Add/update documentation for the workbench foundation and future execution boundary.
 
 Compatibility rules:
 
 - Existing accepted tests must continue passing under command-plan coverage.
-- New modules must import without IDA, Ghidra, OllyDbg, x64dbg, radare2, or optional reverse-engineering tools installed.
+- New modules must import without optional external reverse-engineering tools installed.
 - New logic must be deterministic in unit tests.
-- New logic must be configuration/capability metadata only.
-- Future execution must remain controlled by command-plan, execution-log, runner permission profiles, and gates.
+- New logic must be configuration/capability/routing/fixture metadata only.
+- Future execution must remain controlled by command-plan, execution-log, runner permission profiles, artifact indexing, and gates.
 
 ## 7. Tests
 
@@ -342,8 +358,14 @@ Expected validation coverage, subject to command-plan authorization:
 
 ```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m pytest tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_project_gate.py tests/test_project_reports.py -q
-python -m reverse_agent.project_gate tool-profile-capability --state-dir project_state
+python -m pytest tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_user_solve_route_plan.py tests/test_user_solve_task_trace.py tests/test_user_solve_workbench.py tests/test_user_solve_workbench_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_fixtures.py tests/test_user_solve_cli.py tests/test_project_gate.py tests/test_project_reports.py -q
+python -m reverse_agent.user_solve_cli --demo candidate
+python -m reverse_agent.user_solve_cli --demo missing-evidence
+python -m reverse_agent.user_solve_cli --demo blocked
+python -m reverse_agent.user_solve_cli --demo verified
+python -m reverse_agent.user_solve_cli --workbench-demo route-plan
+python -m reverse_agent.user_solve_cli --workbench-demo capability
+python -m reverse_agent.project_gate user-solve-workbench --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
@@ -352,13 +374,14 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 If command-plan profile requires broader validation:
 
 ```powershell
-python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_project_gate.py tests/test_project_reports.py -q
+python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_user_solve_route_plan.py tests/test_user_solve_task_trace.py tests/test_user_solve_workbench.py tests/test_user_solve_workbench_api.py tests/test_project_gate.py tests/test_project_reports.py -q
+python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q
 ```
 
 If command-plan authorizes closeout:
 
 ```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_user_solve_tool_profile_capability_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_user_solve_workbench_foundation_big_step_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -373,22 +396,27 @@ Stop and report `REWORK_REQUIRED` or `BLOCKED` if any condition occurs:
 3. `task_packet.json` is treated as execution authority.
 4. Startup provenance is missing or ambiguous.
 5. Any forbidden path is modified.
-6. Any real IDA/Ghidra/debugger/emulator/solver/harness/tool execution is added or invoked.
-7. Any external process invocation is added for tool discovery.
-8. Any real binary, sample, or user upload is processed.
-9. Any production service, database, queue, scheduler, remote dispatch, CI polling, persistent task/session, or real upload flow is added.
-10. IDA MCP or another interactive tool adapter is implemented in this round.
-11. A machine-specific local path is hardcoded as a required default.
-12. Tool profile or runner capability code duplicates AgentRunner, pipeline, harness, solver, or existing tool interface responsibilities instead of describing capabilities.
-13. Missing tool capability is treated as working execution evidence.
-14. Current-round gate artifacts are missing or carry stale decision/report/round IDs.
-15. `tool_profile_capability_result.json` or equivalent is missing.
-16. Required focused tests are missing.
-17. `pytest_result.txt` is missing, stale, or inconsistent with report `tests_ran`.
-18. command-plan is missing, stale, or not respected.
-19. final-check fails.
-20. closeout is executed without command-plan authorization.
-21. closeout is required but missing or failed.
-22. The final report claims any concrete sample is solved, static verified, runtime validated, or audit verified.
+6. Any real sample analysis or external analysis tool invocation is added.
+7. Any real sample, training sample, or user upload is processed.
+8. Any production service, database, queue, scheduler, remote dispatch, CI polling, persistent task/session, or real upload flow is added.
+9. Any interactive external tool adapter is implemented in this round.
+10. A machine-specific local path is hardcoded as a required default.
+11. New code duplicates AgentRunner, pipeline, harness, solver, or existing tool interface responsibilities instead of describing or composing them.
+12. Missing tool capability is treated as working execution evidence.
+13. Planned actions are executed instead of represented as route-plan metadata.
+14. Default user serialization leaks internal project paths, developer trace refs, artifact paths, local filesystem details, or machine-specific config.
+15. `verified` can be represented without passed validation evidence.
+16. Missing evidence is treated as solved evidence.
+17. Current-round gate artifacts are missing or carry stale decision/report/round IDs.
+18. `user_solve_workbench_result.json` or equivalent is missing.
+19. `user_solve_workbench_snapshot.json` or equivalent is missing.
+20. Required focused tests are missing.
+21. Existing accepted user-solve/frontend/control-plane behavior regresses.
+22. `pytest_result.txt` is missing, stale, or inconsistent with report `tests_ran`.
+23. command-plan is missing, stale, or not respected.
+24. final-check fails.
+25. closeout is executed without command-plan authorization.
+26. closeout is required but missing or failed.
+27. The final report claims any concrete sample is solved, statically verified, runtime validated, or audit verified.
 
-If only part of the tool profile/capability contract is completed, do not claim `SUCCESS`; report `PARTIAL`, `BLOCKED`, or `REWORK_REQUIRED` with exact missing pieces.
+If only part of the workbench foundation is completed, do not claim `SUCCESS`; report `PARTIAL`, `BLOCKED`, or `REWORK_REQUIRED` with exact missing pieces.
