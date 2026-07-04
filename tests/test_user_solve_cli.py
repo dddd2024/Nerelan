@@ -21,3 +21,22 @@ def test_cli_missing_evidence_demo_outputs_safe_response(capsys) -> None:
     assert payload["next_action"]["kind"] == "fallback"
     assert payload["fallback_summary"]["executed"] is False
     assert not contains_internal_reference(payload)
+
+
+def test_cli_workbench_route_plan_preview(capsys) -> None:
+    assert main(["--workbench-demo", "route-plan"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["fixture_name"] == "missing-evidence"
+    assert payload["executed"] is False
+    assert payload["planned_actions"][0]["kind"] == "collect_evidence"
+    assert not contains_internal_reference(payload)
+
+
+def test_cli_workbench_capability_preview(capsys) -> None:
+    assert main(["--workbench-demo", "capability"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["capability"]["can_dispatch"] is False
+    assert payload["capability"]["executes_external_tools"] is False
+    assert not contains_internal_reference(payload)

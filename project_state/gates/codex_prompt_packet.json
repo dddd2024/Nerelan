@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
-  "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
-  "report_id": "codex_report_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
+  "round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
+  "report_id": "codex_report_20260704_user_solve_workbench_foundation_big_step_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-04T10:48:20.445462Z",
+  "generated_at": "2026-07-04T14:42:19.866797Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
-      "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
-      "sha256": "019384bf15b8884debd3c78ec2ed6e43bbb91d8a8a36a76c21fcf932eaed91b1"
+      "decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
+      "round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
+      "sha256": "68c4ea30c7869b035ceb67b0f6b6f178c7ab210bca1b9b730c6d38a22e88cb5c"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
-      "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
-      "sha256": "624c204b1f154685bd1abd0ed4502635101851a14d297ccb8a26a47c365eb10a"
+      "decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
+      "round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
+      "sha256": "93dd57d62fc63bb040a6859eb829824c6577df673a11f2fff6493d6233e9f472"
     }
   },
   "prompt_sections": {

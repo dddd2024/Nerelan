@@ -72,3 +72,11 @@ The local frontend MVP builds on this control plane with:
 The frontend MVP remains local and fixture-only. It does not add a production
 HTTP service, persistence, queue, scheduler, remote dispatch, external process
 invocation, upload ingestion, candidate search, or real binary processing.
+
+## Workbench Foundation
+
+The workbench foundation prepares future control-plane routing with safe
+metadata only. Tool profiles and runner capabilities describe what could be
+available; route plans and task traces explain the next safe action for a
+fixture preview. The current round keeps all work local, synthetic,
+fixture-backed, non-persistent, and non-dispatching.

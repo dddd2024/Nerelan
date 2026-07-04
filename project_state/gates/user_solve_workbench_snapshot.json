@@ -1,0 +1,1491 @@
+{
+  "schema_version": 1,
+  "artifact_name": "user_solve_workbench_snapshot.json",
+  "decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
+  "round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
+  "report_id": "codex_report_20260704_user_solve_workbench_foundation_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-04T14:41:26.281799Z",
+  "fixture_only": true,
+  "tool_profiles": {
+    "schema_version": 1,
+    "fixture_only": true,
+    "executes_tools": false,
+    "deterministic_precedence": [
+      "defaults",
+      "explicit_overrides_by_tool_id"
+    ],
+    "profiles": [
+      {
+        "tool_id": "fast_strings",
+        "label": "Fast strings scan",
+        "category": "static",
+        "path_source": "built_in_metadata",
+        "availability": "available",
+        "capability_flags": [
+          "fixture_preview",
+          "static_strings"
+        ],
+        "risk_level": "low",
+        "disabled_reason": "",
+        "unavailable_reason": "",
+        "can_execute_by_default": true
+      },
+      {
+        "tool_id": "ida_summary",
+        "label": "IDA summary",
+        "category": "static",
+        "path_source": "user_config_placeholder",
+        "availability": "missing",
+        "capability_flags": [
+          "ida_summary",
+          "targeted_static_analysis"
+        ],
+        "risk_level": "low",
+        "disabled_reason": "",
+        "unavailable_reason": "not_configured_for_fixture_preview",
+        "can_execute_by_default": false
+      },
+      {
+        "tool_id": "runtime_validation",
+        "label": "Runtime validation",
+        "category": "validation",
+        "path_source": "permission_controlled_runner",
+        "availability": "disabled",
+        "capability_flags": [
+          "runtime_validation"
+        ],
+        "risk_level": "high",
+        "disabled_reason": "real_sample_execution_forbidden_this_round",
+        "unavailable_reason": "",
+        "can_execute_by_default": false
+      }
+    ]
+  },
+  "capability_snapshot": {
+    "schema_version": 1,
+    "fixture_only": true,
+    "capability": {
+      "runner_id": "fixture-local-workbench",
+      "platform": "local_metadata_only",
+      "available_tools": [
+        "fast_strings"
+      ],
+      "missing_tools": [
+        "ida_summary"
+      ],
+      "disabled_tools": [
+        "runtime_validation"
+      ],
+      "permission_flags": [
+        "fixture_only",
+        "no_real_sample_execution",
+        "no_remote_dispatch"
+      ],
+      "supported_features": [
+        "fixture_preview",
+        "static_strings"
+      ],
+      "can_dispatch": false,
+      "executes_external_tools": false
+    }
+  },
+  "schema": {
+    "schema_version": 1,
+    "fixture_only": true,
+    "request": {
+      "required": [
+        "request_id",
+        "input_kind",
+        "fixture_name",
+        "mode"
+      ],
+      "input_kinds": [
+        "fixture",
+        "demo",
+        "synthetic"
+      ],
+      "persistent_sessions": false,
+      "real_uploads": false
+    },
+    "response": {
+      "required": [
+        "request",
+        "status",
+        "validation_status",
+        "evidence_status",
+        "public_message",
+        "next_action",
+        "fallback_summary",
+        "handoff"
+      ],
+      "default_user_output_hides_internal_refs": true,
+      "developer_serialization_explicit": true
+    },
+    "error_payload": {
+      "required": [
+        "code",
+        "public_message",
+        "retryable"
+      ],
+      "codes": [
+        "fixture_not_found",
+        "method_not_allowed",
+        "route_not_found",
+        "unsafe_request"
+      ]
+    },
+    "ui_state": {
+      "display_states": [
+        "ready",
+        "candidate_pending_validation",
+        "needs_more_evidence",
+        "verified",
+        "blocked",
+        "failed",
+        "review"
+      ],
+      "verified_requires_validation_passed": true,
+      "candidate_found_is_pending_validation": true,
+      "missing_evidence_maps_to_fallback": true
+    },
+    "routes": [
+      {
+        "method": "GET",
+        "path": "/api/fixtures",
+        "kind": "catalog"
+      },
+      {
+        "method": "GET",
+        "path": "/api/fixtures/{fixture_name}",
+        "kind": "fixture"
+      },
+      {
+        "method": "POST",
+        "path": "/api/solve",
+        "kind": "fixture_request"
+      },
+      {
+        "method": "GET",
+        "path": "/api/workbench/fixtures",
+        "kind": "workbench_catalog"
+      },
+      {
+        "method": "GET",
+        "path": "/api/workbench/capabilities",
+        "kind": "capability_snapshot"
+      },
+      {
+        "method": "GET",
+        "path": "/api/workbench/schema",
+        "kind": "schema_snapshot"
+      },
+      {
+        "method": "GET",
+        "path": "/api/workbench/route-plan/{fixture_name}",
+        "kind": "route_plan"
+      },
+      {
+        "method": "GET",
+        "path": "/api/workbench/trace/{fixture_name}",
+        "kind": "task_trace"
+      },
+      {
+        "method": "POST",
+        "path": "/api/workbench/preview",
+        "kind": "workbench_preview"
+      }
+    ],
+    "fixture_catalog": {
+      "schema_version": 1,
+      "fixture_only": true,
+      "names": [
+        "candidate",
+        "missing-evidence",
+        "blocked",
+        "failed",
+        "verified"
+      ],
+      "fixtures": [
+        {
+          "name": "candidate",
+          "request_id": "demo-candidate",
+          "mode": "fast",
+          "candidate": "flag{demo_candidate}",
+          "validation_status": "pending",
+          "missing_evidence": [],
+          "public_message": "Offline fixture preview only."
+        },
+        {
+          "name": "missing-evidence",
+          "request_id": "demo-missing-evidence",
+          "mode": "fast",
+          "candidate": "",
+          "validation_status": "unavailable",
+          "missing_evidence": [
+            "targeted_decompile_missing"
+          ],
+          "public_message": "More evidence is needed before a final answer can be verified."
+        },
+        {
+          "name": "blocked",
+          "request_id": "demo-blocked",
+          "mode": "auto",
+          "candidate": "",
+          "validation_status": "unavailable",
+          "missing_evidence": [],
+          "public_message": "The fixture is blocked by a policy or environment requirement."
+        },
+        {
+          "name": "failed",
+          "request_id": "demo-failed",
+          "mode": "fast",
+          "candidate": "",
+          "validation_status": "unavailable",
+          "missing_evidence": [],
+          "public_message": "No candidate answer was found in the supplied fixture."
+        },
+        {
+          "name": "verified",
+          "request_id": "demo-verified",
+          "mode": "fast",
+          "candidate": "flag{demo_verified}",
+          "validation_status": "passed",
+          "missing_evidence": [],
+          "public_message": "A supplied fixture candidate has passed validation evidence."
+        }
+      ]
+    },
+    "tool_profiles": {
+      "schema_version": 1,
+      "fixture_only": true,
+      "executes_tools": false,
+      "deterministic_precedence": [
+        "defaults",
+        "explicit_overrides_by_tool_id"
+      ],
+      "profiles": [
+        {
+          "tool_id": "fast_strings",
+          "label": "Fast strings scan",
+          "category": "static",
+          "path_source": "built_in_metadata",
+          "availability": "available",
+          "capability_flags": [
+            "fixture_preview",
+            "static_strings"
+          ],
+          "risk_level": "low",
+          "disabled_reason": "",
+          "unavailable_reason": "",
+          "can_execute_by_default": true
+        },
+        {
+          "tool_id": "ida_summary",
+          "label": "IDA summary",
+          "category": "static",
+          "path_source": "user_config_placeholder",
+          "availability": "missing",
+          "capability_flags": [
+            "ida_summary",
+            "targeted_static_analysis"
+          ],
+          "risk_level": "low",
+          "disabled_reason": "",
+          "unavailable_reason": "not_configured_for_fixture_preview",
+          "can_execute_by_default": false
+        },
+        {
+          "tool_id": "runtime_validation",
+          "label": "Runtime validation",
+          "category": "validation",
+          "path_source": "permission_controlled_runner",
+          "availability": "disabled",
+          "capability_flags": [
+            "runtime_validation"
+          ],
+          "risk_level": "high",
+          "disabled_reason": "real_sample_execution_forbidden_this_round",
+          "unavailable_reason": "",
+          "can_execute_by_default": false
+        }
+      ]
+    },
+    "runner_capabilities": {
+      "schema_version": 1,
+      "fixture_only": true,
+      "capability": {
+        "runner_id": "fixture-local-workbench",
+        "platform": "local_metadata_only",
+        "available_tools": [
+          "fast_strings"
+        ],
+        "missing_tools": [
+          "ida_summary"
+        ],
+        "disabled_tools": [
+          "runtime_validation"
+        ],
+        "permission_flags": [
+          "fixture_only",
+          "no_real_sample_execution",
+          "no_remote_dispatch"
+        ],
+        "supported_features": [
+          "fixture_preview",
+          "static_strings"
+        ],
+        "can_dispatch": false,
+        "executes_external_tools": false
+      }
+    },
+    "route_plan": {
+      "required": [
+        "fixture_name",
+        "status",
+        "validation_status",
+        "planned_actions",
+        "executed"
+      ],
+      "executes_actions": false
+    },
+    "task_trace": {
+      "required": [
+        "trace_id",
+        "request_id",
+        "fixture_name",
+        "status",
+        "route_plan",
+        "persisted"
+      ],
+      "persistent_task_files": false,
+      "developer_trace_refs_hidden_by_default": true
+    },
+    "workbench": {
+      "fixture_only": true,
+      "production_service": false,
+      "persistent_tasks": false,
+      "external_tool_invocation": false
+    },
+    "frontend_demo": {
+      "root": "frontend/user_solve_demo",
+      "required_files": [
+        "index.html",
+        "app.js",
+        "style.css",
+        "README.md",
+        "fixtures/catalog.json"
+      ],
+      "fixture_names": [
+        "candidate",
+        "missing-evidence",
+        "blocked",
+        "failed",
+        "verified"
+      ]
+    }
+  },
+  "workbench_payloads": {
+    "schema_version": 1,
+    "fixture_only": true,
+    "workbench": "UserSolveWorkbench",
+    "catalog": {
+      "schema_version": 1,
+      "fixture_only": true,
+      "names": [
+        "candidate",
+        "missing-evidence",
+        "blocked",
+        "failed",
+        "verified"
+      ],
+      "fixtures": [
+        {
+          "name": "candidate",
+          "request_id": "demo-candidate",
+          "mode": "fast",
+          "candidate": "flag{demo_candidate}",
+          "validation_status": "pending",
+          "missing_evidence": [],
+          "public_message": "Offline fixture preview only."
+        },
+        {
+          "name": "missing-evidence",
+          "request_id": "demo-missing-evidence",
+          "mode": "fast",
+          "candidate": "",
+          "validation_status": "unavailable",
+          "missing_evidence": [
+            "targeted_decompile_missing"
+          ],
+          "public_message": "More evidence is needed before a final answer can be verified."
+        },
+        {
+          "name": "blocked",
+          "request_id": "demo-blocked",
+          "mode": "auto",
+          "candidate": "",
+          "validation_status": "unavailable",
+          "missing_evidence": [],
+          "public_message": "The fixture is blocked by a policy or environment requirement."
+        },
+        {
+          "name": "failed",
+          "request_id": "demo-failed",
+          "mode": "fast",
+          "candidate": "",
+          "validation_status": "unavailable",
+          "missing_evidence": [],
+          "public_message": "No candidate answer was found in the supplied fixture."
+        },
+        {
+          "name": "verified",
+          "request_id": "demo-verified",
+          "mode": "fast",
+          "candidate": "flag{demo_verified}",
+          "validation_status": "passed",
+          "missing_evidence": [],
+          "public_message": "A supplied fixture candidate has passed validation evidence."
+        }
+      ]
+    },
+    "tool_profiles": {
+      "schema_version": 1,
+      "fixture_only": true,
+      "executes_tools": false,
+      "deterministic_precedence": [
+        "defaults",
+        "explicit_overrides_by_tool_id"
+      ],
+      "profiles": [
+        {
+          "tool_id": "fast_strings",
+          "label": "Fast strings scan",
+          "category": "static",
+          "path_source": "built_in_metadata",
+          "availability": "available",
+          "capability_flags": [
+            "fixture_preview",
+            "static_strings"
+          ],
+          "risk_level": "low",
+          "disabled_reason": "",
+          "unavailable_reason": "",
+          "can_execute_by_default": true
+        },
+        {
+          "tool_id": "ida_summary",
+          "label": "IDA summary",
+          "category": "static",
+          "path_source": "user_config_placeholder",
+          "availability": "missing",
+          "capability_flags": [
+            "ida_summary",
+            "targeted_static_analysis"
+          ],
+          "risk_level": "low",
+          "disabled_reason": "",
+          "unavailable_reason": "not_configured_for_fixture_preview",
+          "can_execute_by_default": false
+        },
+        {
+          "tool_id": "runtime_validation",
+          "label": "Runtime validation",
+          "category": "validation",
+          "path_source": "permission_controlled_runner",
+          "availability": "disabled",
+          "capability_flags": [
+            "runtime_validation"
+          ],
+          "risk_level": "high",
+          "disabled_reason": "real_sample_execution_forbidden_this_round",
+          "unavailable_reason": "",
+          "can_execute_by_default": false
+        }
+      ]
+    },
+    "capability_snapshot": {
+      "schema_version": 1,
+      "fixture_only": true,
+      "capability": {
+        "runner_id": "fixture-local-workbench",
+        "platform": "local_metadata_only",
+        "available_tools": [
+          "fast_strings"
+        ],
+        "missing_tools": [
+          "ida_summary"
+        ],
+        "disabled_tools": [
+          "runtime_validation"
+        ],
+        "permission_flags": [
+          "fixture_only",
+          "no_real_sample_execution",
+          "no_remote_dispatch"
+        ],
+        "supported_features": [
+          "fixture_preview",
+          "static_strings"
+        ],
+        "can_dispatch": false,
+        "executes_external_tools": false
+      }
+    },
+    "fixtures": [
+      {
+        "schema_version": 1,
+        "fixture_name": "candidate",
+        "fixture_only": true,
+        "persistent_task_created": false,
+        "external_tool_invocation": false,
+        "response": {
+          "request": {
+            "request_id": "demo-candidate",
+            "mode": "fast",
+            "input_kind": "fixture",
+            "fixture_name": "candidate",
+            "candidate": "flag{demo_candidate}",
+            "missing_evidence": [],
+            "public_context": {
+              "source": "fixture_catalog",
+              "state": "candidate"
+            }
+          },
+          "status": "candidate_found",
+          "answer": "flag{demo_candidate}",
+          "candidates": [
+            {
+              "value": "flag{demo_candidate}",
+              "validation_status": "pending",
+              "confidence": 0.64
+            }
+          ],
+          "confidence": 0.64,
+          "validation_status": "pending",
+          "evidence_status": "building",
+          "public_message": "Offline fixture preview only.",
+          "next_action": {
+            "kind": "validate_candidate",
+            "label": "Validate the candidate before final acceptance.",
+            "safe_to_show": true
+          },
+          "fallback_summary": {
+            "selected_step": {
+              "name": "fast_strings",
+              "risk_level": "low",
+              "timeout_seconds": 20,
+              "required_capability": "static_strings",
+              "fast_mode_eligible": true,
+              "writes_artifact": false,
+              "permission_requirement": "automatic",
+              "requires_local_execution": false,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": true
+            },
+            "eligible_steps": [
+              "fast_strings"
+            ],
+            "blocked_steps": [],
+            "missing_evidence": [],
+            "stop_reason": "selected_next_safe_step",
+            "executed": false
+          },
+          "handoff": {
+            "handoff_id": "handoff-demo-candidate",
+            "session_id": "demo-candidate",
+            "user_summary": {
+              "status": "candidate_found",
+              "validation_status": "pending",
+              "evidence_status": "building",
+              "public_message": "Offline fixture preview only."
+            },
+            "next_action": {
+              "kind": "validate_candidate",
+              "label": "Validate the candidate before final acceptance.",
+              "safe_to_show": true
+            },
+            "fallback_summary": {
+              "selected_step": {
+                "name": "fast_strings",
+                "risk_level": "low",
+                "timeout_seconds": 20,
+                "required_capability": "static_strings",
+                "fast_mode_eligible": true,
+                "writes_artifact": false,
+                "permission_requirement": "automatic",
+                "requires_local_execution": false,
+                "requires_dynamic_debug": false,
+                "requires_network": false,
+                "executable_by_default": true
+              },
+              "eligible_steps": [
+                "fast_strings"
+              ],
+              "blocked_steps": [],
+              "missing_evidence": [],
+              "stop_reason": "selected_next_safe_step",
+              "executed": false
+            }
+          },
+          "warnings": [
+            "fixture_only_preview"
+          ],
+          "errors": []
+        },
+        "ui_state": {
+          "display_state": "candidate_pending_validation",
+          "tone": "attention",
+          "status": "candidate_found",
+          "validation_status": "pending",
+          "evidence_status": "building",
+          "next_action_kind": "validate_candidate",
+          "label": "Candidate pending validation"
+        },
+        "capability": {
+          "runner_id": "fixture-local-workbench",
+          "platform": "local_metadata_only",
+          "available_tools": [
+            "fast_strings"
+          ],
+          "missing_tools": [
+            "ida_summary"
+          ],
+          "disabled_tools": [
+            "runtime_validation"
+          ],
+          "permission_flags": [
+            "fixture_only",
+            "no_real_sample_execution",
+            "no_remote_dispatch"
+          ],
+          "supported_features": [
+            "fixture_preview",
+            "static_strings"
+          ],
+          "can_dispatch": false,
+          "executes_external_tools": false
+        },
+        "route_plan": {
+          "fixture_name": "candidate",
+          "status": "candidate_found",
+          "validation_status": "pending",
+          "evidence_status": "building",
+          "missing_evidence": [],
+          "planned_actions": [
+            {
+              "kind": "validate_candidate",
+              "label": "Validate the candidate before accepting it.",
+              "required_capability": "runtime_validation",
+              "risk_level": "high",
+              "permission_required": true,
+              "executable_now": false,
+              "blocked_reasons": [
+                "runtime_validation_disabled"
+              ]
+            }
+          ],
+          "executed": false,
+          "fixture_only": true
+        },
+        "task_trace": {
+          "trace_id": "trace-candidate",
+          "request_id": "demo-candidate",
+          "fixture_name": "candidate",
+          "source": "fixture_catalog",
+          "status": "candidate_found",
+          "validation_state": "pending",
+          "candidate_state": "present",
+          "missing_evidence": [],
+          "route_plan": {
+            "fixture_name": "candidate",
+            "status": "candidate_found",
+            "validation_status": "pending",
+            "evidence_status": "building",
+            "missing_evidence": [],
+            "planned_actions": [
+              {
+                "kind": "validate_candidate",
+                "label": "Validate the candidate before accepting it.",
+                "required_capability": "runtime_validation",
+                "risk_level": "high",
+                "permission_required": true,
+                "executable_now": false,
+                "blocked_reasons": [
+                  "runtime_validation_disabled"
+                ]
+              }
+            ],
+            "executed": false,
+            "fixture_only": true
+          },
+          "artifact_placeholders": [
+            "gate_snapshot_only"
+          ],
+          "persisted": false,
+          "fixture_only": true
+        }
+      },
+      {
+        "schema_version": 1,
+        "fixture_name": "missing-evidence",
+        "fixture_only": true,
+        "persistent_task_created": false,
+        "external_tool_invocation": false,
+        "response": {
+          "request": {
+            "request_id": "demo-missing-evidence",
+            "mode": "fast",
+            "input_kind": "fixture",
+            "fixture_name": "missing-evidence",
+            "candidate": "",
+            "missing_evidence": [
+              "targeted_decompile_missing"
+            ],
+            "public_context": {
+              "source": "fixture_catalog",
+              "state": "missing-evidence"
+            }
+          },
+          "status": "deep_analysis_running",
+          "answer": "",
+          "candidates": [],
+          "confidence": null,
+          "validation_status": "unavailable",
+          "evidence_status": "building",
+          "public_message": "More evidence is needed before a final answer can be verified.",
+          "next_action": {
+            "kind": "fallback",
+            "label": "Collect more evidence with fast_strings.",
+            "safe_to_show": true
+          },
+          "fallback_summary": {
+            "selected_step": {
+              "name": "fast_strings",
+              "risk_level": "low",
+              "timeout_seconds": 20,
+              "required_capability": "static_strings",
+              "fast_mode_eligible": true,
+              "writes_artifact": false,
+              "permission_requirement": "automatic",
+              "requires_local_execution": false,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": true
+            },
+            "eligible_steps": [
+              "fast_strings"
+            ],
+            "blocked_steps": [],
+            "missing_evidence": [
+              "targeted_decompile_missing"
+            ],
+            "stop_reason": "selected_next_safe_step",
+            "executed": false
+          },
+          "handoff": {
+            "handoff_id": "handoff-demo-missing-evidence",
+            "session_id": "demo-missing-evidence",
+            "user_summary": {
+              "status": "deep_analysis_running",
+              "validation_status": "unavailable",
+              "evidence_status": "building",
+              "public_message": "More evidence is needed before a final answer can be verified."
+            },
+            "next_action": {
+              "kind": "fallback",
+              "label": "Collect more evidence with fast_strings.",
+              "safe_to_show": true
+            },
+            "fallback_summary": {
+              "selected_step": {
+                "name": "fast_strings",
+                "risk_level": "low",
+                "timeout_seconds": 20,
+                "required_capability": "static_strings",
+                "fast_mode_eligible": true,
+                "writes_artifact": false,
+                "permission_requirement": "automatic",
+                "requires_local_execution": false,
+                "requires_dynamic_debug": false,
+                "requires_network": false,
+                "executable_by_default": true
+              },
+              "eligible_steps": [
+                "fast_strings"
+              ],
+              "blocked_steps": [],
+              "missing_evidence": [
+                "targeted_decompile_missing"
+              ],
+              "stop_reason": "selected_next_safe_step",
+              "executed": false
+            }
+          },
+          "warnings": [
+            "fixture_only_preview"
+          ],
+          "errors": []
+        },
+        "ui_state": {
+          "display_state": "needs_more_evidence",
+          "tone": "info",
+          "status": "deep_analysis_running",
+          "validation_status": "unavailable",
+          "evidence_status": "building",
+          "next_action_kind": "fallback",
+          "label": "Needs more evidence"
+        },
+        "capability": {
+          "runner_id": "fixture-local-workbench",
+          "platform": "local_metadata_only",
+          "available_tools": [
+            "fast_strings"
+          ],
+          "missing_tools": [
+            "ida_summary"
+          ],
+          "disabled_tools": [
+            "runtime_validation"
+          ],
+          "permission_flags": [
+            "fixture_only",
+            "no_real_sample_execution",
+            "no_remote_dispatch"
+          ],
+          "supported_features": [
+            "fixture_preview",
+            "static_strings"
+          ],
+          "can_dispatch": false,
+          "executes_external_tools": false
+        },
+        "route_plan": {
+          "fixture_name": "missing-evidence",
+          "status": "deep_analysis_running",
+          "validation_status": "unavailable",
+          "evidence_status": "building",
+          "missing_evidence": [
+            "targeted_decompile_missing"
+          ],
+          "planned_actions": [
+            {
+              "kind": "collect_evidence",
+              "label": "Collect more fixture evidence with the safest available metadata step.",
+              "required_capability": "static_strings",
+              "risk_level": "low",
+              "permission_required": false,
+              "executable_now": false,
+              "blocked_reasons": []
+            }
+          ],
+          "executed": false,
+          "fixture_only": true
+        },
+        "task_trace": {
+          "trace_id": "trace-missing-evidence",
+          "request_id": "demo-missing-evidence",
+          "fixture_name": "missing-evidence",
+          "source": "fixture_catalog",
+          "status": "deep_analysis_running",
+          "validation_state": "unavailable",
+          "candidate_state": "absent",
+          "missing_evidence": [
+            "targeted_decompile_missing"
+          ],
+          "route_plan": {
+            "fixture_name": "missing-evidence",
+            "status": "deep_analysis_running",
+            "validation_status": "unavailable",
+            "evidence_status": "building",
+            "missing_evidence": [
+              "targeted_decompile_missing"
+            ],
+            "planned_actions": [
+              {
+                "kind": "collect_evidence",
+                "label": "Collect more fixture evidence with the safest available metadata step.",
+                "required_capability": "static_strings",
+                "risk_level": "low",
+                "permission_required": false,
+                "executable_now": false,
+                "blocked_reasons": []
+              }
+            ],
+            "executed": false,
+            "fixture_only": true
+          },
+          "artifact_placeholders": [
+            "gate_snapshot_only"
+          ],
+          "persisted": false,
+          "fixture_only": true
+        }
+      },
+      {
+        "schema_version": 1,
+        "fixture_name": "blocked",
+        "fixture_only": true,
+        "persistent_task_created": false,
+        "external_tool_invocation": false,
+        "response": {
+          "request": {
+            "request_id": "demo-blocked",
+            "mode": "auto",
+            "input_kind": "fixture",
+            "fixture_name": "blocked",
+            "candidate": "",
+            "missing_evidence": [],
+            "public_context": {
+              "source": "fixture_catalog",
+              "state": "blocked"
+            }
+          },
+          "status": "blocked",
+          "answer": "",
+          "candidates": [],
+          "confidence": null,
+          "validation_status": "unavailable",
+          "evidence_status": "failed",
+          "public_message": "The fixture is blocked by a policy or environment requirement.",
+          "next_action": {
+            "kind": "blocked",
+            "label": "Resolve the blocking condition before continuing.",
+            "safe_to_show": true
+          },
+          "fallback_summary": {
+            "selected_step": {
+              "name": "fast_strings",
+              "risk_level": "low",
+              "timeout_seconds": 20,
+              "required_capability": "static_strings",
+              "fast_mode_eligible": true,
+              "writes_artifact": false,
+              "permission_requirement": "automatic",
+              "requires_local_execution": false,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": true
+            },
+            "eligible_steps": [
+              "fast_strings"
+            ],
+            "blocked_steps": [],
+            "missing_evidence": [],
+            "stop_reason": "selected_next_safe_step",
+            "executed": false
+          },
+          "handoff": {
+            "handoff_id": "handoff-demo-blocked",
+            "session_id": "demo-blocked",
+            "user_summary": {
+              "status": "blocked",
+              "validation_status": "unavailable",
+              "evidence_status": "failed",
+              "public_message": "The fixture is blocked by a policy or environment requirement."
+            },
+            "next_action": {
+              "kind": "blocked",
+              "label": "Resolve the blocking condition before continuing.",
+              "safe_to_show": true
+            },
+            "fallback_summary": {
+              "selected_step": {
+                "name": "fast_strings",
+                "risk_level": "low",
+                "timeout_seconds": 20,
+                "required_capability": "static_strings",
+                "fast_mode_eligible": true,
+                "writes_artifact": false,
+                "permission_requirement": "automatic",
+                "requires_local_execution": false,
+                "requires_dynamic_debug": false,
+                "requires_network": false,
+                "executable_by_default": true
+              },
+              "eligible_steps": [
+                "fast_strings"
+              ],
+              "blocked_steps": [],
+              "missing_evidence": [],
+              "stop_reason": "selected_next_safe_step",
+              "executed": false
+            }
+          },
+          "warnings": [
+            "fixture_only_preview"
+          ],
+          "errors": []
+        },
+        "ui_state": {
+          "display_state": "blocked",
+          "tone": "blocked",
+          "status": "blocked",
+          "validation_status": "unavailable",
+          "evidence_status": "failed",
+          "next_action_kind": "blocked",
+          "label": "Blocked"
+        },
+        "capability": {
+          "runner_id": "fixture-local-workbench",
+          "platform": "local_metadata_only",
+          "available_tools": [
+            "fast_strings"
+          ],
+          "missing_tools": [
+            "ida_summary"
+          ],
+          "disabled_tools": [
+            "runtime_validation"
+          ],
+          "permission_flags": [
+            "fixture_only",
+            "no_real_sample_execution",
+            "no_remote_dispatch"
+          ],
+          "supported_features": [
+            "fixture_preview",
+            "static_strings"
+          ],
+          "can_dispatch": false,
+          "executes_external_tools": false
+        },
+        "route_plan": {
+          "fixture_name": "blocked",
+          "status": "blocked",
+          "validation_status": "unavailable",
+          "evidence_status": "failed",
+          "missing_evidence": [],
+          "planned_actions": [
+            {
+              "kind": "blocked",
+              "label": "Resolve the fixture blocker before continuing.",
+              "required_capability": "",
+              "risk_level": "low",
+              "permission_required": false,
+              "executable_now": false,
+              "blocked_reasons": []
+            }
+          ],
+          "executed": false,
+          "fixture_only": true
+        },
+        "task_trace": {
+          "trace_id": "trace-blocked",
+          "request_id": "demo-blocked",
+          "fixture_name": "blocked",
+          "source": "fixture_catalog",
+          "status": "blocked",
+          "validation_state": "unavailable",
+          "candidate_state": "absent",
+          "missing_evidence": [],
+          "route_plan": {
+            "fixture_name": "blocked",
+            "status": "blocked",
+            "validation_status": "unavailable",
+            "evidence_status": "failed",
+            "missing_evidence": [],
+            "planned_actions": [
+              {
+                "kind": "blocked",
+                "label": "Resolve the fixture blocker before continuing.",
+                "required_capability": "",
+                "risk_level": "low",
+                "permission_required": false,
+                "executable_now": false,
+                "blocked_reasons": []
+              }
+            ],
+            "executed": false,
+            "fixture_only": true
+          },
+          "artifact_placeholders": [
+            "gate_snapshot_only"
+          ],
+          "persisted": false,
+          "fixture_only": true
+        }
+      },
+      {
+        "schema_version": 1,
+        "fixture_name": "failed",
+        "fixture_only": true,
+        "persistent_task_created": false,
+        "external_tool_invocation": false,
+        "response": {
+          "request": {
+            "request_id": "demo-failed",
+            "mode": "fast",
+            "input_kind": "fixture",
+            "fixture_name": "failed",
+            "candidate": "",
+            "missing_evidence": [],
+            "public_context": {
+              "source": "fixture_catalog",
+              "state": "failed"
+            }
+          },
+          "status": "failed",
+          "answer": "",
+          "candidates": [],
+          "confidence": null,
+          "validation_status": "unavailable",
+          "evidence_status": "partial",
+          "public_message": "No candidate answer was found in the supplied fixture.",
+          "next_action": {
+            "kind": "fallback",
+            "label": "Collect more evidence with fast_strings.",
+            "safe_to_show": true
+          },
+          "fallback_summary": {
+            "selected_step": {
+              "name": "fast_strings",
+              "risk_level": "low",
+              "timeout_seconds": 20,
+              "required_capability": "static_strings",
+              "fast_mode_eligible": true,
+              "writes_artifact": false,
+              "permission_requirement": "automatic",
+              "requires_local_execution": false,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": true
+            },
+            "eligible_steps": [
+              "fast_strings"
+            ],
+            "blocked_steps": [],
+            "missing_evidence": [],
+            "stop_reason": "selected_next_safe_step",
+            "executed": false
+          },
+          "handoff": {
+            "handoff_id": "handoff-demo-failed",
+            "session_id": "demo-failed",
+            "user_summary": {
+              "status": "failed",
+              "validation_status": "unavailable",
+              "evidence_status": "partial",
+              "public_message": "No candidate answer was found in the supplied fixture."
+            },
+            "next_action": {
+              "kind": "fallback",
+              "label": "Collect more evidence with fast_strings.",
+              "safe_to_show": true
+            },
+            "fallback_summary": {
+              "selected_step": {
+                "name": "fast_strings",
+                "risk_level": "low",
+                "timeout_seconds": 20,
+                "required_capability": "static_strings",
+                "fast_mode_eligible": true,
+                "writes_artifact": false,
+                "permission_requirement": "automatic",
+                "requires_local_execution": false,
+                "requires_dynamic_debug": false,
+                "requires_network": false,
+                "executable_by_default": true
+              },
+              "eligible_steps": [
+                "fast_strings"
+              ],
+              "blocked_steps": [],
+              "missing_evidence": [],
+              "stop_reason": "selected_next_safe_step",
+              "executed": false
+            }
+          },
+          "warnings": [
+            "fixture_only_preview"
+          ],
+          "errors": []
+        },
+        "ui_state": {
+          "display_state": "failed",
+          "tone": "danger",
+          "status": "failed",
+          "validation_status": "unavailable",
+          "evidence_status": "partial",
+          "next_action_kind": "fallback",
+          "label": "Failed"
+        },
+        "capability": {
+          "runner_id": "fixture-local-workbench",
+          "platform": "local_metadata_only",
+          "available_tools": [
+            "fast_strings"
+          ],
+          "missing_tools": [
+            "ida_summary"
+          ],
+          "disabled_tools": [
+            "runtime_validation"
+          ],
+          "permission_flags": [
+            "fixture_only",
+            "no_real_sample_execution",
+            "no_remote_dispatch"
+          ],
+          "supported_features": [
+            "fixture_preview",
+            "static_strings"
+          ],
+          "can_dispatch": false,
+          "executes_external_tools": false
+        },
+        "route_plan": {
+          "fixture_name": "failed",
+          "status": "failed",
+          "validation_status": "unavailable",
+          "evidence_status": "partial",
+          "missing_evidence": [],
+          "planned_actions": [
+            {
+              "kind": "collect_evidence",
+              "label": "Collect more fixture evidence with the safest available metadata step.",
+              "required_capability": "static_strings",
+              "risk_level": "low",
+              "permission_required": false,
+              "executable_now": false,
+              "blocked_reasons": []
+            }
+          ],
+          "executed": false,
+          "fixture_only": true
+        },
+        "task_trace": {
+          "trace_id": "trace-failed",
+          "request_id": "demo-failed",
+          "fixture_name": "failed",
+          "source": "fixture_catalog",
+          "status": "failed",
+          "validation_state": "unavailable",
+          "candidate_state": "absent",
+          "missing_evidence": [],
+          "route_plan": {
+            "fixture_name": "failed",
+            "status": "failed",
+            "validation_status": "unavailable",
+            "evidence_status": "partial",
+            "missing_evidence": [],
+            "planned_actions": [
+              {
+                "kind": "collect_evidence",
+                "label": "Collect more fixture evidence with the safest available metadata step.",
+                "required_capability": "static_strings",
+                "risk_level": "low",
+                "permission_required": false,
+                "executable_now": false,
+                "blocked_reasons": []
+              }
+            ],
+            "executed": false,
+            "fixture_only": true
+          },
+          "artifact_placeholders": [
+            "gate_snapshot_only"
+          ],
+          "persisted": false,
+          "fixture_only": true
+        }
+      },
+      {
+        "schema_version": 1,
+        "fixture_name": "verified",
+        "fixture_only": true,
+        "persistent_task_created": false,
+        "external_tool_invocation": false,
+        "response": {
+          "request": {
+            "request_id": "demo-verified",
+            "mode": "fast",
+            "input_kind": "fixture",
+            "fixture_name": "verified",
+            "candidate": "flag{demo_verified}",
+            "missing_evidence": [],
+            "public_context": {
+              "source": "fixture_catalog",
+              "state": "verified"
+            }
+          },
+          "status": "verified",
+          "answer": "flag{demo_verified}",
+          "candidates": [
+            {
+              "value": "flag{demo_verified}",
+              "validation_status": "passed",
+              "confidence": 0.98
+            }
+          ],
+          "confidence": 0.98,
+          "validation_status": "passed",
+          "evidence_status": "complete",
+          "public_message": "A supplied fixture candidate has passed validation evidence.",
+          "next_action": {
+            "kind": "return_answer",
+            "label": "Return the verified answer.",
+            "safe_to_show": true
+          },
+          "fallback_summary": {
+            "selected_step": {
+              "name": "fast_strings",
+              "risk_level": "low",
+              "timeout_seconds": 20,
+              "required_capability": "static_strings",
+              "fast_mode_eligible": true,
+              "writes_artifact": false,
+              "permission_requirement": "automatic",
+              "requires_local_execution": false,
+              "requires_dynamic_debug": false,
+              "requires_network": false,
+              "executable_by_default": true
+            },
+            "eligible_steps": [
+              "fast_strings"
+            ],
+            "blocked_steps": [],
+            "missing_evidence": [],
+            "stop_reason": "selected_next_safe_step",
+            "executed": false
+          },
+          "handoff": {
+            "handoff_id": "handoff-demo-verified",
+            "session_id": "demo-verified",
+            "user_summary": {
+              "status": "verified",
+              "validation_status": "passed",
+              "evidence_status": "complete",
+              "public_message": "A supplied fixture candidate has passed validation evidence."
+            },
+            "next_action": {
+              "kind": "return_answer",
+              "label": "Return the verified answer.",
+              "safe_to_show": true
+            },
+            "fallback_summary": {
+              "selected_step": {
+                "name": "fast_strings",
+                "risk_level": "low",
+                "timeout_seconds": 20,
+                "required_capability": "static_strings",
+                "fast_mode_eligible": true,
+                "writes_artifact": false,
+                "permission_requirement": "automatic",
+                "requires_local_execution": false,
+                "requires_dynamic_debug": false,
+                "requires_network": false,
+                "executable_by_default": true
+              },
+              "eligible_steps": [
+                "fast_strings"
+              ],
+              "blocked_steps": [],
+              "missing_evidence": [],
+              "stop_reason": "selected_next_safe_step",
+              "executed": false
+            }
+          },
+          "warnings": [
+            "fixture_only_preview"
+          ],
+          "errors": []
+        },
+        "ui_state": {
+          "display_state": "verified",
+          "tone": "success",
+          "status": "verified",
+          "validation_status": "passed",
+          "evidence_status": "complete",
+          "next_action_kind": "return_answer",
+          "label": "Verified"
+        },
+        "capability": {
+          "runner_id": "fixture-local-workbench",
+          "platform": "local_metadata_only",
+          "available_tools": [
+            "fast_strings"
+          ],
+          "missing_tools": [
+            "ida_summary"
+          ],
+          "disabled_tools": [
+            "runtime_validation"
+          ],
+          "permission_flags": [
+            "fixture_only",
+            "no_real_sample_execution",
+            "no_remote_dispatch"
+          ],
+          "supported_features": [
+            "fixture_preview",
+            "static_strings"
+          ],
+          "can_dispatch": false,
+          "executes_external_tools": false
+        },
+        "route_plan": {
+          "fixture_name": "verified",
+          "status": "verified",
+          "validation_status": "passed",
+          "evidence_status": "complete",
+          "missing_evidence": [],
+          "planned_actions": [
+            {
+              "kind": "return_answer",
+              "label": "Return the verified fixture answer.",
+              "required_capability": "",
+              "risk_level": "low",
+              "permission_required": false,
+              "executable_now": false,
+              "blocked_reasons": []
+            }
+          ],
+          "executed": false,
+          "fixture_only": true
+        },
+        "task_trace": {
+          "trace_id": "trace-verified",
+          "request_id": "demo-verified",
+          "fixture_name": "verified",
+          "source": "fixture_catalog",
+          "status": "verified",
+          "validation_state": "passed",
+          "candidate_state": "present",
+          "missing_evidence": [],
+          "route_plan": {
+            "fixture_name": "verified",
+            "status": "verified",
+            "validation_status": "passed",
+            "evidence_status": "complete",
+            "missing_evidence": [],
+            "planned_actions": [
+              {
+                "kind": "return_answer",
+                "label": "Return the verified fixture answer.",
+                "required_capability": "",
+                "risk_level": "low",
+                "permission_required": false,
+                "executable_now": false,
+                "blocked_reasons": []
+              }
+            ],
+            "executed": false,
+            "fixture_only": true
+          },
+          "artifact_placeholders": [
+            "gate_snapshot_only"
+          ],
+          "persisted": false,
+          "fixture_only": true
+        }
+      }
+    ]
+  },
+  "local_api_contract": {
+    "production_service": false,
+    "persistent_tasks": false,
+    "external_tool_invocation": false
+  }
+}

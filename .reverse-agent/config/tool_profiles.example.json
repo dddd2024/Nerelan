@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "tool_id": "fast_strings",
+      "label": "Fast strings scan",
+      "category": "static",
+      "path_source": "built_in_metadata",
+      "availability": "available",
+      "capability_flags": ["static_strings", "fixture_preview"],
+      "risk_level": "low"
+    },
+    {
+      "tool_id": "ida_summary",
+      "label": "IDA summary",
+      "category": "static",
+      "path_source": "USER_CONFIGURED_IDA_PATH",
+      "availability": "missing",
+      "capability_flags": ["ida_summary", "targeted_static_analysis"],
+      "risk_level": "low",
+      "unavailable_reason": "configure a local tool path outside this fixture-only preview"
+    }
+  ]
+}

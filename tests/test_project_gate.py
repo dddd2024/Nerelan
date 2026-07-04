@@ -49,6 +49,7 @@ from reverse_agent.project_gate import (
     _prework_provenance_gate_check,
     _user_solve_control_plane_gate_check,
     _user_solve_local_frontend_mvp_gate_check,
+    _user_solve_workbench_gate_check,
     _ci_run_evidence_gate_check,
     _ci_bridge_gate_check,
     _ci_bridge_closeout_consistency_check,
@@ -96,6 +97,7 @@ from reverse_agent.project_gate import (
     prework_provenance,
     user_solve_control_plane,
     user_solve_local_frontend_mvp,
+    user_solve_workbench,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -17182,6 +17184,7 @@ def test_run_closeout_constants_and_allowlist():
                 "user-solve-control-plane",
                 "user-solve-local-frontend-mvp",
                 "user-solve-cli",
+                "project-cli",
                 "startup-snapshot",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
@@ -28987,4 +28990,55 @@ def test_command_kind_classifies_user_solve_local_frontend_mvp_gate() -> None:
     assert (
         _command_kind("python -m reverse_agent.project_gate user-solve-local-frontend-mvp --state-dir project_state")
         == "user-solve-local-frontend-mvp"
+    )
+
+
+def test_user_solve_workbench_gate_writes_result_and_snapshot(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+    decision_id = "decision_workbench"
+    round_id = "round_workbench"
+    _write_json(state_dir / "current_state.json", {"state_digest": "digest_test", "round_id": "sample_round"})
+    _write_json(state_dir / "task_packet.json", {"execution_scope": "decision_packet_controls_current_round"})
+    _write_json(state_dir / "artifact_index.json", {"missing": []})
+    _write_json(state_dir / "negative_results.json", [])
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+                "skill_profiles": ["reverse-agent-iteration@v2"],
+            }
+        )
+        + "\n```\n\n"
+        + "```json decision_contract\n"
+        + json.dumps({"accepted_requires_workbench_gate_artifact": True})
+        + "\n```\n",
+        encoding="utf-8",
+    )
+
+    result = user_solve_workbench(state_dir=state_dir, repo_root=Path.cwd(), write_result=True)
+    check = _user_solve_workbench_gate_check(
+        state_dir=state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        report_id="codex_report_workbench",
+        decision_contract={"accepted_requires_workbench_gate_artifact": True},
+    )
+
+    assert result["gate_status"] == "PASSED"
+    assert (state_dir / "gates" / "user_solve_workbench_result.json").exists()
+    assert (state_dir / "gates" / "user_solve_workbench_snapshot.json").exists()
+    assert check["status"] == "PASS"
+
+
+def test_command_kind_keeps_user_solve_workbench_as_safe_project_cli() -> None:
+    assert (
+        _command_kind("python -m reverse_agent.project_gate user-solve-workbench --state-dir project_state")
+        == "project-cli"
     )

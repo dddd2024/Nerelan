@@ -19,5 +19,14 @@ def test_schema_snapshot_covers_frontend_contract_surfaces() -> None:
         "/api/fixtures",
         "/api/fixtures/{fixture_name}",
         "/api/solve",
+        "/api/workbench/capabilities",
+        "/api/workbench/route-plan/{fixture_name}",
+        "/api/workbench/trace/{fixture_name}",
+        "/api/workbench/preview",
     }
+    assert snapshot["tool_profiles"]["executes_tools"] is False
+    assert snapshot["runner_capabilities"]["capability"]["can_dispatch"] is False
+    assert snapshot["route_plan"]["executes_actions"] is False
+    assert snapshot["task_trace"]["persistent_task_files"] is False
+    assert snapshot["workbench"]["external_tool_invocation"] is False
     assert "fixtures/catalog.json" in snapshot["frontend_demo"]["required_files"]

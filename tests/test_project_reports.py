@@ -13,6 +13,7 @@ from reverse_agent.project_gate import (
     _generate_required_audit_alignment_rework_required_audit,
     _generate_user_solve_control_plane_required_audit,
     _generate_user_solve_local_frontend_mvp_required_audit,
+    _generate_user_solve_workbench_required_audit,
     _generate_user_solve_session_bundle_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
@@ -772,6 +773,67 @@ def test_user_solve_local_frontend_mvp_required_audit_generator_is_substantive()
     assert "project_state/gates/user_solve_local_frontend_mvp_result.json" in audit
     assert "project_state/gates/user_solve_frontend_mvp_snapshot.json" in audit
     assert "frontend/user_solve_demo/index.html" in audit
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
+
+
+def test_user_solve_workbench_required_audit_generator_is_substantive() -> None:
+    questions = [
+        "Was the current decision treated as execution authority and task_packet as background only?",
+        "Did decision metadata remain valid and aligned with active reverse-agent-iteration@v2?",
+        "Did this decision supersede the smaller tool-profile-only plan without mixing scopes?",
+        "Was the last accepted local frontend MVP treated as baseline?",
+        "Were startup and prework provenance commands recorded before implementation validation?",
+        "Was existing related functionality inspected before adding new modules?",
+        "Was reverse_agent/tool_profiles.py implemented or compatibly extended?",
+        "Does ToolProfile support stable identity, category, path source, availability metadata, capability flags, risk level, disabled/unavailable states, and safe serialization?",
+        "Does tool profile loading use deterministic precedence without external process execution?",
+        "Was reverse_agent/tool_capabilities.py implemented or compatibly extended?",
+        "Does RunnerCapability represent runner id, platform metadata, available/missing/disabled tools, permission flags, and supported analysis features without dispatching work?",
+        "Was reverse_agent/user_solve_route_plan.py implemented or compatibly extended?",
+        "Does route planning map request state, missing evidence, capability availability, risk level, and permissions into safe planned next actions without executing them?",
+        "Was reverse_agent/user_solve_task_trace.py implemented or compatibly extended?",
+        "Does synthetic task trace capture request metadata, fixture/demo source, candidate state, missing evidence, route plan, validation state, and artifact placeholders without persistent task files?",
+        "Was reverse_agent/user_solve_workbench.py implemented or compatibly extended?",
+        "Does the workbench facade compose existing controller/session/result/UI/error/fixture behavior instead of duplicating it?",
+        "Was reverse_agent/user_solve_workbench_api.py implemented or compatibly extended?",
+        "Does the workbench API provide route-shaped pure-function handling without production service behavior?",
+        "Were fixture catalog and frontend/demo fixtures expanded consistently if touched?",
+        "Were schema snapshots expanded for tool profiles, runner capabilities, route plans, workbench API routes, task traces, fixtures, UI states, and public/developer payloads?",
+        "Were example configs added with portable placeholders and no secrets?",
+        "Were CLI previews added for candidate, missing-evidence, blocked, verified, route-plan, capability, and workbench states?",
+        "Was documentation added or updated for the workbench foundation and future execution boundary?",
+        "Was a current user_solve_workbench_result.json or equivalent gate artifact generated?",
+        "Was a current user_solve_workbench_snapshot.json or equivalent snapshot generated?",
+        "Do gate artifacts carry current decision/report/round IDs?",
+        "Do gate artifacts prove no external tool invocation, no real sample analysis, no dispatch, no persistence, and no production service behavior?",
+        "Do tests cover profile normalization, invalid profile rejection, capability serialization, route planner behavior, task trace serialization/redaction, workbench facade/API behavior, example config validity, schema stability, gates, reports, and CLI previews?",
+        "Do existing user-solve/frontend/control-plane tests continue passing under command-plan coverage?",
+        "Did pytest_result record real commands and exit codes?",
+        "Did command-plan authorize all executed commands and omit no executed commands?",
+        "Did final-check pass with current IDs?",
+        "Did run-closeout pass and archive current reports if authorized?",
+        "Were forbidden files untouched?",
+        "Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?",
+    ]
+    decision_text = (
+        "# Decision\n\nUser Solve Workbench Foundation accepted_requires_workbench_gate_artifact "
+        "user_solve_workbench_result.json\n\n## Required Audit\n\n"
+        + "\n".join(f"{index}. {question}" for index, question in enumerate(questions, start=1))
+    )
+
+    audit = _generate_user_solve_workbench_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 36
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/user_solve_workbench_result.json" in audit
+    assert "project_state/gates/user_solve_workbench_snapshot.json" in audit
+    assert "reverse_agent/tool_profiles.py" in audit
     assert result["status"] == "PASS"
     assert result["alignment_failures"] == []
 

@@ -76,3 +76,11 @@ route results for local preview code.
 The MVP states are `candidate`, `missing-evidence`, `blocked`, `failed`, and
 `verified`. They are demo fixtures only. They do not claim any concrete sample
 is solved, statically verified, runtime validated, or audit verified.
+
+## Workbench Foundation
+
+The workbench foundation adds metadata-only tool profiles, runner capability
+snapshots, route plans, synthetic task traces, and a local in-process workbench
+API. It composes the accepted controller/session/fixture/frontend contracts and
+does not execute route plans, process real samples, persist tasks, or dispatch
+runner work.

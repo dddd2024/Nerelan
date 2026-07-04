@@ -30,6 +30,10 @@ Open `frontend/user_solve_demo/index.html` directly. The page reads
 `fixtures/catalog.json` when a static server is available and uses embedded
 fixtures as a fallback when opened from disk.
 
+The workbench foundation reuses this static demo as its visual surface and adds
+route-plan, capability, and task-trace metadata through the local workbench
+facade and gate snapshots.
+
 The project gate for this slice is:
 
 ```powershell

@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "artifact_name": "user_solve_workbench_result.json",
+  "gate_name": "user-solve-workbench",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
+  "round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
+  "report_id": "codex_report_20260704_user_solve_workbench_foundation_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-04T14:41:26.285540Z",
+  "artifact_path": "project_state/gates/user_solve_workbench_result.json",
+  "snapshot_path": "project_state/gates/user_solve_workbench_snapshot.json",
+  "evidence_only": true,
+  "fixture_only": true,
+  "local_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "creates_persistent_task": false,
+  "creates_persistent_session": false,
+  "processes_real_binaries": false,
+  "external_invocations": {
+    "production_http_service": false,
+    "web_api": false,
+    "database_or_queue": false,
+    "scheduler_or_service": false,
+    "remote_runner_dispatch": false,
+    "ci_dispatch_or_polling": false,
+    "external_tool_execution": false,
+    "real_binary_processing": false,
+    "candidate_search": false,
+    "persistent_user_task_or_session_creation": false,
+    "real_user_upload_ingestion": false
+  },
+  "checks": [
+    {
+      "name": "tool_profile_contract",
+      "status": "PASS",
+      "detail": "tool profiles are deterministic, portable, and metadata-only"
+    },
+    {
+      "name": "runner_capability_contract",
+      "status": "PASS",
+      "detail": "runner capability snapshot describes availability without dispatch"
+    },
+    {
+      "name": "workbench_facade_contract",
+      "status": "PASS",
+      "detail": "workbench facade composes fixture responses, UI states, capabilities, route plans, and task traces safely",
+      "rendered_names": [
+        "blocked",
+        "candidate",
+        "failed",
+        "missing-evidence",
+        "verified"
+      ]
+    },
+    {
+      "name": "workbench_api_routes",
+      "status": "PASS",
+      "detail": "workbench API routes are in-process pure-function previews",
+      "route_statuses": [
+        200,
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "name": "workbench_schema_snapshot",
+      "status": "PASS",
+      "detail": "schema snapshot covers workbench routes, profiles, capabilities, route plans, and task traces"
+    },
+    {
+      "name": "portable_example_configs",
+      "status": "PASS",
+      "detail": "example configs are present, portable, and use placeholders",
+      "missing_config": []
+    },
+    {
+      "name": "workbench_non_invasive_source_surface",
+      "status": "PASS",
+      "detail": "workbench source contains no forbidden execution, persistence, network, service, dispatch, or project task writes",
+      "found_forbidden": {}
+    }
+  ],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/user_solve_workbench_result.json",
+    "project_state/gates/user_solve_workbench_snapshot.json"
+  ]
+}

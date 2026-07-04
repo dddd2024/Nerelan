@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "workbench": {
+    "fixture_only": true,
+    "default_fixture": "candidate",
+    "enable_real_uploads": false,
+    "enable_persistent_tasks": false,
+    "enable_remote_dispatch": false,
+    "tool_profile_config": ".reverse-agent/config/tool_profiles.example.json"
+  }
+}
