@@ -1,0 +1,193 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: #f6f7f9;
+  color: #20242a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.topbar {
+  align-items: center;
+  border-bottom: 1px solid #d8dde5;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 auto 20px;
+  max-width: 1120px;
+  padding-bottom: 16px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.topbar p,
+.message,
+.metrics span,
+.panel h3 {
+  color: #5d6675;
+}
+
+.scope-pill,
+.state-label,
+.validation-label {
+  border: 1px solid #cfd6df;
+  border-radius: 6px;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 650;
+  padding: 6px 10px;
+}
+
+.workspace {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  margin: 0 auto;
+  max-width: 1120px;
+}
+
+.rail {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+}
+
+.rail button {
+  background: #ffffff;
+  border: 1px solid #d8dde5;
+  border-radius: 6px;
+  color: #20242a;
+  cursor: pointer;
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.rail button.active,
+.rail button:focus-visible {
+  border-color: #276ef1;
+  box-shadow: 0 0 0 3px rgba(39, 110, 241, 0.14);
+  outline: none;
+}
+
+.detail {
+  background: #ffffff;
+  border: 1px solid #d8dde5;
+  border-radius: 8px;
+  min-width: 0;
+  padding: 20px;
+}
+
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.state-label {
+  background: #eef4ff;
+  border-color: #b8cffd;
+  color: #174ea6;
+}
+
+.state-label.success {
+  background: #e8f7ed;
+  border-color: #abd9b8;
+  color: #19683a;
+}
+
+.state-label.danger,
+.state-label.blocked {
+  background: #fff0f0;
+  border-color: #e7b4b4;
+  color: #9c2b2b;
+}
+
+.state-label.attention {
+  background: #fff7df;
+  border-color: #e5cc83;
+  color: #775700;
+}
+
+.message {
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+.metrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 20px 0;
+}
+
+.metrics div,
+.panel {
+  border: 1px solid #e0e4ea;
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.metrics span,
+.metrics strong,
+.panel h3,
+.panel p {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.metrics strong {
+  margin-top: 5px;
+}
+
+.panels {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panel p {
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+@media (max-width: 760px) {
+  .shell {
+    padding: 16px;
+  }
+
+  .topbar,
+  .workspace,
+  .metrics,
+  .panels {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    display: grid;
+    gap: 10px;
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "fixture_only": true,
+  "fixtures": [
+    {
+      "fixture_name": "candidate",
+      "ui_state": {
+        "display_state": "candidate_pending_validation",
+        "tone": "attention",
+        "label": "Candidate pending validation",
+        "next_action_kind": "validate_candidate"
+      },
+      "response": {
+        "status": "candidate_found",
+        "validation_status": "pending",
+        "evidence_status": "building",
+        "public_message": "Offline fixture preview only.",
+        "answer": "flag{demo_candidate}",
+        "candidates": [
+          {
+            "value": "flag{demo_candidate}",
+            "confidence": 0.64,
+            "validation_status": "pending"
+          }
+        ],
+        "next_action": {
+          "kind": "validate_candidate",
+          "label": "Validate the candidate before final acceptance."
+        },
+        "fallback_summary": {
+          "executed": false,
+          "selected_step": {
+            "name": "fast_strings"
+          },
+          "missing_evidence": []
+        }
+      }
+    },
+    {
+      "fixture_name": "missing-evidence",
+      "ui_state": {
+        "display_state": "needs_more_evidence",
+        "tone": "info",
+        "label": "Needs more evidence",
+        "next_action_kind": "fallback"
+      },
+      "response": {
+        "status": "deep_analysis_running",
+        "validation_status": "unavailable",
+        "evidence_status": "building",
+        "public_message": "More evidence is needed before a final answer can be verified.",
+        "candidates": [],
+        "next_action": {
+          "kind": "fallback",
+          "label": "Collect more evidence with fast_strings."
+        },
+        "fallback_summary": {
+          "executed": false,
+          "selected_step": {
+            "name": "fast_strings"
+          },
+          "missing_evidence": [
+            "targeted_decompile_missing"
+          ]
+        }
+      }
+    },
+    {
+      "fixture_name": "blocked",
+      "ui_state": {
+        "display_state": "blocked",
+        "tone": "blocked",
+        "label": "Blocked",
+        "next_action_kind": "blocked"
+      },
+      "response": {
+        "status": "blocked",
+        "validation_status": "unavailable",
+        "evidence_status": "failed",
+        "public_message": "The fixture is blocked by a policy or environment requirement.",
+        "candidates": [],
+        "next_action": {
+          "kind": "blocked",
+          "label": "Resolve the blocking condition before continuing."
+        },
+        "fallback_summary": {
+          "executed": false,
+          "selected_step": null,
+          "missing_evidence": []
+        }
+      }
+    },
+    {
+      "fixture_name": "failed",
+      "ui_state": {
+        "display_state": "failed",
+        "tone": "danger",
+        "label": "Failed",
+        "next_action_kind": "review"
+      },
+      "response": {
+        "status": "failed",
+        "validation_status": "unavailable",
+        "evidence_status": "partial",
+        "public_message": "No candidate answer was found in the supplied fixture.",
+        "candidates": [],
+        "next_action": {
+          "kind": "review",
+          "label": "Review the supplied analysis result."
+        },
+        "fallback_summary": {
+          "executed": false,
+          "selected_step": {
+            "name": "fast_strings"
+          },
+          "missing_evidence": []
+        }
+      }
+    },
+    {
+      "fixture_name": "verified",
+      "ui_state": {
+        "display_state": "verified",
+        "tone": "success",
+        "label": "Verified",
+        "next_action_kind": "return_answer"
+      },
+      "response": {
+        "status": "verified",
+        "validation_status": "passed",
+        "evidence_status": "complete",
+        "public_message": "A supplied fixture candidate has passed validation evidence.",
+        "answer": "flag{demo_verified}",
+        "candidates": [
+          {
+            "value": "flag{demo_verified}",
+            "confidence": 0.98,
+            "validation_status": "passed"
+          }
+        ],
+        "next_action": {
+          "kind": "return_answer",
+          "label": "Return the verified answer."
+        },
+        "fallback_summary": {
+          "executed": false,
+          "selected_step": {
+            "name": "fast_strings"
+          },
+          "missing_evidence": []
+        }
+      }
+    }
+  ]
+}

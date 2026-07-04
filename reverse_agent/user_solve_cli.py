@@ -5,12 +5,13 @@ import json
 from typing import Sequence
 
 from .user_solve_controller import UserSolveController
+from .user_solve_fixtures import FIXTURE_NAMES
 from .user_solve_request import demo_request
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Fixture-only user solve preview.")
-    parser.add_argument("--demo", choices=("candidate", "missing-evidence"), required=True)
+    parser.add_argument("--demo", choices=FIXTURE_NAMES, required=True)
     parser.add_argument("--developer", action="store_true", help="Include developer audit fields.")
     return parser
 

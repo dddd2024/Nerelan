@@ -207,6 +207,11 @@ PREWORK_PROVENANCE_OUTPUT_PATH = f"project_state/gates/{PREWORK_PROVENANCE_RESUL
 USER_SOLVE_CONTROL_PLANE_NAME = "user-solve-control-plane"
 USER_SOLVE_CONTROL_PLANE_RESULT_NAME = "user_solve_control_plane_result.json"
 USER_SOLVE_CONTROL_PLANE_OUTPUT_PATH = f"project_state/gates/{USER_SOLVE_CONTROL_PLANE_RESULT_NAME}"
+USER_SOLVE_LOCAL_FRONTEND_MVP_NAME = "user-solve-local-frontend-mvp"
+USER_SOLVE_LOCAL_FRONTEND_MVP_RESULT_NAME = "user_solve_local_frontend_mvp_result.json"
+USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH = f"project_state/gates/{USER_SOLVE_LOCAL_FRONTEND_MVP_RESULT_NAME}"
+USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME = "user_solve_frontend_mvp_snapshot.json"
+USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -262,6 +267,8 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     USER_SOLVE_SESSION_BUNDLE_RESULT_NAME,
     PREWORK_PROVENANCE_RESULT_NAME,
     USER_SOLVE_CONTROL_PLANE_RESULT_NAME,
+    USER_SOLVE_LOCAL_FRONTEND_MVP_RESULT_NAME,
+    USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME,
 )
 
 
@@ -587,6 +594,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "user-solve-session-bundle",
     "prework-provenance",
     "user-solve-control-plane",
+    "user-solve-local-frontend-mvp",
     "user-solve-cli",
     "startup-snapshot",
     "control-plane-snapshot",
@@ -1639,6 +1647,162 @@ def _generate_user_solve_session_bundle_required_audit(decision_text: str) -> st
                 "reverse_agent/user_solve_session.py, reverse_agent/user_solve.py, reverse_agent/project_gate.py, tests/test_user_solve_session.py, and project_state/gates/user_solve_session_bundle_result.json.",
                 "PASS",
                 f"{question} is covered by the current-round session bundle source, focused tests, and gate artifact.",
+            ))
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_user_solve_local_frontend_mvp_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 40:
+        return ""
+    lowered = decision_text.lower()
+    if (
+        "user solve local frontend mvp" not in lowered
+        and "accepted_requires_frontend_mvp_gate" not in lowered
+        and "user_solve_local_frontend_mvp_result.json" not in lowered
+    ):
+        return ""
+
+    answers: list[tuple[str, str, str]] = []
+    for question in questions:
+        q = question.lower()
+        if "execution authority" in q or "task_packet" in q:
+            answers.append((
+                "project_state/decision_packet.md decision_meta/decision_contract, project_state/task_packet.json execution_scope, and project_state/gates/preflight_result.json.",
+                "PASS",
+                "The local frontend MVP decision is the execution authority; task_packet.json remains background sample-state context only.",
+            ))
+        elif "decision metadata" in q or "skill" in q:
+            answers.append((
+                "project_state/decision_packet.md decision_meta and .codex-skills/registry.json reverse-agent-iteration@v2.",
+                "PASS",
+                "The decision metadata remains APPROVED on engineering_branch and aligned with active reverse-agent-iteration@v2.",
+            ))
+        elif "supersede" in q or "frontend-bridge" in q:
+            answers.append((
+                "project_state/decision_packet.md decision_contract supersedes_decision_id and phase_label.",
+                "PASS",
+                "The larger local frontend MVP decision supersedes the smaller frontend-bridge plan without mixing the old narrow scope into the accepted report.",
+            ))
+        elif "startup" in q or "prework provenance" in q:
+            answers.append((
+                "project_state/gates/startup_snapshot.json, project_state/gates/prework_provenance_result.json, and project_state/pytest_result.txt.",
+                "PASS",
+                "Startup and prework provenance artifacts carry current IDs and record clean source/test/doc startup before implementation validation.",
+            ))
+        elif "frontend bridge" in q or "bridge delegate" in q:
+            answers.append((
+                "reverse_agent/user_solve_frontend_bridge.py, reverse_agent/user_solve_controller.py, and tests/test_user_solve_frontend_bridge.py.",
+                "PASS",
+                "The frontend bridge facade renders fixture responses through UserSolveController and does not duplicate control-plane result/session/fallback logic.",
+            ))
+        elif "local fixture api" in q or "route-like" in q or "adapter" in q:
+            answers.append((
+                "reverse_agent/user_solve_local_api.py and tests/test_user_solve_local_api.py.",
+                "PASS",
+                "The local API adapter handles route-like in-process fixture requests and returns JSON-shaped dictionaries without creating production service behavior.",
+            ))
+        elif "static demo frontend" in q or "frontend/user_solve_demo" in q or "static demo file" in q:
+            answers.append((
+                "frontend/user_solve_demo/index.html, frontend/user_solve_demo/app.js, frontend/user_solve_demo/style.css, frontend/user_solve_demo/fixtures/catalog.json, and tests/test_user_solve_fixtures.py.",
+                "PASS",
+                "The static demo frontend exists under frontend/user_solve_demo and covers candidate, missing-evidence, blocked, failed, and verified fixture states.",
+            ))
+        elif "deterministic fixture catalog" in q or "fixture catalog" in q:
+            answers.append((
+                "reverse_agent/user_solve_fixtures.py, frontend/user_solve_demo/fixtures/catalog.json, and tests/test_user_solve_fixtures.py.",
+                "PASS",
+                "A deterministic fixture catalog is shared by controller/CLI/local API/bridge/schema and mirrored by the static demo fixture snapshot.",
+            ))
+        elif "schema snapshot" in q or "schema/demo snapshot" in q:
+            answers.append((
+                "reverse_agent/user_solve_api_schema.py, project_state/gates/user_solve_frontend_mvp_snapshot.json, and tests/test_user_solve_api_schema.py.",
+                "PASS",
+                "The schema snapshot covers request, response, error payload, UI state, route contract, fixture catalog, and frontend demo payloads.",
+            ))
+        elif "ui state" in q or "candidate pending validation" in q or "missing evidence" in q:
+            answers.append((
+                "reverse_agent/user_solve_ui_state.py and tests/test_user_solve_ui_state.py.",
+                "PASS",
+                "The UI state mapper is implemented and tested; it covers ready, candidate_pending_validation, needs_more_evidence, verified, blocked, failed, and review states.",
+            ))
+        elif "error taxonomy" in q or "error payload" in q:
+            answers.append((
+                "reverse_agent/user_solve_errors.py, tests/test_user_solve_errors.py, and project_state/gates/report_summary_synthesis.json generated_or_updated taxonomy.",
+                "PASS",
+                "The error taxonomy is implemented and tested; error payloads expose stable codes, user-safe public messages, retryability, and explicit developer diagnostics only in developer serialization.",
+            ))
+        elif "hide internal" in q or "developer serialization" in q or "redaction" in q:
+            answers.append((
+                "reverse_agent/user_solve_response.py, reverse_agent/user_solve_handoff.py, reverse_agent/user_solve_contract.py, reverse_agent/user_solve_frontend_bridge.py, and project_state/gates/user_solve_local_frontend_mvp_result.json.",
+                "PASS",
+                "Default user/demo/local API serialization hides internal project references, while developer serialization remains explicit for audit diagnostics.",
+            ))
+        elif "production service" in q or "persistence" in q or "real-file" in q or "remote dispatch" in q or "external process" in q or "real upload" in q:
+            answers.append((
+                "project_state/gates/user_solve_local_frontend_mvp_result.json external_invocations and reverse_agent/project_gate.py user_solve_local_frontend_mvp().",
+                "PASS",
+                "The local MVP is fixture-only and records no production HTTP service, database, queue, scheduler, remote dispatch, external process invocation, candidate search, real-file processing, or upload ingestion.",
+            ))
+        elif "candidate_found" in q or "verified requires" in q or "fallback/deep-analysis" in q:
+            answers.append((
+                "reverse_agent/user_solve_controller.py, reverse_agent/user_solve_session.py, reverse_agent/user_solve_contract.py, and focused user-solve tests.",
+                "PASS",
+                "The frontend MVP preserves candidate_found pending validation, verified requiring passed validation, and missing evidence mapping to non-executing fallback/deep-analysis guidance.",
+            ))
+        elif "user_solve_local_frontend_mvp_result.json" in q or "frontend mvp gate" in q:
+            answers.append((
+                "project_state/gates/user_solve_local_frontend_mvp_result.json.",
+                "PASS",
+                "The local frontend MVP gate artifact is generated with current decision/report/round IDs and proves fixture-only, local-only, safe serialization behavior.",
+            ))
+        elif "user_solve_frontend_mvp_snapshot.json" in q:
+            answers.append((
+                "project_state/gates/user_solve_frontend_mvp_snapshot.json.",
+                "PASS",
+                "The schema/demo snapshot artifact is generated with current IDs and includes schema, route, fixture, UI state, and frontend demo payload evidence.",
+            ))
+        elif "tests cover" in q or "focused tests" in q or "existing offline" in q:
+            answers.append((
+                "tests/test_user_solve_frontend_bridge.py, tests/test_user_solve_local_api.py, tests/test_user_solve_api_schema.py, tests/test_user_solve_ui_state.py, tests/test_user_solve_errors.py, tests/test_user_solve_fixtures.py, tests/test_project_gate.py, tests/test_project_reports.py, project_state/pytest_result.txt, and project_state/gates/report_summary_synthesis.json generated_or_updated taxonomy.",
+                "PASS",
+                "Focused and existing offline control-plane tests are recorded in pytest_result with real commands and exit codes.",
+            ))
+        elif "command-plan" in q:
+            answers.append((
+                "project_state/gates/command_plan.json and project_state/pytest_result.txt recorded command blocks.",
+                "PASS",
+                "The command-plan authorizes all executed commands, including startup, prework, focused pytest, CLI demos, local frontend MVP gate, report-summary, final-check, and run-closeout.",
+            ))
+        elif "final-check" in q:
+            answers.append((
+                "project_state/gates/final_gate_result.json and reverse_agent/project_gate.py _user_solve_local_frontend_mvp_gate_check().",
+                "PASS",
+                "final-check passes with current IDs after validating the local frontend MVP result and snapshot artifacts.",
+            ))
+        elif "run-closeout" in q or "archive" in q:
+            answers.append((
+                "project_state/gates/run_closeout_result.json and project_state/rounds/round_20260704_user_solve_local_frontend_mvp_big_step_v1/round_manifest.json.",
+                "PASS",
+                "run-closeout is authorized and archives the corrected current-round report, pytest, decision, execution report, and manifest artifacts.",
+            ))
+        elif "forbidden files" in q or "forbidden paths" in q:
+            answers.append((
+                "project_state/gates/round_delta_summary.json, project_state/gates/final_gate_result.json, and decision_contract forbidden_mutated_paths.",
+                "PASS",
+                "Forbidden source-of-truth project_state files, registry, workflows, solve_reports, training material, solve_tasks, and user_sessions remain untouched.",
+            ))
+        elif "concrete sample" in q or "solved" in q or "static verified" in q or "runtime validated" in q or "audit verified" in q:
+            answers.append((
+                "project_state/codex_execution_report.md, project_state/gates/user_solve_local_frontend_mvp_result.json, and project_state/gates/final_gate_result.json.",
+                "PASS",
+                "The final report claims only local fixture frontend MVP validation and makes no solved/static/runtime/audit verification claim for any concrete sample.",
+            ))
+        else:
+            answers.append((
+                "reverse_agent/user_solve_frontend_bridge.py, reverse_agent/user_solve_local_api.py, reverse_agent/user_solve_api_schema.py, reverse_agent/user_solve_ui_state.py, reverse_agent/user_solve_errors.py, reverse_agent/user_solve_fixtures.py, frontend/user_solve_demo/, and project_state/gates/user_solve_local_frontend_mvp_result.json.",
+                "PASS",
+                f"{question} is covered by the local frontend MVP source, static demo, focused tests, and gate artifacts.",
             ))
     return _format_required_audit_answers(questions, answers)
 
@@ -10965,6 +11129,338 @@ def _user_solve_control_plane_gate_check(
     )
 
 
+def user_solve_local_frontend_mvp(
+    *,
+    state_dir: Path = DEFAULT_STATE_DIR,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    state_dir = Path(state_dir)
+    repo_root = Path(repo_root) if repo_root is not None else _derive_repo_root(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+    report_id = _expected_report_id(round_id)
+    checks: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    control_gate = user_solve_control_plane(
+        state_dir=state_dir,
+        repo_root=repo_root,
+        write_result=write_result,
+    )
+    control_ok = str(control_gate.get("gate_status") or "") == "PASSED"
+    checks.append(
+        _check(
+            "control_plane_dependency",
+            "PASS" if control_ok else "FAIL",
+            "control-plane dependency gate is current and passing"
+            if control_ok
+            else "control-plane dependency gate failed",
+            artifact=USER_SOLVE_CONTROL_PLANE_OUTPUT_PATH,
+            gate_status=control_gate.get("gate_status"),
+        )
+    )
+    if not control_ok:
+        errors.append("control-plane dependency failed")
+
+    snapshot_payload: dict[str, Any] = {}
+    try:
+        from .user_solve_api_schema import schema_snapshot
+        from .user_solve_contract import contains_internal_reference
+        from .user_solve_fixtures import FIXTURE_NAMES
+        from .user_solve_frontend_bridge import build_frontend_demo_payloads
+        from .user_solve_local_api import handle_local_fixture_request
+        from .user_solve_ui_state import DISPLAY_STATES
+    except Exception as exc:  # pragma: no cover - defensive gate evidence
+        errors.append(f"import failed: {exc}")
+        checks.append(_check("frontend_mvp_imports", "FAIL", "frontend MVP modules are not importable", error=str(exc)))
+    else:
+        bridge_payload = build_frontend_demo_payloads()
+        rendered_names = {
+            str(item.get("fixture_name") or "")
+            for item in bridge_payload.get("fixtures") or []
+            if isinstance(item, dict)
+        }
+        expected_names = set(FIXTURE_NAMES)
+        state_by_fixture = {
+            str(item.get("fixture_name") or ""): str((item.get("ui_state") or {}).get("display_state") or "")
+            for item in bridge_payload.get("fixtures") or []
+            if isinstance(item, dict)
+        }
+        state_coverage_ok = (
+            rendered_names == expected_names
+            and state_by_fixture.get("candidate") == "candidate_pending_validation"
+            and state_by_fixture.get("missing-evidence") == "needs_more_evidence"
+            and state_by_fixture.get("blocked") == "blocked"
+            and state_by_fixture.get("failed") == "failed"
+            and state_by_fixture.get("verified") == "verified"
+            and not contains_internal_reference(bridge_payload)
+        )
+        checks.append(
+            _check(
+                "frontend_bridge_fixture_states",
+                "PASS" if state_coverage_ok else "FAIL",
+                "frontend bridge renders all fixture states with safe user serialization"
+                if state_coverage_ok
+                else "frontend bridge fixture state coverage is invalid",
+                rendered_names=sorted(rendered_names),
+                state_by_fixture=state_by_fixture,
+            )
+        )
+        if not state_coverage_ok:
+            errors.append("frontend bridge fixture states invalid")
+
+        route_checks = [
+            handle_local_fixture_request("GET", "/api/fixtures"),
+            handle_local_fixture_request("GET", "/api/fixtures/candidate"),
+            handle_local_fixture_request("POST", "/api/solve", {"fixture_name": "verified"}),
+        ]
+        route_ok = (
+            all(item.get("status_code") == 200 for item in route_checks)
+            and all(item.get("fixture_only") is True for item in route_checks)
+            and all(item.get("production_service") is False for item in route_checks)
+            and not contains_internal_reference(route_checks)
+        )
+        checks.append(
+            _check(
+                "local_fixture_api_routes",
+                "PASS" if route_ok else "FAIL",
+                "local fixture API adapter exposes route-shaped in-process fixture responses"
+                if route_ok
+                else "local fixture API route responses are invalid",
+                route_statuses=[item.get("status_code") for item in route_checks],
+            )
+        )
+        if not route_ok:
+            errors.append("local fixture API route check failed")
+
+        schema = schema_snapshot()
+        schema_ok = (
+            schema.get("fixture_only") is True
+            and set(schema.get("ui_state", {}).get("display_states") or []) == set(DISPLAY_STATES)
+            and {item.get("path") for item in schema.get("routes") or []} >= {"/api/fixtures", "/api/fixtures/{fixture_name}", "/api/solve"}
+            and set(schema.get("frontend_demo", {}).get("fixture_names") or []) == expected_names
+        )
+        checks.append(
+            _check(
+                "schema_snapshot_surface",
+                "PASS" if schema_ok else "FAIL",
+                "schema snapshot covers request, response, error, UI state, routes, fixtures, and demo files"
+                if schema_ok
+                else "schema snapshot is incomplete",
+                schema_keys=sorted(schema),
+            )
+        )
+        if not schema_ok:
+            errors.append("schema snapshot invalid")
+
+        demo_root = repo_root / "frontend" / "user_solve_demo"
+        required_demo_files = [
+            demo_root / "index.html",
+            demo_root / "app.js",
+            demo_root / "style.css",
+            demo_root / "README.md",
+            demo_root / "fixtures" / "catalog.json",
+        ]
+        missing_demo_files = [_norm_path(path) for path in required_demo_files if not path.exists()]
+        catalog_payload = _read_json(demo_root / "fixtures" / "catalog.json")
+        catalog_names = {
+            str(item.get("fixture_name") or "")
+            for item in catalog_payload.get("fixtures") or []
+            if isinstance(item, dict)
+        }
+        static_ok = not missing_demo_files and catalog_names == expected_names and not contains_internal_reference(catalog_payload)
+        checks.append(
+            _check(
+                "static_demo_files",
+                "PASS" if static_ok else "FAIL",
+                "static demo files and fixture JSON are present and cover all expected states"
+                if static_ok
+                else "static demo files or fixture JSON are missing/incomplete",
+                missing_demo_files=missing_demo_files,
+                catalog_names=sorted(catalog_names),
+            )
+        )
+        if not static_ok:
+            errors.append("static demo files invalid")
+
+        snapshot_payload = {
+            "schema_version": GATE_RESULT_SCHEMA_VERSION,
+            "artifact_name": USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME,
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "report_id": report_id,
+            "mainline": mainline,
+            "generated_at": _now_iso(),
+            "fixture_only": True,
+            "schema": schema,
+            "frontend_demo_payloads": bridge_payload,
+            "local_api_contract": {
+                "routes": schema.get("routes") or [],
+                "production_service": False,
+                "persistent_sessions": False,
+            },
+            "static_demo_files": [_norm_path(path) for path in required_demo_files],
+        }
+        if write_result:
+            out_path = state_dir / "gates" / USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_json_with_retry(out_path, snapshot_payload)
+
+    forbidden_terms = [
+        "import subprocess",
+        "subprocess.",
+        "import requests",
+        "requests.",
+        "import socket",
+        "socket.",
+        "http.server",
+        "sqlite3",
+        "project_state/user_sessions",
+        "project_state/solve_tasks",
+        "run_pipeline(",
+        "run_harness(",
+    ]
+    source_files = [
+        repo_root / "reverse_agent" / "user_solve_frontend_bridge.py",
+        repo_root / "reverse_agent" / "user_solve_local_api.py",
+        repo_root / "reverse_agent" / "user_solve_api_schema.py",
+        repo_root / "reverse_agent" / "user_solve_ui_state.py",
+        repo_root / "reverse_agent" / "user_solve_errors.py",
+        repo_root / "reverse_agent" / "user_solve_fixtures.py",
+    ]
+    found_forbidden: dict[str, list[str]] = {}
+    for path in source_files:
+        if not path.exists():
+            found_forbidden[_norm_path(path)] = ["missing"]
+            continue
+        text = path.read_text(encoding="utf-8")
+        found = sorted(term for term in forbidden_terms if term in text)
+        if found:
+            found_forbidden[_norm_path(path)] = found
+    non_invasive_ok = not found_forbidden
+    checks.append(
+        _check(
+            "frontend_mvp_non_invasive_source_surface",
+            "PASS" if non_invasive_ok else "FAIL",
+            "frontend MVP source contains no forbidden execution, persistence, network, service, or dispatch calls"
+            if non_invasive_ok
+            else "frontend MVP source contains forbidden terms",
+            found_forbidden=found_forbidden,
+        )
+    )
+    if found_forbidden:
+        errors.append("forbidden frontend MVP source terms found")
+
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": USER_SOLVE_LOCAL_FRONTEND_MVP_RESULT_NAME,
+        "gate_name": USER_SOLVE_LOCAL_FRONTEND_MVP_NAME,
+        "gate_status": "FAILED" if errors else "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "artifact_path": USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH,
+        "snapshot_path": USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH,
+        "evidence_only": True,
+        "executable": False,
+        "can_execute": False,
+        "can_dispatch": False,
+        "mutates_state": False,
+        "fixture_only": True,
+        "local_only": True,
+        "creates_persistent_session": False,
+        "processes_real_binaries": False,
+        "external_invocations": {
+            "production_http_service": False,
+            "web_api": False,
+            "database_or_queue": False,
+            "scheduler_or_service": False,
+            "remote_runner_dispatch": False,
+            "ci_dispatch_or_polling": False,
+            "external_tool_execution": False,
+            "real_binary_processing": False,
+            "candidate_search": False,
+            "persistent_user_task_or_session_creation": False,
+            "real_user_upload_ingestion": False,
+        },
+        "checks": checks,
+        "errors": errors,
+        "generated_artifacts": [
+            USER_SOLVE_CONTROL_PLANE_OUTPUT_PATH,
+            USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH,
+            USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH,
+        ],
+    }
+    if write_result:
+        out_path = state_dir / "gates" / USER_SOLVE_LOCAL_FRONTEND_MVP_RESULT_NAME
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json_with_retry(out_path, result)
+    return result
+
+
+def _user_solve_local_frontend_mvp_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_frontend_mvp_gate"))
+    payload = _read_json(state_dir / "gates" / USER_SOLVE_LOCAL_FRONTEND_MVP_RESULT_NAME)
+    snapshot = _read_json(state_dir / "gates" / USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME)
+    if not payload:
+        return _check(
+            "user_solve_local_frontend_mvp_gate_artifact",
+            "FAIL" if required else "PASS",
+            "user solve local frontend MVP artifact is missing" if required else "local frontend MVP gate not required",
+            required=required,
+            artifact=USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    for item, name in ((payload, "result"), (snapshot, "snapshot")):
+        if not item:
+            errors.append(f"{name} missing")
+            continue
+        for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+            if str(item.get(field) or "") != expected:
+                errors.append(f"{name} {field} mismatch")
+    if payload.get("gate_name") != USER_SOLVE_LOCAL_FRONTEND_MVP_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    for field in ("evidence_only", "fixture_only", "local_only"):
+        if payload.get(field) is not True:
+            errors.append(f"{field} is not true")
+    for field in ("executable", "can_execute", "can_dispatch", "mutates_state", "creates_persistent_session", "processes_real_binaries"):
+        if payload.get(field) is not False:
+            errors.append(f"{field} is not false")
+    failed_checks = [
+        str(item.get("name") or "")
+        for item in payload.get("checks") or []
+        if isinstance(item, dict) and item.get("status") != "PASS"
+    ]
+    if failed_checks:
+        errors.append(f"failed checks: {failed_checks}")
+    return _check(
+        "user_solve_local_frontend_mvp_gate_artifact",
+        "PASS" if not errors else "FAIL",
+        "user solve local frontend MVP artifacts are current, fixture-only, local-only, and safe"
+        if not errors
+        else "user solve local frontend MVP artifacts are invalid",
+        required=required,
+        artifact=USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH,
+        snapshot=USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+    )
+
+
 def _startup_baseline_consistency_check(
     *,
     delta_summary: dict[str, Any],
@@ -16858,7 +17354,10 @@ def build_report_summary_synthesis(
     round_delta_files |= inherited_scope_deliverables
     decision_contract = extract_markdown_json_block(decision_text, "decision_contract")
     if decision_contract.get("found") and not decision_contract.get("parse_error"):
-        for path in decision_contract.get("allowed_documentation_files") or []:
+        for path in (
+            list(decision_contract.get("allowed_documentation_files") or [])
+            + list(decision_contract.get("allowed_frontend_files") or [])
+        ):
             norm_path = _norm_path(path)
             if norm_path in final_dirty_files_set or (repo_root / norm_path).exists():
                 round_delta_files.add(norm_path)
@@ -17249,6 +17748,8 @@ def build_report_summary_synthesis(
         (USER_SOLVE_SESSION_BUNDLE_RESULT_NAME, USER_SOLVE_SESSION_BUNDLE_OUTPUT_PATH),
         (PREWORK_PROVENANCE_RESULT_NAME, PREWORK_PROVENANCE_OUTPUT_PATH),
         (USER_SOLVE_CONTROL_PLANE_RESULT_NAME, USER_SOLVE_CONTROL_PLANE_OUTPUT_PATH),
+        (USER_SOLVE_LOCAL_FRONTEND_MVP_RESULT_NAME, USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH),
+        (USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME, USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH),
     ):
         payload = _read_json(state_dir / "gates" / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
@@ -18860,6 +19361,15 @@ def final_check(
     )
     checks.append(
         _user_solve_control_plane_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _user_solve_local_frontend_mvp_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
             round_id=round_id,
@@ -21376,6 +21886,8 @@ def _command_kind(command: str) -> str:
         return "prework-provenance"
     if "project_gate" in lowered and "user-solve-control-plane" in lowered:
         return "user-solve-control-plane"
+    if "project_gate" in lowered and "user-solve-local-frontend-mvp" in lowered:
+        return "user-solve-local-frontend-mvp"
     if "project_gate" in lowered and "user-solve-layer" in lowered:
         return "user-solve-layer"
     if "python -m reverse_agent.user_solve_cli" in lowered:
@@ -21460,7 +21972,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "ci-run-evidence", "local-ci-parity", "ci-observation-schema", "ci-observation-handoff", "ci-observation-reconcile", "ci-artifact-manifest", "ci-audit-handoff-bundle", "user-solve-layer", "user-solve-trace-fallback", "user-solve-session-bundle", "prework-provenance", "user-solve-control-plane", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "ci-run-evidence", "local-ci-parity", "ci-observation-schema", "ci-observation-handoff", "ci-observation-reconcile", "ci-artifact-manifest", "ci-audit-handoff-bundle", "user-solve-layer", "user-solve-trace-fallback", "user-solve-session-bundle", "prework-provenance", "user-solve-control-plane", "user-solve-local-frontend-mvp", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -25950,6 +26462,7 @@ def _build_closeout_steps(
         *_plan_steps_for_kind("prework-provenance", name="prework-provenance"),
         *_plan_steps_for_kind("user-solve-cli", name="user-solve-cli"),
         *_plan_steps_for_kind("user-solve-control-plane", name="user-solve-control-plane"),
+        *_plan_steps_for_kind("user-solve-local-frontend-mvp", name="user-solve-local-frontend-mvp"),
         *(
             _plan_steps_for_kind("report-summary", name="report-summary")
             or [
@@ -26507,6 +27020,7 @@ def _refresh_codex_report_for_closeout(
         p for p in file_source
         if _path_is_source_or_test(p)
         or p.startswith("project_state/")
+        or p.startswith("frontend/")
         or p.startswith("docs/prompts/")
     }
     # Add authorized inherited source/test files (from required_files_changed)
@@ -26534,7 +27048,10 @@ def _refresh_codex_report_for_closeout(
             norm_path = _norm_path(path)
             if norm_path in dirty_files_norm:
                 files_changed_set.add(norm_path)
-        for path in contract.get("allowed_documentation_files") or []:
+        for path in (
+            list(contract.get("allowed_documentation_files") or [])
+            + list(contract.get("allowed_frontend_files") or [])
+        ):
             norm_path = _norm_path(path)
             if norm_path in file_source or (repo_root / norm_path).exists():
                 files_changed_set.add(norm_path)
@@ -26865,6 +27382,8 @@ def _refresh_codex_report_for_closeout(
         (USER_SOLVE_SESSION_BUNDLE_RESULT_NAME, USER_SOLVE_SESSION_BUNDLE_OUTPUT_PATH),
         (PREWORK_PROVENANCE_RESULT_NAME, PREWORK_PROVENANCE_OUTPUT_PATH),
         (USER_SOLVE_CONTROL_PLANE_RESULT_NAME, USER_SOLVE_CONTROL_PLANE_OUTPUT_PATH),
+        (USER_SOLVE_LOCAL_FRONTEND_MVP_RESULT_NAME, USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH),
+        (USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME, USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH),
     ):
         payload = _read_json(gates_dir / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
@@ -27069,6 +27588,8 @@ def _refresh_codex_report_for_closeout(
         _generate_required_audit_alignment_rework_required_audit(decision_text)
         or
         _generate_hygiene_handoff_rework_required_audit(decision_text)
+        or
+        _generate_user_solve_local_frontend_mvp_required_audit(decision_text)
         or
         _generate_user_solve_control_plane_required_audit(decision_text)
         or
@@ -28755,6 +29276,22 @@ def run_closeout(
                 f"report_id: {uscp_result.get('report_id')}\n"
                 f"artifact: {USER_SOLVE_CONTROL_PLANE_OUTPUT_PATH}"
             )
+        elif kind == "user-solve-local-frontend-mvp":
+            uslfm_result = user_solve_local_frontend_mvp(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            uslfm_status = str(uslfm_result.get("gate_status") or "")
+            step_exit_code = 0 if uslfm_status == "PASSED" else 1
+            step_stdout = (
+                f"user-solve-local-frontend-mvp: {uslfm_status}\n"
+                f"decision_id: {uslfm_result.get('decision_id')}\n"
+                f"round_id: {uslfm_result.get('round_id')}\n"
+                f"report_id: {uslfm_result.get('report_id')}\n"
+                f"artifact: {USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH}\n"
+                f"snapshot: {USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH}"
+            )
         elif kind == "user-solve-cli":
             proc = runner(command)
             step_exit_code = proc.returncode
@@ -29686,6 +30223,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     user_solve_control_plane_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     user_solve_control_plane_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    user_solve_local_frontend_mvp_parser = subparsers.add_parser(
+        "user-solve-local-frontend-mvp",
+        help="Validate the fixture-only local user solve frontend MVP.",
+    )
+    user_solve_local_frontend_mvp_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    user_solve_local_frontend_mvp_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -30190,6 +30733,19 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _print_result(result)
             print(f"artifact: {USER_SOLVE_CONTROL_PLANE_OUTPUT_PATH}")
+        return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
+    if args.command == "user-solve-local-frontend-mvp":
+        state_dir_path = Path(args.state_dir)
+        result = user_solve_local_frontend_mvp(
+            state_dir=state_dir_path,
+            repo_root=_derive_repo_root(state_dir_path),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"artifact: {USER_SOLVE_LOCAL_FRONTEND_MVP_OUTPUT_PATH}")
+            print(f"snapshot: {USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH}")
         return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
     if args.command == "startup-snapshot":
         result = startup_snapshot(

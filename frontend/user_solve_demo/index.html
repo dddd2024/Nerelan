@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>User Solve Local Demo</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>User Solve</h1>
+          <p>Fixture-only local MVP</p>
+        </div>
+        <span class="scope-pill">local demo</span>
+      </header>
+
+      <section class="workspace" aria-label="User solve fixture demo">
+        <nav class="rail" aria-label="Demo fixtures">
+          <button type="button" data-fixture="candidate" class="active">Candidate</button>
+          <button type="button" data-fixture="missing-evidence">Needs evidence</button>
+          <button type="button" data-fixture="blocked">Blocked</button>
+          <button type="button" data-fixture="failed">Failed</button>
+          <button type="button" data-fixture="verified">Verified</button>
+        </nav>
+
+        <section class="detail">
+          <div class="status-row">
+            <span id="stateLabel" class="state-label">Ready</span>
+            <span id="validationLabel" class="validation-label">not_started</span>
+          </div>
+          <h2 id="fixtureTitle">Candidate</h2>
+          <p id="message" class="message"></p>
+
+          <div class="metrics" aria-label="State summary">
+            <div>
+              <span>Status</span>
+              <strong id="statusValue">ready</strong>
+            </div>
+            <div>
+              <span>Evidence</span>
+              <strong id="evidenceValue">none</strong>
+            </div>
+            <div>
+              <span>Next action</span>
+              <strong id="nextActionValue">review</strong>
+            </div>
+          </div>
+
+          <div class="panels">
+            <section class="panel">
+              <h3>Candidate</h3>
+              <p id="candidateValue">None</p>
+            </section>
+            <section class="panel">
+              <h3>Fallback</h3>
+              <p id="fallbackValue">None</p>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

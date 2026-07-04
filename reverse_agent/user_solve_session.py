@@ -146,6 +146,8 @@ def infer_next_action(
         return SessionNextAction(kind="return_answer", label="Return the verified answer.")
     if result.status == UserSolveStatus.CANDIDATE_FOUND:
         return SessionNextAction(kind="validate_candidate", label="Validate the candidate before final acceptance.")
+    if result.status == UserSolveStatus.BLOCKED:
+        return SessionNextAction(kind="blocked", label="Resolve the blocking condition before continuing.")
     if fallback_decision.selected_step is not None:
         return SessionNextAction(
             kind="fallback",
@@ -153,8 +155,6 @@ def infer_next_action(
         )
     if list(missing_evidence or []):
         return SessionNextAction(kind="collect_evidence", label="Collect the missing evidence before final acceptance.")
-    if result.status == UserSolveStatus.BLOCKED:
-        return SessionNextAction(kind="blocked", label="Resolve the blocking condition before continuing.")
     return SessionNextAction(kind="review", label="Review the supplied analysis result.")
 
 

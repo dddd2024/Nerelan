@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .user_solve import FastSolveWrapper
+from .user_solve_fixtures import fixture_payload
 from .user_solve_handoff import build_handoff_packet
 from .user_solve_request import UserSolveRequest
 from .user_solve_response import UserSolveResponseEnvelope, build_response_envelope
@@ -34,21 +35,13 @@ class UserSolveController:
 
     @staticmethod
     def _fixture_payload(request: UserSolveRequest) -> dict[str, Any]:
-        base: dict[str, Any] = {
-            "session_id": request.request_id,
-            "task_id": request.request_id,
-            "mode": request.mode,
-            "public_message": "Offline fixture preview only.",
-            "developer_trace_ref": "offline_control_plane_fixture",
-        }
-        if request.candidate:
-            return {
-                **base,
-                "selected_candidate": request.candidate,
-                "confidence": 0.64,
-                "validation_status": "pending",
-            }
-        return {
-            **base,
-            "missing_evidence": list(request.missing_evidence or ["targeted_decompile_missing"]),
-        }
+        payload = fixture_payload(request.fixture_name)
+        payload["session_id"] = request.request_id
+        payload["task_id"] = request.request_id
+        payload["mode"] = request.mode
+        if request.candidate and request.fixture_name != "verified":
+            payload["selected_candidate"] = request.candidate
+            payload.setdefault("validation_status", "pending")
+        if request.missing_evidence:
+            payload["missing_evidence"] = list(request.missing_evidence)
+        return payload

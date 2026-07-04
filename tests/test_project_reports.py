@@ -12,6 +12,7 @@ from reverse_agent.project_gate import (
     _generate_required_audit_direct_evidence_rework_required_audit,
     _generate_required_audit_alignment_rework_required_audit,
     _generate_user_solve_control_plane_required_audit,
+    _generate_user_solve_local_frontend_mvp_required_audit,
     _generate_user_solve_session_bundle_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
@@ -706,6 +707,71 @@ def test_user_solve_control_plane_required_audit_generator_is_substantive() -> N
     assert "reverse_agent/user_solve_controller.py" in audit
     assert "reverse_agent/user_solve_cli.py" in audit
     assert "non-invasive" in audit
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
+
+
+def test_user_solve_local_frontend_mvp_required_audit_generator_is_substantive() -> None:
+    questions = [
+        "Was the current decision treated as execution authority and task_packet as background only?",
+        "Did decision metadata remain valid and aligned with active reverse-agent-iteration@v2?",
+        "Did this decision supersede the smaller frontend-bridge plan without mixing scopes?",
+        "Were startup and prework provenance commands recorded and accepted before implementation validation?",
+        "Was a frontend bridge facade implemented?",
+        "Does the bridge delegate to the accepted offline controller instead of duplicating control-plane logic?",
+        "Was a local fixture API adapter implemented?",
+        "Does the local adapter provide route-like request/response handling without production service behavior?",
+        "Was a static demo frontend added under frontend/user_solve_demo/?",
+        "Does the demo cover candidate, missing-evidence, blocked, failed, and verified states?",
+        "Was a deterministic fixture catalog implemented and shared by CLI/API/demo/schema where appropriate?",
+        "Was a schema snapshot implemented for request, response, error payload, UI state, route contract, fixtures, and demo payloads?",
+        "Was a UI state mapper implemented and tested?",
+        "Does UI state mapping cover candidate pending validation, missing evidence, verified, failed, blocked, and review states?",
+        "Was an error taxonomy implemented and tested?",
+        "Do error payloads have stable codes, safe public messages, retryability, and developer diagnostics?",
+        "Does default user/demo/API serialization hide internal paths and developer trace refs?",
+        "Does developer serialization retain audit diagnostics explicitly?",
+        "Does the local MVP avoid production service behavior, persistence, real-file processing, remote dispatch, and external process invocation?",
+        "Does the local MVP preserve candidate_found pending-validation behavior?",
+        "Does the local MVP preserve verified requires passed validation behavior?",
+        "Does the local MVP preserve missing-evidence to fallback/deep-analysis behavior?",
+        "Was a current user_solve_local_frontend_mvp_result.json or equivalent gate artifact generated?",
+        "Was a current user_solve_frontend_mvp_snapshot.json or equivalent schema/demo snapshot artifact generated?",
+        "Do gate artifacts carry current decision/report/round IDs?",
+        "Do gate artifacts prove fixture-only, local-only, safe serialization behavior?",
+        "Did tests cover static demo file presence and fixture linkage?",
+        "Did tests cover local API adapter behavior?",
+        "Did tests cover schema snapshot stability?",
+        "Did tests cover fixture catalog coverage and redaction?",
+        "Did tests cover UI state mapping?",
+        "Did tests cover error taxonomy?",
+        "Did tests cover frontend bridge facade behavior?",
+        "Did existing offline control-plane tests continue passing?",
+        "Did pytest_result record real commands and exit codes?",
+        "Did command-plan authorize all executed commands and omit no executed commands?",
+        "Did final-check pass with current IDs?",
+        "Did run-closeout pass and archive corrected reports if authorized?",
+        "Were forbidden files untouched?",
+        "Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?",
+    ]
+    decision_text = (
+        "# Decision\n\nUser Solve Local Frontend MVP accepted_requires_frontend_mvp_gate "
+        "user_solve_local_frontend_mvp_result.json\n\n## Required Audit\n\n"
+        + "\n".join(f"{index}. {question}" for index, question in enumerate(questions, start=1))
+    )
+
+    audit = _generate_user_solve_local_frontend_mvp_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 40
+    assert "(to be filled)" not in audit
+    assert "project_state/gates/user_solve_local_frontend_mvp_result.json" in audit
+    assert "project_state/gates/user_solve_frontend_mvp_snapshot.json" in audit
+    assert "frontend/user_solve_demo/index.html" in audit
     assert result["status"] == "PASS"
     assert result["alignment_failures"] == []
 

@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
-  "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_offline_control_plane_big_step_v1",
+  "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "report_id": "codex_report_20260704_user_solve_local_frontend_mvp_big_step_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-03T16:00:14.014317Z",
+  "generated_at": "2026-07-04T10:48:20.442841Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
-    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+    "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
+    "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,6 +43,12 @@
   },
   "allowed_scope": {
     "source_files": [
+      "reverse_agent/user_solve_frontend_bridge.py",
+      "reverse_agent/user_solve_local_api.py",
+      "reverse_agent/user_solve_api_schema.py",
+      "reverse_agent/user_solve_ui_state.py",
+      "reverse_agent/user_solve_errors.py",
+      "reverse_agent/user_solve_fixtures.py",
       "reverse_agent/user_solve_request.py",
       "reverse_agent/user_solve_response.py",
       "reverse_agent/user_solve_handoff.py",
@@ -50,22 +56,18 @@
       "reverse_agent/user_solve_cli.py",
       "reverse_agent/user_solve_session.py",
       "reverse_agent/user_solve.py",
-      "reverse_agent/user_solve_contract.py",
-      "reverse_agent/user_solve_trace.py",
-      "reverse_agent/fallback_ladder.py",
-      "reverse_agent/evidence_quality.py",
       "reverse_agent/project_gate.py",
+      "tests/test_user_solve_frontend_bridge.py",
+      "tests/test_user_solve_local_api.py",
+      "tests/test_user_solve_api_schema.py",
+      "tests/test_user_solve_ui_state.py",
+      "tests/test_user_solve_errors.py",
+      "tests/test_user_solve_fixtures.py",
       "tests/test_user_solve_request.py",
       "tests/test_user_solve_response.py",
       "tests/test_user_solve_handoff.py",
       "tests/test_user_solve_controller.py",
       "tests/test_user_solve_cli.py",
-      "tests/test_user_solve_session.py",
-      "tests/test_user_solve.py",
-      "tests/test_user_solve_contract.py",
-      "tests/test_user_solve_trace.py",
-      "tests/test_fallback_ladder.py",
-      "tests/test_evidence_quality.py",
       "tests/test_project_gate.py",
       "tests/test_project_reports.py"
     ],
@@ -74,7 +76,7 @@
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
       "project_state/gates/*.json",
-      "project_state/rounds/round_20260703_user_solve_offline_control_plane_big_step_v1/*"
+      "project_state/rounds/round_20260704_user_solve_local_frontend_mvp_big_step_v1/*"
     ]
   },
   "forbidden_scope": {
@@ -174,7 +176,7 @@
     },
     {
       "index": 12,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "phase": "test",
       "required": true
@@ -195,8 +197,8 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate user-solve-control-plane --state-dir project_state",
-      "kind": "user-solve-control-plane",
+      "command": "python -m reverse_agent.project_gate user-solve-local-frontend-mvp --state-dir project_state",
+      "kind": "user-solve-local-frontend-mvp",
       "phase": "gate",
       "required": true
     },
@@ -223,7 +225,7 @@
     },
     {
       "index": 19,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_offline_control_plane_big_step_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_user_solve_local_frontend_mvp_big_step_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "required": true
@@ -231,7 +233,7 @@
   ],
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q"
     ],
     "includes_project_reports": true
@@ -253,11 +255,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
-    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+    "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
+    "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "fbc2c09b70bc109d68c41097d79bbe32f56578b02f3f85d78a5734babd6beb0f"
+    "sha256": "624c204b1f154685bd1abd0ed4502635101851a14d297ccb8a26a47c365eb10a"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -281,8 +283,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
-    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+    "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
+    "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -290,7 +292,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1"
+    "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

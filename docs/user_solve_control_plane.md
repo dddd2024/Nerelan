@@ -53,3 +53,22 @@ python -m reverse_agent.user_solve_cli --demo missing-evidence
 ```
 
 Both commands emit JSON response envelopes from synthetic in-memory fixtures.
+
+## Local Frontend MVP
+
+The local frontend MVP builds on this control plane with:
+
+- `UserSolveFrontendBridge`, a facade that renders controller responses for UI
+  consumption.
+- `user_solve_local_api`, an in-process route-shaped adapter for fixture
+  catalog and fixture solve previews.
+- `user_solve_api_schema`, a JSON-like snapshot of request, response, error,
+  UI state, route, fixture, and frontend-demo contracts.
+- `user_solve_ui_state`, a stable mapping from internal statuses to UI states.
+- `user_solve_errors`, a public-safe error taxonomy.
+- `frontend/user_solve_demo/`, a static demo that can be opened directly or
+  served as static files.
+
+The frontend MVP remains local and fixture-only. It does not add a production
+HTTP service, persistence, queue, scheduler, remote dispatch, external process
+invocation, upload ingestion, candidate search, or real binary processing.

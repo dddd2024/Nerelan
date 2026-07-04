@@ -3,11 +3,11 @@
   "artifact_name": "user_solve_control_plane_result.json",
   "gate_name": "user-solve-control-plane",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
-  "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_offline_control_plane_big_step_v1",
+  "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "report_id": "codex_report_20260704_user_solve_local_frontend_mvp_big_step_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-03T15:59:34.743281Z",
+  "generated_at": "2026-07-04T10:47:42.620231Z",
   "artifact_path": "project_state/gates/user_solve_control_plane_result.json",
   "evidence_only": true,
   "executable": false,
@@ -160,7 +160,7 @@
         "confidence": null,
         "validation_status": "unavailable",
         "evidence_status": "building",
-        "public_message": "Offline fixture preview only.",
+        "public_message": "More evidence is needed before a final answer can be verified.",
         "next_action": {
           "kind": "fallback",
           "label": "Collect more evidence with fast_strings.",
@@ -197,7 +197,7 @@
             "status": "deep_analysis_running",
             "validation_status": "unavailable",
             "evidence_status": "building",
-            "public_message": "Offline fixture preview only."
+            "public_message": "More evidence is needed before a final answer can be verified."
           },
           "next_action": {
             "kind": "fallback",

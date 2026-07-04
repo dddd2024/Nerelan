@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "artifact_name": "user_solve_local_frontend_mvp_result.json",
+  "gate_name": "user-solve-local-frontend-mvp",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "report_id": "codex_report_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-04T10:47:42.635657Z",
+  "artifact_path": "project_state/gates/user_solve_local_frontend_mvp_result.json",
+  "snapshot_path": "project_state/gates/user_solve_frontend_mvp_snapshot.json",
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false,
+  "mutates_state": false,
+  "fixture_only": true,
+  "local_only": true,
+  "creates_persistent_session": false,
+  "processes_real_binaries": false,
+  "external_invocations": {
+    "production_http_service": false,
+    "web_api": false,
+    "database_or_queue": false,
+    "scheduler_or_service": false,
+    "remote_runner_dispatch": false,
+    "ci_dispatch_or_polling": false,
+    "external_tool_execution": false,
+    "real_binary_processing": false,
+    "candidate_search": false,
+    "persistent_user_task_or_session_creation": false,
+    "real_user_upload_ingestion": false
+  },
+  "checks": [
+    {
+      "name": "control_plane_dependency",
+      "status": "PASS",
+      "detail": "control-plane dependency gate is current and passing",
+      "artifact": "project_state/gates/user_solve_control_plane_result.json",
+      "gate_status": "PASSED"
+    },
+    {
+      "name": "frontend_bridge_fixture_states",
+      "status": "PASS",
+      "detail": "frontend bridge renders all fixture states with safe user serialization",
+      "rendered_names": [
+        "blocked",
+        "candidate",
+        "failed",
+        "missing-evidence",
+        "verified"
+      ],
+      "state_by_fixture": {
+        "candidate": "candidate_pending_validation",
+        "missing-evidence": "needs_more_evidence",
+        "blocked": "blocked",
+        "failed": "failed",
+        "verified": "verified"
+      }
+    },
+    {
+      "name": "local_fixture_api_routes",
+      "status": "PASS",
+      "detail": "local fixture API adapter exposes route-shaped in-process fixture responses",
+      "route_statuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "name": "schema_snapshot_surface",
+      "status": "PASS",
+      "detail": "schema snapshot covers request, response, error, UI state, routes, fixtures, and demo files",
+      "schema_keys": [
+        "error_payload",
+        "fixture_catalog",
+        "fixture_only",
+        "frontend_demo",
+        "request",
+        "response",
+        "routes",
+        "schema_version",
+        "ui_state"
+      ]
+    },
+    {
+      "name": "static_demo_files",
+      "status": "PASS",
+      "detail": "static demo files and fixture JSON are present and cover all expected states",
+      "missing_demo_files": [],
+      "catalog_names": [
+        "blocked",
+        "candidate",
+        "failed",
+        "missing-evidence",
+        "verified"
+      ]
+    },
+    {
+      "name": "frontend_mvp_non_invasive_source_surface",
+      "status": "PASS",
+      "detail": "frontend MVP source contains no forbidden execution, persistence, network, service, or dispatch calls",
+      "found_forbidden": {}
+    }
+  ],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/user_solve_control_plane_result.json",
+    "project_state/gates/user_solve_local_frontend_mvp_result.json",
+    "project_state/gates/user_solve_frontend_mvp_snapshot.json"
+  ]
+}

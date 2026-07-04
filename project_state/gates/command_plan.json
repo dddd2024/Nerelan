@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_offline_control_plane_big_step_v1",
-  "round_id": "round_20260703_user_solve_offline_control_plane_big_step_v1",
+  "decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-03T15:59:34.030656Z",
+  "generated_at": "2026-07-04T10:47:42.062197Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -179,7 +179,7 @@
     },
     {
       "index": 12,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -218,16 +218,16 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate user-solve-control-plane --state-dir project_state",
+      "command": "python -m reverse_agent.project_gate user-solve-local-frontend-mvp --state-dir project_state",
       "phase": "gate",
-      "kind": "user-solve-control-plane",
+      "kind": "user-solve-local-frontend-mvp",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "user-solve-control-plane expected to exit 0"
+      "notes": "user-solve-local-frontend-mvp expected to exit 0"
     },
     {
       "index": 16,
@@ -271,7 +271,7 @@
     },
     {
       "index": 19,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_offline_control_plane_big_step_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_user_solve_local_frontend_mvp_big_step_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -285,5 +285,5 @@
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260703_user_solve_offline_control_plane_big_step_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_user_solve_local_frontend_mvp_big_step_v1"
 }

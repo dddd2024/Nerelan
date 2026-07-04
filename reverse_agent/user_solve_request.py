@@ -78,7 +78,7 @@ class UserSolveRequest:
 
 
 def demo_request(name: str) -> UserSolveRequest:
-    demo = str(name or "").strip().lower()
+    demo = str(name or "").strip().lower().replace("_", "-")
     if demo in {"candidate", "candidate-found"}:
         return UserSolveRequest(
             request_id="demo-candidate",
@@ -97,4 +97,29 @@ def demo_request(name: str) -> UserSolveRequest:
             missing_evidence=["targeted_decompile_missing"],
             public_context={"source": "fixture"},
         )
-    raise ValueError("demo must be candidate or missing-evidence")
+    if demo == "blocked":
+        return UserSolveRequest(
+            request_id="demo-blocked",
+            mode=UserSolveMode.AUTO,
+            input_kind="fixture",
+            fixture_name="blocked",
+            public_context={"source": "fixture"},
+        )
+    if demo == "failed":
+        return UserSolveRequest(
+            request_id="demo-failed",
+            mode=UserSolveMode.FAST,
+            input_kind="fixture",
+            fixture_name="failed",
+            public_context={"source": "fixture"},
+        )
+    if demo == "verified":
+        return UserSolveRequest(
+            request_id="demo-verified",
+            mode=UserSolveMode.FAST,
+            input_kind="fixture",
+            fixture_name="verified",
+            candidate="flag{demo_verified}",
+            public_context={"source": "fixture"},
+        )
+    raise ValueError("demo must be candidate, missing-evidence, blocked, failed, or verified")

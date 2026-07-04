@@ -64,3 +64,15 @@ The CLI preview is deliberately narrow: it emits JSON for the `candidate` and
 `missing-evidence` demos and can print explicit developer audit fields when
 requested. It does not create persistent sessions, call external services,
 process real files, dispatch runners, or execute binaries.
+
+## Local Frontend MVP
+
+The local frontend MVP adds a static, fixture-only UI and route-shaped local
+adapter above the same offline control plane. The new bridge and adapter are
+thin facades: they render deterministic catalog fixtures through
+`UserSolveController`, map responses to stable UI states, and expose JSON-like
+route results for local preview code.
+
+The MVP states are `candidate`, `missing-evidence`, `blocked`, `failed`, and
+`verified`. They are demo fixtures only. They do not claim any concrete sample
+is solved, statically verified, runtime validated, or audit verified.
