@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
-  "round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
+  "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,71 +13,81 @@
 
 ```json decision_contract
 {
-  "supersedes_decision_id": "decision_20260704_user_solve_tool_profile_capability_v1",
-  "supersedes_round_id": "round_20260704_user_solve_tool_profile_capability_v1",
-  "follows_last_accepted_decision_id": "decision_20260704_user_solve_local_frontend_mvp_big_step_v1",
-  "follows_last_accepted_round_id": "round_20260704_user_solve_local_frontend_mvp_big_step_v1",
+  "follows_last_accepted_decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
+  "follows_last_accepted_round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
   "previous_audit_outcome": "ACCEPTED",
-  "phase_label": "phase_2_38_user_solve_workbench_foundation_big_step",
-  "primary_goal": "Build a larger User Solve Workbench Foundation over the accepted local frontend MVP: tool profiles, runner capability metadata, route planning, local in-process workbench API facade, synthetic task trace contract, workbench fixtures, schema snapshots, CLI preview, gates, reports, docs, and focused tests. This round remains metadata-only and fixture-only; it must not perform real sample analysis or call external analysis tools.",
+  "phase_label": "phase_2_39_manual_mode_web_orchestrator_mvp_big_step",
+  "primary_goal": "Build a larger Manual Mode Web Orchestrator MVP over the accepted user-solve workbench foundation: local file-backed task lifecycle, project job lifecycle, manual execution handoff, manual result import, planner/auditor context snapshots, static web console demo, route-shaped in-process API facade, configuration profile examples, gates, reports, docs, and tests. This round may create bounded demo files under project_state/solve_tasks and project_state/jobs, but must not process real samples, call external analysis tools, dispatch runners, invoke model APIs, create a production service, or modify GitHub workflows.",
   "command_plan_authority_required": true,
-  "accepted_requires_tool_profile_contract": true,
-  "accepted_requires_runner_capability_contract": true,
-  "accepted_requires_route_planner_contract": true,
-  "accepted_requires_workbench_api_facade": true,
-  "accepted_requires_synthetic_task_trace_contract": true,
-  "accepted_requires_workbench_gate_artifact": true,
+  "accepted_requires_task_lifecycle": true,
+  "accepted_requires_job_lifecycle": true,
+  "accepted_requires_manual_handoff_bridge": true,
+  "accepted_requires_manual_result_import": true,
+  "accepted_requires_planner_auditor_context_snapshots": true,
+  "accepted_requires_static_web_console_demo": true,
+  "accepted_requires_orchestrator_gate_artifacts": true,
+  "accepted_requires_no_real_execution": true,
   "allowed_source_files": [
-    "reverse_agent/tool_profiles.py",
-    "reverse_agent/tool_capabilities.py",
-    "reverse_agent/user_solve_route_plan.py",
+    "reverse_agent/user_solve_task_lifecycle.py",
+    "reverse_agent/user_solve_task_store.py",
+    "reverse_agent/user_solve_manual_import.py",
+    "reverse_agent/user_solve_task_api.py",
+    "reverse_agent/manual_execution_handoff.py",
+    "reverse_agent/manual_result_bridge.py",
+    "reverse_agent/orchestrator_context.py",
+    "reverse_agent/orchestrator_api.py",
+    "reverse_agent/orchestrator_console_schema.py",
+    "reverse_agent/project_jobs.py",
+    "reverse_agent/project_runner_contract.py",
     "reverse_agent/user_solve_workbench.py",
     "reverse_agent/user_solve_workbench_api.py",
-    "reverse_agent/user_solve_task_trace.py",
-    "reverse_agent/user_solve_fixtures.py",
     "reverse_agent/user_solve_api_schema.py",
     "reverse_agent/user_solve_cli.py",
-    "reverse_agent/user_solve_controller.py",
-    "reverse_agent/user_solve_frontend_bridge.py",
-    "reverse_agent/user_solve_ui_state.py",
-    "reverse_agent/user_solve_errors.py",
     "reverse_agent/project_gate.py",
-    "tests/test_tool_profiles.py",
-    "tests/test_tool_capabilities.py",
-    "tests/test_user_solve_route_plan.py",
-    "tests/test_user_solve_workbench.py",
-    "tests/test_user_solve_workbench_api.py",
-    "tests/test_user_solve_task_trace.py",
-    "tests/test_user_solve_api_schema.py",
-    "tests/test_user_solve_fixtures.py",
-    "tests/test_user_solve_cli.py",
+    "tests/test_user_solve_task_lifecycle.py",
+    "tests/test_user_solve_task_store.py",
+    "tests/test_user_solve_manual_import.py",
+    "tests/test_user_solve_task_api.py",
+    "tests/test_manual_execution_handoff.py",
+    "tests/test_manual_result_bridge.py",
+    "tests/test_orchestrator_context.py",
+    "tests/test_orchestrator_api.py",
+    "tests/test_orchestrator_console_schema.py",
+    "tests/test_project_jobs.py",
+    "tests/test_project_runner_contract.py",
     "tests/test_project_gate.py",
     "tests/test_project_reports.py"
   ],
   "allowed_frontend_files": [
-    "frontend/user_solve_demo/app.js",
-    "frontend/user_solve_demo/index.html",
-    "frontend/user_solve_demo/style.css",
-    "frontend/user_solve_demo/README.md",
-    "frontend/user_solve_demo/fixtures/*.json"
+    "frontend/manual_mode_console/index.html",
+    "frontend/manual_mode_console/app.js",
+    "frontend/manual_mode_console/style.css",
+    "frontend/manual_mode_console/README.md",
+    "frontend/manual_mode_console/fixtures/*.json"
   ],
   "allowed_config_files": [
-    ".reverse-agent/config/tool_profiles.example.json",
-    ".reverse-agent/config/user_solve_workbench.example.json"
+    ".reverse-agent/config/manual_mode_orchestrator.example.json",
+    ".reverse-agent/config/planner_profiles.example.json",
+    ".reverse-agent/config/auditor_profiles.example.json",
+    ".reverse-agent/config/runner_profiles.example.json",
+    ".reverse-agent/config/permission_profiles.example.json"
   ],
   "allowed_documentation_files": [
-    "docs/user_solve_layer.md",
-    "docs/user_solve_control_plane.md",
-    "docs/user_solve_local_frontend_mvp.md",
+    "docs/manual_mode_web_orchestrator.md",
+    "docs/user_solve_task_lifecycle.md",
+    "docs/manual_execution_handoff.md",
+    "docs/orchestrator_context.md",
     "docs/user_solve_workbench.md",
-    "docs/user_solve_tool_profiles.md"
+    "docs/user_solve_layer.md"
   ],
   "allowed_generated_or_updated_artifacts": [
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/gates/*.json",
-    "project_state/rounds/round_20260704_user_solve_workbench_foundation_big_step_v1/*"
+    "project_state/solve_tasks/demo_*.json",
+    "project_state/jobs/job_demo_*.json",
+    "project_state/rounds/round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1/*"
   ],
   "forbidden_mutated_paths": [
     "project_state/current_state.json",
@@ -88,23 +98,23 @@
     "solve_reports/*",
     ".github/workflows/*",
     "training_materials/local_reverse/*",
-    "project_state/solve_tasks/*",
-    "project_state/user_sessions/*",
-    "project_state/jobs/*"
+    "project_state/user_sessions/*"
   ],
   "forbidden_capabilities_this_round": [
-    "external_analysis_tool_invocation",
     "real_sample_analysis_execution",
     "real_user_upload_ingestion",
+    "binary_parsing_or_unpacking",
+    "external_analysis_tool_invocation",
     "candidate_search_on_real_samples",
     "runtime_validation_on_real_samples",
-    "interactive_tool_adapter",
+    "automatic_runner_dispatch",
+    "model_api_invocation",
     "production_http_service",
     "database_or_queue",
     "scheduler_or_service",
     "remote_runner_dispatch",
     "ci_dispatch_or_polling",
-    "persistent_user_task_or_session_creation",
+    "github_workflow_modification",
     "auto_iteration"
   ]
 }
@@ -114,30 +124,31 @@
 
 ## 1. Goal
 
-Implement **User Solve Workbench Foundation Big Step v1**.
+Implement **Manual Mode Web Orchestrator MVP Big Step v1**.
 
-This supersedes the smaller tool-profile-only plan. The accepted baseline already has a local fixture frontend MVP. The next step should be larger: connect the existing user-solve contracts, frontend bridge, local API shape, capability metadata, route planning, synthetic task trace, CLI preview, gates, docs, and tests into one coherent local workbench foundation.
+The accepted baseline has a fixture-only user-solve workbench foundation. The next step should not merely add task files. It should build the first complete manual-mode orchestration loop that a Web console can display and drive without granting automatic execution authority.
 
 Deliver in one round:
 
-1. Tool profile and runner capability contracts for future routing.
-2. A route planner that maps request state, missing evidence, risk level, permissions, and capability metadata into safe planned next actions.
-3. A local workbench facade that composes existing controller/session/result/UI/error/fixture behavior instead of duplicating it.
-4. A local in-process workbench API adapter with route-shaped pure functions for fixture catalog, solve preview, route plan preview, capability snapshot, task trace preview, and schema snapshot.
-5. A synthetic task trace contract for workbench demo tasks. It may serialize in memory and in gate artifacts, but must not create persistent task/session files.
-6. Expanded deterministic fixtures and schema snapshots shared by CLI, local API, frontend bridge, and tests.
-7. Optional static demo refresh under `frontend/user_solve_demo/` to display the larger workbench fixture payloads, without adding a framework or backend service.
-8. Project gate integration that emits `project_state/gates/user_solve_workbench_result.json` and `project_state/gates/user_solve_workbench_snapshot.json` or equivalent artifacts.
-9. CLI previews for candidate, missing-evidence, blocked, verified, route-plan, capability, and workbench states.
-10. Documentation for the new workbench foundation and future execution boundary.
-11. Focused tests plus required report-summary/final-check/run-closeout integration.
+1. A local file-backed user-solve task lifecycle for bounded demo tasks under `project_state/solve_tasks/demo_*.json`.
+2. A project job lifecycle for bounded demo jobs under `project_state/jobs/job_demo_*.json`.
+3. A manual execution handoff bridge that generates reviewable Codex/manual-runner prompt packets from the active decision and command-plan, without invoking a runner.
+4. A manual result import bridge that validates structured JSON results and merges them into task/job status, execution summaries, and audit-ready evidence snapshots.
+5. Planner/auditor context snapshot builders that assemble bounded context from default project_state files, gates, reports, and registry into deterministic JSON artifacts, without invoking model APIs.
+6. A local in-process orchestrator API facade with route-shaped pure functions for dashboard summary, current decision, command-plan summary, job list/detail, task list/detail, handoff export, result import preview, gate summary, audit summary, and available actions.
+7. A static Web console demo under `frontend/manual_mode_console/` that reads fixture JSON only and shows Dashboard, Decision, Command-plan, Jobs, Tasks, Handoff, Import, Gate, Audit, and Settings/Profile panels.
+8. Config profile examples for planner, auditor, runner, permission, and manual-mode orchestrator settings. These must contain placeholders only and no secrets.
+9. Project gate integration that emits `project_state/gates/manual_mode_orchestrator_result.json` and `project_state/gates/manual_mode_orchestrator_snapshot.json`.
+10. CLI previews for dashboard summary, create demo job/task, export handoff, import manual result, show available actions, and render static-console fixture bundle.
+11. Focused tests plus report-summary, final-check, and run-closeout integration.
+12. Documentation showing how this manual-mode orchestrator preserves decision authority, command-plan authority, execution-log evidence, final-check, and LLM audit boundaries.
 
 Accepted target:
 
-- The implementation is a large engineering foundation step, not a reverse-solving step.
-- It is local, deterministic, synthetic, fixture-backed, and non-persistent.
-- It does not perform real sample analysis or call external analysis tools.
-- It does not create a production service, database, queue, scheduler, remote dispatch, CI polling, persistent task/session store, or auto-iteration loop.
+- This is an engineering-branch orchestration round.
+- It is local, deterministic, file-backed only for bounded demo task/job artifacts, and safe for manual workflows.
+- It creates the UI/API shape for Web-driven manual execution but does not execute agents, external tools, real analysis, model API calls, GitHub workflows, or remote dispatch.
+- It does not process real samples or uploads.
 - It does not claim any concrete sample is solved, statically verified, runtime validated, or audit verified.
 
 ## 2. Current Evidence
@@ -146,38 +157,32 @@ Mainline: `engineering_branch`.
 
 `project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only and states `execution_scope=decision_packet_controls_current_round`.
 
-This decision supersedes:
-
-- `decision_20260704_user_solve_tool_profile_capability_v1`
-- `round_20260704_user_solve_tool_profile_capability_v1`
-
 Last accepted baseline:
 
-- `decision_20260704_user_solve_local_frontend_mvp_big_step_v1`
-- `round_20260704_user_solve_local_frontend_mvp_big_step_v1`
+- `decision_20260704_user_solve_workbench_foundation_big_step_v1`
+- `round_20260704_user_solve_workbench_foundation_big_step_v1`
 - audit outcome: `ACCEPTED`
 
-Evidence from the accepted baseline:
+Accepted baseline evidence:
 
-1. The local frontend MVP round reported `SUCCESS` and `acceptance_recommendation=ACCEPTED`.
-2. The frontend bridge, local fixture API adapter, UI state mapper, error taxonomy, deterministic fixtures, static demo files, schema snapshot, and frontend MVP gate were implemented.
-3. The local frontend MVP gate proved fixture-only, local-only, evidence-only, non-persistent, non-dispatching, and non-executing behavior.
-4. Focused tests and broad gate/report/CI/runner contract tests passed.
+1. The workbench foundation report was `SUCCESS` with `acceptance_recommendation=ACCEPTED`.
+2. Tool profile, runner capability, route plan, synthetic task trace, workbench facade, workbench API, schema snapshot, CLI preview, docs, tests, and workbench gate were implemented.
+3. `user_solve_workbench_result.json` proved fixture-only, local-only, evidence-only, non-dispatching, non-persistent, and non-service behavior.
+4. Focused and broad tests passed.
 5. final-check and run-closeout passed.
-6. The round made no solved/static/runtime/audit verification claim for any concrete sample.
+6. The accepted workbench round made no solved/static/runtime/audit verification claim for any concrete sample.
 
 Existing capabilities to preserve and not duplicate:
 
-- User-solve result/state/trace/fallback/evidence-quality/session/request/response/handoff/controller/CLI/frontend/local API/schema/UI/error/fixture contracts.
-- command-plan, execution-log, project gates, jobs, AgentRunner, pipeline, harness, solver/tool interfaces.
-- External specialist tools remain outside this round; this round only prepares metadata, route plans, API contracts, and synthetic trace representation.
+- User-solve contracts, state, trace, fallback, evidence quality, request/response/handoff/controller/CLI, frontend bridge, local API, schema, UI state, errors, fixtures, workbench facade, workbench API, tool profiles, runner capability, route planning, command-plan, execution-log, project gates, jobs, AgentRunner, pipeline, harness, solver/tool interfaces.
+- This round composes those capabilities into a manual-mode orchestration surface. It must not replace them with a parallel framework.
 
 Artifact freshness policy:
 
-- Current-round artifacts must carry `decision_20260704_user_solve_workbench_foundation_big_step_v1` and `round_20260704_user_solve_workbench_foundation_big_step_v1`.
+- Current-round artifacts must carry `decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1` and `round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1`.
 - Historical sample artifacts in `current_state.json` and `artifact_index.json` are backlog context only and must not be used as current evidence.
 - Missing historical sample artifacts are non-blocking for this engineering round.
-- Any generated workbench gate artifact must be synthetic/configuration/fixture evidence only.
+- Demo task/job artifacts are current only if generated by this round and named under the allowed `demo_*` patterns.
 
 Negative results:
 
@@ -196,13 +201,15 @@ Command-plan policy:
 
 Do not solve a concrete reverse sample.
 
-Do not process real samples, real user uploads, or training samples.
+Do not process real samples, real uploads, or training samples.
 
-Do not invoke external analysis tools or add external process execution.
+Do not invoke external analysis tools or add external process execution for analysis.
 
-Do not implement interactive tool adapters, production HTTP infrastructure, database, queue, scheduler, remote runner dispatch, CI dispatch/polling, persistent user task/session storage, or real upload ingestion.
+Do not invoke model APIs, planner APIs, auditor APIs, Codex CLI, remote agents, CI workflows, or any automatic runner.
 
-Do not create files under `project_state/solve_tasks/`, `project_state/user_sessions/`, or `project_state/jobs/` in this round. Use in-memory synthetic fixtures and gate artifacts only.
+Do not implement production HTTP infrastructure, database, queue, scheduler, background service, remote dispatch, CI polling, or auto-iteration.
+
+Do not modify `.github/workflows/*` in this round.
 
 Do not add dynamic machine-specific facts to `.codex-skills/`.
 
@@ -212,7 +219,9 @@ Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
 Do not claim any sample is solved, statically verified, runtime validated, or audit verified.
 
-Do not hardcode local machine paths as required defaults. Example config may show placeholders only.
+Do not hardcode local machine paths as required defaults. Example configs must use placeholders.
+
+Do not create arbitrary user task/session files. Only bounded demo task/job files matching the allowed patterns may be generated.
 
 Do not duplicate existing command-plan, execution-log, jobs, AgentRunner, pipeline, harness, solver/tool, result/trace/fallback/session/control-plane/frontend responsibilities.
 
@@ -230,40 +239,31 @@ Read first:
 8. `project_state/pytest_result.txt`
 9. `.codex-skills/registry.json`
 
-Inspect accepted user-solve/frontend control plane:
+Inspect accepted workbench and user-solve surfaces:
 
-1. `reverse_agent/user_solve_request.py`
-2. `reverse_agent/user_solve_response.py`
-3. `reverse_agent/user_solve_handoff.py`
-4. `reverse_agent/user_solve_controller.py`
-5. `reverse_agent/user_solve_cli.py`
-6. `reverse_agent/user_solve_session.py`
-7. `reverse_agent/user_solve.py`
-8. `reverse_agent/user_solve_contract.py`
-9. `reverse_agent/user_solve_trace.py`
-10. `reverse_agent/fallback_ladder.py`
-11. `reverse_agent/evidence_quality.py`
-12. `reverse_agent/user_solve_frontend_bridge.py`
-13. `reverse_agent/user_solve_local_api.py`
-14. `reverse_agent/user_solve_api_schema.py`
-15. `reverse_agent/user_solve_ui_state.py`
-16. `reverse_agent/user_solve_errors.py`
-17. `reverse_agent/user_solve_fixtures.py`
-18. `frontend/user_solve_demo/README.md`
-19. `frontend/user_solve_demo/app.js`
-20. `frontend/user_solve_demo/fixtures/catalog.json`
-21. existing user-solve tests and docs
+1. `reverse_agent/user_solve_workbench.py`
+2. `reverse_agent/user_solve_workbench_api.py`
+3. `reverse_agent/user_solve_task_trace.py`
+4. `reverse_agent/user_solve_route_plan.py`
+5. `reverse_agent/user_solve_api_schema.py`
+6. `reverse_agent/user_solve_cli.py`
+7. `reverse_agent/user_solve_controller.py`
+8. `reverse_agent/user_solve_fixtures.py`
+9. `reverse_agent/tool_profiles.py`
+10. `reverse_agent/tool_capabilities.py`
+11. `frontend/user_solve_demo/README.md`
+12. relevant user-solve tests and docs
 
-Inspect orchestration/tool-adjacent code only to avoid duplication:
+Inspect orchestration and gate surfaces:
 
 1. `reverse_agent/project_gate.py`
-2. `tests/test_project_gate.py`
-3. `tests/test_project_reports.py`
-4. `reverse_agent/project_jobs.py`
-5. `reverse_agent/project_agent_runner.py`
-6. `reverse_agent/project_runner_contract.py`
-7. `reverse_agent/pipeline.py`
-8. `reverse_agent/harness.py`
+2. `reverse_agent/project_jobs.py`
+3. `reverse_agent/project_runner_contract.py`
+4. `reverse_agent/project_agent_runner.py`
+5. `tests/test_project_gate.py`
+6. `tests/test_project_reports.py`
+7. `tests/test_project_jobs.py`
+8. `tests/test_project_runner_contract.py`
 
 Do not inspect full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt` unless command-plan authorizes a bounded diagnostic.
 
@@ -273,65 +273,72 @@ The execution report must answer each item with direct evidence and `PASS`, `FAI
 
 1. Was the current decision treated as execution authority and task_packet as background only?
 2. Did decision metadata remain valid and aligned with active `reverse-agent-iteration@v2`?
-3. Did this decision supersede the smaller tool-profile-only plan without mixing scopes?
-4. Was the last accepted local frontend MVP treated as baseline?
-5. Were startup and prework provenance commands recorded before implementation validation?
-6. Was existing related functionality inspected before adding new modules?
-7. Was `reverse_agent/tool_profiles.py` implemented or compatibly extended?
-8. Does `ToolProfile` support stable identity, category, path source, availability metadata, capability flags, risk level, disabled/unavailable states, and safe serialization?
-9. Does tool profile loading use deterministic precedence without external process execution?
-10. Was `reverse_agent/tool_capabilities.py` implemented or compatibly extended?
-11. Does `RunnerCapability` represent runner id, platform metadata, available/missing/disabled tools, permission flags, and supported analysis features without dispatching work?
-12. Was `reverse_agent/user_solve_route_plan.py` implemented or compatibly extended?
-13. Does route planning map request state, missing evidence, capability availability, risk level, and permissions into safe planned next actions without executing them?
-14. Was `reverse_agent/user_solve_task_trace.py` implemented or compatibly extended?
-15. Does synthetic task trace capture request metadata, fixture/demo source, candidate state, missing evidence, route plan, validation state, and artifact placeholders without persistent task files?
-16. Was `reverse_agent/user_solve_workbench.py` implemented or compatibly extended?
-17. Does the workbench facade compose existing controller/session/result/UI/error/fixture behavior instead of duplicating it?
-18. Was `reverse_agent/user_solve_workbench_api.py` implemented or compatibly extended?
-19. Does the workbench API provide route-shaped pure-function handling without production service behavior?
-20. Were fixture catalog and frontend/demo fixtures expanded consistently if touched?
-21. Were schema snapshots expanded for tool profiles, runner capabilities, route plans, workbench API routes, task traces, fixtures, UI states, and public/developer payloads?
-22. Were example configs added with portable placeholders and no secrets?
-23. Were CLI previews added for candidate, missing-evidence, blocked, verified, route-plan, capability, and workbench states?
-24. Was documentation added or updated for the workbench foundation and future execution boundary?
-25. Was a current `user_solve_workbench_result.json` or equivalent gate artifact generated?
-26. Was a current `user_solve_workbench_snapshot.json` or equivalent snapshot generated?
-27. Do gate artifacts carry current decision/report/round IDs?
-28. Do gate artifacts prove no external tool invocation, no real sample analysis, no dispatch, no persistence, and no production service behavior?
-29. Do tests cover profile normalization, invalid profile rejection, capability serialization, route planner behavior, task trace serialization/redaction, workbench facade/API behavior, example config validity, schema stability, gates, reports, and CLI previews?
-30. Do existing user-solve/frontend/control-plane tests continue passing under command-plan coverage?
-31. Did pytest_result record real commands and exit codes?
-32. Did command-plan authorize all executed commands and omit no executed commands?
-33. Did final-check pass with current IDs?
-34. Did run-closeout pass and archive current reports if authorized?
-35. Were forbidden files untouched?
-36. Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?
+3. Was the accepted workbench foundation treated as the baseline?
+4. Were startup and prework provenance commands recorded before implementation validation?
+5. Was existing workbench/job/runner/gate functionality inspected before adding new modules?
+6. Was `UserSolveTaskLifecycle` implemented or compatibly extended?
+7. Are task status transitions deterministic, bounded, and validated?
+8. Was a file-backed demo-only task store implemented under `project_state/solve_tasks/demo_*.json`?
+9. Does the task store reject non-demo paths, unsafe names, unexpected schema, and arbitrary persistence?
+10. Was a project job lifecycle/demo job layer implemented or compatibly extended under `project_state/jobs/job_demo_*.json`?
+11. Does job lifecycle distinguish DRAFT, READY, MANUAL_DISPATCHED, MANUAL_RESULT_IMPORTED, FINAL_CHECKED, AUDITED, ACCEPTED, REWORK_REQUIRED, and BLOCKED without dispatching runners?
+12. Was a manual execution handoff bridge implemented?
+13. Does handoff export preserve decision authority, command-plan authority, allowed commands, omitted commands, stop conditions, and no-push/no-remote constraints?
+14. Was a manual result import bridge implemented?
+15. Does manual import validate structured JSON and reject unsupported file paths, arbitrary command claims, stale IDs, and real execution claims?
+16. Were planner/auditor context snapshots implemented without invoking model APIs?
+17. Do context snapshots read only bounded default files and current gate/report artifacts?
+18. Was a local orchestrator API facade implemented as route-shaped pure functions?
+19. Does the API facade expose dashboard, decision, command-plan, job, task, handoff, import preview, gate, audit, and available-action views without a production service?
+20. Was a static manual-mode console demo added with fixture JSON only?
+21. Does the static console avoid frameworks, build steps, network calls, and direct mutation of project_state?
+22. Were config profile examples added with placeholders and no secrets?
+23. Were demo task/job artifacts generated and bounded to allowed patterns?
+24. Were schema snapshots generated for task, job, handoff, import, context, console, and orchestrator API payloads?
+25. Were CLI previews added for dashboard, demo task/job creation, handoff export, manual import preview, available actions, and console fixture bundle?
+26. Was documentation added for manual-mode Web orchestration and future automation boundaries?
+27. Was a current `manual_mode_orchestrator_result.json` or equivalent gate artifact generated?
+28. Was a current `manual_mode_orchestrator_snapshot.json` or equivalent snapshot generated?
+29. Do gate artifacts carry current decision/report/round IDs?
+30. Do gate artifacts prove no real sample processing, no external analysis execution, no runner dispatch, no model API invocation, no production service, no database, and no CI dispatch?
+31. Do focused tests cover lifecycle, task store, job lifecycle, handoff export, result import, context snapshots, API facade, static console fixture bundle, config examples, CLI previews, gates, and reports?
+32. Do existing user-solve/workbench/control-plane tests continue passing under command-plan coverage?
+33. Did pytest_result record real commands and exit codes?
+34. Did command-plan authorize all executed commands and omit no executed commands?
+35. Did final-check pass with current IDs?
+36. Did run-closeout pass and archive current reports if authorized?
+37. Were forbidden files untouched?
+38. Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?
 
 ## 6. Implementation Scope
 
 Allowed implementation:
 
-1. Add or extend `reverse_agent/tool_profiles.py` for deterministic tool metadata.
-2. Add or extend `reverse_agent/tool_capabilities.py` for deterministic runner capability metadata.
-3. Add or extend `reverse_agent/user_solve_route_plan.py` for planned next-action metadata.
-4. Add or extend `reverse_agent/user_solve_task_trace.py` for synthetic workbench task traces.
-5. Add or extend `reverse_agent/user_solve_workbench.py` to compose existing user-solve controller, fixtures, UI state mapping, route plans, capabilities, and task trace.
-6. Add or extend `reverse_agent/user_solve_workbench_api.py` for route-shaped pure-function local workbench previews.
-7. Update existing user-solve modules only as needed for compatibility: fixtures, schema, CLI, controller, frontend bridge, UI state, and errors.
-8. Add `.reverse-agent/config/tool_profiles.example.json` and `.reverse-agent/config/user_solve_workbench.example.json` with safe placeholders.
-9. Update static demo files only if needed, keeping the demo static and fixture-only.
-10. Update `reverse_agent/project_gate.py` with a `user-solve-workbench` gate or equivalent.
-11. Add focused tests for the new contracts, facade, API, CLI, schema, gate, and report integration.
-12. Add/update documentation for the workbench foundation and future execution boundary.
+1. Add `reverse_agent/user_solve_task_lifecycle.py` for task status transition policy.
+2. Add `reverse_agent/user_solve_task_store.py` for demo-only task JSON read/write validation.
+3. Add `reverse_agent/user_solve_manual_import.py` for structured manual result import validation and merge logic.
+4. Add `reverse_agent/user_solve_task_api.py` for pure-function task routes.
+5. Add `reverse_agent/manual_execution_handoff.py` for Codex/manual-runner handoff packet generation without execution.
+6. Add `reverse_agent/manual_result_bridge.py` for job/task result import preview and evidence summary conversion.
+7. Add `reverse_agent/orchestrator_context.py` for bounded planner/auditor context snapshots without model calls.
+8. Add `reverse_agent/orchestrator_api.py` for route-shaped pure functions backing the static console.
+9. Add `reverse_agent/orchestrator_console_schema.py` for static console fixture/schema payloads.
+10. Extend `project_jobs.py` and `project_runner_contract.py` only for demo/manual lifecycle fields and non-dispatching validation.
+11. Extend existing workbench/API/schema/CLI only as needed to expose task/job/handoff/import previews.
+12. Add `frontend/manual_mode_console/` as a static fixture-only demo.
+13. Add example configs for planner, auditor, runner, permission, and manual orchestrator profiles.
+14. Update `project_gate.py` with a `manual-mode-orchestrator` gate or equivalent.
+15. Generate bounded demo task and demo job artifacts under allowed patterns.
+16. Add focused tests and docs.
 
 Compatibility rules:
 
 - Existing accepted tests must continue passing under command-plan coverage.
-- New modules must import without optional external reverse-engineering tools installed.
 - New logic must be deterministic in unit tests.
-- New logic must be configuration/capability/routing/fixture metadata only.
-- Future execution must remain controlled by command-plan, execution-log, runner permission profiles, artifact indexing, and gates.
+- New modules must import without optional external tools or API credentials.
+- Manual-mode handoff is export-only; it must not execute.
+- Manual import is structured JSON validation/merge only; it must not trust arbitrary claims as verified evidence.
+- Future automation must remain controlled by decision, command-plan, execution-log, final-check, and audit.
 
 ## 7. Tests
 
@@ -358,14 +365,14 @@ Expected validation coverage, subject to command-plan authorization:
 
 ```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m pytest tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_user_solve_route_plan.py tests/test_user_solve_task_trace.py tests/test_user_solve_workbench.py tests/test_user_solve_workbench_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_fixtures.py tests/test_user_solve_cli.py tests/test_project_gate.py tests/test_project_reports.py -q
-python -m reverse_agent.user_solve_cli --demo candidate
-python -m reverse_agent.user_solve_cli --demo missing-evidence
-python -m reverse_agent.user_solve_cli --demo blocked
-python -m reverse_agent.user_solve_cli --demo verified
-python -m reverse_agent.user_solve_cli --workbench-demo route-plan
-python -m reverse_agent.user_solve_cli --workbench-demo capability
-python -m reverse_agent.project_gate user-solve-workbench --state-dir project_state
+python -m pytest tests/test_user_solve_task_lifecycle.py tests/test_user_solve_task_store.py tests/test_user_solve_manual_import.py tests/test_user_solve_task_api.py tests/test_manual_execution_handoff.py tests/test_manual_result_bridge.py tests/test_orchestrator_context.py tests/test_orchestrator_api.py tests/test_orchestrator_console_schema.py tests/test_project_jobs.py tests/test_project_runner_contract.py tests/test_project_gate.py tests/test_project_reports.py -q
+python -m reverse_agent.user_solve_cli --manual-console-demo dashboard
+python -m reverse_agent.user_solve_cli --manual-console-demo create-demo-task
+python -m reverse_agent.user_solve_cli --manual-console-demo create-demo-job
+python -m reverse_agent.user_solve_cli --manual-console-demo export-handoff
+python -m reverse_agent.user_solve_cli --manual-console-demo import-result-preview
+python -m reverse_agent.user_solve_cli --manual-console-demo available-actions
+python -m reverse_agent.project_gate manual-mode-orchestrator --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
@@ -374,14 +381,14 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 If command-plan profile requires broader validation:
 
 ```powershell
-python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_user_solve_route_plan.py tests/test_user_solve_task_trace.py tests/test_user_solve_workbench.py tests/test_user_solve_workbench_api.py tests/test_project_gate.py tests/test_project_reports.py -q
+python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_user_solve_route_plan.py tests/test_user_solve_task_trace.py tests/test_user_solve_workbench.py tests/test_user_solve_workbench_api.py tests/test_user_solve_task_lifecycle.py tests/test_user_solve_task_store.py tests/test_user_solve_manual_import.py tests/test_user_solve_task_api.py tests/test_manual_execution_handoff.py tests/test_manual_result_bridge.py tests/test_orchestrator_context.py tests/test_orchestrator_api.py tests/test_orchestrator_console_schema.py tests/test_project_gate.py tests/test_project_reports.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q
 ```
 
 If command-plan authorizes closeout:
 
 ```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_user_solve_workbench_foundation_big_step_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
@@ -396,27 +403,24 @@ Stop and report `REWORK_REQUIRED` or `BLOCKED` if any condition occurs:
 3. `task_packet.json` is treated as execution authority.
 4. Startup provenance is missing or ambiguous.
 5. Any forbidden path is modified.
-6. Any real sample analysis or external analysis tool invocation is added.
-7. Any real sample, training sample, or user upload is processed.
-8. Any production service, database, queue, scheduler, remote dispatch, CI polling, persistent task/session, or real upload flow is added.
-9. Any interactive external tool adapter is implemented in this round.
-10. A machine-specific local path is hardcoded as a required default.
-11. New code duplicates AgentRunner, pipeline, harness, solver, or existing tool interface responsibilities instead of describing or composing them.
-12. Missing tool capability is treated as working execution evidence.
-13. Planned actions are executed instead of represented as route-plan metadata.
-14. Default user serialization leaks internal project paths, developer trace refs, artifact paths, local filesystem details, or machine-specific config.
-15. `verified` can be represented without passed validation evidence.
-16. Missing evidence is treated as solved evidence.
-17. Current-round gate artifacts are missing or carry stale decision/report/round IDs.
-18. `user_solve_workbench_result.json` or equivalent is missing.
-19. `user_solve_workbench_snapshot.json` or equivalent is missing.
-20. Required focused tests are missing.
-21. Existing accepted user-solve/frontend/control-plane behavior regresses.
-22. `pytest_result.txt` is missing, stale, or inconsistent with report `tests_ran`.
-23. command-plan is missing, stale, or not respected.
-24. final-check fails.
-25. closeout is executed without command-plan authorization.
-26. closeout is required but missing or failed.
-27. The final report claims any concrete sample is solved, statically verified, runtime validated, or audit verified.
+6. Any real sample processing, upload parsing, external analysis execution, runner dispatch, model API invocation, production service, database, queue, scheduler, CI dispatch, or auto-iteration is added.
+7. `.github/workflows/*` is modified.
+8. Arbitrary task/job files outside the allowed demo patterns are created.
+9. Manual import treats arbitrary user claims as verified evidence.
+10. Handoff export executes commands or mutates remote state.
+11. Static console performs network calls, build steps, or direct project_state mutation.
+12. Context snapshots read full solve_reports or full PROJECT_PROGRESS_LOG without command-plan authorization.
+13. Demo task/job artifacts carry stale IDs or unsafe paths.
+14. Current-round gate artifacts are missing or carry stale decision/report/round IDs.
+15. `manual_mode_orchestrator_result.json` or equivalent is missing.
+16. `manual_mode_orchestrator_snapshot.json` or equivalent is missing.
+17. Required focused tests are missing.
+18. Existing accepted user-solve/workbench/control-plane behavior regresses.
+19. `pytest_result.txt` is missing, stale, or inconsistent with report `tests_ran`.
+20. command-plan is missing, stale, or not respected.
+21. final-check fails.
+22. closeout is executed without command-plan authorization.
+23. closeout is required but missing or failed.
+24. The final report claims any concrete sample is solved, statically verified, runtime validated, or audit verified.
 
-If only part of the workbench foundation is completed, do not claim `SUCCESS`; report `PARTIAL`, `BLOCKED`, or `REWORK_REQUIRED` with exact missing pieces.
+If only part of the manual-mode orchestrator MVP is completed, do not claim `SUCCESS`; report `PARTIAL`, `BLOCKED`, or `REWORK_REQUIRED` with exact missing pieces.
