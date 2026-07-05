@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
-  "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,51 +13,96 @@
 
 ```json decision_contract
 {
-  "follows_last_accepted_decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "follows_last_accepted_round_id": "round_20260705_state_governance_bundle_big_step_v1",
-  "reworks_decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
-  "reworks_round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
-  "previous_audit_outcome": "REWORK_REQUIRED",
-  "phase_label": "phase_2_43_status_policy_final_acceptance_rework_v1",
-  "primary_goal": "Repair the mismatch between governance-fix evidence and final-check acceptance semantics. The failed round generated governance_fix_result.json claiming the historical sample backlog limitation was resolved for current non-sample governance evidence, but final_gate_result.json still returned PASSED_WITH_LIMITATIONS and ACCEPTED_WITH_LIMITATIONS because doctor_status=FAIL and historical sample backlog were still propagated into final acceptance. This rework must make final-check/report-summary/status-policy agree: when the active decision is non-sample project_governance, active current evidence passes, no concrete sample-evidence claim exists, and historical sample gaps are classified as backlog notices, final-check must produce PASSED and report acceptance must be ACCEPTED. Historical backlog must stay visible and must not be hidden or deleted.",
+  "follows_last_accepted_decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
+  "follows_last_accepted_round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
+  "previous_audit_outcome": "ACCEPTED",
+  "supersedes_unexecuted_decision_id": "decision_20260705_cleanup_apply_review_bundle_v1",
+  "phase_label": "phase_2_44_governance_operations_bundle_big_step_v1",
+  "primary_goal": "Deliver a larger project_governance operations bundle in one round: cleanup-apply human review/readiness package, round compaction dry-run, archive/index refresh, SQLite read-index readiness schema, state-hygiene dashboard feed, lifecycle transition guard, and consolidated governance operations gate. This is still non-destructive: no cleanup-apply execution, deletion, move, archive compaction, real tombstone, real deletion manifest, database migration, Web runtime, runner dispatch, CI dispatch, model API, external reverse tool, or concrete sample processing is allowed.",
   "command_plan_authority_required": true,
-  "accepted_requires_final_gate_passed": true,
-  "accepted_requires_report_acceptance_accepted": true,
-  "accepted_requires_status_policy_reconcile_current": true,
-  "accepted_requires_doctor_backlog_split_current": true,
-  "accepted_requires_governance_fix_current": true,
-  "accepted_requires_historical_backlog_visible": true,
-  "accepted_requires_no_cleanup_apply_work": true,
+  "accepted_requires_cleanup_apply_review_bundle": true,
+  "accepted_requires_round_compaction_dry_run": true,
+  "accepted_requires_archive_index_refresh": true,
+  "accepted_requires_sqlite_read_index_schema": true,
+  "accepted_requires_state_hygiene_dashboard_feed": true,
+  "accepted_requires_lifecycle_transition_guard": true,
+  "accepted_requires_governance_operations_gate": true,
+  "accepted_requires_status_policy_clean_acceptance_preserved": true,
+  "accepted_requires_no_real_cleanup_apply": true,
+  "accepted_requires_no_destructive_mutation": true,
   "allowed_source_files": [
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_reports.py",
+    "reverse_agent/cleanup_apply_safety.py",
     "reverse_agent/state_governance.py",
     "reverse_agent/state_hygiene.py",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_reports.py",
     "reverse_agent/project_state_manifest.py",
     "reverse_agent/project_context_builder.py",
     "reverse_agent/project_workstreams.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_reports.py",
+    "reverse_agent/state_index_readiness.py",
+    "reverse_agent/round_compaction.py",
+    "tests/test_cleanup_apply_safety.py",
     "tests/test_state_governance.py",
     "tests/test_state_hygiene.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_reports.py",
     "tests/test_project_state_manifest.py",
     "tests/test_project_context_builder.py",
-    "tests/test_project_workstreams.py"
+    "tests/test_project_workstreams.py",
+    "tests/test_state_index_readiness.py",
+    "tests/test_round_compaction.py"
   ],
   "allowed_documentation_files": [
-    "docs/governance_fix_cleanup_apply_safety.md",
-    "docs/state_governance_bundle.md",
-    "docs/project_governance_context.md",
+    "docs/governance_operations_bundle.md",
+    "docs/cleanup_apply_review_bundle.md",
+    "docs/round_compaction.md",
+    "docs/state_index_readiness.md",
+    "docs/state_hygiene_dashboard_feed.md",
+    "docs/state_hygiene_retention_policy.md",
+    "docs/archive_index.md",
+    "docs/deletion_manifest_and_tombstone.md",
     "docs/state_manifest.md",
     "docs/workstream_registry.md"
   ],
+  "allowed_config_files": [
+    "project_state/retention_policy.json",
+    "project_state/state_lifecycle_registry.json"
+  ],
   "allowed_generated_or_updated_artifacts": [
+    "project_state/retention_policy.json",
+    "project_state/state_lifecycle_registry.json",
     "project_state/state_manifest.json",
     "project_state/context/current_context_packet.json",
     "project_state/roadmap/workstreams.json",
+    "project_state/gates/governance_operations_bundle_result.json",
+    "project_state/gates/governance_operations_bundle_snapshot.json",
+    "project_state/gates/cleanup_apply_review_bundle.json",
+    "project_state/gates/cleanup_apply_review_result.json",
+    "project_state/gates/cleanup_apply_review_snapshot.json",
+    "project_state/gates/cleanup_candidate_risk_matrix.json",
+    "project_state/gates/cleanup_apply_approval_checklist.json",
+    "project_state/gates/evidence_lock_manifest.json",
+    "project_state/gates/deletion_manifest_dry_run.json",
+    "project_state/gates/tombstone_plan_dry_run.json",
+    "project_state/gates/round_compaction_plan.json",
+    "project_state/gates/round_compaction_dry_run.json",
+    "project_state/gates/round_compaction_manifest_dry_run.json",
+    "project_state/gates/archive_index.json",
+    "project_state/gates/archive_index_summary.json",
+    "project_state/gates/state_index_readiness_schema.json",
+    "project_state/gates/state_index_readiness_plan.json",
+    "project_state/gates/state_index_readiness_result.json",
+    "project_state/gates/state_hygiene_dashboard_feed.json",
+    "project_state/gates/state_hygiene_dashboard_summary.json",
+    "project_state/gates/lifecycle_transition_guard_result.json",
     "project_state/gates/status_policy_reconcile_result.json",
     "project_state/gates/doctor_backlog_split_result.json",
-    "project_state/gates/governance_fix_result.json",
+    "project_state/gates/cleanup_plan.json",
+    "project_state/gates/cleanup_plan_summary.json",
+    "project_state/gates/deletion_manifest_schema.json",
+    "project_state/gates/tombstone_schema.json",
+    "project_state/gates/rollback_rehearsal_plan.json",
+    "project_state/gates/audit_handoff_for_cleanup_apply.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/execution_log.json",
@@ -71,7 +116,7 @@
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260705_status_policy_final_acceptance_rework_v1/*"
+    "project_state/rounds/round_20260705_governance_operations_bundle_big_step_v1/*"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
@@ -86,24 +131,25 @@
     "frontend/*",
     "project_state/archives/*",
     "project_state/deletions/*",
-    "project_state/gates/cleanup_apply_safety_plan.json",
-    "project_state/gates/cleanup_apply_dry_run.json",
-    "project_state/gates/cleanup_apply_safety_result.json",
-    "project_state/gates/cleanup_apply_safety_snapshot.json",
-    "project_state/gates/deletion_manifest_validation_result.json",
-    "project_state/gates/tombstone_validation_result.json",
-    "project_state/gates/rollback_handoff_plan.json",
-    "project_state/gates/audit_handoff_for_cleanup_apply.json"
+    "project_state/blob_store/*",
+    "project_state/index.sqlite",
+    "project_state/*.db"
   ],
   "forbidden_capabilities_this_round": [
-    "cleanup_apply_safety_expansion",
     "real_cleanup_apply",
+    "cleanup_apply_execute",
     "file_delete",
     "file_move",
-    "archive_compaction",
+    "archive_compaction_apply",
     "archive_apply",
     "real_tombstone_write",
     "real_deletion_manifest_write",
+    "sqlite_database_creation",
+    "database_migration",
+    "web_runtime",
+    "production_http_service",
+    "scheduler_or_service",
+    "database_or_queue",
     "real_sample_analysis_execution",
     "real_user_upload_ingestion",
     "binary_parsing_or_unpacking",
@@ -112,12 +158,9 @@
     "runtime_validation_on_real_samples",
     "automatic_runner_dispatch",
     "manual_runner_dispatch",
-    "model_api_invocation",
-    "production_http_service",
-    "database_or_queue",
-    "scheduler_or_service",
     "remote_runner_dispatch",
     "ci_dispatch_or_polling",
+    "model_api_invocation",
     "github_workflow_modification",
     "auto_iteration"
   ]
@@ -128,42 +171,63 @@
 
 ## 1. Goal
 
-Implement **Status Policy Final Acceptance Rework v1**.
+Implement **Governance Operations Bundle Big Step v1**.
 
-This is a targeted rework of `decision_20260705_governance_fix_cleanup_apply_safety_v1`. The previous round successfully advanced the cleanup-apply safety dry-run lane, but audit found the fix lane incomplete: `governance_fix_result.json` said the limitation was resolved for current non-sample governance evidence, while `final_gate_result.json` still returned `PASSED_WITH_LIMITATIONS` and `status_summary.report_acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS` because `doctor_status=FAIL` and historical sample backlog were still propagated into final acceptance.
+The previous accepted round fixed status-policy/final-acceptance semantics. This next round should be larger than a single cleanup review artifact. It should consolidate the state-governance work into a practical operations bundle that prepares the project for later Web/orchestrator/query workflows without crossing into destructive cleanup, live database migration, runner dispatch, CI dispatch, Web runtime, or sample solving.
 
-This round must fix only that acceptance-path mismatch.
+This round has six bundled deliverables under one `project_governance` mainline:
 
-Required final state:
+1. **Cleanup-apply review/readiness bundle**
+   - Build a human review package from existing retention policy, cleanup plan, archive index, deletion/tombstone schema, dry-run safety, and audit handoff artifacts.
+   - Produce risk matrix, approval checklist, evidence lock manifest, dry-run deletion manifest, dry-run tombstone plan, and audit/rollback handoff.
 
-- `project_state/gates/final_gate_result.json.gate_status` is `PASSED`, not `PASSED_WITH_LIMITATIONS`, when all current governance evidence passes and the only remaining issue is historical sample backlog.
-- `project_state/gates/final_gate_result.json.status_summary.report_acceptance_recommendation` is `ACCEPTED`, not `ACCEPTED_WITH_LIMITATIONS`, under the same condition.
-- `project_state/gates/status_policy_reconcile_result.json` explains why historical sample backlog is a backlog notice, not a current blocker.
-- `project_state/gates/doctor_backlog_split_result.json` keeps the 50 missing historical sample artifacts visible as backlog context.
-- `project_state/gates/governance_fix_result.json` and final-check agree with each other.
-- No cleanup-apply safety expansion is performed in this rework.
+2. **Round compaction dry-run**
+   - Design and generate a dry-run compaction plan for historical governance rounds.
+   - No archive writing, no file movement, no deletion, no compaction apply.
+   - Output what would be retained, summarized, referenced, or left untouched in a future compaction decision.
+
+3. **Archive/index refresh**
+   - Refresh bounded archive index and summary so current/historical/backlog artifacts can be surfaced without recursive full history scans.
+   - Do not mutate `project_state/archives/*`.
+
+4. **SQLite read-index readiness schema**
+   - Define schema/plan for a future SQLite read index over decisions, rounds, artifacts, executions, audits, and workstreams.
+   - Do not create a database file, run migrations, or replace project_state as the fact source.
+
+5. **State-hygiene dashboard feed**
+   - Generate a bounded JSON feed usable by a future Web dashboard: current round, active decision, latest report, final-check, backlog notices, cleanup readiness, compaction readiness, and index readiness.
+   - This is a static artifact, not a Web server.
+
+6. **Lifecycle transition guard**
+   - Add/extend a gate that verifies only one active workstream, real cleanup-apply remains deferred, future destructive work requires a separate decision, and current status-policy clean acceptance remains preserved.
+
+Accepted target:
+
+- `final_gate_result.json.gate_status` remains `PASSED`.
+- `status_summary.report_acceptance_recommendation` remains `ACCEPTED`.
+- Historical sample backlog remains visible but nonblocking.
+- Cleanup review, compaction dry-run, SQLite readiness, dashboard feed, and lifecycle guard are all current and internally consistent.
+- No destructive action occurs.
+- No database file is created.
+- No Web runtime, runner dispatch, CI dispatch, model API, external reverse tool, or real sample processing occurs.
 
 ## 2. Current Evidence
 
-Current task authority is `project_state/decision_packet.md`. `project_state/task_packet.json` remains background only and still points to `decision_packet` as current-round authority.
+Current task authority is this `project_state/decision_packet.md`. `project_state/task_packet.json` is background only.
 
-Previous failed/rework target:
+Accepted baseline:
 
-- `decision_20260705_governance_fix_cleanup_apply_safety_v1`
-- `round_20260705_governance_fix_cleanup_apply_safety_v1`
-- audit outcome: `REWORK_REQUIRED`
+- `decision_20260705_status_policy_final_acceptance_rework_v1`
+- `round_20260705_status_policy_final_acceptance_rework_v1`
+- audit outcome: `ACCEPTED`
 
-Evidence from that failed round:
+Baseline facts:
 
-1. `codex_execution_report.md` claimed `SUCCESS` and `ACCEPTED` for `decision_20260705_governance_fix_cleanup_apply_safety_v1`.
-2. `pytest_result.txt` reported `PASSED`, with startup clean and focused tests passing.
-3. `execution_log.json` recorded 18 commands, all `PASSED`, with no warnings or blocking reasons.
-4. `cleanup_apply_safety_result.json` was acceptable: dry-run only, no real cleanup apply, no destructive arrays populated, and forbidden capabilities disabled.
-5. `governance_fix_result.json` claimed `fix_status=RESOLVED_FOR_CURRENT_GOVERNANCE_EVIDENCE` and `previous_limitation_resolved_for_current_non_sample_governance=true`.
-6. `final_gate_result.json` contradicted that claim by keeping `gate_status=PASSED_WITH_LIMITATIONS` and `report_acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS`.
-7. The remaining limitation text was still historical sample artifacts missing and doctor status fail.
-
-Therefore the rework target is not cleanup-apply safety and not state-governance artifact generation. The rework target is final acceptance semantics across status-policy, doctor/backlog split, governance-fix, report-summary, and final-check.
+- final-check was clean: `PASSED`.
+- report acceptance was clean: `ACCEPTED`.
+- `doctor_status=FAIL` from historical sample backlog was preserved as external/backlog notice, not a current governance limitation.
+- `status_policy_valid.limitations` was null while `50 missing, 0 stale artifacts` remained visible as historical backlog.
+- cleanup-apply safety artifacts already exist and were historical/nonblocking in the accepted rework; they should be reused or refreshed only as review/dry-run evidence, not reimplemented from scratch.
 
 Existing capabilities that must not be duplicated:
 
@@ -175,58 +239,73 @@ Existing capabilities that must not be duplicated:
 - state manifest;
 - context packet;
 - workstream registry;
-- governance-fix gate;
-- cleanup-apply-safety dry-run artifacts.
+- retention policy;
+- cleanup plan;
+- archive index;
+- deletion manifest schema;
+- tombstone schema;
+- cleanup-apply dry-run safety;
+- status-policy reconciliation;
+- doctor/backlog split.
+
+Why this is the right larger step:
+
+- A narrow cleanup review bundle is useful but too small.
+- The broader governance operations bundle prepares the next architecture layer: Web display, bounded state queries, future compaction, and future cleanup-apply audit readiness.
+- It still respects the project rule that new directions enter roadmap/workstreams and that project_state remains the audit fact source.
 
 Negative results still apply:
 
-- no reverse-solving fallback;
-- no budget/beam expansion;
-- no full `solve_reports` scan;
+- no old sample-solver blind search;
+- no beam/topN/budget expansion;
 - no stale runtime diagnostics;
-- no concrete sample claim.
+- no full `solve_reports` scan;
+- no full `PROJECT_PROGRESS_LOG.txt` scan;
+- no concrete sample solve/static/runtime/audit verification claim.
 
 Artifact freshness policy:
 
-- New or refreshed artifacts must carry `decision_20260705_status_policy_final_acceptance_rework_v1` and `round_20260705_status_policy_final_acceptance_rework_v1`.
-- Historical sample backlog must remain visible as historical/backlog evidence.
-- No current sample evidence claim may be introduced.
+- New artifacts must carry `decision_20260705_governance_operations_bundle_big_step_v1` and `round_20260705_governance_operations_bundle_big_step_v1`.
+- Historical artifacts may be referenced as historical/backlog only unless explicitly refreshed under this round.
+- Historical sample backlog must remain visible and nonblocking.
+
+Command policy:
+
+- Codex may execute only commands authorized by `project_state/gates/command_plan.json`.
+- Omitted commands must not be executed.
+- If this Tests section conflicts with command-plan, command-plan wins.
 
 ## 3. Do Not Do
 
-Do not add new cleanup-apply safety features.
-
-Do not modify cleanup-apply safety artifacts except as historical referenced evidence if existing gate/report machinery requires reference updates.
-
-Do not run cleanup apply.
+Do not run cleanup-apply.
 
 Do not delete, move, rename, archive, compact, tombstone, or destructively mutate any file.
 
-Do not write a real deletion manifest or real tombstone.
+Do not create or write a real deletion manifest.
 
-Do not modify `.github/workflows/*`.
+Do not create or write a real tombstone.
 
-Do not modify `.codex-skills/*`.
+Do not create SQLite files, `.db` files, migrations, or persistent database state.
+
+Do not mutate `project_state/archives/*`, `project_state/deletions/*`, or `project_state/blob_store/*`.
+
+Do not modify `.github/workflows/*` or `.codex-skills/*`.
 
 Do not modify `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, or `project_state/negative_results.json`.
 
-Do not modify `project_state/archives/*` or `project_state/deletions/*`.
+Do not scan full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or recursively scan all `project_state/rounds/`.
 
-Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+Do not process real samples, binaries, training corpora, or user uploads.
 
-Do not recursively scan the whole `project_state/rounds/` tree.
-
-Do not process real samples, local binaries, training corpora, or user uploads.
-
-Do not invoke IDA, Ghidra, OllyDbg, debuggers, emulators, unpackers, runtime probes, or external analysis tools.
+Do not invoke IDA, Ghidra, OllyDbg, debuggers, emulators, unpackers, runtime probes, or external reverse tools.
 
 Do not invoke model APIs, automatic runners, manual runner dispatch, remote agents, CI workflow dispatch, or CI polling.
 
-Do not implement a database, queue, production HTTP service, scheduler, background service, or Web runtime.
-
-Do not hide historical sample backlog. It must remain visible as backlog notice.
+Do not implement Web runtime, database, queue, scheduler, production HTTP service, or background service.
 
 Do not claim any concrete sample is solved, statically verified, runtime validated, or audit verified.
+
+Do not weaken final-check, status-policy, command-plan, execution-log, report-summary, closeout, retention policy, or archive/cleanup safety checks to make the bundle pass.
 
 ## 4. Files To Inspect
 
@@ -240,37 +319,54 @@ Read first:
 6. `project_state/gates/report_summary_synthesis.json`
 7. `project_state/gates/status_policy_reconcile_result.json`
 8. `project_state/gates/doctor_backlog_split_result.json`
-9. `project_state/gates/governance_fix_result.json`
-10. `project_state/gates/execution_log.json`
-11. `project_state/gates/command_plan.json`
-12. `project_state/gates/run_closeout_result.json`
-13. `project_state/state_manifest.json`
-14. `project_state/context/current_context_packet.json`
-15. `project_state/roadmap/workstreams.json`
-16. `project_state/task_packet.json`
-17. `project_state/current_state.json`
-18. `project_state/artifact_index.json`
-19. `project_state/negative_results.json`
-20. `.codex-skills/registry.json`
+9. `project_state/retention_policy.json`
+10. `project_state/state_lifecycle_registry.json`
+11. `project_state/gates/cleanup_plan.json`
+12. `project_state/gates/cleanup_plan_summary.json`
+13. `project_state/gates/archive_index.json`
+14. `project_state/gates/archive_index_summary.json`
+15. `project_state/gates/cleanup_apply_safety_result.json`
+16. `project_state/gates/cleanup_apply_safety_snapshot.json`
+17. `project_state/gates/cleanup_apply_dry_run.json`
+18. `project_state/gates/deletion_manifest_schema.json`
+19. `project_state/gates/tombstone_schema.json`
+20. `project_state/gates/deletion_manifest_validation_result.json`
+21. `project_state/gates/tombstone_validation_result.json`
+22. `project_state/gates/rollback_handoff_plan.json`
+23. `project_state/gates/audit_handoff_for_cleanup_apply.json`
+24. `project_state/state_manifest.json`
+25. `project_state/context/current_context_packet.json`
+26. `project_state/roadmap/workstreams.json`
+27. `project_state/task_packet.json`
+28. `project_state/current_state.json`
+29. `project_state/artifact_index.json`
+30. `project_state/negative_results.json`
+31. `.codex-skills/registry.json`
 
 Inspect source/test surfaces:
 
-1. `reverse_agent/project_gate.py`
-2. `reverse_agent/project_reports.py`
-3. `reverse_agent/state_governance.py`
-4. `reverse_agent/state_hygiene.py`
-5. `reverse_agent/project_state_manifest.py`
-6. `reverse_agent/project_context_builder.py`
-7. `reverse_agent/project_workstreams.py`
-8. `tests/test_project_gate.py`
-9. `tests/test_project_reports.py`
-10. `tests/test_state_governance.py`
-11. `tests/test_state_hygiene.py`
-12. `tests/test_project_state_manifest.py`
-13. `tests/test_project_context_builder.py`
-14. `tests/test_project_workstreams.py`
+1. `reverse_agent/cleanup_apply_safety.py`
+2. `reverse_agent/state_governance.py`
+3. `reverse_agent/state_hygiene.py`
+4. `reverse_agent/project_gate.py`
+5. `reverse_agent/project_reports.py`
+6. `reverse_agent/project_state_manifest.py`
+7. `reverse_agent/project_context_builder.py`
+8. `reverse_agent/project_workstreams.py`
+9. `reverse_agent/state_index_readiness.py` if present
+10. `reverse_agent/round_compaction.py` if present
+11. `tests/test_cleanup_apply_safety.py`
+12. `tests/test_state_governance.py`
+13. `tests/test_state_hygiene.py`
+14. `tests/test_project_gate.py`
+15. `tests/test_project_reports.py`
+16. `tests/test_project_state_manifest.py`
+17. `tests/test_project_context_builder.py`
+18. `tests/test_project_workstreams.py`
+19. `tests/test_state_index_readiness.py` if present
+20. `tests/test_round_compaction.py` if present
 
-Do not inspect full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or recursively scan full `project_state/rounds/`.
+Do not inspect full heavy artifacts unless command-plan explicitly authorizes a bounded read.
 
 ## 5. Required Audit
 
@@ -279,105 +375,181 @@ The execution report must answer each item with direct evidence and `PASS`, `FAI
 1. Was `project_state/decision_packet.md` treated as the only task authority?
 2. Was `project_state/task_packet.json` treated as background only?
 3. Did `decision_meta` remain valid, `APPROVED`, and aligned with active `reverse-agent-iteration@v2`?
-4. Was the previous `governance_fix_cleanup_apply_safety` round treated as `REWORK_REQUIRED` target?
-5. Did the implementation avoid adding or expanding cleanup-apply safety functionality?
-6. Were status-policy, doctor/backlog split, governance-fix, report-summary, and final-check inspected before modification?
-7. Was `project_state/gates/status_policy_reconcile_result.json` generated or refreshed for this round?
-8. Was `project_state/gates/doctor_backlog_split_result.json` generated or refreshed for this round?
-9. Was `project_state/gates/governance_fix_result.json` generated or refreshed for this round?
-10. Does governance-fix result agree with final-check outcome?
-11. Is historical sample backlog still visible as backlog notice?
-12. Is historical sample backlog prevented from downgrading current non-sample governance acceptance when current evidence passes?
-13. Does final-check produce `gate_status=PASSED` when current governance evidence passes and only historical sample backlog remains?
-14. Does `status_summary.report_acceptance_recommendation=ACCEPTED` under that condition?
-15. Does `status_policy_valid` avoid carrying `doctor_status=FAIL` as a limitation for current non-sample governance acceptance?
-16. Does report-summary synthesis match the updated final-check/report status?
-17. Did command-plan authorize every executed command?
-18. Were command-plan omitted commands left unexecuted?
-19. Did pytest_result record real commands and exit codes?
-20. Did focused tests cover final acceptance semantics, backlog visibility, and no cleanup-apply expansion?
-21. Did existing governance/gate/report tests continue to pass?
-22. Did run-closeout pass if authorized?
-23. Were forbidden paths untouched?
-24. Were `.github/workflows/*`, `.codex-skills/*`, `solve_reports/*`, `project_state/archives/*`, and `project_state/deletions/*` untouched?
-25. Did the final report avoid any concrete sample solve/static/runtime/audit validation claim?
-26. Did the final report explicitly state that this was a status-policy/final-acceptance rework only?
+4. Was `decision_20260705_status_policy_final_acceptance_rework_v1` treated as the last accepted baseline?
+5. Did this round remain one mainline, `project_governance`?
+6. Did the round supersede the smaller unexecuted `cleanup_apply_review_bundle_v1` plan rather than running both?
+7. Were existing retention, cleanup, archive, status-policy, doctor/backlog, cleanup-apply safety, command-plan, execution-log, report-summary, final-check, closeout, manifest, context, and workstream capabilities inspected before modification?
+8. Did the implementation avoid duplicating existing capabilities from scratch?
+9. Was `cleanup_apply_review_bundle.json` generated?
+10. Was `cleanup_apply_review_result.json` generated?
+11. Was `cleanup_candidate_risk_matrix.json` generated and did it classify candidates by evidence role, retention class, future action, risk, confidence, required approval, and future decision requirement?
+12. Was `cleanup_apply_approval_checklist.json` generated and did it require a separate future decision before any real cleanup-apply?
+13. Was `evidence_lock_manifest.json` generated and did it protect current audit fact sources and accepted-round minimum evidence?
+14. Was `deletion_manifest_dry_run.json` generated with `real_deletion_manifest=false` and `delete_allowed_now=false`?
+15. Was `tombstone_plan_dry_run.json` generated with `real_tombstone_write=false`?
+16. Was `round_compaction_plan.json` generated?
+17. Was `round_compaction_dry_run.json` generated?
+18. Did round compaction dry-run avoid writing archives, moving files, deleting files, or mutating `project_state/archives/*`?
+19. Was `round_compaction_manifest_dry_run.json` generated and clearly marked dry-run-only?
+20. Was `archive_index.json` refreshed in bounded mode without recursive full history scan?
+21. Was `state_index_readiness_schema.json` generated without creating a real database?
+22. Was `state_index_readiness_plan.json` generated and did it state SQLite is a read/query index, not the audit fact source?
+23. Was `state_index_readiness_result.json` generated and did it prove no SQLite/db file was created?
+24. Was `state_hygiene_dashboard_feed.json` generated?
+25. Did dashboard feed contain current decision, round, report, final-check, backlog notices, cleanup readiness, compaction readiness, and index readiness?
+26. Was `lifecycle_transition_guard_result.json` generated?
+27. Did lifecycle guard verify exactly one active workstream and keep real cleanup-apply deferred?
+28. Were `state_manifest`, `current_context_packet`, and `workstreams` refreshed for this round if needed?
+29. Does `workstreams.json` mark only `governance_operations_bundle` as `ACTIVE_ROUND`?
+30. Did status-policy/final-check acceptance remain `PASSED`/`ACCEPTED`?
+31. Did historical sample backlog remain visible as nonblocking backlog?
+32. Did the round prove no cleanup-apply, deletion, move, archive apply, archive compaction, real tombstone, real deletion manifest, database migration, Web runtime, runner dispatch, CI dispatch, model API, external reverse tool, or real sample processing occurred?
+33. Did command-plan authorize every executed command?
+34. Were command-plan omitted commands left unexecuted?
+35. Did pytest_result record real commands and exit codes?
+36. Did focused tests cover review bundle, compaction dry-run, read-index schema, dashboard feed, lifecycle guard, and no-op safety behavior?
+37. Did existing governance/gate/report tests continue to pass?
+38. Did report-summary synthesis pass and match the execution report?
+39. Did final-check pass?
+40. Did run-closeout pass if authorized?
+41. Were forbidden paths untouched?
+42. Were `.github/workflows/*`, `.codex-skills/*`, `solve_reports/*`, `project_state/archives/*`, `project_state/deletions/*`, `project_state/blob_store/*`, and SQLite/db files untouched or absent as required?
+43. Did the final report avoid any concrete sample solve/static/runtime/audit validation claim?
+44. Did the final report explicitly state this is an operations readiness bundle only, not cleanup apply, not compaction apply, not database creation, and not Web/runtime work?
 
 ## 6. Implementation Scope
 
-Allowed implementation is limited to final acceptance semantics for current non-sample governance rounds.
+Allowed implementation is a larger but bounded governance operations bundle.
 
-### A. Status-policy reconcile
+### A. Cleanup-apply review package
 
-Update the existing status-policy reconciliation logic so that historical sample artifact gaps are treated as backlog notices when all of the following are true:
+Extend existing cleanup-apply safety/governance helpers. Do not reimplement the earlier dry-run safety layer from scratch.
 
-- active decision mainline is `project_governance`;
-- active decision does not claim concrete sample evidence;
-- current required governance artifacts are present and current;
-- pytest/report/execution-log/final-check command authority evidence is otherwise passing;
-- historical sample gaps are still recorded as backlog evidence.
+Generate:
 
-Generate or refresh:
+- `project_state/gates/cleanup_apply_review_bundle.json`
+- `project_state/gates/cleanup_apply_review_result.json`
+- `project_state/gates/cleanup_apply_review_snapshot.json`
+- `project_state/gates/cleanup_candidate_risk_matrix.json`
+- `project_state/gates/cleanup_apply_approval_checklist.json`
+- `project_state/gates/evidence_lock_manifest.json`
+- `project_state/gates/deletion_manifest_dry_run.json`
+- `project_state/gates/tombstone_plan_dry_run.json`
+- `project_state/gates/rollback_rehearsal_plan.json`
+- `project_state/gates/audit_handoff_for_cleanup_apply.json`
 
-- `project_state/gates/status_policy_reconcile_result.json`
+Required behavior:
 
-### B. Doctor/backlog split
+- All review artifacts are advisory/readiness only.
+- No candidate may have `delete_allowed_now=true` or `archive_allowed_now=true`.
+- Current audit fact sources and accepted-round minimum evidence must be protected.
+- Unknown entries require manual review.
+- Future cleanup-apply requires separate decision, command-plan, final-check, deletion manifest, tombstone plan, rollback handoff, and audit.
 
-Update doctor/backlog split behavior so `doctor_status=FAIL` caused only by historical sample backlog does not become a current acceptance limitation for a non-sample governance round.
+### B. Round compaction dry-run
 
-The backlog must remain explicit:
+Add or extend bounded compaction planning helpers, preferably in `reverse_agent/round_compaction.py` or existing state governance modules.
 
-- missing artifact count;
-- missing artifact names or classes;
-- reason they are historical/nonblocking;
-- statement that they are not current evidence.
+Generate:
 
-Generate or refresh:
+- `project_state/gates/round_compaction_plan.json`
+- `project_state/gates/round_compaction_dry_run.json`
+- `project_state/gates/round_compaction_manifest_dry_run.json`
 
-- `project_state/gates/doctor_backlog_split_result.json`
+Required behavior:
 
-### C. Governance-fix/final-check alignment
+- Source rounds are selected only from bounded known baselines and current manifests.
+- No recursive full `project_state/rounds/` scan.
+- No archive writing, no file deletion, no movement, no compression, no mutation of `project_state/archives/*`.
+- Output should say what a future compaction would retain, summarize, reference, or reject.
+- Dry-run manifest must include `compaction_apply_allowed=false`.
 
-Ensure `governance_fix_result.json` and `final_gate_result.json` agree.
+### C. Archive/index refresh
 
-Required alignment:
+Refresh archive index artifacts in bounded mode.
 
-- if `governance_fix_result.fix_status=RESOLVED_FOR_CURRENT_GOVERNANCE_EVIDENCE`, then final-check must not keep the same issue as `PASSED_WITH_LIMITATIONS`;
-- final-check must make the backlog visible but non-limiting;
-- `status_summary.report_acceptance_recommendation` must be `ACCEPTED` if no other active limitation exists.
+Generate or update:
 
-Generate or refresh:
+- `project_state/gates/archive_index.json`
+- `project_state/gates/archive_index_summary.json`
 
-- `project_state/gates/governance_fix_result.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/report_summary_synthesis.json`
+Required behavior:
 
-### D. Context and workstream refresh
+- No archive apply.
+- No mutation of archive directories.
+- Classify current, accepted baseline, historical nonblocking, dry-run review, and backlog artifacts.
 
-Update only as needed:
+### D. SQLite read-index readiness
+
+Add or extend a schema-only readiness module, preferably `reverse_agent/state_index_readiness.py` if it does not already exist.
+
+Generate:
+
+- `project_state/gates/state_index_readiness_schema.json`
+- `project_state/gates/state_index_readiness_plan.json`
+- `project_state/gates/state_index_readiness_result.json`
+
+Required behavior:
+
+- Define future read-index tables for decisions, rounds, artifacts, executions, audits, workstreams, and backlog notices.
+- State clearly that SQLite is a query/read index only and does not replace `project_state` as audit fact source.
+- Do not create `project_state/index.sqlite`, `.db`, migration files, or any persistent database.
+
+### E. State-hygiene dashboard feed
+
+Generate:
+
+- `project_state/gates/state_hygiene_dashboard_feed.json`
+- `project_state/gates/state_hygiene_dashboard_summary.json`
+
+Required behavior:
+
+- Provide a bounded feed for future Web/dashboard use.
+- Include current decision/round/report/final-check, last accepted baseline, workstream state, cleanup review readiness, compaction readiness, index readiness, historical backlog notices, and forbidden capability status.
+- No HTTP server, API, frontend code, or Web runtime.
+
+### F. Lifecycle transition guard
+
+Generate:
+
+- `project_state/gates/lifecycle_transition_guard_result.json`
+- `project_state/gates/governance_operations_bundle_result.json`
+- `project_state/gates/governance_operations_bundle_snapshot.json`
+
+Required behavior:
+
+- Verify one active workstream.
+- Verify destructive work remains deferred.
+- Verify status-policy clean acceptance remains preserved.
+- Verify cleanup review, compaction dry-run, SQLite readiness, dashboard feed, and archive/index refresh are current.
+- Verify forbidden capabilities are disabled.
+
+### G. Context/workstream refresh
+
+Update as needed:
 
 - `project_state/state_manifest.json`
 - `project_state/context/current_context_packet.json`
 - `project_state/roadmap/workstreams.json`
 
-Required workstream state:
+Required state:
 
-- only `status_policy_final_acceptance_rework` is `ACTIVE_ROUND`;
-- `governance_fix_cleanup_apply_safety` is marked as rework target / not accepted;
-- `state_governance_bundle_big_step` remains the last accepted baseline;
-- cleanup-apply safety remains completed historical engineering evidence, but not active expansion.
+- `governance_operations_bundle` is the only `ACTIVE_ROUND`.
+- `status_policy_final_acceptance_rework` is accepted baseline.
+- The smaller cleanup review plan is superseded/unexecuted.
+- Real cleanup-apply, compaction apply, database migration, Web runtime, runner dispatch, CI mutation, tool integration, and reverse solving remain deferred/non-active.
 
-### E. Tests
+### H. Documentation
 
-Add or update focused tests for:
+Add or update concise docs for the new bundle:
 
-- historical sample backlog visible but non-limiting;
-- doctor status fail from historical sample backlog does not downgrade non-sample governance acceptance;
-- final-check returns `PASSED` and `ACCEPTED` under the required condition;
-- governance-fix result and final-check do not contradict each other;
-- cleanup-apply safety artifacts are not regenerated or expanded as new work.
+- `docs/governance_operations_bundle.md`
+- `docs/cleanup_apply_review_bundle.md`
+- `docs/round_compaction.md`
+- `docs/state_index_readiness.md`
+- `docs/state_hygiene_dashboard_feed.md`
 
-Do not weaken current-artifact, command-plan, execution-log, report-summary, final-check, or closeout checks.
+Docs must emphasize project_state remains audit fact source and this round is readiness/dry-run only.
 
 ## 7. Tests
 
@@ -397,25 +569,29 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state --js
 python -m reverse_agent.project_gate prework-provenance --state-dir project_state
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 python -m reverse_agent.project_state doctor --state-dir project_state
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_state_governance.py tests/test_state_hygiene.py -q
-python -m pytest tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q
-python -m reverse_agent.project_gate governance-fix --state-dir project_state
+python -m pytest tests/test_cleanup_apply_safety.py tests/test_state_governance.py tests/test_state_hygiene.py tests/test_round_compaction.py tests/test_state_index_readiness.py -q
+python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q
+python -m reverse_agent.project_gate governance-operations-bundle --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_status_policy_final_acceptance_rework_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_governance_operations_bundle_big_step_v1
 ```
 
 Expected results:
 
-- focused status-policy/final-check tests pass;
+- governance operations bundle tests pass;
+- cleanup review tests pass;
+- compaction dry-run tests pass;
+- state index readiness tests pass;
 - existing governance/gate/report tests pass;
-- final-check returns `PASSED`;
-- report-summary returns `ACCEPTED`;
-- historical sample backlog remains visible as backlog notice;
-- no cleanup-apply safety expansion occurs;
-- no forbidden paths are mutated;
+- governance-operations-bundle gate passes;
+- report-summary passes and matches execution report;
+- final-check passes;
+- run-closeout passes if authorized;
+- no omitted command is executed;
+- no forbidden path is mutated;
 - no destructive operation occurs;
-- run-closeout passes if authorized.
+- no database file is created.
 
 ## 8. Stop Conditions
 
@@ -426,12 +602,19 @@ Stop immediately and report `BLOCKED` if:
 3. `decision_meta` cannot be parsed or is not `APPROVED`.
 4. `reverse-agent-iteration@v2` is not active.
 5. command-plan cannot be generated or does not authorize required commands.
-6. The implementation requires cleanup-apply work or cleanup-apply safety expansion.
-7. The implementation requires deleting, moving, renaming, archiving, compacting, or tombstoning any file.
-8. The implementation requires modifying `.github/workflows/*`, `.codex-skills/*`, `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, `project_state/archives/*`, or `project_state/deletions/*`.
-9. Historical sample backlog must be hidden or removed to make final-check pass.
-10. final-check cannot produce `PASSED` while preserving backlog visibility.
-11. report-summary cannot reconcile `ACCEPTED` with the generated evidence.
-12. Any concrete sample solve/static/runtime/audit verification claim is introduced.
+6. Implementation requires real cleanup-apply or cleanup-apply execution.
+7. Implementation requires deleting, moving, renaming, archiving, compacting, tombstoning, or destructively mutating any file.
+8. Implementation requires writing a real deletion manifest or real tombstone.
+9. Implementation requires creating SQLite/db files, migrations, or replacing `project_state` as fact source.
+10. Implementation requires modifying `.github/workflows/*`, `.codex-skills/*`, `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, `project_state/archives/*`, `project_state/deletions/*`, or `project_state/blob_store/*`.
+11. Implementation requires reading full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or recursively scanning all `project_state/rounds/`.
+12. Implementation requires Web runtime, database, queue, scheduler, runner dispatch, model API, CI dispatch, external reverse tool execution, or real sample processing.
+13. Any candidate must be marked `delete_allowed_now=true` or `archive_allowed_now=true` to make the bundle pass.
+14. Round compaction dry-run needs real archive write, real delete, or real move.
+15. State index readiness needs a real database file.
+16. Historical sample backlog must be hidden or removed to make final-check pass.
+17. Status-policy/final-check acceptance regresses from `PASSED`/`ACCEPTED` for current governance evidence.
+18. More than one workstream would need to be marked `ACTIVE_ROUND`.
+19. A concrete sample solve/static/runtime/audit verification claim is introduced.
 
-If a stop condition is hit, write `codex_execution_report.md`, `execution_report.md`, and `pytest_result.txt` with blocked/failed evidence. Do not run closeout unless command-plan explicitly authorizes diagnostic closeout for failed rounds.
+If blocked, write `codex_execution_report.md`, `execution_report.md`, and `pytest_result.txt` with available evidence. Do not run closeout unless command-plan explicitly authorizes diagnostic closeout for failed rounds.
