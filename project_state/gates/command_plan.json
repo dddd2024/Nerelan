@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260705_project_governance_context_registry_v1",
-  "round_id": "round_20260705_project_governance_context_registry_v1",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-05T06:09:30.334519Z",
+  "generated_at": "2026-07-05T09:58:12.207457Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -206,7 +206,7 @@
     },
     {
       "index": 14,
-      "command": "python -m pytest tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
+      "command": "python -m pytest tests/test_state_governance.py tests/test_state_hygiene.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -232,7 +232,7 @@
     },
     {
       "index": 16,
-      "command": "python -m reverse_agent.project_gate project-governance-context --state-dir project_state",
+      "command": "python -m reverse_agent.project_gate state-governance-bundle --state-dir project_state",
       "phase": "status",
       "kind": "project-cli",
       "required": true,
@@ -245,7 +245,7 @@
     },
     {
       "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_project_governance_context_registry_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_state_governance_bundle_big_step_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,

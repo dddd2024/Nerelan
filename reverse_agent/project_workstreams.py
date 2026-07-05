@@ -69,25 +69,52 @@ def build_workstream_registry(
     decision_id = str(decision.get("decision_id") or "")
     round_id = str(decision.get("round_id") or "")
     baseline_round_id = str(contract.get("follows_last_accepted_round_id") or "")
+    is_state_governance_bundle = bool(
+        contract.get("accepted_requires_retention_policy")
+        or contract.get("accepted_requires_cleanup_plan")
+        or contract.get("accepted_requires_archive_index")
+        or "state_governance_bundle_big_step" in decision_id
+    )
+    context_status = "ACCEPTED" if is_state_governance_bundle else "ACTIVE_ROUND"
+    bundle_status = "ACTIVE_ROUND" if is_state_governance_bundle else "READY_FOR_DECISION"
+    state_hygiene_status = "SUPERSEDED_UNEXECUTED" if is_state_governance_bundle else "READY_FOR_DECISION"
 
     workstreams = [
         _entry(
-            "project_governance_context_registry",
+            "state_governance_bundle_big_step",
             "project_governance",
-            "ACTIVE_ROUND",
+            bundle_status,
             current_decision_id=decision_id,
             current_round_id=round_id,
             baseline_round_id=baseline_round_id,
-            notes="Seeds deterministic manifest, context packet, workstream registry, and governance gate indexes.",
+            notes="Retention policy, cleanup plan, archive index, schema design, lifecycle registry, and governance context refresh; planning/index/schema only.",
+        ),
+        _entry(
+            "project_governance_context_registry",
+            "project_governance",
+            context_status,
+            current_decision_id=decision_id,
+            current_round_id=round_id,
+            baseline_round_id=baseline_round_id,
+            notes="Accepted baseline for the state governance bundle." if is_state_governance_bundle else "Seeds deterministic manifest, context packet, workstream registry, and governance gate indexes.",
         ),
         _entry(
             "state_hygiene_retention_policy",
             "state_hygiene",
-            "READY_FOR_DECISION",
+            state_hygiene_status,
             current_decision_id=decision_id,
             current_round_id=round_id,
             baseline_round_id=baseline_round_id,
-            notes="Future bounded retention policy; no cleanup or deletion in this round.",
+            notes="Superseded by state_governance_bundle_big_step; not executed as a separate accepted round." if is_state_governance_bundle else "Future bounded retention policy; no cleanup or deletion in this round.",
+        ),
+        _entry(
+            "cleanup_apply",
+            "state_hygiene",
+            "DEFERRED",
+            current_decision_id=decision_id,
+            current_round_id=round_id,
+            baseline_round_id=baseline_round_id,
+            notes="Future-only cleanup apply; forbidden until a separate decision accepts deletion manifest and tombstone safety gates.",
         ),
         _entry(
             "manual_mode_web_orchestrator",
@@ -193,8 +220,10 @@ def validate_workstream_registry(payload: Mapping[str, Any], *, decision_id: str
         errors.append("workstreams must be a list")
         return errors
     required_ids = {
+        "state_governance_bundle_big_step",
         "project_governance_context_registry",
         "state_hygiene_retention_policy",
+        "cleanup_apply",
         "manual_mode_web_orchestrator",
         "user_solve_layer",
         "agent_runner_dispatch",
@@ -214,4 +243,8 @@ def validate_workstream_registry(payload: Mapping[str, Any], *, decision_id: str
         errors.append("ACTIVE_ROUND workstream ids mismatch current decision")
     if any(item.get("is_execution_authority") is not False for item in workstreams if isinstance(item, Mapping)):
         errors.append("workstreams must not be execution authority")
+    allowed_statuses = set(WORKSTREAM_STATES) | {"SUPERSEDED_UNEXECUTED"}
+    for item in workstreams:
+        if isinstance(item, Mapping) and str(item.get("status") or "") not in allowed_statuses:
+            errors.append(f"invalid workstream status: {item.get('status')}")
     return errors

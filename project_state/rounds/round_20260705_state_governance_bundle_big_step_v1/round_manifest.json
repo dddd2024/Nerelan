@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-07-05T09:58:20Z",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260705_state_governance_bundle_big_step_v1\\codex_execution_report.md",
+      "sha256": "75ee3f7f70015b778b45255e6eff9b5c55839a5b351c98a53dd02602d761e6ac",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260705_state_governance_bundle_big_step_v1\\decision_packet.md",
+      "sha256": "037e89cc00c59ccbed07297e4c6dc4101b2bd8783fe4989c73b7c6562fe6c60c",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260705_state_governance_bundle_big_step_v1\\pytest_result.txt",
+      "sha256": "c7d573575a18c8e1d3c5cb949c4cb5b81116639bb944806c419feef954f418f3",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260705_state_governance_bundle_big_step_v1\\execution_report.md",
+      "sha256": "b1d59e34cd615a379f2c4f0248e4202fee703051ba5fb0ad86212dfa76a6e85e",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "project_governance",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_version": 1,
+  "source_git_commit": "b767bc87d3d1",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

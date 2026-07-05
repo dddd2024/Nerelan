@@ -1,0 +1,27 @@
+{
+  "artifact_kind": "governance_planning_artifact",
+  "artifact_name": "tombstone_schema.json",
+  "artifact_path": "project_state/gates/tombstone_schema.json",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "forbidden_this_round": [
+    "actual_deleted_file_record",
+    "real_tombstone_path"
+  ],
+  "generated_at": "2026-07-05T09:58:13Z",
+  "mainline": "project_governance",
+  "real_tombstone_written": false,
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "required_fields": [
+    "original_path",
+    "deleted_sha256",
+    "deletion_manifest_id",
+    "deletion_round_id",
+    "deletion_timestamp_utc",
+    "reason",
+    "restore_notes",
+    "audit_notes"
+  ],
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_status": "SCHEMA_ONLY",
+  "schema_version": 1
+}

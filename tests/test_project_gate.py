@@ -102,6 +102,7 @@ from reverse_agent.project_gate import (
     user_solve_workbench,
     manual_mode_orchestrator,
     project_governance_context,
+    state_governance_bundle,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -365,6 +366,47 @@ def test_project_governance_context_audit_answers_align_with_required_domains() 
     section = _format_required_audit_answers(
         questions,
         [_project_governance_context_required_audit_answer(question) for question in questions],
+    )
+
+    assert _required_audit_alignment_failures(questions, section) == []
+
+
+def test_state_governance_bundle_gate_generates_planning_artifacts(tmp_path: Path) -> None:
+    from tests.test_state_governance import _write_state, DECISION_ID, ROUND_ID, REPORT_ID
+
+    state_dir = tmp_path / "project_state"
+    _write_state(state_dir)
+
+    result = state_governance_bundle(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["decision_id"] == DECISION_ID
+    assert result["round_id"] == ROUND_ID
+    assert result["report_id"] == REPORT_ID
+    assert result["cleanup_apply_allowed"] is False
+    assert result["destructive_operation_performed"] is False
+    assert (state_dir / "gates" / "state_governance_bundle_result.json").exists()
+    assert (state_dir / "gates" / "state_governance_bundle_snapshot.json").exists()
+
+
+def test_state_governance_bundle_audit_answers_align_with_required_domains() -> None:
+    from reverse_agent.project_gate import (
+        _format_required_audit_answers,
+        _state_governance_bundle_required_audit_answer,
+    )
+
+    questions = [
+        "Did `decision_meta` remain valid, `APPROVED`, and aligned with active `reverse-agent-iteration@v2`?",
+        "Was `project_state/retention_policy.json` generated?",
+        "Does cleanup plan only produce retain/archive-candidate/delete-candidate recommendations and no destructive actions?",
+        "Does every destructive recommendation include `delete_allowed_now=false`, `requires_future_cleanup_apply_decision=true`, and `requires_tombstone_if_deleted=true`?",
+        "Does archive index separate current, archived, historical_nonblocking, and candidate-for-future-archive entries?",
+        "Did the round avoid writing any real deletion manifest or real tombstone?",
+        "Does `workstreams.json` mark only `state_governance_bundle_big_step` as `ACTIVE_ROUND`?",
+    ]
+    section = _format_required_audit_answers(
+        questions,
+        [_state_governance_bundle_required_audit_answer(question) for question in questions],
     )
 
     assert _required_audit_alignment_failures(questions, section) == []

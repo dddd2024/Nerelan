@@ -1,0 +1,125 @@
+{
+  "artifact_kind": "governance_planning_artifact",
+  "artifact_name": "retention_policy.json",
+  "artifact_path": "project_state/retention_policy.json",
+  "cleanup_apply_allowed": false,
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "generated_at": "2026-07-05T09:58:13Z",
+  "global_rules": {
+    "cleanup_plan_is_not_cleanup_apply": true,
+    "deletion_without_future_cleanup_apply_decision": false,
+    "real_deletion_manifest_allowed_this_round": false,
+    "real_tombstone_write_allowed_this_round": false
+  },
+  "mainline": "project_governance",
+  "policy_status": "ACTIVE_DESIGN_ONLY",
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "retention_classes": {
+    "accepted_round_minimum_evidence": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "configuration": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "current_audit_fact_source": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_current_round",
+      "tombstone_required_if_deleted": true
+    },
+    "current_gate_artifact": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_current_round",
+      "tombstone_required_if_deleted": true
+    },
+    "current_generated_governance_index": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_current_round",
+      "tombstone_required_if_deleted": true
+    },
+    "disposable_candidate_requires_future_decision": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "future_cleanup_apply_only",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "documentation": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "historical_nonblocking_gate_artifact": {
+      "archive_policy": "eligible_for_future_archive_plan",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "historical_sample_reference": {
+      "archive_policy": "eligible_for_future_archive_plan",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "missing_historical_sample_reference": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "transient_closeout_log": {
+      "archive_policy": "eligible_for_future_archive_plan",
+      "delete_policy": "future_cleanup_apply_only",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "transient_closeout_pid": {
+      "archive_policy": "eligible_for_future_archive_plan",
+      "delete_policy": "future_cleanup_apply_only",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    },
+    "unknown_requires_manual_review": {
+      "archive_policy": "retain_in_place",
+      "delete_policy": "not_a_delete_candidate_without_future_decision",
+      "deletion_allowed_this_round": false,
+      "future_cleanup_apply_required": true,
+      "retain_policy": "retain_until_future_decision",
+      "tombstone_required_if_deleted": true
+    }
+  },
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_version": 1
+}

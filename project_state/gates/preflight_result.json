@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_project_governance_context_registry_v1",
-  "round_id": "round_20260705_project_governance_context_registry_v1",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-05T05:48:30.251596Z",
+  "generated_at": "2026-07-05T09:34:09.220771Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -25,8 +25,12 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [],
-      "baseline_dirty_files": []
+      "startup_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ],
+      "baseline_dirty_files": [
+        "project_state/gates/command_plan.json"
+      ]
     },
     {
       "name": "decision_not_dirty_in_baseline",
@@ -78,7 +82,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260705_project_governance_context_registry_v1"
+      "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -93,49 +97,37 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "ACTIVE_ROUND",
-        "Extract current decision ID, round ID, report ID, state build ID, state digest, mainline, report status, acceptance recommendation, pytest status, command-plan status, execution-log status, final-check status, and closeout status.",
-        "IDEA",
-        "IDs match the current decision/round/report.",
-        "Keep the packet bounded and deterministic.",
-        "Mark already accepted foundations as accepted or baseline references without reopening their scope.",
-        "Mark deferred/heavier directions such as database, runner dispatch, IDA MCP, dynamic debugging, and auto-iteration as not active unless future decisions select them.",
-        "Record paths for the current decision, report, neutral execution report, pytest, command-plan, execution-log, final-check, closeout, round manifest, report-summary synthesis, and generated governance artifacts.",
-        "Summarize task authority, command authority, current mainline, previous accepted baseline, existing capabilities, dynamic state caveats, negative-results constraints, allowed/forbidden capability profile, artifact freshness summary, and next-action policy.",
-        "Treat old sample artifact gaps as historical/backlog unless the active decision explicitly requires them.",
-        "agent_runner_dispatch",
-        "context packet exists and is current.",
-        "current",
-        "do_not_assume",
-        "docs/project_governance_context.md",
-        "docs/state_manifest.md",
-        "docs/workstream_registry.md",
-        "generated artifacts are indexes/governance artifacts, not fact-source replacements.",
-        "github_ci_and_state_gate",
-        "how this remains compatible with manual GPT audit + Codex execution.",
-        "how workstream lifecycle prevents direct execution of new ideas;",
-        "manual_mode_web_orchestrator",
-        "missing historical sample artifacts are classified as nonblocking.",
-        "no forbidden capabilities are enabled.",
-        "only allowed workstream is active.",
-        "planner_context",
-        "project_governance_context_registry",
-        "project_state/",
-        "project_state/context/current_context_packet.json",
-        "project_state/gates/project_governance_context_result.json",
-        "project_state/gates/project_governance_context_snapshot.json",
-        "project_state/roadmap/workstreams.json",
-        "project_state/state_manifest.json",
-        "reverse_solving_capability_matrix",
-        "source_files",
-        "sqlite_query_index",
-        "state manifest exists and is current.",
-        "state_hygiene_retention_policy",
-        "state_manifest",
-        "tool_integration_ida_ghidra_debugger",
-        "user_solve_layer",
-        "why dynamic facts belong in project_state/context artifacts rather than long-term prompts;",
-        "workstream registry exists and is current."
+        "accepted_round_minimum_evidence",
+        "archive index;",
+        "archive policy;",
+        "archive summary;",
+        "cleanup plan;",
+        "cleanup summary;",
+        "configuration",
+        "current_audit_fact_source",
+        "current_gate_artifact",
+        "current_generated_governance_index",
+        "delete policy;",
+        "deletion manifest schema;",
+        "disposable_candidate_requires_future_decision",
+        "documentation",
+        "historical_nonblocking_gate_artifact",
+        "historical_sample_reference",
+        "missing_historical_sample_reference",
+        "project_state/gates/cleanup_plan.json",
+        "project_state/gates/cleanup_plan_summary.json",
+        "retain policy;",
+        "retention policy;",
+        "state governance bundle result;",
+        "state governance bundle snapshot.",
+        "state lifecycle registry;",
+        "tombstone schema;",
+        "transient_closeout_log",
+        "transient_closeout_pid",
+        "unknown_requires_manual_review",
+        "whether deletion is allowed in this round, which must be false for all classes.",
+        "whether future cleanup-apply is required;",
+        "whether tombstone is required if deleted in a future round;"
       ]
     },
     {
@@ -149,9 +141,7 @@
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
       "matched_terms": [],
-      "matched_paths": [
-        "tool_integration_ida_ghidra_debugger"
-      ]
+      "matched_paths": []
     },
     {
       "name": "artifact_freshness_policy",
@@ -175,16 +165,22 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
+        "project_state/retention_policy.json",
+        "project_state/state_lifecycle_registry.json",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state_manifest.py",
         "reverse_agent/project_workstreams.py",
+        "reverse_agent/state_governance.py",
+        "reverse_agent/state_hygiene.py",
         "tests/test_project_context_builder.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
         "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
+        "tests/test_project_workstreams.py",
+        "tests/test_state_governance.py",
+        "tests/test_state_hygiene.py"
       ],
       "baseline_source_test_dirty": []
     },
@@ -200,8 +196,10 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [],
-    "head_commit": "9b58798d04b2"
+    "baseline_dirty_files": [
+      "project_state/gates/command_plan.json"
+    ],
+    "head_commit": "b767bc87d3d1"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

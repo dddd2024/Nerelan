@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260705_project_governance_context_registry_v1",
-  "round_id": "round_20260705_project_governance_context_registry_v1",
-  "report_id": "codex_report_20260705_project_governance_context_registry_v1",
-  "generated_at": "2026-07-05T06:10:15.699869Z",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "generated_at": "2026-07-05T09:58:57.038807Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -151,17 +151,13 @@
       "artifact": "project_state/gates/final_gate_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "FAILED",
+      "gate_status": "PASSED_WITH_LIMITATIONS",
       "status": null,
       "close_round_status": null,
-      "report_status": "FAILED",
-      "acceptance_recommendation": "REWORK_REQUIRED",
+      "report_status": "SUCCESS",
+      "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
       "recommendation": null,
-      "errors": [
-        "generated_artifacts_cover_gate_artifacts: generated_artifacts and referenced_artifacts omit existing gate artifacts",
-        "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
-        "status_policy_valid: status policy found blocking issues"
-      ],
+      "errors": [],
       "warnings": []
     },
     "run_closeout": {
@@ -184,12 +180,10 @@
     ],
     "missing_sources": [],
     "external_observation_pending": true,
-    "pending_diagnostic_sources": [
-      "final_check"
-    ]
+    "pending_diagnostic_sources": []
   },
   "post_closeout_status": {
-    "final_check_gate_status": "FAILED",
+    "final_check_gate_status": "PASSED_WITH_LIMITATIONS",
     "run_closeout_status": "PASSED",
     "close_round_status": "CLOSED",
     "execution_log_gate_status": "PASSED",

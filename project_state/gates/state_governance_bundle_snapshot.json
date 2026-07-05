@@ -1,0 +1,29 @@
+{
+  "archive_index_status": "BOUNDED_INDEX_ONLY",
+  "artifact_kind": "governance_planning_artifact",
+  "artifact_name": "state_governance_bundle_snapshot.json",
+  "artifact_path": "project_state/gates/state_governance_bundle_snapshot.json",
+  "cleanup_plan_status": "PASSED",
+  "context_packet_decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "destructive_action_counts": {
+    "archived_files": 0,
+    "compacted_archives": 0,
+    "deleted_files": 0,
+    "moved_files": 0,
+    "written_tombstones": 0
+  },
+  "gate_status": "PASSED",
+  "generated_at": "2026-07-05T09:58:13Z",
+  "lifecycle_registry_status": "ACTIVE_DESIGN_ONLY",
+  "mainline": "project_governance",
+  "planning_index_schema_only": true,
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "retention_policy_status": "PASSED",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_version": 1,
+  "state_manifest_decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "workstream_active_ids": [
+    "state_governance_bundle_big_step"
+  ]
+}

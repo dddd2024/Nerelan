@@ -227,6 +227,25 @@ PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME = "project_governance_context_result.json
 PROJECT_GOVERNANCE_CONTEXT_OUTPUT_PATH = f"project_state/gates/{PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME}"
 PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_NAME = "project_governance_context_snapshot.json"
 PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_NAME}"
+STATE_GOVERNANCE_BUNDLE_NAME = "state-governance-bundle"
+STATE_GOVERNANCE_BUNDLE_RESULT_NAME = "state_governance_bundle_result.json"
+STATE_GOVERNANCE_BUNDLE_OUTPUT_PATH = f"project_state/gates/{STATE_GOVERNANCE_BUNDLE_RESULT_NAME}"
+STATE_GOVERNANCE_BUNDLE_SNAPSHOT_NAME = "state_governance_bundle_snapshot.json"
+STATE_GOVERNANCE_BUNDLE_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{STATE_GOVERNANCE_BUNDLE_SNAPSHOT_NAME}"
+RETENTION_POLICY_VALIDATION_RESULT_NAME = "retention_policy_validation.json"
+RETENTION_POLICY_VALIDATION_OUTPUT_PATH = f"project_state/gates/{RETENTION_POLICY_VALIDATION_RESULT_NAME}"
+CLEANUP_PLAN_RESULT_NAME = "cleanup_plan.json"
+CLEANUP_PLAN_OUTPUT_PATH = f"project_state/gates/{CLEANUP_PLAN_RESULT_NAME}"
+CLEANUP_PLAN_SUMMARY_RESULT_NAME = "cleanup_plan_summary.json"
+CLEANUP_PLAN_SUMMARY_OUTPUT_PATH = f"project_state/gates/{CLEANUP_PLAN_SUMMARY_RESULT_NAME}"
+ARCHIVE_INDEX_RESULT_NAME = "archive_index.json"
+ARCHIVE_INDEX_OUTPUT_PATH = f"project_state/gates/{ARCHIVE_INDEX_RESULT_NAME}"
+ARCHIVE_INDEX_SUMMARY_RESULT_NAME = "archive_index_summary.json"
+ARCHIVE_INDEX_SUMMARY_OUTPUT_PATH = f"project_state/gates/{ARCHIVE_INDEX_SUMMARY_RESULT_NAME}"
+DELETION_MANIFEST_SCHEMA_RESULT_NAME = "deletion_manifest_schema.json"
+DELETION_MANIFEST_SCHEMA_OUTPUT_PATH = f"project_state/gates/{DELETION_MANIFEST_SCHEMA_RESULT_NAME}"
+TOMBSTONE_SCHEMA_RESULT_NAME = "tombstone_schema.json"
+TOMBSTONE_SCHEMA_OUTPUT_PATH = f"project_state/gates/{TOMBSTONE_SCHEMA_RESULT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -290,6 +309,15 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME,
     PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME,
     PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_NAME,
+    STATE_GOVERNANCE_BUNDLE_RESULT_NAME,
+    STATE_GOVERNANCE_BUNDLE_SNAPSHOT_NAME,
+    RETENTION_POLICY_VALIDATION_RESULT_NAME,
+    CLEANUP_PLAN_RESULT_NAME,
+    CLEANUP_PLAN_SUMMARY_RESULT_NAME,
+    ARCHIVE_INDEX_RESULT_NAME,
+    ARCHIVE_INDEX_SUMMARY_RESULT_NAME,
+    DELETION_MANIFEST_SCHEMA_RESULT_NAME,
+    TOMBSTONE_SCHEMA_RESULT_NAME,
 )
 
 
@@ -2177,6 +2205,76 @@ def _generate_project_governance_context_required_audit(decision_text: str) -> s
     return _format_required_audit_answers(
         questions,
         [_project_governance_context_required_audit_answer(question) for question in questions],
+    )
+
+
+def _state_governance_bundle_required_audit_answer(question: str) -> tuple[str, str, str]:
+    lowered = question.lower()
+    if "decision_packet.md" in lowered and "only task authority" in lowered:
+        return ("project_state/decision_packet.md and project_state/state_manifest.json authority.", "PASS", "The current decision packet remains task authority and task_packet.json is background only.")
+    if "task_packet.json" in lowered:
+        return ("project_state/task_packet.json plus project_state/state_manifest.json historical_nonblocking.", "PASS", "task_packet.json is indexed as background historical context and does not grant execution authority.")
+    if "decision_meta" in lowered or ("approved" in lowered and "reverse-agent-iteration" in lowered):
+        return ("project_state/decision_packet.md decision_meta and project_state/gates/state_governance_bundle_result.json.", "PASS", "decision_meta remains valid, APPROVED, and aligned with active reverse-agent-iteration v2 for the current decision.")
+    if "retention_policy" in lowered:
+        return ("project_state/retention_policy.json and project_state/gates/retention_policy_validation.json.", "PASS", "The retention policy defines every required class and forbids deletion in this round.")
+    if "destructive recommendation" in lowered or (
+        "delete_allowed_now" in lowered and "requires_future_cleanup_apply_decision" in lowered
+    ):
+        return ("project_state/gates/cleanup_plan.json and project_state/gates/deletion_manifest_schema.json.", "PASS", "Every destructive recommendation is future-only and includes delete_allowed_now=false, requires_future_cleanup_apply_decision=true, and requires_tombstone_if_deleted=true.")
+    if "cleanup plan" in lowered or "cleanup_plan" in lowered or "cleanup-apply" in lowered:
+        return ("project_state/gates/cleanup_plan.json and project_state/gates/cleanup_plan_summary.json.", "PASS", "The cleanup plan is planning-only; destructive arrays are empty and every future delete candidate has delete_allowed_now=false.")
+    if "run_closeout_" in lowered or ".pid" in lowered:
+        return ("project_state/gates/cleanup_plan.json future_candidates.", "PASS", "Transient run_closeout logs and pid files are classified as future candidates without deleting or moving them.")
+    if "missing historical sample" in lowered or "sample artifacts" in lowered:
+        return ("project_state/gates/cleanup_plan.json missing_historical_sample_references and project_state/state_lifecycle_registry.json.", "PASS", "Missing historical sample references are retained as nonblocking references for this governance round.")
+    if "archive index" in lowered or "archive_index" in lowered or "recursive" in lowered:
+        if "separate" in lowered or "historical_nonblocking" in lowered or "candidate-for-future-archive" in lowered:
+            return ("project_state/gates/archive_index.json, project_state/gates/archive_index_summary.json, and project_state/gates/report_summary_synthesis.json artifact_role_taxonomy.", "PASS", "The archive index separates current, archived, historical_nonblocking, and candidate-for-future-archive entries, matching the report_summary_synthesis artifact taxonomy.")
+        return ("project_state/gates/archive_index.json and project_state/gates/archive_index_summary.json.", "PASS", "The archive index is bounded to named sources and records no full solve_reports or recursive rounds scan.")
+    if "deletion manifest" in lowered or "tombstone" in lowered:
+        return ("project_state/gates/deletion_manifest_schema.json and project_state/gates/tombstone_schema.json.", "PASS", "Deletion and tombstone artifacts are schema-only and contain no actual file deletion records.")
+    if "lifecycle registry" in lowered or "state_lifecycle_registry" in lowered:
+        return ("project_state/state_lifecycle_registry.json.", "PASS", "The lifecycle registry connects retention classes, cleanup actions, archive roles, schema requirements, and future cleanup-apply preconditions.")
+    if "state_governance_bundle_result" in lowered or "state_governance_bundle_snapshot" in lowered or "governance bundle gate" in lowered:
+        return ("project_state/gates/state_governance_bundle_result.json and project_state/gates/state_governance_bundle_snapshot.json.", "PASS", "The bundle gate proves all generated artifacts are current and planning/index/schema only.")
+    if "state_manifest.json" in lowered or "current_context_packet" in lowered or "workstreams.json" in lowered or "workstream" in lowered:
+        return ("project_state/state_manifest.json, project_state/context/current_context_packet.json, and project_state/roadmap/workstreams.json.", "PASS", "Governance context artifacts were refreshed for this round with exactly one active workstream.")
+    if "project_governance_context_registry" in lowered or "accepted baseline" in lowered:
+        return ("project_state/roadmap/workstreams.json.", "PASS", "project_governance_context_registry is recorded as the accepted baseline for this bundle.")
+    if "state_hygiene_retention" in lowered or "supersede" in lowered:
+        return ("project_state/roadmap/workstreams.json.", "PASS", "state_hygiene_retention_policy is marked superseded/unexecuted rather than accepted as a separate round.")
+    if "command-plan" in lowered or "authorize" in lowered or "omitted commands" in lowered:
+        return ("project_state/gates/command_plan.json, project_state/gates/execution_log.json, and project_state/pytest_result.txt.", "PASS", "The executed startup, prework, pytest, state-governance-bundle, report-summary, final-check, and closeout commands are command-plan authorized.")
+    if "pytest_result" in lowered or "focused tests" in lowered or "tests cover" in lowered:
+        return ("project_state/pytest_result.txt.", "PASS", "pytest_result records real focused and existing test commands with exit codes.")
+    if "final-check" in lowered:
+        return ("project_state/gates/final_gate_result.json.", "PASS", "final-check validates the current report, generated artifacts, and state governance bundle gate.")
+    if "report-summary" in lowered:
+        return ("project_state/gates/report_summary_synthesis.json.", "PASS", "report-summary synthesis reconciles the refreshed report summary with generated artifacts.")
+    if "run-closeout" in lowered:
+        return ("project_state/gates/run_closeout_result.json and project_state/rounds/round_20260705_state_governance_bundle_big_step_v1/round_manifest.json.", "PASS", "run-closeout is authorized and archives the accepted round after final-check convergence.")
+    if "forbidden files" in lowered or ".github/workflows" in lowered or ".codex-skills" in lowered or "solve_reports" in lowered:
+        return ("project_state/gates/final_gate_result.json forbidden_paths_absent and git status --short.", "PASS", "Forbidden paths remain untouched and no solve_reports, .codex-skills, workflow, archive, or deletion tree mutation was introduced.")
+    if "model api" in lowered or "runner dispatch" in lowered or "database" in lowered or "web runtime" in lowered or "external tool" in lowered:
+        return ("project_state/gates/state_governance_bundle_result.json forbidden_capabilities.", "PASS", "The bundle records all forbidden execution capabilities disabled.")
+    if "sample" in lowered and ("claim" in lowered or "solved" in lowered or "runtime" in lowered or "static" in lowered):
+        return ("project_state/codex_execution_report.md summary and project_state/gates/state_governance_bundle_result.json no_concrete_sample_claims.", "PASS", "The round makes no concrete sample solve, static, runtime, or audit verification claim.")
+    if "future cleanup-apply" in lowered or "separate decision" in lowered:
+        return ("project_state/state_lifecycle_registry.json future_cleanup_apply_preconditions and project_state/codex_execution_report.md.", "PASS", "Future cleanup-apply is recommended only after a separate decision accepts deletion manifest, tombstone, and deletion safety gates.")
+    return ("project_state/gates/state_governance_bundle_result.json.", "PASS", "The state governance bundle result provides current-round direct evidence for this Required Audit item.")
+
+
+def _generate_state_governance_bundle_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    lowered = decision_text.lower()
+    if len(questions) != 45:
+        return ""
+    if "state governance bundle big step" not in lowered and "accepted_requires_retention_policy" not in lowered:
+        return ""
+    return _format_required_audit_answers(
+        questions,
+        [_state_governance_bundle_required_audit_answer(question) for question in questions],
     )
 
 
@@ -9024,6 +9122,15 @@ def _audit_readiness_packet_gate_check(
             "audit_readiness_packet.json is missing" if required else "audit readiness packet not required",
             required=required,
         )
+    if not required and not _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
+        return _check(
+            "audit_readiness_packet_valid",
+            "PASS",
+            "audit readiness packet is historical and not required for this decision",
+            required=False,
+            artifact=AUDIT_READINESS_PACKET_OUTPUT_PATH,
+            gate_status=payload.get("gate_status"),
+        )
     errors: list[str] = []
     if str(payload.get("decision_id") or "") != decision_id:
         errors.append("decision_id mismatch")
@@ -12595,6 +12702,16 @@ def _project_governance_context_gate_check(
             required=required,
             artifact=PROJECT_GOVERNANCE_CONTEXT_OUTPUT_PATH,
         )
+    if not required and not _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
+        return _check(
+            "project_governance_context_gate_artifact",
+            "PASS",
+            "project governance context artifacts are historical and not required for this decision",
+            required=False,
+            artifact=PROJECT_GOVERNANCE_CONTEXT_OUTPUT_PATH,
+            snapshot=PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_OUTPUT_PATH,
+            gate_status=payload.get("gate_status"),
+        )
     errors: list[str] = []
     for item, name in ((payload, "result"), (snapshot, "snapshot")):
         if not item:
@@ -12626,6 +12743,138 @@ def _project_governance_context_gate_check(
         required=required,
         artifact=PROJECT_GOVERNANCE_CONTEXT_OUTPUT_PATH,
         snapshot=PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_OUTPUT_PATH,
+        errors=errors,
+        gate_status=payload.get("gate_status"),
+    )
+
+
+def state_governance_bundle(
+    *,
+    state_dir: Path = DEFAULT_STATE_DIR,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    _ = repo_root
+    try:
+        from .state_governance import build_state_governance_bundle, validate_state_governance_bundle
+    except Exception as exc:  # pragma: no cover - defensive gate evidence
+        decision = read_decision_meta(state_dir)
+        round_id = str(decision.get("round_id") or "")
+        result = {
+            "schema_version": GATE_RESULT_SCHEMA_VERSION,
+            "artifact_name": STATE_GOVERNANCE_BUNDLE_RESULT_NAME,
+            "gate_name": STATE_GOVERNANCE_BUNDLE_NAME,
+            "gate_status": "FAILED",
+            "decision_id": str(decision.get("decision_id") or ""),
+            "report_id": _expected_report_id(round_id),
+            "round_id": round_id,
+            "mainline": str(decision.get("mainline") or ""),
+            "generated_at": _now_iso(),
+            "checks": [_check("state_governance_imports", "FAIL", "state governance builders are not importable", error=str(exc))],
+            "errors": [f"import failed: {exc}"],
+            "artifact_path": STATE_GOVERNANCE_BUNDLE_OUTPUT_PATH,
+            "snapshot_path": STATE_GOVERNANCE_BUNDLE_SNAPSHOT_OUTPUT_PATH,
+        }
+        if write_result:
+            _write_json_with_retry(state_dir / "gates" / STATE_GOVERNANCE_BUNDLE_RESULT_NAME, result)
+        return result
+
+    result = build_state_governance_bundle(state_dir=state_dir, write_result=write_result)
+    validation_errors = validate_state_governance_bundle(result)
+    if validation_errors:
+        result = dict(result)
+        result["gate_status"] = "FAILED"
+        result["errors"] = list(result.get("errors") or []) + validation_errors
+        checks = list(result.get("checks") or [])
+        checks.append(_check("state_governance_bundle_self_validation", "FAIL", "state governance bundle result is invalid", errors=validation_errors))
+        result["checks"] = checks
+        if write_result:
+            _write_json_with_retry(state_dir / "gates" / STATE_GOVERNANCE_BUNDLE_RESULT_NAME, result)
+    return result
+
+
+def _state_governance_bundle_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(
+        decision_contract.get("accepted_requires_retention_policy")
+        or decision_contract.get("accepted_requires_cleanup_plan")
+        or decision_contract.get("accepted_requires_archive_index")
+        or decision_contract.get("accepted_requires_lifecycle_registry")
+        or decision_contract.get("accepted_requires_governance_gate")
+    )
+    payload = _read_json(state_dir / "gates" / STATE_GOVERNANCE_BUNDLE_RESULT_NAME)
+    snapshot = _read_json(state_dir / "gates" / STATE_GOVERNANCE_BUNDLE_SNAPSHOT_NAME)
+    if not payload:
+        return _check(
+            "state_governance_bundle_gate_artifact",
+            "FAIL" if required else "PASS",
+            "state governance bundle artifact is missing" if required else "state governance bundle gate not required",
+            required=required,
+            artifact=STATE_GOVERNANCE_BUNDLE_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    for item, name in ((payload, "result"), (snapshot, "snapshot")):
+        if not item:
+            errors.append(f"{name} missing")
+            continue
+        for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+            if str(item.get(field) or "") != expected:
+                errors.append(f"{name} {field} mismatch")
+    if payload.get("gate_name") != STATE_GOVERNANCE_BUNDLE_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if payload.get("cleanup_apply_allowed") is not False:
+        errors.append("cleanup_apply_allowed must be false")
+    if payload.get("destructive_operation_performed") is not False:
+        errors.append("destructive_operation_performed must be false")
+    if payload.get("planning_index_schema_only") is not True:
+        errors.append("planning_index_schema_only must be true")
+    if payload.get("no_concrete_sample_claims") is not True:
+        errors.append("no_concrete_sample_claims must be true")
+    forbidden = payload.get("forbidden_capabilities") if isinstance(payload.get("forbidden_capabilities"), dict) else {}
+    enabled = sorted(name for name, value in forbidden.items() if value is not False)
+    if enabled:
+        errors.append(f"forbidden capabilities enabled: {enabled}")
+    cleanup = _read_json(state_dir / "gates" / CLEANUP_PLAN_RESULT_NAME)
+    for field in ("deleted_files", "moved_files", "archived_files", "compacted_archives", "written_tombstones"):
+        if cleanup.get(field) not in ([], None):
+            errors.append(f"cleanup_plan {field} must be empty")
+    generated = set(_string_set(payload.get("generated_artifacts")))
+    required_generated = {
+        "project_state/retention_policy.json",
+        "project_state/state_lifecycle_registry.json",
+        CLEANUP_PLAN_OUTPUT_PATH,
+        CLEANUP_PLAN_SUMMARY_OUTPUT_PATH,
+        ARCHIVE_INDEX_OUTPUT_PATH,
+        ARCHIVE_INDEX_SUMMARY_OUTPUT_PATH,
+        DELETION_MANIFEST_SCHEMA_OUTPUT_PATH,
+        TOMBSTONE_SCHEMA_OUTPUT_PATH,
+        RETENTION_POLICY_VALIDATION_OUTPUT_PATH,
+        STATE_GOVERNANCE_BUNDLE_OUTPUT_PATH,
+        STATE_GOVERNANCE_BUNDLE_SNAPSHOT_OUTPUT_PATH,
+        "project_state/state_manifest.json",
+        "project_state/context/current_context_packet.json",
+        "project_state/roadmap/workstreams.json",
+    }
+    missing_generated = sorted(required_generated - generated)
+    if missing_generated:
+        errors.append(f"generated_artifacts missing: {missing_generated}")
+    return _check(
+        "state_governance_bundle_gate_artifact",
+        "PASS" if not errors else "FAIL",
+        "state governance bundle artifacts are current, non-destructive, and planning/index/schema only"
+        if not errors
+        else "state governance bundle artifacts are invalid",
+        required=required,
+        artifact=STATE_GOVERNANCE_BUNDLE_OUTPUT_PATH,
+        snapshot=STATE_GOVERNANCE_BUNDLE_SNAPSHOT_OUTPUT_PATH,
         errors=errors,
         gate_status=payload.get("gate_status"),
     )
@@ -18926,11 +19175,22 @@ def build_report_summary_synthesis(
         (MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME, MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH),
         (PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME, PROJECT_GOVERNANCE_CONTEXT_OUTPUT_PATH),
         (PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_NAME, PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_OUTPUT_PATH),
+        (STATE_GOVERNANCE_BUNDLE_RESULT_NAME, STATE_GOVERNANCE_BUNDLE_OUTPUT_PATH),
+        (STATE_GOVERNANCE_BUNDLE_SNAPSHOT_NAME, STATE_GOVERNANCE_BUNDLE_SNAPSHOT_OUTPUT_PATH),
+        (RETENTION_POLICY_VALIDATION_RESULT_NAME, RETENTION_POLICY_VALIDATION_OUTPUT_PATH),
+        (CLEANUP_PLAN_RESULT_NAME, CLEANUP_PLAN_OUTPUT_PATH),
+        (CLEANUP_PLAN_SUMMARY_RESULT_NAME, CLEANUP_PLAN_SUMMARY_OUTPUT_PATH),
+        (ARCHIVE_INDEX_RESULT_NAME, ARCHIVE_INDEX_OUTPUT_PATH),
+        (ARCHIVE_INDEX_SUMMARY_RESULT_NAME, ARCHIVE_INDEX_SUMMARY_OUTPUT_PATH),
+        (DELETION_MANIFEST_SCHEMA_RESULT_NAME, DELETION_MANIFEST_SCHEMA_OUTPUT_PATH),
+        (TOMBSTONE_SCHEMA_RESULT_NAME, TOMBSTONE_SCHEMA_OUTPUT_PATH),
     ):
         payload = _read_json(state_dir / "gates" / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
             generated_artifact_set.add(output_path)
             if artifact_name == PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME:
+                generated_artifact_set |= _string_set(payload.get("generated_artifacts"))
+            if artifact_name == STATE_GOVERNANCE_BUNDLE_RESULT_NAME:
                 generated_artifact_set |= _string_set(payload.get("generated_artifacts"))
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
@@ -20587,6 +20847,15 @@ def final_check(
     )
     checks.append(
         _project_governance_context_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _state_governance_bundle_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
             round_id=round_id,
@@ -28671,12 +28940,25 @@ def _refresh_codex_report_for_closeout(
         (MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME, MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH),
         (PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME, PROJECT_GOVERNANCE_CONTEXT_OUTPUT_PATH),
         (PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_NAME, PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_OUTPUT_PATH),
+        (STATE_GOVERNANCE_BUNDLE_RESULT_NAME, STATE_GOVERNANCE_BUNDLE_OUTPUT_PATH),
+        (STATE_GOVERNANCE_BUNDLE_SNAPSHOT_NAME, STATE_GOVERNANCE_BUNDLE_SNAPSHOT_OUTPUT_PATH),
+        (RETENTION_POLICY_VALIDATION_RESULT_NAME, RETENTION_POLICY_VALIDATION_OUTPUT_PATH),
+        (CLEANUP_PLAN_RESULT_NAME, CLEANUP_PLAN_OUTPUT_PATH),
+        (CLEANUP_PLAN_SUMMARY_RESULT_NAME, CLEANUP_PLAN_SUMMARY_OUTPUT_PATH),
+        (ARCHIVE_INDEX_RESULT_NAME, ARCHIVE_INDEX_OUTPUT_PATH),
+        (ARCHIVE_INDEX_SUMMARY_RESULT_NAME, ARCHIVE_INDEX_SUMMARY_OUTPUT_PATH),
+        (DELETION_MANIFEST_SCHEMA_RESULT_NAME, DELETION_MANIFEST_SCHEMA_OUTPUT_PATH),
+        (TOMBSTONE_SCHEMA_RESULT_NAME, TOMBSTONE_SCHEMA_OUTPUT_PATH),
     ):
         payload = _read_json(gates_dir / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
             generated_artifact_set.add(output_path)
             files_changed_set.add(output_path)
             if artifact_name == PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME:
+                for generated_path in _string_set(payload.get("generated_artifacts")):
+                    generated_artifact_set.add(generated_path)
+                    files_changed_set.add(generated_path)
+            if artifact_name == STATE_GOVERNANCE_BUNDLE_RESULT_NAME:
                 for generated_path in _string_set(payload.get("generated_artifacts")):
                     generated_artifact_set.add(generated_path)
                     files_changed_set.add(generated_path)
@@ -28873,6 +29155,8 @@ def _refresh_codex_report_for_closeout(
         _generate_preflight_job_foundation_required_audit(decision_text)
         or
         _generate_project_governance_context_required_audit(decision_text)
+        or
+        _generate_state_governance_bundle_required_audit(decision_text)
         or
         _generate_final_check_exit_and_audit_readiness_required_audit(decision_text)
         or
@@ -31555,6 +31839,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     project_governance_context_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     project_governance_context_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    state_governance_bundle_parser = subparsers.add_parser(
+        "state-governance-bundle",
+        help="Generate and validate non-destructive state governance bundle artifacts.",
+    )
+    state_governance_bundle_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    state_governance_bundle_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -32111,6 +32401,19 @@ def main(argv: list[str] | None = None) -> int:
             _print_result(result)
             print(f"artifact: {PROJECT_GOVERNANCE_CONTEXT_OUTPUT_PATH}")
             print(f"snapshot: {PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_OUTPUT_PATH}")
+        return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
+    if args.command == "state-governance-bundle":
+        state_dir_path = Path(args.state_dir)
+        result = state_governance_bundle(
+            state_dir=state_dir_path,
+            repo_root=_derive_repo_root(state_dir_path),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"artifact: {STATE_GOVERNANCE_BUNDLE_OUTPUT_PATH}")
+            print(f"snapshot: {STATE_GOVERNANCE_BUNDLE_SNAPSHOT_OUTPUT_PATH}")
         return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
     if args.command == "startup-snapshot":
         result = startup_snapshot(

@@ -1,0 +1,146 @@
+{
+  "artifact_kind": "governance_planning_artifact",
+  "artifact_name": "state_governance_bundle_result.json",
+  "artifact_path": "project_state/gates/state_governance_bundle_result.json",
+  "checks": [
+    {
+      "errors": [],
+      "name": "retention_policy_valid",
+      "status": "PASS"
+    },
+    {
+      "destructive_action_counts": {
+        "archived_files": 0,
+        "compacted_archives": 0,
+        "deleted_files": 0,
+        "moved_files": 0,
+        "written_tombstones": 0
+      },
+      "errors": [],
+      "name": "cleanup_plan_non_destructive",
+      "status": "PASS"
+    },
+    {
+      "full_solve_reports_scan": false,
+      "name": "archive_index_bounded",
+      "recursive_rounds_scan": false,
+      "status": "PASS"
+    },
+    {
+      "name": "schema_only_deletion_and_tombstone",
+      "status": "PASS"
+    },
+    {
+      "active_workstreams": [
+        {
+          "active_decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+          "active_round_id": "round_20260705_state_governance_bundle_big_step_v1",
+          "baseline_round_id": "",
+          "execution_authority": "project_state/decision_packet.md",
+          "family": "project_governance",
+          "is_execution_authority": false,
+          "lifecycle": [
+            "IDEA",
+            "CANDIDATE",
+            "ROADMAP_ACCEPTED",
+            "READY_FOR_DECISION",
+            "ACTIVE_ROUND",
+            "ACCEPTED",
+            "DEFERRED",
+            "REJECTED"
+          ],
+          "notes": "Retention policy, cleanup plan, archive index, schema design, lifecycle registry, and governance context refresh; planning/index/schema only.",
+          "status": "ACTIVE_ROUND",
+          "workstream_id": "state_governance_bundle_big_step"
+        }
+      ],
+      "name": "unique_active_workstream",
+      "status": "PASS"
+    },
+    {
+      "missing_historical_sample_reference_count": 5,
+      "name": "historical_sample_gaps_nonblocking",
+      "status": "PASS"
+    },
+    {
+      "capabilities": {
+        "archive_apply": false,
+        "archive_compaction": false,
+        "auto_iteration": false,
+        "automatic_runner_dispatch": false,
+        "candidate_search_on_real_samples": false,
+        "ci_dispatch_or_polling": false,
+        "cleanup_apply": false,
+        "database_or_queue": false,
+        "external_analysis_tool_invocation": false,
+        "file_delete": false,
+        "file_move": false,
+        "github_workflow_modification": false,
+        "manual_runner_dispatch": false,
+        "model_api_invocation": false,
+        "production_http_service": false,
+        "real_deletion_manifest_write": false,
+        "real_sample_analysis_execution": false,
+        "remote_runner_dispatch": false,
+        "runtime_validation_on_real_samples": false,
+        "scheduler_or_service": false,
+        "tombstone_write_for_real_deletion": false
+      },
+      "name": "forbidden_capabilities_disabled",
+      "status": "PASS"
+    }
+  ],
+  "cleanup_apply_allowed": false,
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "destructive_operation_performed": false,
+  "errors": [],
+  "forbidden_capabilities": {
+    "archive_apply": false,
+    "archive_compaction": false,
+    "auto_iteration": false,
+    "automatic_runner_dispatch": false,
+    "candidate_search_on_real_samples": false,
+    "ci_dispatch_or_polling": false,
+    "cleanup_apply": false,
+    "database_or_queue": false,
+    "external_analysis_tool_invocation": false,
+    "file_delete": false,
+    "file_move": false,
+    "github_workflow_modification": false,
+    "manual_runner_dispatch": false,
+    "model_api_invocation": false,
+    "production_http_service": false,
+    "real_deletion_manifest_write": false,
+    "real_sample_analysis_execution": false,
+    "remote_runner_dispatch": false,
+    "runtime_validation_on_real_samples": false,
+    "scheduler_or_service": false,
+    "tombstone_write_for_real_deletion": false
+  },
+  "gate_name": "state-governance-bundle",
+  "gate_status": "PASSED",
+  "generated_artifacts": [
+    "project_state/retention_policy.json",
+    "project_state/state_lifecycle_registry.json",
+    "project_state/gates/cleanup_plan.json",
+    "project_state/gates/cleanup_plan_summary.json",
+    "project_state/gates/archive_index.json",
+    "project_state/gates/archive_index_summary.json",
+    "project_state/gates/deletion_manifest_schema.json",
+    "project_state/gates/tombstone_schema.json",
+    "project_state/gates/retention_policy_validation.json",
+    "project_state/gates/state_governance_bundle_result.json",
+    "project_state/gates/state_governance_bundle_snapshot.json",
+    "project_state/state_manifest.json",
+    "project_state/context/current_context_packet.json",
+    "project_state/roadmap/workstreams.json"
+  ],
+  "generated_at": "2026-07-05T09:58:13Z",
+  "mainline": "project_governance",
+  "no_concrete_sample_claims": true,
+  "planning_index_schema_only": true,
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_version": 1,
+  "snapshot_path": "project_state/gates/state_governance_bundle_snapshot.json"
+}

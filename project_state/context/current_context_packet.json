@@ -1,5 +1,7 @@
 {
   "allowed_capability_profile": {
+    "cleanup_apply": false,
+    "destructive_file_operations": false,
     "docs": true,
     "file_backed_json_artifacts": true,
     "local_deterministic_python": true,
@@ -17,17 +19,25 @@
       "solve_reports/**",
       "full PROJECT_PROGRESS_LOG.txt"
     ],
-    "report_id": "codex_report_20260705_project_governance_context_registry_v1",
+    "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
     "required_governance_artifacts": [
       "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
       "project_state/roadmap/workstreams.json",
+      "project_state/retention_policy.json",
+      "project_state/state_lifecycle_registry.json",
+      "project_state/gates/cleanup_plan.json",
+      "project_state/gates/archive_index.json",
+      "project_state/gates/deletion_manifest_schema.json",
+      "project_state/gates/tombstone_schema.json",
+      "project_state/gates/state_governance_bundle_result.json",
+      "project_state/gates/state_governance_bundle_snapshot.json",
       "project_state/gates/project_governance_context_result.json",
       "project_state/gates/project_governance_context_snapshot.json"
     ]
   },
   "bounded": true,
-  "decision_id": "decision_20260705_project_governance_context_registry_v1",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
   "do_not_assume": [
     "missing sample artifacts are current blockers for this governance round",
     "roadmap workstreams grant execution authority",
@@ -48,7 +58,12 @@
     "policy-lint and prompt-consistency foundations",
     "job lifecycle and runner contract foundations",
     "manual-mode orchestrator foundations",
-    "artifact role taxonomy"
+    "artifact role taxonomy",
+    "retention policy design",
+    "cleanup-plan design without cleanup-apply",
+    "bounded archive index",
+    "deletion manifest and tombstone schema design",
+    "state lifecycle registry"
   ],
   "external_analysis_tool_invocation": false,
   "forbidden_capabilities": [],
@@ -62,9 +77,11 @@
     "project_state/artifact_index.json",
     "project_state/negative_results.json",
     "project_state/user_sessions/*",
-    "frontend/*"
+    "frontend/*",
+    "project_state/archives/*",
+    "project_state/deletions/*"
   ],
-  "generated_at": "2026-07-05T06:09:32Z",
+  "generated_at": "2026-07-05T09:58:13Z",
   "mainline": "project_governance",
   "model_api_invocation": false,
   "negative_results_constraints": [
@@ -125,48 +142,48 @@
     "next_action_policy": "follow command_plan; do not execute roadmap entries unless selected by decision_packet",
     "previous_accepted_baseline": {
       "decision_id": "",
-      "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-      "round_manifest": "project_state/rounds/round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1/round_manifest.json"
+      "round_id": "round_20260705_project_governance_context_registry_v1",
+      "round_manifest": "project_state/rounds/round_20260705_project_governance_context_registry_v1/round_manifest.json"
     },
     "state_build_id": "state_20260618_134029_d6bd033d2532",
     "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
     "task_authority": "project_state/decision_packet.md",
     "task_packet_role": "background_only"
   },
-  "report_id": "codex_report_20260705_project_governance_context_registry_v1",
-  "round_id": "round_20260705_project_governance_context_registry_v1",
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
   "runner_dispatch": false,
   "schema_version": 1,
   "source_files": {
     "codex_execution_report.md": {
       "exists": true,
       "path": "project_state/codex_execution_report.md",
-      "sha256": "0ce3106831326847c280799ad1ec640eeac676c73022a893a78431cf961cdf6c",
-      "size_bytes": 22432
+      "sha256": "dc2b5ab33b376eedd91c43539847641c3752a7861b018f292181a16faee47efb",
+      "size_bytes": 26220
     },
     "decision_packet.md": {
       "exists": true,
       "path": "project_state/decision_packet.md",
-      "sha256": "a81bf8aea99ec18ea19cc50cdc79b5004a1eddc69a4763e1d1a02ccd6f840761",
-      "size_bytes": 25892
+      "sha256": "037e89cc00c59ccbed07297e4c6dc4101b2bd8783fe4989c73b7c6562fe6c60c",
+      "size_bytes": 31910
     },
     "gates/command_plan.json": {
       "exists": true,
       "path": "project_state/gates/command_plan.json",
-      "sha256": "21fd84d038478a3bd06bbe040cbc60dd57ce94ec4e1fdf3aab871c796d0d838b",
-      "size_bytes": 7788
+      "sha256": "7aae19d499c2d3f62549adcc0c72ed4a3a62dc1f12c689e834eab10edda0c8ae",
+      "size_bytes": 7835
     },
     "gates/final_gate_result.json": {
       "exists": true,
       "path": "project_state/gates/final_gate_result.json",
-      "sha256": "5ccddc5646363f34b803c749f1c8130ba93c2858930bb6c1ff454d0776d794a3",
-      "size_bytes": 66407
+      "sha256": "9754b5e6187e0dbd5c7626f260a4390d0cbc0af49e617318bb07ef5da0f85aea",
+      "size_bytes": 67893
     },
     "gates/report_summary_synthesis.json": {
       "exists": true,
       "path": "project_state/gates/report_summary_synthesis.json",
-      "sha256": "d41c62f417e334631a8fd438dc02299ca08bd9f741869b5aac3d14c40c02f2ab",
-      "size_bytes": 14944
+      "sha256": "8fcd4c713e36eb14d574c18afae216ff4b69ce3632b384132f8cb7206ef36d13",
+      "size_bytes": 15723
     },
     "negative_results.json": {
       "exists": true,
@@ -177,8 +194,8 @@
     "pytest_result.txt": {
       "exists": true,
       "path": "project_state/pytest_result.txt",
-      "sha256": "dcfba5b9000e505162494dabb31398cc98348f0e4a16d308c617d84b079123cd",
-      "size_bytes": 15543
+      "sha256": "99ffe27e07e16fa6ed413863cb5e00f46faa35d155a26c0886a6cf578418834c",
+      "size_bytes": 15921
     }
   },
   "stop_conditions": []

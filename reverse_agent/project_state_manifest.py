@@ -122,6 +122,27 @@ def build_state_manifest(
             state_dir_path, "context/current_context_packet.json", "generated_or_updated", False
         ),
         "workstreams": _file_ref(state_dir_path, "roadmap/workstreams.json", "generated_or_updated", False),
+        "retention_policy": _file_ref(state_dir_path, "retention_policy.json", "generated_or_updated", False),
+        "state_lifecycle_registry": _file_ref(
+            state_dir_path, "state_lifecycle_registry.json", "generated_or_updated", False
+        ),
+        "cleanup_plan": _gate_ref(state_dir_path, "cleanup_plan.json", "generated_or_updated", False),
+        "cleanup_plan_summary": _gate_ref(state_dir_path, "cleanup_plan_summary.json", "generated_or_updated", False),
+        "archive_index": _gate_ref(state_dir_path, "archive_index.json", "generated_or_updated", False),
+        "archive_index_summary": _gate_ref(state_dir_path, "archive_index_summary.json", "generated_or_updated", False),
+        "deletion_manifest_schema": _gate_ref(
+            state_dir_path, "deletion_manifest_schema.json", "generated_or_updated", False
+        ),
+        "tombstone_schema": _gate_ref(state_dir_path, "tombstone_schema.json", "generated_or_updated", False),
+        "retention_policy_validation": _gate_ref(
+            state_dir_path, "retention_policy_validation.json", "generated_or_updated", False
+        ),
+        "state_governance_bundle_result": _gate_ref(
+            state_dir_path, "state_governance_bundle_result.json", "generated_or_updated", False
+        ),
+        "state_governance_bundle_snapshot": _gate_ref(
+            state_dir_path, "state_governance_bundle_snapshot.json", "generated_or_updated", False
+        ),
         "project_governance_context_result": _gate_ref(
             state_dir_path, "project_governance_context_result.json", "generated_or_updated", False
         ),

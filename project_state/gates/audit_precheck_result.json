@@ -3,10 +3,10 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_project_governance_context_registry_v1",
-  "round_id": "round_20260705_project_governance_context_registry_v1",
-  "report_id": "codex_report_20260705_project_governance_context_registry_v1",
-  "generated_at": "2026-07-05T06:10:48.027511Z",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "generated_at": "2026-07-05T09:59:26.549439Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
@@ -55,7 +55,7 @@
         "audit_inventory_status.current is not true"
       ],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260705_project_governance_context_registry_v1",
+      "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,

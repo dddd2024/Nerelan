@@ -1,0 +1,14 @@
+{
+  "artifact_kind": "governance_planning_artifact",
+  "artifact_name": "retention_policy_validation.json",
+  "artifact_path": "project_state/gates/retention_policy_validation.json",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "errors": [],
+  "generated_at": "2026-07-05T09:58:13Z",
+  "mainline": "project_governance",
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "retention_class_count": 13,
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_version": 1,
+  "validation_status": "PASSED"
+}

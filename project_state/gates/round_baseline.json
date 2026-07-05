@@ -1,15 +1,21 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260705_project_governance_context_registry_v1",
-  "round_id": "round_20260705_project_governance_context_registry_v1",
-  "head_commit": "9b58798d04b2",
-  "baseline_git_status_short": [],
-  "baseline_git_diff_name_only": [],
-  "baseline_dirty_files": [],
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "head_commit": "b767bc87d3d1",
+  "baseline_git_status_short": [
+    " M project_state/gates/command_plan.json"
+  ],
+  "baseline_git_diff_name_only": [
+    "project_state/gates/command_plan.json"
+  ],
+  "baseline_dirty_files": [
+    "project_state/gates/command_plan.json"
+  ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-05T04:40:13.560479Z"
+  "generated_at": "2026-07-05T08:59:43.272975Z"
 }

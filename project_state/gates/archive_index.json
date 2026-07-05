@@ -1,0 +1,137 @@
+{
+  "artifact_kind": "governance_planning_artifact",
+  "artifact_name": "archive_index.json",
+  "artifact_path": "project_state/gates/archive_index.json",
+  "bounded_sources": [
+    "current round output list",
+    "previous accepted round manifest",
+    "known historical state hygiene decision packets",
+    "state_manifest artifact roles",
+    "report_summary artifact roles"
+  ],
+  "current_round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "entries": [
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/retention_policy.json",
+      "role": "current",
+      "sha256": "27e8d43d730f86197bb7a5322ba07b65ed48fba31eeb1e3de827de3e9495fdd9",
+      "size_bytes": 5329
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/state_lifecycle_registry.json",
+      "role": "current",
+      "sha256": "2a437132f2f75a736d6f47aa579784570d768bc3b0aa6d14c75e08ec136b1021",
+      "size_bytes": 2289
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/cleanup_plan.json",
+      "role": "current",
+      "sha256": "e066de959ccd167e5fd6740a1c33f54a5a7e2a3155a9eb23ed5f235ccae947b6",
+      "size_bytes": 6000
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/cleanup_plan_summary.json",
+      "role": "current",
+      "sha256": "4155cca5ba14e8786fe772dc15c88d5b827ad0a206faa82ec62cdce56ed6482b",
+      "size_bytes": 846
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/archive_index.json",
+      "role": "current",
+      "sha256": "5e6c4ed5ef37f8a17c6de62182633ba799720ca16d0b355db6bd61057ad07477",
+      "size_bytes": 4899
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/archive_index_summary.json",
+      "role": "current",
+      "sha256": "839aeed34d389203a71cffcef68ab1127a9dede61fb33e1a34df64d16bc9ce98",
+      "size_bytes": 697
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/deletion_manifest_schema.json",
+      "role": "current",
+      "sha256": "896f21358664c34ded5a13591cb38740c19cdd856452ce15449a6550d3aa6bfb",
+      "size_bytes": 874
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/tombstone_schema.json",
+      "role": "current",
+      "sha256": "3a131ad3fa9ea7d963ad7820cdb81b97dfb353d6bf00ad2845080a7e689e04f9",
+      "size_bytes": 850
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/state_governance_bundle_result.json",
+      "role": "current",
+      "sha256": "d1b0e4ee5c545059b0bff60c810c75e02b2e3d5107ed2057dbad9a309970f670",
+      "size_bytes": 5188
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/state_governance_bundle_snapshot.json",
+      "role": "current",
+      "sha256": "6810fc2bc379c43bab68e3f76e70db9da64b949098c1467f660e5b503a06073c",
+      "size_bytes": 1170
+    },
+    {
+      "archive_role": "historical_nonblocking",
+      "exists": true,
+      "path": "project_state/gates/state_hygiene_inventory.json",
+      "role": "historical_nonblocking",
+      "sha256": "de779318669a7d1a9c40af7453976958a1fd9bbddc265b2b4daef2c094faac65",
+      "size_bytes": 68059
+    },
+    {
+      "archive_role": "historical_nonblocking",
+      "exists": true,
+      "path": "project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/decision_packet.md",
+      "role": "historical_nonblocking",
+      "sha256": "0727bb16a8ffe62d92ae53296479c9dcf19227917ad1aafbf153c5b814333fc9",
+      "size_bytes": 9687
+    },
+    {
+      "archive_role": "historical_nonblocking",
+      "exists": true,
+      "path": "project_state/rounds/round_20260623_naming_hygiene_inventory_v1/decision_packet.md",
+      "role": "historical_nonblocking",
+      "sha256": "142c421487620d7783cc44ecc5ba7b458e0b543a0c3eb1567a127aa217d16ae3",
+      "size_bytes": 22058
+    },
+    {
+      "archive_role": "historical_nonblocking",
+      "exists": true,
+      "path": "project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/decision_packet.md",
+      "role": "historical_nonblocking",
+      "sha256": "0ea99c3919daa6f3a1c496e8b2517f904809ed10e7624535f96db9f5b5d64ac6",
+      "size_bytes": 23020
+    }
+  ],
+  "full_solve_reports_scan": false,
+  "generated_at": "2026-07-05T09:58:13Z",
+  "index_status": "BOUNDED_INDEX_ONLY",
+  "mainline": "project_governance",
+  "previous_accepted_round_id": "",
+  "recursive_rounds_scan": false,
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_version": 1
+}

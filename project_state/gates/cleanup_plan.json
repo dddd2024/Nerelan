@@ -1,0 +1,166 @@
+{
+  "archived_files": [],
+  "artifact_kind": "governance_planning_artifact",
+  "artifact_name": "cleanup_plan.json",
+  "artifact_path": "project_state/gates/cleanup_plan.json",
+  "assertions": {
+    "historical_sample_missing_artifacts_are_nonblocking": true,
+    "no_candidate_delete_allowed_now": true,
+    "no_destructive_operation_performed": true
+  },
+  "cleanup_apply_allowed": false,
+  "compacted_archives": [],
+  "current_evidence_protection": [
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/decision_packet.md",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_audit_fact_source"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/codex_execution_report.md",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_audit_fact_source"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/execution_report.md",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_audit_fact_source"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/pytest_result.txt",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_audit_fact_source"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/gates/command_plan.json",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_gate_artifact"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/gates/execution_log.json",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_gate_artifact"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/gates/final_gate_result.json",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_gate_artifact"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/gates/run_closeout_result.json",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_gate_artifact"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/state_manifest.json",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_audit_fact_source"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/context/current_context_packet.json",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_audit_fact_source"
+    },
+    {
+      "delete_allowed_now": false,
+      "path": "project_state/roadmap/workstreams.json",
+      "recommended_action": "retain",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": true,
+      "retention_class": "current_audit_fact_source"
+    }
+  ],
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "deleted_files": [],
+  "future_candidates": [],
+  "generated_at": "2026-07-05T09:58:13Z",
+  "mainline": "project_governance",
+  "missing_historical_sample_references": [
+    {
+      "artifact_kind": "case_results",
+      "blocking_for_current_round": false,
+      "delete_allowed_now": false,
+      "recommended_action": "retain-reference",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": false,
+      "retention_class": "missing_historical_sample_reference"
+    },
+    {
+      "artifact_kind": "frontier_summary",
+      "blocking_for_current_round": false,
+      "delete_allowed_now": false,
+      "recommended_action": "retain-reference",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": false,
+      "retention_class": "missing_historical_sample_reference"
+    },
+    {
+      "artifact_kind": "runtime_validation",
+      "blocking_for_current_round": false,
+      "delete_allowed_now": false,
+      "recommended_action": "retain-reference",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": false,
+      "retention_class": "missing_historical_sample_reference"
+    },
+    {
+      "artifact_kind": "strata_summary",
+      "blocking_for_current_round": false,
+      "delete_allowed_now": false,
+      "recommended_action": "retain-reference",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": false,
+      "retention_class": "missing_historical_sample_reference"
+    },
+    {
+      "artifact_kind": "summary",
+      "blocking_for_current_round": false,
+      "delete_allowed_now": false,
+      "recommended_action": "retain-reference",
+      "requires_future_cleanup_apply_decision": false,
+      "requires_tombstone_if_deleted": false,
+      "retention_class": "missing_historical_sample_reference"
+    }
+  ],
+  "moved_files": [],
+  "plan_status": "PLANNING_ONLY",
+  "recommendation_classes": [
+    "retain",
+    "archive-candidate",
+    "delete-candidate"
+  ],
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_version": 1,
+  "written_tombstones": []
+}

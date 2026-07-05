@@ -1,0 +1,66 @@
+{
+  "archive_index_path": "project_state/gates/archive_index.json",
+  "archive_index_roles": [
+    "current",
+    "historical_nonblocking"
+  ],
+  "artifact_kind": "governance_planning_artifact",
+  "artifact_name": "state_lifecycle_registry.json",
+  "artifact_path": "project_state/state_lifecycle_registry.json",
+  "cleanup_apply_allowed_this_round": false,
+  "cleanup_plan_actions": [
+    "archive-candidate",
+    "delete-candidate",
+    "retain"
+  ],
+  "cleanup_plan_path": "project_state/gates/cleanup_plan.json",
+  "current_allowed_transitions": {
+    "current_audit_fact_source": [
+      "retain"
+    ],
+    "missing_historical_sample_reference": [
+      "retain-reference"
+    ],
+    "transient_closeout_log": [
+      "retain",
+      "future-delete-candidate"
+    ],
+    "transient_closeout_pid": [
+      "retain",
+      "future-delete-candidate"
+    ]
+  },
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "deletion_manifest_schema_path": "project_state/gates/deletion_manifest_schema.json",
+  "future_cleanup_apply_preconditions": [
+    "separate APPROVED cleanup-apply decision packet",
+    "accepted deletion manifest schema",
+    "accepted tombstone schema",
+    "per-file hashes captured before deletion",
+    "audit approval for every delete candidate",
+    "final gate proves delete_allowed_now remains false until future round"
+  ],
+  "generated_at": "2026-07-05T09:58:13Z",
+  "mainline": "project_governance",
+  "registry_status": "ACTIVE_DESIGN_ONLY",
+  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "retention_classes": [
+    "accepted_round_minimum_evidence",
+    "configuration",
+    "current_audit_fact_source",
+    "current_gate_artifact",
+    "current_generated_governance_index",
+    "disposable_candidate_requires_future_decision",
+    "documentation",
+    "historical_nonblocking_gate_artifact",
+    "historical_sample_reference",
+    "missing_historical_sample_reference",
+    "transient_closeout_log",
+    "transient_closeout_pid",
+    "unknown_requires_manual_review"
+  ],
+  "retention_policy_path": "project_state/retention_policy.json",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "schema_version": 1,
+  "tombstone_schema_path": "project_state/gates/tombstone_schema.json"
+}
