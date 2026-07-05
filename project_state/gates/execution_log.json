@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-  "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-  "report_id": "codex_report_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-  "generated_at": "2026-07-05T04:03:06.035983Z",
+  "decision_id": "decision_20260705_project_governance_context_registry_v1",
+  "round_id": "round_20260705_project_governance_context_registry_v1",
+  "report_id": "codex_report_20260705_project_governance_context_registry_v1",
+  "generated_at": "2026-07-05T06:11:49.563221Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-    "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-    "report_id": "codex_report_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+    "decision_id": "decision_20260705_project_governance_context_registry_v1",
+    "round_id": "round_20260705_project_governance_context_registry_v1",
+    "report_id": "codex_report_20260705_project_governance_context_registry_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "a40c06cc5a2c6b7b61a84d5a574ecbe9faaaf88f8ba97cd9a3d284e9e2e74485",
-        "size_bytes": 38986,
-        "command_block_count": 24
+        "sha256": "ff7d9fad075973dbb8e05e98e681f0d90378aa345591fbff03d885ad5b11261b",
+        "size_bytes": 32095,
+        "command_block_count": 17
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "12826529310d233c36ee171c6c01df38cb2e9b3cfb9e7ccaa3943a72fbcf1796",
-        "size_bytes": 12259,
-        "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-        "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+        "sha256": "21fd84d038478a3bd06bbe040cbc60dd57ce94ec4e1fdf3aab871c796d0d838b",
+        "size_bytes": 7788,
+        "decision_id": "decision_20260705_project_governance_context_registry_v1",
+        "round_id": "round_20260705_project_governance_context_registry_v1",
         "plan_status": "PASSED",
-        "command_count": 24
+        "command_count": 17
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "edee3b408e639d98ab4661c5d72eb9fcbcc1cb615a2fe10839fcef978ce219e0",
-        "size_bytes": 62299,
-        "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-        "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
-        "command_block_count": 24
+        "sha256": "8dbde1ec7b1d6ff450c043c05e96feaa95a3a9d6d9eb7217e1235772a10c78ca",
+        "size_bytes": 43457,
+        "decision_id": "decision_20260705_project_governance_context_registry_v1",
+        "round_id": "round_20260705_project_governance_context_registry_v1",
+        "command_block_count": 17
       }
     },
-    "command_count": 24,
-    "command_digest": "122095307fcf311c06f3a89ec5450666fee25be91f1265b0bc69de6a741345ea"
+    "command_count": 17,
+    "command_digest": "2b29dd08f4f2b9db2f7ee2d3ce2bc4b16249a754062d917134062cdbb1d0d5bb"
   },
   "commands": [
     {
@@ -129,7 +129,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_user_solve_task_lifecycle.py tests/test_user_solve_task_store.py tests/test_user_solve_manual_import.py tests/test_user_solve_task_api.py tests/test_manual_execution_handoff.py tests/test_manual_result_bridge.py tests/test_orchestrator_context.py tests/test_orchestrator_api.py tests/test_orchestrator_console_schema.py tests/test_project_jobs.py tests/test_project_runner_contract.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -140,7 +140,7 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_user_solve_route_plan.py tests/test_user_solve_task_trace.py tests/test_user_solve_workbench.py tests/test_user_solve_workbench_api.py tests/test_user_solve_task_lifecycle.py tests/test_user_solve_task_store.py tests/test_user_solve_manual_import.py tests/test_user_solve_task_api.py tests/test_manual_execution_handoff.py tests/test_manual_result_bridge.py tests/test_orchestrator_context.py tests/test_orchestrator_api.py tests/test_orchestrator_console_schema.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -151,7 +151,7 @@
     },
     {
       "index": 10,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -195,73 +195,7 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo dashboard",
-      "kind": "user-solve-cli",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo create-demo-task",
-      "kind": "user-solve-cli",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 16,
-      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo create-demo-job",
-      "kind": "user-solve-cli",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 17,
-      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo export-handoff",
-      "kind": "user-solve-cli",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 18,
-      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo import-result-preview",
-      "kind": "user-solve-cli",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo available-actions",
-      "kind": "user-solve-cli",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate manual-mode-orchestrator --state-dir project_state",
+      "command": "python -m reverse_agent.project_gate project-governance-context --state-dir project_state",
       "kind": "project-cli",
       "phase": "status",
       "expected_exit_codes": [
@@ -271,7 +205,7 @@
       "status": "PASSED"
     },
     {
-      "index": 21,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -279,22 +213,11 @@
         0,
         1
       ],
-      "exit_code": 0,
+      "exit_code": 1,
       "status": "PASSED"
     },
     {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
-      "kind": "audit-readiness-packet",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 23,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -306,8 +229,8 @@
       "status": "PASSED"
     },
     {
-      "index": 24,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_project_governance_context_registry_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

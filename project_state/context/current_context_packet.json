@@ -1,0 +1,185 @@
+{
+  "allowed_capability_profile": {
+    "docs": true,
+    "file_backed_json_artifacts": true,
+    "local_deterministic_python": true,
+    "tests": true
+  },
+  "allowed_source_files": [],
+  "artifact_kind": "governance_index",
+  "artifact_name": "current_context_packet.json",
+  "artifact_path": "project_state/context/current_context_packet.json",
+  "auditor_context": {
+    "command_plan_status": "PASSED",
+    "final_gate_status": "FAILED",
+    "governance_artifacts_are_fact_source_replacements": false,
+    "large_sources_omitted": [
+      "solve_reports/**",
+      "full PROJECT_PROGRESS_LOG.txt"
+    ],
+    "report_id": "codex_report_20260705_project_governance_context_registry_v1",
+    "required_governance_artifacts": [
+      "project_state/state_manifest.json",
+      "project_state/context/current_context_packet.json",
+      "project_state/roadmap/workstreams.json",
+      "project_state/gates/project_governance_context_result.json",
+      "project_state/gates/project_governance_context_snapshot.json"
+    ]
+  },
+  "bounded": true,
+  "decision_id": "decision_20260705_project_governance_context_registry_v1",
+  "do_not_assume": [
+    "missing sample artifacts are current blockers for this governance round",
+    "roadmap workstreams grant execution authority",
+    "generated governance indexes replace project_state fact sources",
+    "model APIs, runners, Web services, databases, queues, schedulers, or external reverse tools are available"
+  ],
+  "dynamic_state_caveats": [
+    "task_packet.json, current_state.json, and artifact_index.json contain older sample context for this governance round",
+    "missing historical sample artifacts are nonblocking for project_governance",
+    "dynamic facts belong in project_state artifacts, not long-term skills or prompt docs"
+  ],
+  "existing_capabilities": [
+    "project_gate hard gates",
+    "command-plan authority",
+    "execution-log synthesis",
+    "report-summary synthesis",
+    "run-closeout and round archive",
+    "policy-lint and prompt-consistency foundations",
+    "job lifecycle and runner contract foundations",
+    "manual-mode orchestrator foundations",
+    "artifact role taxonomy"
+  ],
+  "external_analysis_tool_invocation": false,
+  "forbidden_capabilities": [],
+  "forbidden_mutated_paths": [
+    ".codex-skills/*",
+    ".github/workflows/*",
+    "solve_reports/*",
+    "training_materials/local_reverse/*",
+    "project_state/current_state.json",
+    "project_state/task_packet.json",
+    "project_state/artifact_index.json",
+    "project_state/negative_results.json",
+    "project_state/user_sessions/*",
+    "frontend/*"
+  ],
+  "generated_at": "2026-07-05T06:09:32Z",
+  "mainline": "project_governance",
+  "model_api_invocation": false,
+  "negative_results_constraints": [
+    {
+      "direction": "old sample_solver blind search",
+      "do_not_repeat": true,
+      "severity": "soft_block"
+    },
+    {
+      "direction": "only increase guided_pool beam or budget",
+      "do_not_repeat": true,
+      "severity": "soft_block"
+    },
+    {
+      "direction": "use compare_semantics_agree=false candidates as primary frontier",
+      "do_not_repeat": true,
+      "severity": "hard_block"
+    },
+    {
+      "direction": "commit full solve_reports directory",
+      "do_not_repeat": true,
+      "severity": "hard_block"
+    },
+    {
+      "direction": "exact2 basin value-pool evaluation with pools 0:78 1:d5/3e/3c 2:40/7f/80 3:b4/8f 4:9c",
+      "do_not_repeat": true,
+      "severity": "soft_block"
+    },
+    {
+      "direction": "H1/H3 fixed 8-candidate prefix8 plus Base64 boundary contrast set: 78d540b49c59077041414141414141, 78d540b49c59076f41414141414141, 78d540b49c59077141414141414141, 78d540b49c5907b041414141414141, 78d540b49c5907d041414141414141, 78d540b49c59077040414141414141, 78d540b49c59077042414141414141, 78d540b49c59076f42414141414141",
+      "do_not_repeat": true,
+      "severity": "soft_block"
+    },
+    {
+      "direction": "repeat current 5-candidate transform trace consistency audit without new runtime evidence",
+      "do_not_repeat": true,
+      "severity": "soft_block"
+    }
+  ],
+  "planner_context": {
+    "active_decision_status": "APPROVED",
+    "artifact_freshness": {
+      "counts": {
+        "current": 10,
+        "missing": 50
+      },
+      "missing_sample_artifacts": [
+        "case_results",
+        "frontier_summary",
+        "runtime_validation",
+        "strata_summary",
+        "summary"
+      ],
+      "missing_sample_artifacts_blocking_for_current_round": false
+    },
+    "command_authority": "project_state/gates/command_plan.json",
+    "current_mainline": "project_governance",
+    "next_action_policy": "follow command_plan; do not execute roadmap entries unless selected by decision_packet",
+    "previous_accepted_baseline": {
+      "decision_id": "",
+      "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+      "round_manifest": "project_state/rounds/round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1/round_manifest.json"
+    },
+    "state_build_id": "state_20260618_134029_d6bd033d2532",
+    "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+    "task_authority": "project_state/decision_packet.md",
+    "task_packet_role": "background_only"
+  },
+  "report_id": "codex_report_20260705_project_governance_context_registry_v1",
+  "round_id": "round_20260705_project_governance_context_registry_v1",
+  "runner_dispatch": false,
+  "schema_version": 1,
+  "source_files": {
+    "codex_execution_report.md": {
+      "exists": true,
+      "path": "project_state/codex_execution_report.md",
+      "sha256": "0ce3106831326847c280799ad1ec640eeac676c73022a893a78431cf961cdf6c",
+      "size_bytes": 22432
+    },
+    "decision_packet.md": {
+      "exists": true,
+      "path": "project_state/decision_packet.md",
+      "sha256": "a81bf8aea99ec18ea19cc50cdc79b5004a1eddc69a4763e1d1a02ccd6f840761",
+      "size_bytes": 25892
+    },
+    "gates/command_plan.json": {
+      "exists": true,
+      "path": "project_state/gates/command_plan.json",
+      "sha256": "21fd84d038478a3bd06bbe040cbc60dd57ce94ec4e1fdf3aab871c796d0d838b",
+      "size_bytes": 7788
+    },
+    "gates/final_gate_result.json": {
+      "exists": true,
+      "path": "project_state/gates/final_gate_result.json",
+      "sha256": "5ccddc5646363f34b803c749f1c8130ba93c2858930bb6c1ff454d0776d794a3",
+      "size_bytes": 66407
+    },
+    "gates/report_summary_synthesis.json": {
+      "exists": true,
+      "path": "project_state/gates/report_summary_synthesis.json",
+      "sha256": "d41c62f417e334631a8fd438dc02299ca08bd9f741869b5aac3d14c40c02f2ab",
+      "size_bytes": 14944
+    },
+    "negative_results.json": {
+      "exists": true,
+      "path": "project_state/negative_results.json",
+      "sha256": "e7d941cdd53860ed3332c925f0d17498b9b501cf2bd3aa996730f26940c87275",
+      "size_bytes": 2627
+    },
+    "pytest_result.txt": {
+      "exists": true,
+      "path": "project_state/pytest_result.txt",
+      "sha256": "dcfba5b9000e505162494dabb31398cc98348f0e4a16d308c617d84b079123cd",
+      "size_bytes": 15543
+    }
+  },
+  "stop_conditions": []
+}

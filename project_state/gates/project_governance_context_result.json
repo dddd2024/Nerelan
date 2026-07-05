@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "artifact_name": "project_governance_context_result.json",
+  "gate_name": "project-governance-context",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260705_project_governance_context_registry_v1",
+  "report_id": "codex_report_20260705_project_governance_context_registry_v1",
+  "round_id": "round_20260705_project_governance_context_registry_v1",
+  "mainline": "project_governance",
+  "generated_at": "2026-07-05T06:09:32.210765Z",
+  "checks": [
+    {
+      "name": "state_manifest_current",
+      "status": "PASS",
+      "detail": "state manifest is current and index-only",
+      "errors": []
+    },
+    {
+      "name": "current_context_packet_current",
+      "status": "PASS",
+      "detail": "current context packet is bounded and current",
+      "errors": []
+    },
+    {
+      "name": "workstream_registry_current",
+      "status": "PASS",
+      "detail": "workstream registry has one active current workstream",
+      "errors": []
+    },
+    {
+      "name": "forbidden_capabilities_disabled",
+      "status": "PASS",
+      "detail": "forbidden execution capabilities are disabled",
+      "unsafe_capabilities": []
+    }
+  ],
+  "errors": [],
+  "artifact_path": "project_state/gates/project_governance_context_result.json",
+  "snapshot_path": "project_state/gates/project_governance_context_snapshot.json",
+  "generated_artifacts": [
+    "project_state/state_manifest.json",
+    "project_state/context/current_context_packet.json",
+    "project_state/roadmap/workstreams.json",
+    "project_state/gates/project_governance_context_result.json",
+    "project_state/gates/project_governance_context_snapshot.json"
+  ],
+  "governance_artifacts_are_fact_source_replacements": false,
+  "sample_artifact_gaps_block_current_round": false,
+  "evidence_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false
+}

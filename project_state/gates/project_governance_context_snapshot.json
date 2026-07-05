@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "artifact_name": "project_governance_context_snapshot.json",
+  "decision_id": "decision_20260705_project_governance_context_registry_v1",
+  "report_id": "codex_report_20260705_project_governance_context_registry_v1",
+  "round_id": "round_20260705_project_governance_context_registry_v1",
+  "mainline": "project_governance",
+  "generated_at": "2026-07-05T06:09:32.208822Z",
+  "state_manifest_status": "PASSED",
+  "context_packet_status": "PASSED",
+  "workstream_registry_status": "PASSED",
+  "state_manifest_path": "project_state/state_manifest.json",
+  "context_packet_path": "project_state/context/current_context_packet.json",
+  "workstreams_path": "project_state/roadmap/workstreams.json",
+  "governance_artifacts_are_fact_source_replacements": false,
+  "sample_artifact_gaps_block_current_round": false,
+  "capabilities": {
+    "model_api_invocation": false,
+    "runner_dispatch": false,
+    "external_analysis_tool_invocation": false
+  }
+}

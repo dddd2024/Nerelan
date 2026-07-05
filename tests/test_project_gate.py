@@ -101,6 +101,7 @@ from reverse_agent.project_gate import (
     user_solve_local_frontend_mvp,
     user_solve_workbench,
     manual_mode_orchestrator,
+    project_governance_context,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -277,6 +278,168 @@ def _write_skill_registry(tmp_path: Path) -> None:
             },
         },
     )
+
+
+def test_project_governance_context_gate_generates_indexes(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "gates").mkdir()
+    decision_id = "decision_20260705_project_governance_context_registry_v1"
+    round_id = "round_20260705_project_governance_context_registry_v1"
+    report_id = "codex_report_20260705_project_governance_context_registry_v1"
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{{
+  "schema_version": 1,
+  "decision_id": "{decision_id}",
+  "round_id": "{round_id}",
+  "based_on_state_build_id": "state_test",
+  "based_on_state_digest": "digest_test",
+  "status": "APPROVED",
+  "mainline": "project_governance",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}}
+```
+
+```json decision_contract
+{{
+  "accepted_requires_state_manifest": true,
+  "accepted_requires_context_packet": true,
+  "accepted_requires_workstream_registry": true,
+  "accepted_requires_project_gate_integration": true,
+  "follows_last_accepted_round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "forbidden_capabilities_this_round": ["model_api_invocation", "runner_dispatch"]
+}}
+```
+""",
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        f"""```json codex_report_summary
+{{
+  "schema_version": 1,
+  "report_id": "{report_id}",
+  "round_id": "{round_id}",
+  "based_on_decision_id": "{decision_id}",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED",
+  "files_changed": [],
+  "tests_ran": [],
+  "generated_artifacts": []
+}}
+```
+""",
+        encoding="utf-8",
+    )
+    (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+    (state_dir / "artifact_index.json").write_text(json.dumps({"missing": ["summary"]}), encoding="utf-8")
+    (state_dir / "negative_results.json").write_text("[]", encoding="utf-8")
+    (state_dir / "task_packet.json").write_text("{}", encoding="utf-8")
+    (state_dir / "current_state.json").write_text("{}", encoding="utf-8")
+    _write_json(state_dir / "gates" / "command_plan.json", {"plan_status": "PASSED"})
+    _write_json(state_dir / "gates" / "final_gate_result.json", {"gate_status": "PASSED"})
+
+    result = project_governance_context(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["decision_id"] == decision_id
+    assert result["report_id"] == report_id
+    assert result["governance_artifacts_are_fact_source_replacements"] is False
+    assert (state_dir / "state_manifest.json").exists()
+    assert (state_dir / "context" / "current_context_packet.json").exists()
+    assert (state_dir / "roadmap" / "workstreams.json").exists()
+    assert (state_dir / "gates" / "project_governance_context_result.json").exists()
+    assert (state_dir / "gates" / "project_governance_context_snapshot.json").exists()
+
+
+def test_project_governance_context_audit_answers_align_with_required_domains() -> None:
+    from reverse_agent.project_gate import (
+        _format_required_audit_answers,
+        _project_governance_context_required_audit_answer,
+    )
+
+    questions = [
+        "Does `state_manifest.json` classify current, generated, historical_nonblocking, archived, missing, and optional artifacts without treating historical missing sample artifacts as blockers?",
+        "Were `.github/workflows/*`, `.codex-skills/*`, `solve_reports/*`, and real sample directories untouched?",
+    ]
+    section = _format_required_audit_answers(
+        questions,
+        [_project_governance_context_required_audit_answer(question) for question in questions],
+    )
+
+    assert _required_audit_alignment_failures(questions, section) == []
+
+
+def test_manual_mode_orchestrator_gate_treats_optional_stale_artifacts_as_historical(
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / "project_state"
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True)
+    stale_payload = {
+        "gate_name": "manual-mode-orchestrator",
+        "gate_status": "PASSED",
+        "decision_id": "decision_old",
+        "round_id": "round_old",
+        "report_id": "codex_report_old",
+    }
+    _write_json(gates_dir / "manual_mode_orchestrator_result.json", stale_payload)
+    _write_json(gates_dir / "manual_mode_orchestrator_snapshot.json", stale_payload)
+
+    check = _manual_mode_orchestrator_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_current",
+        round_id="round_current",
+        report_id="codex_report_current",
+        decision_contract={},
+    )
+
+    assert check["status"] == "PASS"
+    assert check["required"] is False
+    assert "historical" in check["detail"]
+
+
+def test_optional_audit_readiness_ignores_closeout_in_progress_mismatch(
+    tmp_path: Path,
+) -> None:
+    from reverse_agent.project_gate import _audit_readiness_packet_gate_check
+
+    state_dir = tmp_path / "project_state"
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True)
+    _write_json(
+        gates_dir / "audit_readiness_packet.json",
+        {
+            "decision_id": "decision_current",
+            "round_id": "round_current",
+            "evidence_only": True,
+            "executable": False,
+            "can_execute": False,
+            "mutates_state": False,
+            "readiness_status": "PENDING",
+            "next_action": "complete_closeout_and_rerun_final_check",
+            "closeout_status": {"status": "FAILED"},
+            "final_check_policy": {"accepted_requires_exit_zero": True},
+        },
+    )
+    _write_json(
+        gates_dir / "run_closeout_result.json",
+        {
+            "decision_id": "decision_current",
+            "round_id": "round_current",
+            "closeout_status": "IN_PROGRESS",
+        },
+    )
+
+    check = _audit_readiness_packet_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_current",
+        round_id="round_current",
+        decision_contract={},
+    )
+
+    assert check["status"] == "PASS"
+    assert check["required"] is False
 
 
 def _archive_paths(round_id: str) -> list[str]:
