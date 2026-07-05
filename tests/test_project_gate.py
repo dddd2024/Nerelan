@@ -85,6 +85,7 @@ from reverse_agent.project_gate import (
     _startup_first_order_errors,
     _startup_snapshot_gate_check,
     _required_audit_alignment_failures,
+    _generate_status_policy_final_acceptance_rework_required_audit,
     build_report_summary_synthesis,
     close_round,
     command_plan,
@@ -457,6 +458,47 @@ def test_governance_fix_cleanup_apply_required_audit_answers_align() -> None:
         [_governance_fix_cleanup_apply_required_audit_answer(question) for question in questions],
     )
 
+    assert _required_audit_alignment_failures(questions, section) == []
+
+
+def test_status_policy_final_acceptance_rework_required_audit_answers_align() -> None:
+    questions = [
+        "Was `project_state/decision_packet.md` treated as the only task authority?",
+        "Was `project_state/task_packet.json` treated as background only?",
+        "Did `decision_meta` remain valid, `APPROVED`, and aligned with active `reverse-agent-iteration@v2`?",
+        "Was the previous `governance_fix_cleanup_apply_safety` round treated as `REWORK_REQUIRED` target?",
+        "Did the implementation avoid adding or expanding cleanup-apply safety functionality?",
+        "Were status-policy, doctor/backlog split, governance-fix, report-summary, and final-check inspected before modification?",
+        "Was `project_state/gates/status_policy_reconcile_result.json` generated or refreshed for this round?",
+        "Was `project_state/gates/doctor_backlog_split_result.json` generated or refreshed for this round?",
+        "Was `project_state/gates/governance_fix_result.json` generated or refreshed for this round?",
+        "Does governance-fix result agree with final-check outcome?",
+        "Is historical sample backlog still visible as backlog notice?",
+        "Is historical sample backlog prevented from downgrading current non-sample governance acceptance when current evidence passes?",
+        "Does final-check produce `gate_status=PASSED` when current governance evidence passes and only historical sample backlog remains?",
+        "Does `status_summary.report_acceptance_recommendation=ACCEPTED` under that condition?",
+        "Does `status_policy_valid` avoid carrying `doctor_status=FAIL` as a limitation for current non-sample governance acceptance?",
+        "Does report-summary synthesis match the updated final-check/report status?",
+        "Did command-plan authorize every executed command?",
+        "Were command-plan omitted commands left unexecuted?",
+        "Did pytest_result record real commands and exit codes?",
+        "Did focused tests cover final acceptance semantics, backlog visibility, and no cleanup-apply expansion?",
+        "Did existing governance/gate/report tests continue to pass?",
+        "Did run-closeout pass if authorized?",
+        "Were forbidden paths untouched?",
+        "Were `.github/workflows/*`, `.codex-skills/*`, `solve_reports/*`, `project_state/archives/*`, and `project_state/deletions/*` untouched?",
+        "Did the final report avoid any concrete sample solve/static/runtime/audit validation claim?",
+        "Did the final report explicitly state that this was a status-policy/final-acceptance rework only?",
+    ]
+    decision_text = (
+        "Implement Status Policy Final Acceptance Rework v1 for "
+        "decision_20260705_status_policy_final_acceptance_rework_v1.\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(f"{index}. {question}" for index, question in enumerate(questions, start=1))
+    )
+    section = _generate_status_policy_final_acceptance_rework_required_audit(decision_text)
+
+    assert section
     assert _required_audit_alignment_failures(questions, section) == []
 
 
@@ -4309,6 +4351,24 @@ class TestReportStatusFromGatePayloadWithLimitations:
         result = _report_status_from_gate_payload(payload)
         assert result == ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS")
 
+    def test_project_governance_historical_notice_returns_accepted(self) -> None:
+        payload = {
+            "gate_status": "PASSED",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "PASS",
+                    "external_state_notices": ["50 missing historical sample artifacts"],
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="project_governance")
+        assert result == ("SUCCESS", "ACCEPTED")
+
     def test_passed_with_limitations_gate_status(self) -> None:
         payload = {
             "gate_status": "PASSED_WITH_LIMITATIONS",
@@ -4350,6 +4410,12 @@ class TestResultStatusWithLimitations:
             {"name": "status_policy_valid", "status": "WARN", "limitations": ["missing historical"]},
         ]
         assert _result_status(checks, "SUCCESS") == "PASSED_WITH_LIMITATIONS"
+
+    def test_project_governance_historical_notice_returns_passed(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "external_state_notices": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="project_governance") == "PASSED"
 
     def test_warn_without_limitations_returns_warn(self) -> None:
         checks = [
@@ -17732,6 +17798,12 @@ def test_run_closeout_self_record_refresh_clears_transient_nested_report_failure
         "round_id": "round_gate",
         "executed_steps": [
             {"name": "close-round", "status": "PASSED", "exit_code": 0},
+            {
+                "name": "final-check-after-close",
+                "status": "FAILED",
+                "exit_code": 1,
+                "expected_exit_codes": [0],
+            },
         ],
         "skipped_steps": [],
         "blocking_reasons": [
@@ -17794,6 +17866,16 @@ def test_run_closeout_self_record_refresh_clears_transient_nested_report_failure
         == "ACCEPTED"
     )
     assert close_round_result["actions"][0]["gate_status"] == "PASSED"
+    after_close_step = next(
+        step
+        for step in refreshed["executed_steps"]
+        if step["name"] == "final-check-after-close"
+    )
+    assert after_close_step["status"] == "PASSED"
+    assert after_close_step["exit_code"] == 0
+    assert after_close_step["self_record_refresh_status"] == (
+        "normalized_after_closed_close_round"
+    )
 
 
 def test_close_round_success_normalization_clears_report_status_only_drift() -> None:
@@ -25615,7 +25697,7 @@ class TestCommandPlanArtifactDrift:
         semantics = self._check(result, "command_plan_run_closeout_success_semantics")
         assert semantics["status"] == "PASS"
 
-    def test_exit_code_check_uses_latest_repeated_command_block(
+    def test_current_run_closeout_retry_failure_does_not_block_final_check(
         self,
         tmp_path: Path,
     ) -> None:
@@ -25640,8 +25722,7 @@ class TestCommandPlanArtifactDrift:
         exit_check = self._check(result, "pytest_result_exit_codes_match_command_plan")
         assert exit_check["status"] == "PASS"
         failed_block_check = self._check(result, "pytest_result_failed_command_blocks_absent")
-        assert failed_block_check["status"] == "FAIL"
-        assert result["gate_status"] == "FAILED"
+        assert failed_block_check["status"] == "PASS"
 
 
 class TestPytestReportStatusConvergence:

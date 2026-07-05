@@ -1,7 +1,7 @@
 {
   "artifact_name": "governance_fix_result.json",
   "artifact_path": "project_state/gates/governance_fix_result.json",
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
   "doctor_backlog_split_path": "project_state/gates/doctor_backlog_split_result.json",
   "errors": [],
   "fix_status": "RESOLVED_FOR_CURRENT_GOVERNANCE_EVIDENCE",
@@ -12,14 +12,14 @@
     "project_state/gates/doctor_backlog_split_result.json",
     "project_state/gates/governance_fix_result.json"
   ],
-  "generated_at": "2026-07-05T12:49:38Z",
+  "generated_at": "2026-07-05T15:15:50Z",
   "historical_sample_backlog_blocking_current_round": false,
   "historical_sample_backlog_hidden": false,
   "mainline": "project_governance",
   "previous_accepted_with_limitations_round_id": "",
   "previous_limitation_resolved_for_current_non_sample_governance": true,
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_status_policy_final_acceptance_rework_v1",
+  "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
   "schema_version": 1,
   "status_policy_reconcile_path": "project_state/gates/status_policy_reconcile_result.json"
 }

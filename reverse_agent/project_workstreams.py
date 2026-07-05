@@ -81,16 +81,46 @@ def build_workstream_registry(
         or contract.get("accepted_requires_cleanup_apply_safety_gate")
         or "governance_fix_cleanup_apply_safety" in decision_id
     )
-    context_status = "ACCEPTED" if (is_state_governance_bundle or is_governance_fix_cleanup_apply) else "ACTIVE_ROUND"
+    is_status_policy_final_acceptance_rework = bool(
+        contract.get("accepted_requires_final_gate_passed")
+        or "status_policy_final_acceptance_rework" in decision_id
+    )
+    context_status = "ACCEPTED" if (
+        is_state_governance_bundle
+        or is_governance_fix_cleanup_apply
+        or is_status_policy_final_acceptance_rework
+    ) else "ACTIVE_ROUND"
     bundle_status = (
-        "ACCEPTED_WITH_LIMITATIONS"
+        "ACCEPTED"
+        if is_status_policy_final_acceptance_rework
+        else "ACCEPTED_WITH_LIMITATIONS"
         if is_governance_fix_cleanup_apply
         else ("ACTIVE_ROUND" if is_state_governance_bundle else "READY_FOR_DECISION")
     )
-    state_hygiene_status = "SUPERSEDED_UNEXECUTED" if (is_state_governance_bundle or is_governance_fix_cleanup_apply) else "READY_FOR_DECISION"
-    governance_fix_status = "ACTIVE_ROUND" if is_governance_fix_cleanup_apply else "READY_FOR_DECISION"
+    if is_status_policy_final_acceptance_rework:
+        bundle_status = "ACCEPTED"
+    state_hygiene_status = "SUPERSEDED_UNEXECUTED" if (
+        is_state_governance_bundle
+        or is_governance_fix_cleanup_apply
+        or is_status_policy_final_acceptance_rework
+    ) else "READY_FOR_DECISION"
+    governance_fix_status = (
+        "REJECTED"
+        if is_status_policy_final_acceptance_rework
+        else ("ACTIVE_ROUND" if is_governance_fix_cleanup_apply else "READY_FOR_DECISION")
+    )
+    status_rework_status = "ACTIVE_ROUND" if is_status_policy_final_acceptance_rework else "READY_FOR_DECISION"
 
     workstreams = [
+        _entry(
+            "status_policy_final_acceptance_rework",
+            "project_governance",
+            status_rework_status,
+            current_decision_id=decision_id,
+            current_round_id=round_id,
+            baseline_round_id=baseline_round_id,
+            notes="Active rework for final acceptance semantics; historical sample backlog remains visible but non-limiting.",
+        ),
         _entry(
             "governance_fix_cleanup_apply_safety",
             "project_governance",
@@ -98,7 +128,11 @@ def build_workstream_registry(
             current_decision_id=decision_id,
             current_round_id=round_id,
             baseline_round_id=baseline_round_id,
-            notes="Fixes historical backlog status-policy semantics and advances cleanup-apply dry-run safety only; no real cleanup apply.",
+            notes=(
+                "Rework target from the prior round; not accepted until status-policy final acceptance is repaired."
+                if is_status_policy_final_acceptance_rework
+                else "Fixes historical backlog status-policy semantics and advances cleanup-apply dry-run safety only; no real cleanup apply."
+            ),
         ),
         _entry(
             "state_governance_bundle_big_step",
@@ -134,7 +168,11 @@ def build_workstream_registry(
             current_decision_id=decision_id,
             current_round_id=round_id,
             baseline_round_id=baseline_round_id,
-            notes="Future-only cleanup apply; forbidden until a separate decision accepts deletion manifest and tombstone safety gates.",
+            notes=(
+                "Historical cleanup-apply dry-run safety evidence remains completed context; real cleanup apply is not active and forbidden in this rework."
+                if is_status_policy_final_acceptance_rework
+                else "Future-only cleanup apply; forbidden until a separate decision accepts deletion manifest and tombstone safety gates."
+            ),
         ),
         _entry(
             "manual_mode_web_orchestrator",
@@ -241,6 +279,7 @@ def validate_workstream_registry(payload: Mapping[str, Any], *, decision_id: str
         return errors
     required_ids = {
         "state_governance_bundle_big_step",
+        "status_policy_final_acceptance_rework",
         "governance_fix_cleanup_apply_safety",
         "project_governance_context_registry",
         "state_hygiene_retention_policy",

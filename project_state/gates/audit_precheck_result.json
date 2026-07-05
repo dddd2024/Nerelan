@@ -3,10 +3,10 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "generated_at": "2026-07-05T12:50:32.615232Z",
+  "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
+  "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
+  "report_id": "codex_report_20260705_status_policy_final_acceptance_rework_v1",
+  "generated_at": "2026-07-05T15:16:32.901658Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
@@ -27,7 +27,7 @@
     },
     {
       "name": "final_check_passed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "final-check is current and PASSED or only audit_precheck_valid remains pending"
     },
     {
@@ -55,7 +55,7 @@
         "audit_inventory_status.current is not true"
       ],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+      "report_id": "codex_report_20260705_status_policy_final_acceptance_rework_v1",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,
@@ -81,7 +81,6 @@
   ],
   "audit_recommendation": "DO_NOT_ACCEPT",
   "blocking_reasons": [
-    "final_check_passed: final-check is current and PASSED or only audit_precheck_valid remains pending",
     "current_handoff_packet_valid: current handoff packet is missing required current evidence or safety fields"
   ],
   "warnings": [],

@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "generated_at": "2026-07-05T12:50:09.523025Z",
+  "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
+  "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
+  "report_id": "codex_report_20260705_status_policy_final_acceptance_rework_v1",
+  "generated_at": "2026-07-05T15:16:19.940865Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -151,11 +151,11 @@
       "artifact": "project_state/gates/final_gate_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "PASSED_WITH_LIMITATIONS",
+      "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
       "report_status": "SUCCESS",
-      "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+      "acceptance_recommendation": "ACCEPTED",
       "recommendation": null,
       "errors": [],
       "warnings": []
@@ -183,7 +183,7 @@
     "pending_diagnostic_sources": []
   },
   "post_closeout_status": {
-    "final_check_gate_status": "PASSED_WITH_LIMITATIONS",
+    "final_check_gate_status": "PASSED",
     "run_closeout_status": "PASSED",
     "close_round_status": "CLOSED",
     "execution_log_gate_status": "PASSED",

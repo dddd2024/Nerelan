@@ -7,14 +7,14 @@
   "artifact_path": "project_state/gates/status_policy_reconcile_result.json",
   "current_evidence_claims_sample_artifacts": false,
   "current_governance_evidence_status": "PASSED",
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
   "errors": [],
   "gate_name": "status-policy-reconcile",
   "gate_status": "PASSED",
   "generated_artifacts": [
     "project_state/gates/status_policy_reconcile_result.json"
   ],
-  "generated_at": "2026-07-05T12:49:38Z",
+  "generated_at": "2026-07-05T15:15:50Z",
   "historical_backlog_blocking_current_round": false,
   "historical_sample_backlog_visible": true,
   "issue_classifications": [
@@ -27,7 +27,7 @@
   "mainline": "project_governance",
   "non_sample_governance_round": true,
   "reconcile_status": "RECONCILED",
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_status_policy_final_acceptance_rework_v1",
+  "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
   "schema_version": 1
 }
