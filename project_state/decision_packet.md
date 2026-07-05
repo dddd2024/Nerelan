@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260705_state_hygiene_retention_policy_v1",
-  "round_id": "round_20260705_state_hygiene_retention_policy_v1",
+  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,23 +15,32 @@
 {
   "follows_last_accepted_decision_id": "decision_20260705_project_governance_context_registry_v1",
   "follows_last_accepted_round_id": "round_20260705_project_governance_context_registry_v1",
+  "supersedes_unexecuted_decision_id": "decision_20260705_state_hygiene_retention_policy_v1",
   "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
-  "phase_label": "phase_2_41_state_hygiene_retention_policy_v1",
-  "primary_goal": "Create a bounded State Hygiene + Retention Policy v1 layer over the accepted governance context registry. This round must define artifact lifecycle classes, retention policy rules, and a cleanup-plan artifact that identifies retain/archive/delete-candidate decisions without deleting, moving, archiving, compacting, or mutating evidence files. It must reduce state-noise risk from closeout temporary logs, historical nonblocking gates, and missing historical sample artifacts while preserving project_state as the audit fact source.",
+  "phase_label": "phase_2_41_state_governance_bundle_big_step_v1",
+  "primary_goal": "Deliver a larger project-governance bundle in one round: retention policy, cleanup-plan, archive index, deletion/tombstone schema design, state lifecycle registry, governance context/workstream refresh, and integrated gate/final-check/report validation. This remains non-destructive: no deletion, move, archive compaction, cleanup-apply, database, runner dispatch, CI dispatch, Web runtime, model API, external reverse tool, or concrete sample processing is allowed.",
   "command_plan_authority_required": true,
   "accepted_requires_retention_policy": true,
-  "accepted_requires_state_hygiene_gate": true,
   "accepted_requires_cleanup_plan": true,
+  "accepted_requires_archive_index": true,
+  "accepted_requires_deletion_manifest_schema": true,
+  "accepted_requires_tombstone_schema": true,
+  "accepted_requires_lifecycle_registry": true,
+  "accepted_requires_state_manifest_refresh": true,
+  "accepted_requires_context_packet_refresh": true,
+  "accepted_requires_workstream_registry_refresh": true,
+  "accepted_requires_governance_gate": true,
   "accepted_requires_no_cleanup_apply": true,
   "accepted_requires_existing_hygiene_inventory_check": true,
-  "accepted_requires_context_workstream_update": true,
   "allowed_source_files": [
+    "reverse_agent/state_governance.py",
+    "reverse_agent/state_hygiene.py",
     "reverse_agent/project_state_manifest.py",
     "reverse_agent/project_context_builder.py",
     "reverse_agent/project_workstreams.py",
-    "reverse_agent/state_hygiene.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/project_reports.py",
+    "tests/test_state_governance.py",
     "tests/test_state_hygiene.py",
     "tests/test_project_state_manifest.py",
     "tests/test_project_context_builder.py",
@@ -40,23 +49,33 @@
     "tests/test_project_reports.py"
   ],
   "allowed_documentation_files": [
+    "docs/state_governance_bundle.md",
     "docs/state_hygiene_retention_policy.md",
+    "docs/archive_index.md",
+    "docs/deletion_manifest_and_tombstone.md",
     "docs/state_manifest.md",
     "docs/workstream_registry.md",
     "docs/project_governance_context.md"
   ],
   "allowed_config_files": [
-    "project_state/retention_policy.json"
+    "project_state/retention_policy.json",
+    "project_state/state_lifecycle_registry.json"
   ],
   "allowed_generated_or_updated_artifacts": [
     "project_state/retention_policy.json",
+    "project_state/state_lifecycle_registry.json",
     "project_state/state_manifest.json",
     "project_state/context/current_context_packet.json",
     "project_state/roadmap/workstreams.json",
-    "project_state/gates/state_hygiene_retention_result.json",
-    "project_state/gates/state_hygiene_retention_snapshot.json",
+    "project_state/gates/state_governance_bundle_result.json",
+    "project_state/gates/state_governance_bundle_snapshot.json",
     "project_state/gates/cleanup_plan.json",
     "project_state/gates/cleanup_plan_summary.json",
+    "project_state/gates/archive_index.json",
+    "project_state/gates/archive_index_summary.json",
+    "project_state/gates/deletion_manifest_schema.json",
+    "project_state/gates/tombstone_schema.json",
+    "project_state/gates/retention_policy_validation.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/execution_log.json",
@@ -70,7 +89,7 @@
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260705_state_hygiene_retention_policy_v1/*"
+    "project_state/rounds/round_20260705_state_governance_bundle_big_step_v1/*"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
@@ -91,7 +110,9 @@
     "file_delete",
     "file_move",
     "archive_compaction",
-    "tombstone_write",
+    "archive_apply",
+    "tombstone_write_for_real_deletion",
+    "real_deletion_manifest_write",
     "real_sample_analysis_execution",
     "real_user_upload_ingestion",
     "binary_parsing_or_unpacking",
@@ -116,45 +137,71 @@
 
 ## 1. Goal
 
-Implement **State Hygiene + Retention Policy v1**.
+Implement **State Governance Bundle Big Step v1**.
 
-The previous governance round created the deterministic state entrypoints that this project needed: `project_state/state_manifest.json`, `project_state/context/current_context_packet.json`, and `project_state/roadmap/workstreams.json`. Its audit outcome was `ACCEPTED_WITH_LIMITATIONS`, not pure `ACCEPTED`, because `final-check` reported `PASSED_WITH_LIMITATIONS`: historical sample artifacts remain missing and the doctor status is still nonblocking-failed for this current non-sample governance track.
+This decision intentionally replaces the smaller unexecuted `decision_20260705_state_hygiene_retention_policy_v1`. The user requested a larger step. The larger step is still constrained to a single mainline: `project_governance`. It must not drift into Web runtime work, runner dispatch, CI mutation, database implementation, tool integration, or concrete reverse solving.
 
-The next step is therefore not another Web/API expansion, not reverse solving, not runner dispatch, and not a database. The next step is a small state-governance round that formalizes artifact lifecycle and cleanup planning without deleting anything.
+The round should deliver a larger non-destructive governance bundle:
 
-Deliver in one round:
+1. **Retention Policy v1**
+   - Generate `project_state/retention_policy.json`.
+   - Define lifecycle and retention classes for current evidence, accepted-round evidence, generated gate artifacts, historical nonblocking artifacts, missing sample references, transient closeout logs, PID files, docs/config, unknown files, and future disposable candidates.
 
-1. `project_state/retention_policy.json`
-   - A deterministic policy file that classifies artifact families and retention rules.
-   - It must distinguish audit-critical current evidence, accepted-round minimum evidence, generated gate artifacts, historical nonblocking artifacts, transient closeout logs/pids, stale sample artifacts, missing sample references, docs, config, and disposable cache-like artifacts.
+2. **Cleanup Plan v1**
+   - Generate `project_state/gates/cleanup_plan.json` and `project_state/gates/cleanup_plan_summary.json`.
+   - It must be a planning artifact only.
+   - It may classify files as retain/archive-candidate/delete-candidate, but no candidate may be deleted, moved, archived, compacted, or tombstoned in this round.
 
-2. `project_state/gates/cleanup_plan.json`
-   - A non-destructive cleanup plan.
-   - It may list retain/archive/delete-candidate recommendations, but it must not delete, move, compact, or archive any file.
-   - Every destructive recommendation must be marked `requires_future_cleanup_apply_decision=true`.
+3. **Archive Index v1**
+   - Generate `project_state/gates/archive_index.json` and `project_state/gates/archive_index_summary.json`.
+   - It must index current known round archives and historical nonblocking gate artifacts from bounded sources.
+   - It must not scan full `solve_reports/`, full `PROJECT_PROGRESS_LOG.txt`, or the entire `project_state/rounds/` tree recursively.
 
-3. `project_state/gates/state_hygiene_retention_result.json`
-   - A current governance gate proving the policy and cleanup plan are bounded, non-destructive, and compatible with existing audit evidence.
+4. **Deletion Manifest and Tombstone Schema v1**
+   - Generate `project_state/gates/deletion_manifest_schema.json` and `project_state/gates/tombstone_schema.json`.
+   - These are schema/design artifacts only.
+   - No real deletion manifest for actual files may be produced, and no tombstone may be written for actual deletion.
 
-4. `project_state/gates/state_hygiene_retention_snapshot.json`
-   - A compact snapshot summarizing counts by lifecycle class, not a full recursive dump.
+5. **State Lifecycle Registry v1**
+   - Generate `project_state/state_lifecycle_registry.json`.
+   - It should connect retention classes, cleanup-plan actions, archive-index roles, deletion/tombstone schema requirements, and future cleanup-apply preconditions.
 
-5. Context/workstream updates
-   - Update `state_manifest`, `current_context_packet`, and `workstreams` so the active workstream becomes `state_hygiene_retention_policy` and the previous context-registry workstream is treated as accepted baseline.
+6. **Governance Context Refresh**
+   - Refresh `project_state/state_manifest.json`.
+   - Refresh `project_state/context/current_context_packet.json`.
+   - Refresh `project_state/roadmap/workstreams.json` so this bundle is the only `ACTIVE_ROUND`, the previous context-registry round is accepted baseline, and cleanup-apply remains deferred.
+
+7. **Integrated Gate**
+   - Generate `project_state/gates/state_governance_bundle_result.json` and `project_state/gates/state_governance_bundle_snapshot.json`.
+   - The gate must prove no destructive operation occurred and that every artifact is index/design/planning evidence only.
 
 Accepted target:
 
-- Mainline: `project_governance`.
-- The round only produces lifecycle policy, inventory summaries, cleanup-plan recommendations, gate artifacts, docs, and tests.
-- `project_state` remains the audit fact source.
-- `retention_policy.json` and `cleanup_plan.json` are planning artifacts, not authority to delete.
-- No cleanup apply, deletion, archive compaction, tombstone write, real sample execution, external tool invocation, model API call, runner dispatch, database, service, queue, scheduler, or GitHub workflow mutation is allowed.
+- Mainline remains `project_governance`.
+- This is a larger governance round, not an execution/runtime round.
+- `project_state/decision_packet.md` remains task authority.
+- `project_state/gates/command_plan.json` remains command authority.
+- `project_state` files remain audit fact sources.
+- `retention_policy`, `cleanup_plan`, `archive_index`, `state_lifecycle_registry`, deletion schema, and tombstone schema are planning/index/schema artifacts, not execution authority.
+- No cleanup apply is allowed.
 
 ## 2. Current Evidence
 
-Mainline: `project_governance`.
+Current fact priority:
 
-`project_state/decision_packet.md` controls this round. `project_state/task_packet.json` remains background only; it still carries old sample-reverse context and says `execution_scope=decision_packet_controls_current_round`.
+1. GitHub current code and current `project_state` files.
+2. `project_state/decision_packet.md`.
+3. `project_state/state_manifest.json`.
+4. `project_state/context/current_context_packet.json`.
+5. `project_state/roadmap/workstreams.json`.
+6. current gates and reports.
+7. `.codex-skills/registry.json`.
+
+Current task authority:
+
+- This new `decision_packet.md` controls the round.
+- `task_packet.json` remains old sample-reverse context and background only.
+- `command_plan.json` must authorize commands before execution.
 
 Previous accepted-with-limitations baseline:
 
@@ -162,89 +209,94 @@ Previous accepted-with-limitations baseline:
 - `round_20260705_project_governance_context_registry_v1`
 - audit outcome: `ACCEPTED_WITH_LIMITATIONS`
 
-Evidence from the prior round:
+Relevant prior evidence:
 
-1. `project_state/codex_execution_report.md` reported `SUCCESS` and `acceptance_recommendation=ACCEPTED` for the governance context registry round.
-2. `project_state/pytest_result.txt` reported `PASSED` and recorded project governance tests.
-3. `project_state/gates/execution_log.json` was current and listed all recorded commands as passed.
-4. `project_state/gates/project_governance_context_result.json` passed and proved the state manifest, current context packet, and workstream registry are current and index-only.
-5. `project_state/gates/final_gate_result.json` was `PASSED_WITH_LIMITATIONS`, with limitations caused by historical sample artifact gaps and doctor status fail. These limitations were treated as nonblocking for current non-sample governance evidence.
-6. `project_state/rounds/round_20260705_project_governance_context_registry_v1/round_manifest.json` archived current report, neutral execution report, decision packet, and pytest result.
+- The previous governance context registry round generated `state_manifest.json`, `current_context_packet.json`, and `workstreams.json`.
+- Its governance gate passed and marked the new governance artifacts as current and index-only.
+- Its final-check was `PASSED_WITH_LIMITATIONS`, with the limitation tied to historical missing sample artifacts and doctor status fail.
+- The limitation was nonblocking for a non-sample governance round.
 
-Current state entrypoints now exist:
+State manifest evidence:
 
-- `project_state/state_manifest.json` exists and classifies current, generated_or_updated, historical_nonblocking, archived, and missing artifacts.
-- It reports 10 current artifacts and 50 missing artifacts, with `missing_sample_artifacts_blocking_for_current_round=false`.
-- It treats `current_state.json`, `task_packet.json`, `artifact_index.json`, and `negative_results.json` as historical/nonblocking for the governance context.
-- `project_state/roadmap/workstreams.json` exists and marks `state_hygiene_retention_policy` as `READY_FOR_DECISION`.
-- The same registry states that roadmap entries are not execution authority and only the current decision may mark an active round.
+- `project_state/state_manifest.json` exists.
+- It classifies current evidence, generated governance artifacts, historical nonblocking files, archived evidence, and missing artifacts.
+- It reports missing sample artifacts as nonblocking for the current governance context.
+- It treats `current_state.json`, `task_packet.json`, `artifact_index.json`, and `negative_results.json` as historical/nonblocking for governance planning.
 
-Existing hygiene capability to preserve and not duplicate:
+Workstream evidence:
 
-- `project_state/gates/state_hygiene_inventory.json` already exists as a historical inventory artifact from `decision_20260627_limited_acceptance_status_policy_rework_v1`.
-- That artifact was explicitly `no_delete=true` and categorized files without deleting anything.
-- This round must not claim state hygiene starts from zero. It should build on that prior inventory pattern and the new state manifest/context registry.
+- `project_state/roadmap/workstreams.json` exists.
+- It states roadmap entries are not execution authority.
+- It previously marked `state_hygiene_retention_policy` as `READY_FOR_DECISION`.
+- This larger bundle should supersede that smaller ready plan by marking `state_governance_bundle_big_step` as the only `ACTIVE_ROUND` and recording the smaller state-hygiene plan as superseded/unexecuted.
 
-Current problem to address:
+Existing hygiene capability:
 
-- `final-check` still reports historical missing sample artifacts as a nonblocking limitation.
-- Closeout temporary log/pid artifacts such as `run_closeout_*.out.log`, `run_closeout_*.err.log`, and `run_closeout_*.pid` appeared in the previous round delta.
-- Historical nonblocking gate artifacts are accumulating and should be classified by lifecycle.
-- The project needs a retention policy and cleanup-plan gate before any future deletion/archive/compaction decision.
+- `project_state/gates/state_hygiene_inventory.json` exists as a historical inventory artifact.
+- It was explicitly non-destructive: `no_delete=true`.
+- This round must not claim state hygiene starts from zero. It should build on the existing inventory pattern, the context registry, and current state manifest.
+
+Current problem to address in a larger step:
+
+- Closeout temporary logs and PID files are appearing in round deltas.
+- Historical nonblocking gate artifacts are accumulating.
+- Missing historical sample references still show up as a nonblocking doctor limitation.
+- There is no unified retention policy, cleanup-plan, archive index, deletion/tombstone schema, and lifecycle registry tying these together.
+- Future cleanup-apply would be unsafe without these design artifacts and gates.
 
 Negative results:
 
-- `project_state/negative_results.json` blocks old solver blind search, budget-only expansion, invalid frontier reuse, full `solve_reports` commits, and repeated stale diagnostics.
-- This round is governance-only and must not enter reverse-solving directions.
+- Do not return to old solver blind search.
+- Do not increase beam/budget to guess.
+- Do not use invalid compare candidates as primary frontier.
+- Do not commit full `solve_reports/`.
+- Do not repeat stale runtime diagnostics without new evidence.
 
-Artifact freshness policy:
+Artifact freshness:
 
-- Current-round state hygiene artifacts must carry `decision_20260705_state_hygiene_retention_policy_v1` and `round_20260705_state_hygiene_retention_policy_v1`.
-- Historical user-solve, runner, CI, sample, and prior state-hygiene artifacts may be referenced only as historical/backlog evidence unless their IDs are current.
-- Missing historical sample artifacts are nonblocking for this governance round, but they must be explicitly classified.
-
-Command-plan policy:
-
-- `project_state/gates/command_plan.json` is the command execution authority.
-- Codex may execute only commands authorized by `command_plan.commands`.
-- `command_plan.omitted_commands` must not be executed.
-- If this Tests section conflicts with command-plan, command-plan wins.
-
-This round will not repeat already accepted context-registry work. It will consume the manifest/context/workstream outputs as inputs and add lifecycle/retention/cleanup-plan governance on top.
+- New current artifacts must carry `decision_20260705_state_governance_bundle_big_step_v1` and `round_20260705_state_governance_bundle_big_step_v1`.
+- Historical user-solve, runner, CI, sample, and old hygiene artifacts may be referenced only as historical/nonblocking evidence unless current IDs match.
+- Missing historical sample artifacts remain nonblocking for this governance round, but must be explicitly classified in the lifecycle registry and cleanup plan.
 
 ## 3. Do Not Do
 
-Do not delete, move, rename, archive, compact, tombstone, or otherwise destructively mutate any state artifact.
+Do not delete, move, rename, archive, compact, tombstone, or destructively mutate any state artifact.
 
-Do not implement `cleanup-apply` in this round.
+Do not implement or run `cleanup-apply`.
 
-Do not implement archive compaction, cold storage migration, blob store migration, database indexing, or SQLite/PostgreSQL.
+Do not create a real deletion manifest for actual file deletion.
 
-Do not solve a concrete reverse sample.
+Do not write tombstones for actual deletion.
 
-Do not process real samples, real uploads, training samples, or local binary corpora.
-
-Do not invoke IDA, Ghidra, OllyDbg, debuggers, emulators, unpackers, runtime probes, or external analysis tools.
-
-Do not invoke model APIs, planner APIs, auditor APIs, Codex CLI, remote agents, CI workflows, or automatic runners.
-
-Do not implement production HTTP infrastructure, database, queue, scheduler, background service, remote dispatch, CI polling, or auto-iteration.
+Do not implement a database, queue, background service, scheduler, production HTTP service, Web runtime, remote runner, CI dispatcher, or polling loop.
 
 Do not modify `.github/workflows/*`.
 
-Do not modify `.codex-skills/*` or store dynamic project facts in long-term prompt/skill files.
+Do not modify `.codex-skills/*`.
 
-Do not scan full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+Do not store dynamic state facts in prompt/skill files.
+
+Do not scan full `solve_reports/`.
+
+Do not scan full `PROJECT_PROGRESS_LOG.txt`.
+
+Do not recursively inventory the entire `project_state/rounds/` tree. Use only current round, previous accepted round manifest, and bounded named historical hygiene artifacts.
 
 Do not modify `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, or `project_state/negative_results.json`.
 
-Do not treat `retention_policy.json` or `cleanup_plan.json` as authority to delete. They are planning artifacts only.
+Do not modify `project_state/archives/*` or `project_state/deletions/*`.
 
-Do not mark any cleanup candidate as safe for immediate deletion. Any destructive action must require a future explicit cleanup-apply decision.
+Do not process real reverse samples, local binaries, training corpora, or user-uploaded files.
+
+Do not invoke IDA, Ghidra, OllyDbg, debuggers, emulators, unpackers, runtime probes, or external analysis tools.
+
+Do not invoke model APIs, Codex CLI, planner APIs, auditor APIs, automatic runners, manual runner dispatch, or CI workflow dispatch.
+
+Do not mark any cleanup candidate as safe for immediate deletion.
 
 Do not claim any concrete sample is solved, statically verified, runtime validated, or audit verified.
 
-Do not mix this round with user-solve, Web/API, runner dispatch, CI workflow, tool integration, or reverse-solving implementation.
+Do not mix this governance round with user-solve, Web, runner, CI, tool integration, database, or reverse-solving implementation.
 
 ## 4. Files To Inspect
 
@@ -263,7 +315,7 @@ Read first:
 11. `project_state/pytest_result.txt`
 12. `.codex-skills/registry.json`
 
-Inspect current gates and prior accepted-with-limitations baseline:
+Inspect current and prior governance gates:
 
 1. `project_state/gates/command_plan.json`
 2. `project_state/gates/execution_log.json`
@@ -274,14 +326,14 @@ Inspect current gates and prior accepted-with-limitations baseline:
 7. `project_state/gates/project_governance_context_snapshot.json`
 8. `project_state/rounds/round_20260705_project_governance_context_registry_v1/round_manifest.json`
 
-Inspect prior hygiene work before adding new code:
+Inspect prior hygiene artifacts before implementation:
 
 1. `project_state/gates/state_hygiene_inventory.json`
 2. `project_state/rounds/round_20260619_project_state_hygiene_rebuild_v1/decision_packet.md`
 3. `project_state/rounds/round_20260623_naming_hygiene_inventory_v1/decision_packet.md`
 4. `project_state/rounds/round_20260624_state_hygiene_archive_scope_rework_v1/decision_packet.md`
 
-Inspect existing governance/gate surfaces:
+Inspect existing source surfaces:
 
 1. `reverse_agent/project_state_manifest.py`
 2. `reverse_agent/project_context_builder.py`
@@ -296,15 +348,20 @@ Inspect existing governance/gate surfaces:
 
 Check whether these paths already exist before creating them:
 
-1. `reverse_agent/state_hygiene.py`
-2. `tests/test_state_hygiene.py`
-3. `project_state/retention_policy.json`
-4. `project_state/gates/cleanup_plan.json`
-5. `project_state/gates/cleanup_plan_summary.json`
-6. `project_state/gates/state_hygiene_retention_result.json`
-7. `project_state/gates/state_hygiene_retention_snapshot.json`
-
-Do not inspect full `project_state/rounds/`, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt`. Use bounded files, current manifests, and known historical hygiene artifacts only.
+1. `reverse_agent/state_governance.py`
+2. `reverse_agent/state_hygiene.py`
+3. `tests/test_state_governance.py`
+4. `tests/test_state_hygiene.py`
+5. `project_state/retention_policy.json`
+6. `project_state/state_lifecycle_registry.json`
+7. `project_state/gates/cleanup_plan.json`
+8. `project_state/gates/cleanup_plan_summary.json`
+9. `project_state/gates/archive_index.json`
+10. `project_state/gates/archive_index_summary.json`
+11. `project_state/gates/deletion_manifest_schema.json`
+12. `project_state/gates/tombstone_schema.json`
+13. `project_state/gates/state_governance_bundle_result.json`
+14. `project_state/gates/state_governance_bundle_snapshot.json`
 
 ## 5. Required Audit
 
@@ -314,49 +371,76 @@ The execution report must answer each item with direct evidence and `PASS`, `FAI
 2. Was `project_state/task_packet.json` treated as background only?
 3. Did `decision_meta` remain valid, `APPROVED`, and aligned with active `reverse-agent-iteration@v2`?
 4. Was the previous governance context registry round treated as accepted-with-limitations baseline?
-5. Did the round inspect existing state manifest, context packet, workstream registry, and prior state hygiene inventory before adding new code?
-6. Did the implementation avoid duplicating existing command-plan, execution-log, report-summary, closeout, context-builder, and workstream-registry mechanisms?
-7. Was `project_state/retention_policy.json` generated?
-8. Does `retention_policy.json` classify artifact lifecycle classes including current audit evidence, accepted-round minimum evidence, generated gate artifacts, historical nonblocking artifacts, transient closeout logs/pids, missing sample references, docs/config, and disposable cache-like artifacts?
-9. Does `retention_policy.json` explicitly forbid deletion without a future cleanup-apply decision?
-10. Was `project_state/gates/cleanup_plan.json` generated?
-11. Does `cleanup_plan.json` only produce retain/archive/delete-candidate recommendations and no destructive actions?
-12. Does every destructive recommendation in `cleanup_plan.json` include `requires_future_cleanup_apply_decision=true`?
-13. Does the cleanup plan classify `run_closeout_*.out.log`, `run_closeout_*.err.log`, and `run_closeout_*.pid` as transient candidates without deleting them?
-14. Does the cleanup plan classify missing historical sample artifacts as nonblocking references rather than current evidence gaps?
-15. Does the cleanup plan preserve current decision, report, pytest, command-plan, execution-log, final-check, closeout, state_manifest, context packet, workstreams, and accepted-round minimum evidence?
-16. Was `project_state/gates/state_hygiene_retention_result.json` generated?
-17. Was `project_state/gates/state_hygiene_retention_snapshot.json` generated?
-18. Do new gate artifacts carry current decision/report/round IDs?
-19. Does the state-hygiene gate prove no deletion, move, archive compaction, tombstone write, database, runner dispatch, model API, external tool, or real sample processing occurred?
-20. Were `project_state/state_manifest.json`, `project_state/context/current_context_packet.json`, and `project_state/roadmap/workstreams.json` updated for this round?
-21. Does `workstreams.json` mark only `state_hygiene_retention_policy` as `ACTIVE_ROUND`?
-22. Does `workstreams.json` mark `project_governance_context_registry` as accepted baseline rather than active?
-23. Did command-plan authorize every executed command?
-24. Were command-plan omitted commands left unexecuted?
-25. Did pytest_result record real commands and exit codes?
-26. Did focused tests cover retention policy, cleanup plan, state-hygiene gate, and no-delete behavior?
-27. Did existing project governance/gate/report tests continue to pass?
-28. Did final-check pass or pass-with-limitations only for explicitly nonblocking historical sample artifact gaps?
-29. Did report-summary synthesis pass and match the report summary?
-30. Did run-closeout pass if authorized?
-31. Were forbidden files untouched?
-32. Were `.github/workflows/*`, `.codex-skills/*`, `solve_reports/*`, `project_state/archives/*`, and `project_state/deletions/*` untouched?
-33. Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?
-34. Did the final report explicitly state that this round is cleanup-plan only and not cleanup-apply?
-35. Did the final report identify remaining limitations and recommend a future cleanup-apply round only after tombstone/deletion manifest design is accepted?
+5. Did this round supersede the smaller unexecuted state-hygiene retention plan rather than execute both?
+6. Were existing state manifest, context packet, workstream registry, and prior state hygiene inventory inspected before adding new code?
+7. Did the implementation avoid duplicating existing command-plan, execution-log, report-summary, closeout, context-builder, manifest, and workstream mechanisms?
+8. Was `project_state/retention_policy.json` generated?
+9. Does `retention_policy.json` classify current audit evidence, accepted-round evidence, generated gate artifacts, historical nonblocking artifacts, transient closeout logs/pids, missing sample references, docs/config, unknown files, and future disposable candidates?
+10. Does retention policy explicitly forbid deletion without a future cleanup-apply decision?
+11. Was `project_state/gates/cleanup_plan.json` generated?
+12. Does cleanup plan only produce retain/archive-candidate/delete-candidate recommendations and no destructive actions?
+13. Does every destructive recommendation include `delete_allowed_now=false`, `requires_future_cleanup_apply_decision=true`, and `requires_tombstone_if_deleted=true`?
+14. Does cleanup plan classify `run_closeout_*.out.log`, `run_closeout_*.err.log`, and `run_closeout_*.pid` as transient candidates without deleting them?
+15. Does cleanup plan classify missing historical sample artifacts as nonblocking references rather than current evidence gaps?
+16. Does cleanup plan preserve current decision, report, pytest, command-plan, execution-log, final-check, closeout, state manifest, context packet, workstreams, and accepted-round minimum evidence?
+17. Was `project_state/gates/archive_index.json` generated?
+18. Does archive index use only bounded archive sources and avoid recursive full-rounds scanning?
+19. Does archive index separate current, archived, historical_nonblocking, and candidate-for-future-archive entries?
+20. Was `project_state/gates/deletion_manifest_schema.json` generated as schema-only evidence?
+21. Was `project_state/gates/tombstone_schema.json` generated as schema-only evidence?
+22. Did the round avoid writing any real deletion manifest or real tombstone?
+23. Was `project_state/state_lifecycle_registry.json` generated?
+24. Does lifecycle registry connect retention classes, cleanup-plan actions, archive-index roles, deletion schema, tombstone schema, and future cleanup-apply preconditions?
+25. Was `project_state/gates/state_governance_bundle_result.json` generated?
+26. Was `project_state/gates/state_governance_bundle_snapshot.json` generated?
+27. Do new gate artifacts carry current decision/report/round IDs?
+28. Does the governance bundle gate prove no deletion, move, archive compaction, tombstone write, database, runner dispatch, model API, external tool, CI dispatch, Web runtime, or real sample processing occurred?
+29. Were `project_state/state_manifest.json`, `project_state/context/current_context_packet.json`, and `project_state/roadmap/workstreams.json` updated for this round?
+30. Does `workstreams.json` mark only `state_governance_bundle_big_step` as `ACTIVE_ROUND`?
+31. Does `workstreams.json` mark `project_governance_context_registry` as accepted baseline?
+32. Does `workstreams.json` keep cleanup-apply, runner dispatch, database indexing, IDA/Ghidra/debugger integration, dynamic reverse solving, Web runtime, and CI mutation deferred or non-active?
+33. Did command-plan authorize every executed command?
+34. Were command-plan omitted commands left unexecuted?
+35. Did pytest_result record real commands and exit codes?
+36. Did focused tests cover retention policy, cleanup plan, archive index, deletion/tombstone schemas, lifecycle registry, governance bundle gate, and no-delete behavior?
+37. Did existing project governance/gate/report tests continue to pass?
+38. Did final-check pass or pass-with-limitations only for explicitly nonblocking historical sample artifact gaps?
+39. Did report-summary synthesis pass and match the report summary?
+40. Did run-closeout pass if authorized?
+41. Were forbidden files untouched?
+42. Were `.github/workflows/*`, `.codex-skills/*`, `solve_reports/*`, `project_state/archives/*`, and `project_state/deletions/*` untouched?
+43. Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?
+44. Did the final report explicitly state this round is planning/index/schema only and not cleanup-apply?
+45. Did the final report recommend a future cleanup-apply round only after a separate decision accepts deletion manifest/tombstone design and deletion safety gates?
 
 ## 6. Implementation Scope
 
-Allowed implementation is limited to non-destructive state lifecycle planning.
+Allowed implementation is a larger but still bounded **project_governance** bundle.
 
-### A. Retention Policy v1
+### A. State Governance Module
 
-Add `reverse_agent/state_hygiene.py` or compatibly extend an existing equivalent module if one already exists.
+Add `reverse_agent/state_governance.py` or extend `reverse_agent/state_hygiene.py` if that better fits existing code.
 
-Generate `project_state/retention_policy.json` with stable ordering.
+The module should provide deterministic helpers to build:
 
-Required policy classes:
+- retention policy;
+- cleanup plan;
+- cleanup summary;
+- archive index;
+- archive summary;
+- deletion manifest schema;
+- tombstone schema;
+- state lifecycle registry;
+- state governance bundle result;
+- state governance bundle snapshot.
+
+The module must avoid side effects other than writing allowed artifacts.
+
+### B. Retention Policy
+
+Generate `project_state/retention_policy.json`.
+
+Minimum classes:
 
 - `current_audit_fact_source`
 - `accepted_round_minimum_evidence`
@@ -372,35 +456,38 @@ Required policy classes:
 - `unknown_requires_manual_review`
 - `disposable_candidate_requires_future_decision`
 
-Required rule fields:
+Every class must state:
 
-- `class_name`
-- `description`
-- `examples`
-- `retain_minimum`
-- `can_archive_in_future`
-- `can_delete_in_future`
-- `requires_cleanup_apply_decision`
-- `requires_tombstone_if_deleted`
-- `current_round_delete_allowed=false`
+- retain policy;
+- archive policy;
+- delete policy;
+- whether future cleanup-apply is required;
+- whether tombstone is required if deleted in a future round;
+- whether deletion is allowed in this round, which must be false for all classes.
 
-### B. Cleanup Plan v1
+### C. Cleanup Plan
 
-Generate `project_state/gates/cleanup_plan.json` and optionally `project_state/gates/cleanup_plan_summary.json`.
+Generate:
 
-Required behavior:
+- `project_state/gates/cleanup_plan.json`
+- `project_state/gates/cleanup_plan_summary.json`
 
-- Read only bounded state locations: current manifest/context/workstreams, current gates, immediate `project_state/gates/*` names, current report summary, and known historical nonblocking lists.
-- Do not recursively scan full `project_state/rounds/`.
-- Do not scan `solve_reports/`.
-- Classify each candidate into lifecycle classes.
-- Preserve all current evidence and accepted-round minimum evidence.
-- Identify transient closeout logs/pids as cleanup candidates, but set `action="defer"` or `delete_allowed_now=false`.
-- Identify historical nonblocking gates as archive candidates, but set `archive_allowed_now=false` unless a future archive decision exists.
-- Identify missing historical sample artifacts as nonblocking references, not files to delete.
-- Emit counts by class and by recommended future action.
+The cleanup plan must classify bounded candidates only. It must include current evidence protection and candidate lists for future action.
 
-Every candidate that could ever be deleted must include:
+Required global assertions:
+
+```json
+{
+  "cleanup_apply_allowed": false,
+  "deleted_files": [],
+  "moved_files": [],
+  "archived_files": [],
+  "compacted_archives": [],
+  "written_tombstones": []
+}
+```
+
+Any candidate that could be deleted in the future must contain:
 
 ```json
 {
@@ -410,37 +497,54 @@ Every candidate that could ever be deleted must include:
 }
 ```
 
-### C. State Hygiene Gate v1
+### D. Archive Index
 
-Extend `reverse_agent/project_gate.py` with a bounded gate command, for example:
+Generate:
 
-```powershell
-python -m reverse_agent.project_gate state-hygiene-retention --state-dir project_state
-```
+- `project_state/gates/archive_index.json`
+- `project_state/gates/archive_index_summary.json`
 
-The exact CLI name may differ if an existing convention is better, but it must be recorded in command-plan and pytest_result.
+The archive index must include only bounded known sources:
 
-Required generated artifacts:
+- current round output;
+- previous accepted governance round manifest;
+- known historical state hygiene decision packets;
+- current state manifest roles;
+- current report summary artifact roles.
 
-- `project_state/gates/state_hygiene_retention_result.json`
-- `project_state/gates/state_hygiene_retention_snapshot.json`
+It must not recursively traverse all archive history.
 
-Required checks:
+### E. Deletion Manifest and Tombstone Schema
 
-- retention policy exists and is current;
-- cleanup plan exists and is current;
-- no candidate has `delete_allowed_now=true`;
-- no file was deleted, moved, archived, compacted, or tombstoned;
-- current evidence is protected;
-- accepted-round minimum evidence is protected;
-- missing historical sample artifacts are nonblocking;
-- transient closeout logs/pids are classified but not removed;
-- workstream active status is unique and current;
-- generated artifacts carry current IDs.
+Generate schema-only artifacts:
 
-### D. Context and Workstream Updates
+- `project_state/gates/deletion_manifest_schema.json`
+- `project_state/gates/tombstone_schema.json`
 
-Update existing governance outputs using the existing modules:
+They must include required fields for a future cleanup-apply round but must not identify real files for deletion.
+
+Required schema ideas:
+
+- deletion manifest must require future decision ID, round ID, original path, hash, reason, retention class, audit approval, and tombstone target;
+- tombstone must require original path, deleted hash, deletion manifest ID, deletion round, deletion timestamp, reason, and restore/audit notes.
+
+### F. State Lifecycle Registry
+
+Generate `project_state/state_lifecycle_registry.json`.
+
+It must connect:
+
+- retention policy classes;
+- cleanup-plan recommendations;
+- archive-index roles;
+- deletion manifest schema;
+- tombstone schema;
+- current/future allowed transitions;
+- explicit future cleanup-apply preconditions.
+
+### G. Context and Workstream Refresh
+
+Update existing governance outputs:
 
 - `project_state/state_manifest.json`
 - `project_state/context/current_context_packet.json`
@@ -448,50 +552,61 @@ Update existing governance outputs using the existing modules:
 
 Required updates:
 
-- Active decision/round becomes this state hygiene round.
-- `state_hygiene_retention_policy` becomes `ACTIVE_ROUND`.
-- `project_governance_context_registry` becomes `ACCEPTED` or accepted baseline reference.
-- Deferred workstreams remain deferred: runner dispatch, database indexing, IDA/Ghidra/debugger integration, dynamic reverse solving, cleanup-apply.
-- Context packet must state cleanup planning is allowed but cleanup application is forbidden.
+- current active decision/round becomes this bundle;
+- only `state_governance_bundle_big_step` is `ACTIVE_ROUND`;
+- `project_governance_context_registry` becomes accepted baseline;
+- smaller `state_hygiene_retention_policy_v1` is recorded as superseded/unexecuted, not accepted;
+- cleanup-apply remains deferred;
+- runner dispatch, database indexing, IDA/Ghidra/debugger integration, dynamic reverse solving, Web runtime, and CI mutation remain non-active.
 
-### E. Final-check and Report Compatibility
+### H. Project Gate Integration
 
-Update `project_gate` and report-summary only as needed to recognize the new artifacts and no-delete rule.
+Extend `reverse_agent/project_gate.py` with a bounded command such as:
 
-Do not weaken existing checks for:
+```powershell
+python -m reverse_agent.project_gate state-governance-bundle --state-dir project_state
+```
 
-- decision/report/round matching;
-- pytest/report matching;
-- command-plan authority;
-- execution-log consistency;
-- report-summary synthesis;
-- forbidden paths;
-- artifact role taxonomy;
-- closeout.
+The exact command may differ if an existing naming convention is more appropriate, but it must be recorded in command-plan, pytest_result, execution_log, and report.
 
-If final-check remains `PASSED_WITH_LIMITATIONS` only because of historical missing sample artifacts, the execution report must state that limitation explicitly and explain why it is nonblocking for this governance round.
+Required gate checks:
 
-### F. Documentation
+- retention policy current;
+- cleanup plan current;
+- archive index current;
+- deletion/tombstone schemas current;
+- lifecycle registry current;
+- state manifest/context/workstreams current;
+- no destructive arrays contain files;
+- no cleanup candidate is immediately deletable;
+- active workstream is unique;
+- current evidence is protected;
+- accepted-round minimum evidence is protected;
+- historical sample missing artifacts are nonblocking;
+- all forbidden capabilities are disabled.
 
-Add or update concise docs:
+### I. Documentation
 
+Add or update:
+
+- `docs/state_governance_bundle.md`
 - `docs/state_hygiene_retention_policy.md`
-- `docs/state_manifest.md` only if needed for lifecycle cross-reference
-- `docs/workstream_registry.md` only if needed for active workstream policy
-- `docs/project_governance_context.md` only if needed for context packet changes
+- `docs/archive_index.md`
+- `docs/deletion_manifest_and_tombstone.md`
+- bounded cross-references in existing governance docs if needed.
 
-Docs must explain:
+Docs must clearly explain:
 
-- retention policy does not delete files;
 - cleanup-plan is not cleanup-apply;
-- future cleanup-apply requires a separate decision;
-- deletion requires deletion manifest/tombstone design;
+- deletion/tombstone artifacts are schema-only;
+- archive index is an index, not archive compaction;
+- future cleanup-apply needs a separate decision;
 - current audit fact sources are protected;
-- project_state remains the audit fact source.
+- project_state remains the evidence source.
 
 ## 7. Tests
 
-Command-plan is command authority. If this Tests section conflicts with `project_state/gates/command_plan.json`, command-plan wins.
+Command-plan is command authority. If this section conflicts with generated command-plan, command-plan wins.
 
 Minimum expected validation commands:
 
@@ -506,50 +621,49 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate prework-provenance --state-dir project_state
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m pytest tests/test_state_hygiene.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q
+python -m pytest tests/test_state_governance.py tests/test_state_hygiene.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q
-python -m reverse_agent.project_gate state-hygiene-retention --state-dir project_state
+python -m reverse_agent.project_gate state-governance-bundle --state-dir project_state
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_state_hygiene_retention_policy_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_state_governance_bundle_big_step_v1
 ```
 
-If the project-gate CLI name differs, implement the smallest compatible CLI surface and record the exact command in command-plan, pytest_result, execution_log, and report.
+Expected results:
 
-Test expectations:
-
-- New state hygiene tests pass.
-- Existing context/workstream tests pass.
+- New state governance tests pass.
+- Existing manifest/context/workstream tests pass.
 - Existing gate/report tests pass.
-- State-hygiene-retention gate passes.
-- final-check passes, or passes with limitations only for historical missing sample artifacts explicitly classified as nonblocking.
-- report-summary passes or exits with the command-plan-allowed diagnostic exit while final-check records alignment.
+- State governance bundle gate passes.
+- final-check passes, or passes with limitations only for explicitly nonblocking historical sample artifact gaps.
+- report-summary is consistent with final report.
 - run-closeout passes if authorized.
-- No command-plan omissions are executed.
-- No forbidden files are mutated.
-- No deletion/move/archive/compaction/tombstone occurs.
+- no command-plan omissions are executed.
+- no forbidden paths are mutated.
+- no deletion, move, archive compaction, cleanup-apply, real deletion manifest, or real tombstone occurs.
 
 ## 8. Stop Conditions
 
 Stop immediately and report `BLOCKED` if:
 
 1. The repository root is not `F:\reverse-agent` or `git rev-parse --show-toplevel` does not match.
-2. Startup detects untracked or dirty source/test files before implementation and they are not recorded by startup/prework provenance.
+2. Startup detects untracked or dirty source/test files before implementation and they are not captured by startup/prework provenance.
 3. `decision_meta` cannot be parsed or is not `APPROVED`.
-4. `reverse-agent-iteration@v2` is not active in `.codex-skills/registry.json`.
-5. `command_plan.json` cannot be generated or does not authorize required commands.
-6. Existing state manifest/context/workstream artifacts cannot be read and the failure cannot be represented as a bounded BLOCKED report.
-7. The implementation would require deleting, moving, renaming, archiving, compacting, or tombstoning files.
-8. The implementation would require `cleanup-apply`.
-9. The implementation would require reading full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
-10. The implementation would require Web runtime, database, queue, scheduler, runner dispatch, model API, CI dispatch, or external reverse tool execution.
-11. The implementation would need to modify `.github/workflows/*`, `.codex-skills/*`, `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, `project_state/archives/*`, or `project_state/deletions/*`.
-12. More than one workstream would need to be marked `ACTIVE_ROUND`.
-13. Any cleanup candidate must be marked `delete_allowed_now=true` to make tests pass.
-14. Current audit fact sources or accepted-round minimum evidence cannot be protected.
-15. Tests fail and the failure is not explainable with a bounded fix in the allowed scope.
-16. final-check fails for a reason other than explicitly nonblocking historical sample artifact gaps.
-17. report-summary cannot reconcile report status with generated evidence.
-18. Any concrete sample solve/static/runtime/audit verification claim is introduced.
+4. `reverse-agent-iteration@v2` is not active.
+5. command-plan cannot be generated or does not authorize required commands.
+6. Existing state manifest/context/workstream artifacts cannot be read and the failure cannot be represented as a bounded blocked report.
+7. The implementation requires deleting, moving, renaming, archiving, compacting, or tombstoning files.
+8. The implementation requires cleanup-apply.
+9. The implementation requires a real deletion manifest for actual files.
+10. The implementation requires reading full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+11. The implementation requires recursive full `project_state/rounds/` inventory.
+12. The implementation requires Web runtime, database, queue, scheduler, runner dispatch, model API, CI dispatch, or external reverse tool execution.
+13. The implementation needs to modify `.github/workflows/*`, `.codex-skills/*`, `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, `project_state/negative_results.json`, `project_state/archives/*`, or `project_state/deletions/*`.
+14. More than one workstream would need to be marked `ACTIVE_ROUND`.
+15. Any cleanup candidate must be marked `delete_allowed_now=true` to make tests pass.
+16. Current audit fact sources or accepted-round minimum evidence cannot be protected.
+17. final-check fails for a reason other than explicitly nonblocking historical sample artifact gaps.
+18. report-summary cannot reconcile report status with generated evidence.
+19. Any concrete sample solve/static/runtime/audit verification claim is introduced.
 
-If a stop condition is hit, write the execution report with `status=BLOCKED` or `status=FAILED` as appropriate, preserve all available evidence, and do not run closeout unless command-plan explicitly authorizes diagnostic closeout for failed rounds.
+If a stop condition is hit, write `codex_execution_report.md`, `execution_report.md`, and `pytest_result.txt` with the blocked/failed evidence available. Do not run closeout unless command-plan explicitly authorizes diagnostic closeout for failed rounds.
