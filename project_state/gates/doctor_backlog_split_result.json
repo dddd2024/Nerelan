@@ -1,0 +1,29 @@
+{
+  "artifact_name": "doctor_backlog_split_result.json",
+  "artifact_path": "project_state/gates/doctor_backlog_split_result.json",
+  "current_blockers": [],
+  "current_warnings": [],
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "errors": [],
+  "external_notices": [],
+  "gate_name": "doctor-backlog-split",
+  "gate_status": "PASSED",
+  "generated_artifacts": [
+    "project_state/gates/doctor_backlog_split_result.json"
+  ],
+  "generated_at": "2026-07-05T12:49:38Z",
+  "historical_backlog_notices": [
+    {
+      "classification": "historical_backlog_notice",
+      "current_blocker": false,
+      "notice": "55 missing, 0 stale historical sample artifacts"
+    }
+  ],
+  "historical_sample_gaps_block_current_round": false,
+  "historical_sample_gaps_hidden": false,
+  "mainline": "project_governance",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "schema_version": 1,
+  "split_status": "PASSED"
+}

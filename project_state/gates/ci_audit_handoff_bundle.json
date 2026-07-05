@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
-  "generated_at": "2026-07-05T09:58:57.038807Z",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "generated_at": "2026-07-05T12:50:09.523025Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {

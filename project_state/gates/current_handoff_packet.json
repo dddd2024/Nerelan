@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-05T09:59:26.533841Z",
+  "generated_at": "2026-07-05T12:50:32.603241Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-    "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+    "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+    "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -45,11 +45,13 @@
     "source_files": [
       "reverse_agent/state_governance.py",
       "reverse_agent/state_hygiene.py",
+      "reverse_agent/cleanup_apply_safety.py",
       "reverse_agent/project_state_manifest.py",
       "reverse_agent/project_context_builder.py",
       "reverse_agent/project_workstreams.py",
       "reverse_agent/project_gate.py",
       "reverse_agent/project_reports.py",
+      "tests/test_cleanup_apply_safety.py",
       "tests/test_state_governance.py",
       "tests/test_state_hygiene.py",
       "tests/test_project_state_manifest.py",
@@ -64,8 +66,17 @@
       "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
       "project_state/roadmap/workstreams.json",
-      "project_state/gates/state_governance_bundle_result.json",
-      "project_state/gates/state_governance_bundle_snapshot.json",
+      "project_state/gates/status_policy_reconcile_result.json",
+      "project_state/gates/doctor_backlog_split_result.json",
+      "project_state/gates/governance_fix_result.json",
+      "project_state/gates/cleanup_apply_safety_plan.json",
+      "project_state/gates/cleanup_apply_dry_run.json",
+      "project_state/gates/cleanup_apply_safety_result.json",
+      "project_state/gates/cleanup_apply_safety_snapshot.json",
+      "project_state/gates/deletion_manifest_validation_result.json",
+      "project_state/gates/tombstone_validation_result.json",
+      "project_state/gates/rollback_handoff_plan.json",
+      "project_state/gates/audit_handoff_for_cleanup_apply.json",
       "project_state/gates/cleanup_plan.json",
       "project_state/gates/cleanup_plan_summary.json",
       "project_state/gates/archive_index.json",
@@ -86,7 +97,7 @@
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260705_state_governance_bundle_big_step_v1/*"
+      "project_state/rounds/round_20260705_governance_fix_cleanup_apply_safety_v1/*"
     ]
   },
   "forbidden_scope": {
@@ -110,8 +121,7 @@
   },
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "python -m pytest tests/test_state_governance.py tests/test_state_hygiene.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
+      "python -m pytest tests/test_cleanup_apply_safety.py tests/test_state_governance.py tests/test_state_hygiene.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q"
     ],
     "includes_project_reports": true
@@ -127,8 +137,17 @@
       "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
       "project_state/roadmap/workstreams.json",
-      "project_state/gates/state_governance_bundle_result.json",
-      "project_state/gates/state_governance_bundle_snapshot.json",
+      "project_state/gates/status_policy_reconcile_result.json",
+      "project_state/gates/doctor_backlog_split_result.json",
+      "project_state/gates/governance_fix_result.json",
+      "project_state/gates/cleanup_apply_safety_plan.json",
+      "project_state/gates/cleanup_apply_dry_run.json",
+      "project_state/gates/cleanup_apply_safety_result.json",
+      "project_state/gates/cleanup_apply_safety_snapshot.json",
+      "project_state/gates/deletion_manifest_validation_result.json",
+      "project_state/gates/tombstone_validation_result.json",
+      "project_state/gates/rollback_handoff_plan.json",
+      "project_state/gates/audit_handoff_for_cleanup_apply.json",
       "project_state/gates/cleanup_plan.json",
       "project_state/gates/cleanup_plan_summary.json",
       "project_state/gates/archive_index.json",
@@ -149,12 +168,12 @@
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260705_state_governance_bundle_big_step_v1/*"
+      "project_state/rounds/round_20260705_governance_fix_cleanup_apply_safety_v1/*"
     ]
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-    "current_round_id": "round_20260705_state_governance_bundle_big_step_v1",
+    "current_decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+    "current_round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -172,8 +191,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-    "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+    "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+    "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -181,7 +200,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260705_state_governance_bundle_big_step_v1"
+    "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

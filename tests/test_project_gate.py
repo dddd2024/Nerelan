@@ -103,6 +103,8 @@ from reverse_agent.project_gate import (
     manual_mode_orchestrator,
     project_governance_context,
     state_governance_bundle,
+    governance_fix,
+    cleanup_apply_safety,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -407,6 +409,52 @@ def test_state_governance_bundle_audit_answers_align_with_required_domains() -> 
     section = _format_required_audit_answers(
         questions,
         [_state_governance_bundle_required_audit_answer(question) for question in questions],
+    )
+
+    assert _required_audit_alignment_failures(questions, section) == []
+
+
+def test_governance_fix_and_cleanup_apply_safety_gates_generate_artifacts(tmp_path: Path) -> None:
+    from tests.test_cleanup_apply_safety import _write_state, DECISION_ID, ROUND_ID, REPORT_ID
+
+    state_dir = tmp_path / "project_state"
+    _write_state(state_dir)
+
+    fix = governance_fix(state_dir=state_dir, repo_root=tmp_path)
+    safety = cleanup_apply_safety(state_dir=state_dir, repo_root=tmp_path)
+
+    assert fix["gate_status"] == "PASSED"
+    assert fix["decision_id"] == DECISION_ID
+    assert safety["gate_status"] == "PASSED"
+    assert safety["round_id"] == ROUND_ID
+    assert safety["report_id"] == REPORT_ID
+    assert safety["real_cleanup_apply"] is False
+    assert safety["dry_run_only"] is True
+    assert (state_dir / "gates" / "governance_fix_result.json").exists()
+    assert (state_dir / "gates" / "cleanup_apply_safety_result.json").exists()
+    assert (state_dir / "gates" / "cleanup_apply_safety_snapshot.json").exists()
+
+
+def test_governance_fix_cleanup_apply_required_audit_answers_align() -> None:
+    from reverse_agent.project_gate import (
+        _format_required_audit_answers,
+        _governance_fix_cleanup_apply_required_audit_answer,
+    )
+
+    questions = [
+        "Was `project_state/gates/status_policy_reconcile_result.json` generated?",
+        "Does status-policy reconcile distinguish current governance evidence from historical sample backlog?",
+        "Does doctor/backlog split record historical sample gaps as backlog notices rather than current blockers?",
+        "Does cleanup-apply dry run explicitly set `real_cleanup_apply=false`?",
+        "Does cleanup-apply dry run leave `deleted_files`, `moved_files`, `archived_files`, `compacted_archives`, `written_tombstones`, and `real_deletion_manifests` empty?",
+        "Do manifest/tombstone validation artifacts validate schema-only or dry-run-only payloads, not real deletion payloads?",
+        "Does `workstreams.json` mark only `governance_fix_cleanup_apply_safety` as `ACTIVE_ROUND`?",
+        "Did focused tests cover status-policy reconciliation, doctor/backlog split, cleanup-apply safety, dry-run no-op behavior, manifest validation, and tombstone validation?",
+        "Did the final report explicitly state that cleanup-apply safety is dry-run-only and no real deletion occurred?",
+    ]
+    section = _format_required_audit_answers(
+        questions,
+        [_governance_fix_cleanup_apply_required_audit_answer(question) for question in questions],
     )
 
     assert _required_audit_alignment_failures(questions, section) == []
@@ -3411,6 +3459,47 @@ def test_close_round_fails_when_recorded_exit_code_mismatches_command_plan(tmp_p
     assert _check(result, "pytest_result_exit_codes_match_command_plan")["status"] == "FAIL"
 
 
+def test_close_round_ignores_in_progress_run_closeout_tail_exit(tmp_path: Path) -> None:
+    run_closeout_command = (
+        "python -m reverse_agent.project_gate run-closeout "
+        "--state-dir project_state --round-id round_gate"
+    )
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        archived=False,
+        command_plan_overrides={
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+                    "phase": "test",
+                    "kind": "pytest",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+                {
+                    "index": 2,
+                    "command": run_closeout_command,
+                    "phase": "gate",
+                    "kind": "run-closeout",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                },
+            ],
+        },
+        pytest_body="\n\n".join(
+            [
+                _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "pytest completed"),
+                _command_block(run_closeout_command, "run-closeout: FAILED", exit_code=1),
+            ]
+        ),
+    )
+
+    result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
+
+    assert _check(result, "pytest_result_exit_codes_match_command_plan")["status"] == "PASS"
+
+
 def test_final_check_does_not_require_self_recorded_exit_block(tmp_path: Path) -> None:
     commands = [
         "Set-Location F:\\reverse-agent",
@@ -4155,6 +4244,26 @@ git status --short
     assert commands[6]["expected_exit_codes"] == [0]
     assert result["blocking_reasons"] == []
     assert result["warnings"] == []
+
+
+def test_command_plan_reads_exact_numbered_tests_section(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+        extra_text="""### E. Tests and reports
+
+Add tests and reports without treating this subsection as the command source.
+""",
+    )
+
+    result = command_plan(state_dir=state_dir)
+    commands = [command["command"] for command in result["commands"]]
+
+    assert result["plan_status"] == "PASSED"
+    assert "python -m pytest tests/test_project_gate.py -q" in commands
+    assert "python -m reverse_agent.project_gate final-check --state-dir project_state" in commands
 
 
 # ---------------------------------------------------------------------------
@@ -17409,8 +17518,8 @@ def test_run_closeout_constants_and_allowlist():
     # Allowlist must include the bounded closeout step kinds
     expected = {
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
-        "git diff", "preflight", "pytest", "command-plan", "report-summary",
-            "final-check", "close-round", "decision-lint", "gate-profile",
+            "git diff", "preflight", "pytest", "command-plan", "report-summary",
+                "doctor", "final-check", "close-round", "decision-lint", "gate-profile",
             "execution-log", "report-auto-summary", "jobs-inventory",
             "job-orchestration", "runner-contract", "agent-runner-dry-run",
             "agent-runner-handoff-bundle", "agent-runner-handoff-validate",
@@ -17438,6 +17547,8 @@ def test_run_closeout_constants_and_allowlist():
                 "user-solve-cli",
                 "project-cli",
                 "startup-snapshot",
+                "governance-fix",
+                "cleanup-apply-safety",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
         }
@@ -26645,6 +26756,21 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
                 "kind": "execution-log",
                 "expected_exit_codes": [0, 1],
             },
+            {
+                "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+                "kind": "doctor",
+                "expected_exit_codes": [0, 1],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate governance-fix --state-dir project_state",
+                "kind": "governance-fix",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "python -m reverse_agent.project_gate cleanup-apply-safety --state-dir project_state",
+                "kind": "cleanup-apply-safety",
+                "expected_exit_codes": [0],
+            },
         ]
     }
 
@@ -26659,6 +26785,9 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
     assert "python -m pytest tests/test_project_state.py -q" in commands
     assert "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_gate --mode execute" in commands
     assert "python -m reverse_agent.project_gate execution-log --state-dir project_state" in commands
+    assert "python -m reverse_agent.project_state doctor --state-dir project_state" in commands
+    assert "python -m reverse_agent.project_gate governance-fix --state-dir project_state" in commands
+    assert "python -m reverse_agent.project_gate cleanup-apply-safety --state-dir project_state" in commands
     assert commands.index("python -m reverse_agent.project_gate startup-snapshot --state-dir project_state") < commands.index("python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed")
     assert commands.index("python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state") < commands.index("python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state")
     assert commands.index("python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state") < commands.index("python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state")

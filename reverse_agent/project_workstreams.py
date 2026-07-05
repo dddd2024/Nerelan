@@ -19,6 +19,7 @@ WORKSTREAM_STATES = (
     "READY_FOR_DECISION",
     "ACTIVE_ROUND",
     "ACCEPTED",
+    "ACCEPTED_WITH_LIMITATIONS",
     "DEFERRED",
     "REJECTED",
 )
@@ -75,11 +76,30 @@ def build_workstream_registry(
         or contract.get("accepted_requires_archive_index")
         or "state_governance_bundle_big_step" in decision_id
     )
-    context_status = "ACCEPTED" if is_state_governance_bundle else "ACTIVE_ROUND"
-    bundle_status = "ACTIVE_ROUND" if is_state_governance_bundle else "READY_FOR_DECISION"
-    state_hygiene_status = "SUPERSEDED_UNEXECUTED" if is_state_governance_bundle else "READY_FOR_DECISION"
+    is_governance_fix_cleanup_apply = bool(
+        contract.get("accepted_requires_fix_lane")
+        or contract.get("accepted_requires_cleanup_apply_safety_gate")
+        or "governance_fix_cleanup_apply_safety" in decision_id
+    )
+    context_status = "ACCEPTED" if (is_state_governance_bundle or is_governance_fix_cleanup_apply) else "ACTIVE_ROUND"
+    bundle_status = (
+        "ACCEPTED_WITH_LIMITATIONS"
+        if is_governance_fix_cleanup_apply
+        else ("ACTIVE_ROUND" if is_state_governance_bundle else "READY_FOR_DECISION")
+    )
+    state_hygiene_status = "SUPERSEDED_UNEXECUTED" if (is_state_governance_bundle or is_governance_fix_cleanup_apply) else "READY_FOR_DECISION"
+    governance_fix_status = "ACTIVE_ROUND" if is_governance_fix_cleanup_apply else "READY_FOR_DECISION"
 
     workstreams = [
+        _entry(
+            "governance_fix_cleanup_apply_safety",
+            "project_governance",
+            governance_fix_status,
+            current_decision_id=decision_id,
+            current_round_id=round_id,
+            baseline_round_id=baseline_round_id,
+            notes="Fixes historical backlog status-policy semantics and advances cleanup-apply dry-run safety only; no real cleanup apply.",
+        ),
         _entry(
             "state_governance_bundle_big_step",
             "project_governance",
@@ -87,7 +107,7 @@ def build_workstream_registry(
             current_decision_id=decision_id,
             current_round_id=round_id,
             baseline_round_id=baseline_round_id,
-            notes="Retention policy, cleanup plan, archive index, schema design, lifecycle registry, and governance context refresh; planning/index/schema only.",
+            notes="Accepted-with-limitations baseline for governance_fix_cleanup_apply_safety." if is_governance_fix_cleanup_apply else "Retention policy, cleanup plan, archive index, schema design, lifecycle registry, and governance context refresh; planning/index/schema only.",
         ),
         _entry(
             "project_governance_context_registry",
@@ -221,6 +241,7 @@ def validate_workstream_registry(payload: Mapping[str, Any], *, decision_id: str
         return errors
     required_ids = {
         "state_governance_bundle_big_step",
+        "governance_fix_cleanup_apply_safety",
         "project_governance_context_registry",
         "state_hygiene_retention_policy",
         "cleanup_apply",

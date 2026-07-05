@@ -1,0 +1,30 @@
+{
+  "artifact_name": "tombstone_validation_result.json",
+  "artifact_path": "project_state/gates/tombstone_validation_result.json",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "dry_run_only": true,
+  "example_payload": {
+    "audit_notes": "future audit handoff required",
+    "deleted_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "deletion_manifest_id": "future_manifest_required",
+    "deletion_round_id": "future_cleanup_apply_round_required",
+    "deletion_timestamp_utc": "future_timestamp_required",
+    "original_path": "DRY_RUN_EXAMPLE_ONLY",
+    "reason": "dry-run schema validation example",
+    "restore_notes": "future rollback plan required"
+  },
+  "gate_name": "tombstone-validation",
+  "generated_artifacts": [
+    "project_state/gates/tombstone_validation_result.json",
+    "project_state/gates/tombstone_schema.json"
+  ],
+  "generated_at": "2026-07-05T12:49:38Z",
+  "mainline": "project_governance",
+  "missing_required_fields": [],
+  "real_tombstone_payload": false,
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "schema_only": true,
+  "schema_version": 1,
+  "validation_status": "PASSED"
+}

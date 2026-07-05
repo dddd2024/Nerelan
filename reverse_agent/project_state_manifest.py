@@ -143,6 +143,37 @@ def build_state_manifest(
         "state_governance_bundle_snapshot": _gate_ref(
             state_dir_path, "state_governance_bundle_snapshot.json", "generated_or_updated", False
         ),
+        "status_policy_reconcile": _gate_ref(
+            state_dir_path, "status_policy_reconcile_result.json", "generated_or_updated", False
+        ),
+        "doctor_backlog_split": _gate_ref(
+            state_dir_path, "doctor_backlog_split_result.json", "generated_or_updated", False
+        ),
+        "governance_fix": _gate_ref(state_dir_path, "governance_fix_result.json", "generated_or_updated", False),
+        "cleanup_apply_safety_plan": _gate_ref(
+            state_dir_path, "cleanup_apply_safety_plan.json", "generated_or_updated", False
+        ),
+        "cleanup_apply_dry_run": _gate_ref(
+            state_dir_path, "cleanup_apply_dry_run.json", "generated_or_updated", False
+        ),
+        "cleanup_apply_safety_result": _gate_ref(
+            state_dir_path, "cleanup_apply_safety_result.json", "generated_or_updated", False
+        ),
+        "cleanup_apply_safety_snapshot": _gate_ref(
+            state_dir_path, "cleanup_apply_safety_snapshot.json", "generated_or_updated", False
+        ),
+        "deletion_manifest_validation": _gate_ref(
+            state_dir_path, "deletion_manifest_validation_result.json", "generated_or_updated", False
+        ),
+        "tombstone_validation": _gate_ref(
+            state_dir_path, "tombstone_validation_result.json", "generated_or_updated", False
+        ),
+        "rollback_handoff_plan": _gate_ref(
+            state_dir_path, "rollback_handoff_plan.json", "generated_or_updated", False
+        ),
+        "audit_handoff_for_cleanup_apply": _gate_ref(
+            state_dir_path, "audit_handoff_for_cleanup_apply.json", "generated_or_updated", False
+        ),
         "project_governance_context_result": _gate_ref(
             state_dir_path, "project_governance_context_result.json", "generated_or_updated", False
         ),

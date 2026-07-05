@@ -20,11 +20,11 @@
     "archived": {
       "latest_accepted_round_manifest": {
         "exists": true,
-        "path": "project_state/rounds/round_20260705_project_governance_context_registry_v1/round_manifest.json",
+        "path": "project_state/rounds/round_20260705_state_governance_bundle_big_step_v1/round_manifest.json",
         "required": false,
         "role": "archived",
-        "sha256": "5e8910552649c17ca953c0b733e78403ad0677ed3f16df394fd60d7f82d14e38",
-        "size_bytes": 2209
+        "sha256": "85079ed893d50eb13fa13715bdd465364370828ab3b9298253bfdcc07b693004",
+        "size_bytes": 2188
       }
     },
     "current": {
@@ -33,72 +33,72 @@
         "path": "project_state/codex_execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "dc2b5ab33b376eedd91c43539847641c3752a7861b018f292181a16faee47efb",
-        "size_bytes": 26220
+        "sha256": "043d3be32d251e047f0b307aad3c7ec9936a27aa094e2e55bd98813b192c39c7",
+        "size_bytes": 26279
       },
       "command_plan": {
         "exists": true,
         "path": "project_state/gates/command_plan.json",
         "required": true,
         "role": "current",
-        "sha256": "7aae19d499c2d3f62549adcc0c72ed4a3a62dc1f12c689e834eab10edda0c8ae",
-        "size_bytes": 7835
+        "sha256": "4c3a79579276fcacd58829d58a5947dc97e50c6a22450868e8530c65840326d3",
+        "size_bytes": 8336
       },
       "decision_packet": {
         "exists": true,
         "path": "project_state/decision_packet.md",
         "required": true,
         "role": "current",
-        "sha256": "037e89cc00c59ccbed07297e4c6dc4101b2bd8783fe4989c73b7c6562fe6c60c",
-        "size_bytes": 31910
+        "sha256": "4d801206dc524227b38d244adf51c217a15ab3927632179043e713a1848e4e2e",
+        "size_bytes": 27947
       },
       "execution_log": {
         "exists": true,
         "path": "project_state/gates/execution_log.json",
         "required": false,
         "role": "current",
-        "sha256": "4566fcd2bb90bbbe9c8586e9d6306db9aa367bfe0ea2f1915ad7836e1e14c0b5",
-        "size_bytes": 6339
+        "sha256": "b47d79719aff6d1eb12fdf8cf6978ad8d60b354113afefa63dd1c31b19d2498c",
+        "size_bytes": 7323
       },
       "execution_report": {
         "exists": true,
         "path": "project_state/execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "7d7792af591dddef9809f4fb87b831db976bcbe1dd604de21e8fce4d913dac51",
-        "size_bytes": 26218
+        "sha256": "c1ac27127e25ecc36d1be74992f87fcd00af891c960bf1508407718f19889afc",
+        "size_bytes": 26277
       },
       "final_check": {
         "exists": true,
         "path": "project_state/gates/final_gate_result.json",
         "required": false,
         "role": "current",
-        "sha256": "9754b5e6187e0dbd5c7626f260a4390d0cbc0af49e617318bb07ef5da0f85aea",
-        "size_bytes": 67893
+        "sha256": "52b7587b9b42575e56cc6d51e9a070b891257a57540b2c145c0e1f1c01b2907d",
+        "size_bytes": 79147
       },
       "pytest_result": {
         "exists": true,
         "path": "project_state/pytest_result.txt",
         "required": false,
         "role": "current",
-        "sha256": "99ffe27e07e16fa6ed413863cb5e00f46faa35d155a26c0886a6cf578418834c",
-        "size_bytes": 15921
+        "sha256": "a4b6fc09f09a23f810fc0f73a085fadaf9a8fe8964d4412f40ed709bad357d0c",
+        "size_bytes": 15401
       },
       "report_summary": {
         "exists": true,
         "path": "project_state/gates/report_summary_synthesis.json",
         "required": false,
         "role": "current",
-        "sha256": "8fcd4c713e36eb14d574c18afae216ff4b69ce3632b384132f8cb7206ef36d13",
-        "size_bytes": 15723
+        "sha256": "f0cff9a581bacc89fb64ce5e7d55c9bb8e6a7854a3aad8f526b8c77a6145a4f4",
+        "size_bytes": 13195
       },
       "run_closeout": {
         "exists": true,
         "path": "project_state/gates/run_closeout_result.json",
         "required": false,
         "role": "current",
-        "sha256": "3d67fd4ff3c4f24d5da39146feb180f63cf591242f3597f7167df7239b373138",
-        "size_bytes": 486
+        "sha256": "fcd64bc7aa685d2b25f61625b9e288f47468d6635ee8b33b4526767bb512d359",
+        "size_bytes": 492
       }
     },
     "generated_or_updated": {
@@ -107,48 +107,112 @@
         "path": "project_state/gates/archive_index.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "9627dfd2e3d8633e3381289eaee0bcd927280eb67a78cf1ad06655fd504e4763",
-        "size_bytes": 4899
+        "sha256": "843b6c95b7128f641a274917d76d36a044b19da700ff1376c920484f9790e1a0",
+        "size_bytes": 4911
       },
       "archive_index_summary": {
         "exists": true,
         "path": "project_state/gates/archive_index_summary.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "4a38134089e2126162691aec6582fd09bd43fec427d3c3e6128f08a4b48dd515",
-        "size_bytes": 697
+        "sha256": "795b9e131f13ff6daed6f4db738b4ccd9555721a599dd2b52a1d21d0b03be2d9",
+        "size_bytes": 706
+      },
+      "audit_handoff_for_cleanup_apply": {
+        "exists": true,
+        "path": "project_state/gates/audit_handoff_for_cleanup_apply.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "c3f428527a55cb616544849aaa7e4712c77a7aa47d3e8495386fee2de0401bb7",
+        "size_bytes": 1059
+      },
+      "cleanup_apply_dry_run": {
+        "exists": true,
+        "path": "project_state/gates/cleanup_apply_dry_run.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "da7b6c40db0ae537ccebe4f8ce9abfd2b00f1f985654b69a18db1daa4a39df45",
+        "size_bytes": 871
+      },
+      "cleanup_apply_safety_plan": {
+        "exists": true,
+        "path": "project_state/gates/cleanup_apply_safety_plan.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "783acdc0df899888aa10a0e9f8151fb958aa891dc026adf55887429c18727aa8",
+        "size_bytes": 1188
+      },
+      "cleanup_apply_safety_result": {
+        "exists": true,
+        "path": "project_state/gates/cleanup_apply_safety_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "38fda8ad2b35be08e0089736f40136eb5d130acd711c424c30ee9d9b62d7300d",
+        "size_bytes": 3872
+      },
+      "cleanup_apply_safety_snapshot": {
+        "exists": true,
+        "path": "project_state/gates/cleanup_apply_safety_snapshot.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "cd462075983c1c3ce8453e8fae17efcb7eca01157aa2e0e2a609c42cac92f043",
+        "size_bytes": 1327
       },
       "cleanup_plan": {
         "exists": true,
         "path": "project_state/gates/cleanup_plan.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "e066de959ccd167e5fd6740a1c33f54a5a7e2a3155a9eb23ed5f235ccae947b6",
-        "size_bytes": 6000
+        "sha256": "8585de9d8ad2fc2c87f184b558c20754b857a75c9bb7ee7a9048835d8386d6a9",
+        "size_bytes": 6009
       },
       "cleanup_plan_summary": {
         "exists": true,
         "path": "project_state/gates/cleanup_plan_summary.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "4155cca5ba14e8786fe772dc15c88d5b827ad0a206faa82ec62cdce56ed6482b",
-        "size_bytes": 846
+        "sha256": "0cd5c67734eb88e18501540bfa0a5fbb97bc4da4775e31ea5a55398186ce0b33",
+        "size_bytes": 855
       },
       "current_context_packet": {
         "exists": true,
         "path": "project_state/context/current_context_packet.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "2a88845f433eb185c747bef4c9e75ba3680fbe03c290bc53ce4cd2ff86c2cdc0",
-        "size_bytes": 7877
+        "sha256": "3217967ba4aa0f5c61cd0b70020f0ec8273edde3a5954826083cf2ad266b65d5",
+        "size_bytes": 8868
       },
       "deletion_manifest_schema": {
         "exists": true,
         "path": "project_state/gates/deletion_manifest_schema.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "c65d3ad1901c662531b761ef6d3dc18e4b2bf225eda2eb42462f354c7499e5bd",
-        "size_bytes": 874
+        "sha256": "c5da621e818befb9caf3e7f9ce0015934e257f65f0edab0c01ec2643cf7bd149",
+        "size_bytes": 883
+      },
+      "deletion_manifest_validation": {
+        "exists": true,
+        "path": "project_state/gates/deletion_manifest_validation_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "13fe63b41f49f36a05159bad80db51ce88da6d0707be159bf77553d517dd2948",
+        "size_bytes": 1322
+      },
+      "doctor_backlog_split": {
+        "exists": true,
+        "path": "project_state/gates/doctor_backlog_split_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "a018aa917864ec9a891c2f6f76f0d99e18c10fe18dc4bf67cda5cb267136d312",
+        "size_bytes": 1039
+      },
+      "governance_fix": {
+        "exists": true,
+        "path": "project_state/gates/governance_fix_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "84ce123061aeec826b146d58cc4778b39e900e85dae6d694a022de7d9eff8279",
+        "size_bytes": 1206
       },
       "project_governance_context_result": {
         "exists": true,
@@ -171,23 +235,31 @@
         "path": "project_state/retention_policy.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "27e8d43d730f86197bb7a5322ba07b65ed48fba31eeb1e3de827de3e9495fdd9",
-        "size_bytes": 5329
+        "sha256": "70fe98d7384af9b8574e435bfdfd06d8e0a8f22b720f88152c24b39d5a7ca80d",
+        "size_bytes": 5338
       },
       "retention_policy_validation": {
         "exists": true,
         "path": "project_state/gates/retention_policy_validation.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "619f4eadde7c7aa812067d9116fd8c0bf816ac316b39e2bf02481be8fc85f3b9",
+        "sha256": "2278b5287c5461691611b49c786fed6cf42c53069f1e81d09a5e32e514119d69",
         "size_bytes": 583
+      },
+      "rollback_handoff_plan": {
+        "exists": true,
+        "path": "project_state/gates/rollback_handoff_plan.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "530d508a8516e5ab13adca1a215c681aebb7f26deca4cd30e44c5d1ea3f3a19f",
+        "size_bytes": 946
       },
       "state_governance_bundle_result": {
         "exists": true,
         "path": "project_state/gates/state_governance_bundle_result.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "d1b0e4ee5c545059b0bff60c810c75e02b2e3d5107ed2057dbad9a309970f670",
+        "sha256": "9a16905d3a5f5677eba2b99c96f6c05d1fe24b73c0539b2168ac4530f8b1ebc9",
         "size_bytes": 5188
       },
       "state_governance_bundle_snapshot": {
@@ -195,7 +267,7 @@
         "path": "project_state/gates/state_governance_bundle_snapshot.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "6810fc2bc379c43bab68e3f76e70db9da64b949098c1467f660e5b503a06073c",
+        "sha256": "59aed7fe354c5c4b694bc57680730e6142cb1042eca6330c7dbc5bf7d896d2a3",
         "size_bytes": 1170
       },
       "state_lifecycle_registry": {
@@ -203,32 +275,48 @@
         "path": "project_state/state_lifecycle_registry.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "0a188ff383986a9125f11a155c179004966c06250dcd61e71a23b5477de2a1c8",
-        "size_bytes": 2289
+        "sha256": "c6dc6503c62c797d55c0a1dbf01682c23544370935870f8cf466c9f43d862925",
+        "size_bytes": 2298
       },
       "state_manifest": {
         "exists": true,
         "path": "project_state/state_manifest.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "f487fd1afd301443a909e29a17c695ddc9664fe5ed11d4e13117d82445dd2476",
-        "size_bytes": 11257
+        "sha256": "2df993335baf6cea506021ae030ceb20af266e8d832a0c53b021e7c6cde6e66e",
+        "size_bytes": 14767
+      },
+      "status_policy_reconcile": {
+        "exists": true,
+        "path": "project_state/gates/status_policy_reconcile_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "fdbbcb629a5724d2aa33d4f80c64374bb08112fc0be7a771872e2f9c037f2873",
+        "size_bytes": 1219
       },
       "tombstone_schema": {
         "exists": true,
         "path": "project_state/gates/tombstone_schema.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "1cbbd5052182696a93d59aa2c3d17db5a5076b4044e41578167f9f858120dae2",
-        "size_bytes": 850
+        "sha256": "5e7df68d0f68f22bdb36e66f083bf9f0f038572a97cfc6e361475eae34829d0c",
+        "size_bytes": 859
+      },
+      "tombstone_validation": {
+        "exists": true,
+        "path": "project_state/gates/tombstone_validation_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "4b8556a4d5db9ec4bf12c5648d8d990385352ea80e05d7ee5f79c7451e06236c",
+        "size_bytes": 1286
       },
       "workstreams": {
         "exists": true,
         "path": "project_state/roadmap/workstreams.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "6b5feb4b08f39c88d6493aa7d3dbfec8aaf386702713ce7633f474bf4aa84712",
-        "size_bytes": 7861
+        "sha256": "f78458ddf373ee8f8996f155d3412b2783aa672fcf825e8a3bcc2cedcd93056b",
+        "size_bytes": 9008
       }
     },
     "historical_nonblocking": {
@@ -279,16 +367,16 @@
     "project_state_files_remain_audit_fact_sources": true,
     "state_manifest_indexes_current_state_only": true
   },
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "generated_at": "2026-07-05T09:58:13Z",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "generated_at": "2026-07-05T12:49:38Z",
   "latest_accepted_baseline": {
     "decision_id": "",
-    "round_id": "round_20260705_project_governance_context_registry_v1",
-    "round_manifest": "project_state/rounds/round_20260705_project_governance_context_registry_v1/round_manifest.json"
+    "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+    "round_manifest": "project_state/rounds/round_20260705_state_governance_bundle_big_step_v1/round_manifest.json"
   },
   "mainline": "project_governance",
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "schema_version": 1,
   "state_build_id": "state_20260618_134029_d6bd033d2532",
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
@@ -297,7 +385,7 @@
     "closeout_status": "IN_PROGRESS",
     "command_plan_status": "PASSED",
     "decision_status": "APPROVED",
-    "execution_log_status": "FAILED",
+    "execution_log_status": "PASSED",
     "final_check_status": "FAILED",
     "pytest_status": "PASSED",
     "report_status": "FAILED"

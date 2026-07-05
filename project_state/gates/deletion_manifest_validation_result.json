@@ -1,0 +1,30 @@
+{
+  "artifact_name": "deletion_manifest_validation_result.json",
+  "artifact_path": "project_state/gates/deletion_manifest_validation_result.json",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "dry_run_only": true,
+  "example_payload": {
+    "audit_approval": "required_in_future_round",
+    "future_decision_id": "future_cleanup_apply_decision_required",
+    "future_round_id": "future_cleanup_apply_round_required",
+    "original_path": "DRY_RUN_EXAMPLE_ONLY",
+    "original_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "reason": "dry-run schema validation example",
+    "retention_class": "transient_closeout_log",
+    "tombstone_target": "required_in_future_round"
+  },
+  "gate_name": "deletion-manifest-validation",
+  "generated_artifacts": [
+    "project_state/gates/deletion_manifest_validation_result.json",
+    "project_state/gates/deletion_manifest_schema.json"
+  ],
+  "generated_at": "2026-07-05T12:49:38Z",
+  "mainline": "project_governance",
+  "missing_required_fields": [],
+  "real_deletion_payload": false,
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "schema_only": true,
+  "schema_version": 1,
+  "validation_status": "PASSED"
+}

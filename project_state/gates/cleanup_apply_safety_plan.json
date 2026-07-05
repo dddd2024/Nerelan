@@ -1,0 +1,30 @@
+{
+  "artifact_name": "cleanup_apply_safety_plan.json",
+  "artifact_path": "project_state/gates/cleanup_apply_safety_plan.json",
+  "cleanup_apply_allowed": false,
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "dry_run_candidate_count": 0,
+  "dry_run_candidates": [],
+  "future_cleanup_apply_required_preconditions": [
+    "separate APPROVED cleanup-apply decision",
+    "command-plan authorization for cleanup apply",
+    "accepted deletion manifest",
+    "accepted tombstone plan",
+    "rollback handoff",
+    "audit handoff",
+    "final-check with real cleanup capability explicitly allowed"
+  ],
+  "gate_name": "cleanup-apply-safety-plan",
+  "generated_artifacts": [
+    "project_state/gates/cleanup_apply_safety_plan.json",
+    "project_state/gates/cleanup_plan.json",
+    "project_state/gates/cleanup_plan_summary.json"
+  ],
+  "generated_at": "2026-07-05T12:49:38Z",
+  "mainline": "project_governance",
+  "plan_status": "READY_FOR_DRY_RUN_ONLY",
+  "real_cleanup_apply": false,
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "schema_version": 1
+}

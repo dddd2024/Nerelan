@@ -2,18 +2,18 @@
   "artifact_kind": "governance_planning_artifact",
   "artifact_name": "archive_index_summary.json",
   "artifact_path": "project_state/gates/archive_index_summary.json",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
   "entry_count": 14,
   "full_solve_reports_scan": false,
-  "generated_at": "2026-07-05T09:58:13Z",
+  "generated_at": "2026-07-05T12:49:38Z",
   "index_status": "BOUNDED_INDEX_ONLY",
   "mainline": "project_governance",
   "recursive_rounds_scan": false,
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
   "role_counts": {
     "current": 10,
     "historical_nonblocking": 4
   },
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "schema_version": 1
 }

@@ -3,7 +3,7 @@
   "artifact_name": "cleanup_plan_summary.json",
   "artifact_path": "project_state/gates/cleanup_plan_summary.json",
   "cleanup_apply_allowed": false,
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
   "destructive_action_counts": {
     "archived_files": 0,
     "compacted_archives": 0,
@@ -12,12 +12,12 @@
     "written_tombstones": 0
   },
   "future_candidate_count": 0,
-  "generated_at": "2026-07-05T09:58:13Z",
+  "generated_at": "2026-07-05T12:49:38Z",
   "mainline": "project_governance",
   "missing_historical_sample_reference_count": 5,
   "plan_status": "PLANNING_ONLY",
   "protected_current_evidence_count": 11,
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "schema_version": 1
 }

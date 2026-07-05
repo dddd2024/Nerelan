@@ -58,3 +58,42 @@ def test_workstream_registry_has_one_active_current_round(tmp_path: Path) -> Non
     }
     assert validate_workstream_registry(registry, decision_id=DECISION_ID, round_id=ROUND_ID) == []
     assert (state_dir / "roadmap" / "workstreams.json").exists()
+
+
+def test_workstream_registry_marks_governance_fix_cleanup_apply_as_only_active(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    decision_id = "decision_20260705_governance_fix_cleanup_apply_safety_v1"
+    round_id = "round_20260705_governance_fix_cleanup_apply_safety_v1"
+    state_dir.mkdir()
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{{
+  "schema_version": 1,
+  "decision_id": "{decision_id}",
+  "round_id": "{round_id}",
+  "status": "APPROVED",
+  "mainline": "project_governance",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}}
+```
+
+```json decision_contract
+{{
+  "follows_last_accepted_round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "accepted_requires_fix_lane": true,
+  "accepted_requires_cleanup_apply_safety_gate": true
+}}
+```
+""",
+        encoding="utf-8",
+    )
+
+    registry = build_workstream_registry(state_dir=state_dir)
+    active = [item for item in registry["workstreams"] if item["status"] == "ACTIVE_ROUND"]
+    by_id = {item["workstream_id"]: item for item in registry["workstreams"]}
+
+    assert len(active) == 1
+    assert active[0]["workstream_id"] == "governance_fix_cleanup_apply_safety"
+    assert by_id["state_governance_bundle_big_step"]["status"] == "ACCEPTED_WITH_LIMITATIONS"
+    assert by_id["cleanup_apply"]["status"] == "DEFERRED"
+    assert validate_workstream_registry(registry, decision_id=decision_id, round_id=round_id) == []

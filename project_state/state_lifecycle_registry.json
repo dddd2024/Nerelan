@@ -30,7 +30,7 @@
       "future-delete-candidate"
     ]
   },
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
   "deletion_manifest_schema_path": "project_state/gates/deletion_manifest_schema.json",
   "future_cleanup_apply_preconditions": [
     "separate APPROVED cleanup-apply decision packet",
@@ -40,10 +40,10 @@
     "audit approval for every delete candidate",
     "final gate proves delete_allowed_now remains false until future round"
   ],
-  "generated_at": "2026-07-05T09:58:13Z",
+  "generated_at": "2026-07-05T12:49:38Z",
   "mainline": "project_governance",
   "registry_status": "ACTIVE_DESIGN_ONLY",
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
   "retention_classes": [
     "accepted_round_minimum_evidence",
     "configuration",
@@ -60,7 +60,7 @@
     "unknown_requires_manual_review"
   ],
   "retention_policy_path": "project_state/retention_policy.json",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "schema_version": 1,
   "tombstone_schema_path": "project_state/gates/tombstone_schema.json"
 }

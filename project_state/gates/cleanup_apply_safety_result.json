@@ -1,0 +1,111 @@
+{
+  "archived_files": [],
+  "artifact_name": "cleanup_apply_safety_result.json",
+  "artifact_path": "project_state/gates/cleanup_apply_safety_result.json",
+  "checks": [
+    {
+      "name": "status_policy_reconcile",
+      "status": "PASS"
+    },
+    {
+      "name": "doctor_backlog_split",
+      "status": "PASS"
+    },
+    {
+      "destructive_action_counts": {
+        "archived_files": 0,
+        "compacted_archives": 0,
+        "deleted_files": 0,
+        "moved_files": 0,
+        "real_deletion_manifests": 0,
+        "written_tombstones": 0
+      },
+      "name": "cleanup_apply_dry_run_noop",
+      "status": "PASS"
+    },
+    {
+      "name": "manifest_and_tombstone_validation",
+      "status": "PASS"
+    },
+    {
+      "name": "rollback_and_audit_handoff",
+      "status": "PASS"
+    }
+  ],
+  "cleanup_apply_allowed": false,
+  "compacted_archives": [],
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "deleted_files": [],
+  "destructive_action_counts": {
+    "archived_files": 0,
+    "compacted_archives": 0,
+    "deleted_files": 0,
+    "moved_files": 0,
+    "real_deletion_manifests": 0,
+    "written_tombstones": 0
+  },
+  "dry_run_only": true,
+  "errors": [],
+  "forbidden_capabilities": {
+    "archive_apply": false,
+    "archive_compaction": false,
+    "auto_iteration": false,
+    "automatic_runner_dispatch": false,
+    "binary_parsing_or_unpacking": false,
+    "candidate_search_on_real_samples": false,
+    "ci_dispatch_or_polling": false,
+    "database_or_queue": false,
+    "external_analysis_tool_invocation": false,
+    "file_delete": false,
+    "file_move": false,
+    "github_workflow_modification": false,
+    "manual_runner_dispatch": false,
+    "model_api_invocation": false,
+    "production_http_service": false,
+    "real_cleanup_apply": false,
+    "real_deletion_manifest_write": false,
+    "real_sample_analysis_execution": false,
+    "real_tombstone_write": false,
+    "real_user_upload_ingestion": false,
+    "remote_runner_dispatch": false,
+    "runtime_validation_on_real_samples": false,
+    "scheduler_or_service": false
+  },
+  "gate_name": "cleanup-apply-safety",
+  "gate_status": "PASSED",
+  "generated_artifacts": [
+    "project_state/retention_policy.json",
+    "project_state/state_lifecycle_registry.json",
+    "project_state/gates/cleanup_plan.json",
+    "project_state/gates/cleanup_plan_summary.json",
+    "project_state/gates/archive_index.json",
+    "project_state/gates/archive_index_summary.json",
+    "project_state/gates/deletion_manifest_schema.json",
+    "project_state/gates/tombstone_schema.json",
+    "project_state/gates/status_policy_reconcile_result.json",
+    "project_state/gates/doctor_backlog_split_result.json",
+    "project_state/gates/governance_fix_result.json",
+    "project_state/gates/cleanup_apply_safety_plan.json",
+    "project_state/gates/cleanup_apply_dry_run.json",
+    "project_state/gates/cleanup_apply_safety_result.json",
+    "project_state/gates/cleanup_apply_safety_snapshot.json",
+    "project_state/gates/deletion_manifest_validation_result.json",
+    "project_state/gates/tombstone_validation_result.json",
+    "project_state/gates/rollback_handoff_plan.json",
+    "project_state/gates/audit_handoff_for_cleanup_apply.json",
+    "project_state/state_manifest.json",
+    "project_state/context/current_context_packet.json",
+    "project_state/roadmap/workstreams.json"
+  ],
+  "generated_at": "2026-07-05T12:49:38Z",
+  "mainline": "project_governance",
+  "moved_files": [],
+  "no_concrete_sample_claims": true,
+  "real_cleanup_apply": false,
+  "real_deletion_manifests": [],
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "schema_version": 1,
+  "snapshot_path": "project_state/gates/cleanup_apply_safety_snapshot.json",
+  "written_tombstones": []
+}

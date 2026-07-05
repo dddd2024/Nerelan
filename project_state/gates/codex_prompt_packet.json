@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-05T09:59:26.540099Z",
+  "generated_at": "2026-07-05T12:50:32.608624Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-      "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-      "sha256": "bf28e120ecf5d8d47b87b0bc349c77eb6e59ae7da899f3dbf934e0bb72da7427"
+      "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+      "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+      "sha256": "db61d5b6e3e35836a6311b3536056e0e8a98cb23b9e41f6698de672f5e9fd916"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-      "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-      "sha256": "050317217e461b27b3379699aad6dc0ae2510d7ba6129dc793b1fab248fb2143"
+      "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+      "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+      "sha256": "97d3dc44fb43d76d88b704fe7a6309b8eaa689907016d72e5e8611361e07a643"
     }
   },
   "prompt_sections": {

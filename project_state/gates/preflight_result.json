@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-05T09:34:09.220771Z",
+  "generated_at": "2026-07-05T12:39:47.409944Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -25,12 +25,8 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ],
-      "baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ]
+      "startup_dirty_files": [],
+      "baseline_dirty_files": []
     },
     {
       "name": "decision_not_dirty_in_baseline",
@@ -82,7 +78,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1"
+      "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -97,37 +93,9 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "accepted_round_minimum_evidence",
-        "archive index;",
-        "archive policy;",
-        "archive summary;",
-        "cleanup plan;",
-        "cleanup summary;",
-        "configuration",
-        "current_audit_fact_source",
-        "current_gate_artifact",
-        "current_generated_governance_index",
-        "delete policy;",
-        "deletion manifest schema;",
-        "disposable_candidate_requires_future_decision",
-        "documentation",
-        "historical_nonblocking_gate_artifact",
-        "historical_sample_reference",
-        "missing_historical_sample_reference",
-        "project_state/gates/cleanup_plan.json",
-        "project_state/gates/cleanup_plan_summary.json",
-        "retain policy;",
-        "retention policy;",
-        "state governance bundle result;",
-        "state governance bundle snapshot.",
-        "state lifecycle registry;",
-        "tombstone schema;",
-        "transient_closeout_log",
-        "transient_closeout_pid",
-        "unknown_requires_manual_review",
-        "whether deletion is allowed in this round, which must be false for all classes.",
-        "whether future cleanup-apply is required;",
-        "whether tombstone is required if deleted in a future round;"
+        "project_state/gates/doctor_backlog_split_result.json",
+        "project_state/gates/governance_fix_result.json",
+        "project_state/gates/status_policy_reconcile_result.json"
       ]
     },
     {
@@ -167,6 +135,7 @@
       "allowed_inherited_dirty_baseline_files": [
         "project_state/retention_policy.json",
         "project_state/state_lifecycle_registry.json",
+        "reverse_agent/cleanup_apply_safety.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_reports.py",
@@ -174,6 +143,7 @@
         "reverse_agent/project_workstreams.py",
         "reverse_agent/state_governance.py",
         "reverse_agent/state_hygiene.py",
+        "tests/test_cleanup_apply_safety.py",
         "tests/test_project_context_builder.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
@@ -196,10 +166,8 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [
-      "project_state/gates/command_plan.json"
-    ],
-    "head_commit": "b767bc87d3d1"
+    "baseline_dirty_files": [],
+    "head_commit": "876d7124d458"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

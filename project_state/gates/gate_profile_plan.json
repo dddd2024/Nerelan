@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-05T09:58:12.171209Z",
+  "generated_at": "2026-07-05T12:49:37.190989Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [

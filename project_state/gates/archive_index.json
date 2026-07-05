@@ -9,79 +9,79 @@
     "state_manifest artifact roles",
     "report_summary artifact roles"
   ],
-  "current_round_id": "round_20260705_state_governance_bundle_big_step_v1",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "current_round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
   "entries": [
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/retention_policy.json",
       "role": "current",
-      "sha256": "27e8d43d730f86197bb7a5322ba07b65ed48fba31eeb1e3de827de3e9495fdd9",
-      "size_bytes": 5329
+      "sha256": "70fe98d7384af9b8574e435bfdfd06d8e0a8f22b720f88152c24b39d5a7ca80d",
+      "size_bytes": 5338
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/state_lifecycle_registry.json",
       "role": "current",
-      "sha256": "2a437132f2f75a736d6f47aa579784570d768bc3b0aa6d14c75e08ec136b1021",
-      "size_bytes": 2289
+      "sha256": "4328194bd3028e3fc260e3a89723d98478893ebc681a4e769e816e8cd685212a",
+      "size_bytes": 2298
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/cleanup_plan.json",
       "role": "current",
-      "sha256": "e066de959ccd167e5fd6740a1c33f54a5a7e2a3155a9eb23ed5f235ccae947b6",
-      "size_bytes": 6000
+      "sha256": "8585de9d8ad2fc2c87f184b558c20754b857a75c9bb7ee7a9048835d8386d6a9",
+      "size_bytes": 6009
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/cleanup_plan_summary.json",
       "role": "current",
-      "sha256": "4155cca5ba14e8786fe772dc15c88d5b827ad0a206faa82ec62cdce56ed6482b",
-      "size_bytes": 846
+      "sha256": "0cd5c67734eb88e18501540bfa0a5fbb97bc4da4775e31ea5a55398186ce0b33",
+      "size_bytes": 855
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/archive_index.json",
       "role": "current",
-      "sha256": "5e6c4ed5ef37f8a17c6de62182633ba799720ca16d0b355db6bd61057ad07477",
-      "size_bytes": 4899
+      "sha256": "85e0fbf7f59ecaaeaf344f95ae72055716a37ebf16297995ae05f8d901c9593a",
+      "size_bytes": 4911
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/archive_index_summary.json",
       "role": "current",
-      "sha256": "839aeed34d389203a71cffcef68ab1127a9dede61fb33e1a34df64d16bc9ce98",
-      "size_bytes": 697
+      "sha256": "844451ff69c1f54f28abedaecc3b0798904947eb973159fd241704c9721e591a",
+      "size_bytes": 706
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/deletion_manifest_schema.json",
       "role": "current",
-      "sha256": "896f21358664c34ded5a13591cb38740c19cdd856452ce15449a6550d3aa6bfb",
-      "size_bytes": 874
+      "sha256": "8dc546d87ac02c77f940ecf586b6a54d73be498d45384ab7bb28fe4b6d4c9f4f",
+      "size_bytes": 883
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/tombstone_schema.json",
       "role": "current",
-      "sha256": "3a131ad3fa9ea7d963ad7820cdb81b97dfb353d6bf00ad2845080a7e689e04f9",
-      "size_bytes": 850
+      "sha256": "bfebc313a6f1eb082fc1eb4b33f81b9f6b43a87ee8a779bd07393fd0fac0310a",
+      "size_bytes": 859
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/state_governance_bundle_result.json",
       "role": "current",
-      "sha256": "d1b0e4ee5c545059b0bff60c810c75e02b2e3d5107ed2057dbad9a309970f670",
+      "sha256": "9a16905d3a5f5677eba2b99c96f6c05d1fe24b73c0539b2168ac4530f8b1ebc9",
       "size_bytes": 5188
     },
     {
@@ -89,7 +89,7 @@
       "exists": true,
       "path": "project_state/gates/state_governance_bundle_snapshot.json",
       "role": "current",
-      "sha256": "6810fc2bc379c43bab68e3f76e70db9da64b949098c1467f660e5b503a06073c",
+      "sha256": "59aed7fe354c5c4b694bc57680730e6142cb1042eca6330c7dbc5bf7d896d2a3",
       "size_bytes": 1170
     },
     {
@@ -126,12 +126,12 @@
     }
   ],
   "full_solve_reports_scan": false,
-  "generated_at": "2026-07-05T09:58:13Z",
+  "generated_at": "2026-07-05T12:49:38Z",
   "index_status": "BOUNDED_INDEX_ONLY",
   "mainline": "project_governance",
   "previous_accepted_round_id": "",
   "recursive_rounds_scan": false,
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "schema_version": 1
 }

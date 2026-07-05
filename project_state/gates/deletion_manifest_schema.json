@@ -2,15 +2,15 @@
   "artifact_kind": "governance_planning_artifact",
   "artifact_name": "deletion_manifest_schema.json",
   "artifact_path": "project_state/gates/deletion_manifest_schema.json",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
   "forbidden_this_round": [
     "actual_file_path_instances",
     "delete_allowed_now_true"
   ],
-  "generated_at": "2026-07-05T09:58:13Z",
+  "generated_at": "2026-07-05T12:49:38Z",
   "mainline": "project_governance",
   "real_manifest_for_actual_files": false,
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
   "required_fields": [
     "future_decision_id",
     "future_round_id",
@@ -21,7 +21,7 @@
     "audit_approval",
     "tombstone_target"
   ],
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "schema_status": "SCHEMA_ONLY",
   "schema_version": 1
 }

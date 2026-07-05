@@ -7,8 +7,8 @@
     "only_current_decision_may_mark_active_round": true,
     "roadmap_entries_are_not_execution_authority": true
   },
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "generated_at": "2026-07-05T09:58:13Z",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "generated_at": "2026-07-05T12:49:38Z",
   "lifecycle_states": [
     "IDEA",
     "CANDIDATE",
@@ -16,16 +16,17 @@
     "READY_FOR_DECISION",
     "ACTIVE_ROUND",
     "ACCEPTED",
+    "ACCEPTED_WITH_LIMITATIONS",
     "DEFERRED",
     "REJECTED"
   ],
   "mainline": "project_governance",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
   "schema_version": 1,
   "workstreams": [
     {
-      "active_decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-      "active_round_id": "round_20260705_state_governance_bundle_big_step_v1",
+      "active_decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+      "active_round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
       "baseline_round_id": "",
       "execution_authority": "project_state/decision_packet.md",
       "family": "project_governance",
@@ -37,11 +38,34 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
-      "notes": "Retention policy, cleanup plan, archive index, schema design, lifecycle registry, and governance context refresh; planning/index/schema only.",
+      "notes": "Fixes historical backlog status-policy semantics and advances cleanup-apply dry-run safety only; no real cleanup apply.",
       "status": "ACTIVE_ROUND",
+      "workstream_id": "governance_fix_cleanup_apply_safety"
+    },
+    {
+      "active_decision_id": "",
+      "active_round_id": "",
+      "baseline_round_id": "",
+      "execution_authority": "project_state/decision_packet.md",
+      "family": "project_governance",
+      "is_execution_authority": false,
+      "lifecycle": [
+        "IDEA",
+        "CANDIDATE",
+        "ROADMAP_ACCEPTED",
+        "READY_FOR_DECISION",
+        "ACTIVE_ROUND",
+        "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
+        "DEFERRED",
+        "REJECTED"
+      ],
+      "notes": "Accepted-with-limitations baseline for governance_fix_cleanup_apply_safety.",
+      "status": "ACCEPTED_WITH_LIMITATIONS",
       "workstream_id": "state_governance_bundle_big_step"
     },
     {
@@ -58,10 +82,11 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
-      "notes": "Accepted baseline for the state governance bundle.",
+      "notes": "Seeds deterministic manifest, context packet, workstream registry, and governance gate indexes.",
       "status": "ACCEPTED",
       "workstream_id": "project_governance_context_registry"
     },
@@ -79,10 +104,11 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
-      "notes": "Superseded by state_governance_bundle_big_step; not executed as a separate accepted round.",
+      "notes": "Future bounded retention policy; no cleanup or deletion in this round.",
       "status": "SUPERSEDED_UNEXECUTED",
       "workstream_id": "state_hygiene_retention_policy"
     },
@@ -100,6 +126,7 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
@@ -121,6 +148,7 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
@@ -142,6 +170,7 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
@@ -163,6 +192,7 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
@@ -184,6 +214,7 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
@@ -205,6 +236,7 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
@@ -226,6 +258,7 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],
@@ -247,6 +280,7 @@
         "READY_FOR_DECISION",
         "ACTIVE_ROUND",
         "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
         "DEFERRED",
         "REJECTED"
       ],

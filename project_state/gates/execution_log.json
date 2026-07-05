@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-  "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-  "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
-  "generated_at": "2026-07-05T09:59:06.010089Z",
+  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "generated_at": "2026-07-05T12:50:16.877147Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-    "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-    "report_id": "codex_report_20260705_state_governance_bundle_big_step_v1",
+    "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+    "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+    "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "c7d573575a18c8e1d3c5cb949c4cb5b81116639bb944806c419feef954f418f3",
-        "size_bytes": 17806,
-        "command_block_count": 17
+        "sha256": "28076bd5282fd733688234dd5db874c184391653e7eafb14d6ed6ab4b5f5e817",
+        "size_bytes": 16936,
+        "command_block_count": 18
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "7aae19d499c2d3f62549adcc0c72ed4a3a62dc1f12c689e834eab10edda0c8ae",
-        "size_bytes": 7835,
-        "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-        "round_id": "round_20260705_state_governance_bundle_big_step_v1",
+        "sha256": "4c3a79579276fcacd58829d58a5947dc97e50c6a22450868e8530c65840326d3",
+        "size_bytes": 8336,
+        "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+        "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
         "plan_status": "PASSED",
-        "command_count": 17
+        "command_count": 18
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "0ca0e101fd926bfd4386d44a78a71b0b98abc8ff746bcb32eb7a348d0827e242",
-        "size_bytes": 44940,
-        "decision_id": "decision_20260705_state_governance_bundle_big_step_v1",
-        "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-        "command_block_count": 17
+        "sha256": "ce06fb9d9c6fc9f23da869d982a7abb383462dd4957579b72d6d51b7947b6131",
+        "size_bytes": 40908,
+        "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+        "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+        "command_block_count": 18
       }
     },
-    "command_count": 17,
-    "command_digest": "dae43c0af2b094e6b065b12d273ce075570327615eb97b484faa905220254c89"
+    "command_count": 18,
+    "command_digest": "655f1ebbfd25cca0308fcba5de4ac42882f6153be542ad5b62efb503adfb7d9b"
   },
   "commands": [
     {
@@ -129,7 +129,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_cleanup_apply_safety.py tests/test_state_governance.py tests/test_state_hygiene.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -140,17 +140,6 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_state_governance.py tests/test_state_hygiene.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 10,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -161,7 +150,7 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -172,7 +161,7 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -180,6 +169,18 @@
         0
       ],
       "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+      "kind": "doctor",
+      "phase": "status",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 1,
       "status": "PASSED"
     },
     {
@@ -195,9 +196,9 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate state-governance-bundle --state-dir project_state",
-      "kind": "project-cli",
-      "phase": "status",
+      "command": "python -m reverse_agent.project_gate governance-fix --state-dir project_state",
+      "kind": "governance-fix",
+      "phase": "gate",
       "expected_exit_codes": [
         0
       ],
@@ -206,6 +207,17 @@
     },
     {
       "index": 15,
+      "command": "python -m reverse_agent.project_gate cleanup-apply-safety --state-dir project_state",
+      "kind": "cleanup-apply-safety",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -217,7 +229,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -229,8 +241,8 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_state_governance_bundle_big_step_v1",
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_governance_fix_cleanup_apply_safety_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
