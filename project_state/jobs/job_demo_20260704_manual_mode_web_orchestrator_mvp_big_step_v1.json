@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "job_id": "job_demo_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "mainline": "engineering_branch",
+  "status": "READY",
+  "runner": {
+    "kind": "manual",
+    "dispatch_enabled": false
+  },
+  "required_inputs": [
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json",
+    "project_state/solve_tasks/demo_manual_mode_task.json"
+  ],
+  "required_outputs": [
+    "project_state/jobs/job_demo_20260704_manual_mode_web_orchestrator_mvp_big_step_v1.json",
+    "project_state/gates/manual_mode_orchestrator_result.json",
+    "project_state/gates/manual_mode_orchestrator_snapshot.json"
+  ],
+  "permissions": {
+    "allow_remote_mutation": false,
+    "allow_llm_calls": false,
+    "allow_agent_dispatch": false,
+    "allow_reverse_solving": false,
+    "allow_github_actions": false,
+    "allow_database_writes": false,
+    "allow_scheduler": false,
+    "allow_web_ui_mutation": false
+  },
+  "budgets": {
+    "max_runtime_seconds": 0,
+    "max_commands": 0
+  },
+  "manual_mode": {
+    "task_id": "demo_manual_mode_task",
+    "handoff_export_only": true,
+    "result_import_preview_only": true,
+    "dispatch_enabled": false
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "static_only": true,
+  "network_calls": false,
+  "build_step_required": false,
+  "panels": [
+    "Dashboard",
+    "Decision",
+    "Command-plan",
+    "Jobs",
+    "Tasks",
+    "Handoff",
+    "Import",
+    "Gate",
+    "Audit",
+    "Settings"
+  ]
+}

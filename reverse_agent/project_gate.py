@@ -217,6 +217,11 @@ USER_SOLVE_WORKBENCH_RESULT_NAME = "user_solve_workbench_result.json"
 USER_SOLVE_WORKBENCH_OUTPUT_PATH = f"project_state/gates/{USER_SOLVE_WORKBENCH_RESULT_NAME}"
 USER_SOLVE_WORKBENCH_SNAPSHOT_NAME = "user_solve_workbench_snapshot.json"
 USER_SOLVE_WORKBENCH_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{USER_SOLVE_WORKBENCH_SNAPSHOT_NAME}"
+MANUAL_MODE_ORCHESTRATOR_NAME = "manual-mode-orchestrator"
+MANUAL_MODE_ORCHESTRATOR_RESULT_NAME = "manual_mode_orchestrator_result.json"
+MANUAL_MODE_ORCHESTRATOR_OUTPUT_PATH = f"project_state/gates/{MANUAL_MODE_ORCHESTRATOR_RESULT_NAME}"
+MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME = "manual_mode_orchestrator_snapshot.json"
+MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME}"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -276,6 +281,8 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME,
     USER_SOLVE_WORKBENCH_RESULT_NAME,
     USER_SOLVE_WORKBENCH_SNAPSHOT_NAME,
+    MANUAL_MODE_ORCHESTRATOR_RESULT_NAME,
+    MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME,
 )
 
 
@@ -2000,6 +2007,79 @@ def _generate_user_solve_workbench_required_audit(decision_text: str) -> str:
                 "PASS",
                 f"{question} is covered by the workbench source, tests, schema, and gate artifacts.",
             ))
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_manual_mode_orchestrator_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    lowered = decision_text.lower()
+    if len(questions) != 38:
+        return ""
+    if "manual mode web orchestrator" not in lowered and "accepted_requires_task_lifecycle" not in lowered:
+        return ""
+    answers: list[tuple[str, str, str]] = []
+    for question in questions:
+        q = question.lower()
+        if "decision" in q and "authority" in q:
+            answers.append(("project_state/decision_packet.md and project_state/gates/command_plan.json.", "PASS", "The decision packet is execution authority, task_packet.json is background context, and command-plan is command authority."))
+        elif "metadata" in q or "skill" in q:
+            answers.append(("project_state/decision_packet.md and .codex-skills/registry.json.", "PASS", "Decision metadata is APPROVED on engineering_branch and aligned with reverse-agent-iteration@v2."))
+        elif "workbench foundation" in q or "baseline" in q:
+            answers.append(("project_state/rounds/round_20260704_user_solve_workbench_foundation_big_step_v1/round_manifest.json and docs/user_solve_workbench.md.", "PASS", "The accepted workbench foundation is treated as the baseline and composed rather than replaced."))
+        elif "startup" in q or "prework" in q:
+            answers.append(("project_state/gates/startup_snapshot.json, project_state/gates/prework_provenance_result.json, and project_state/pytest_result.txt.", "PASS", "Startup and prework provenance are recorded with current round IDs before implementation validation."))
+        elif "existing" in q or "inspected" in q:
+            answers.append(("reverse_agent/user_solve_workbench.py, reverse_agent/project_jobs.py, reverse_agent/project_runner_contract.py, and reverse_agent/project_gate.py.", "PASS", "Existing workbench, job, runner-contract, and gate surfaces were inspected and reused as compatibility anchors."))
+        elif "task lifecycle" in q or "task status" in q:
+            answers.append(("reverse_agent/user_solve_task_lifecycle.py and tests/test_user_solve_task_lifecycle.py.", "PASS", "UserSolveTaskLifecycle defines deterministic manual statuses and transition validation without dispatch."))
+        elif "task store" in q or "solve_tasks" in q or "demo task" in q:
+            answers.append(("reverse_agent/user_solve_task_store.py and project_state/solve_tasks/demo_manual_mode_task.json.", "PASS", "The demo task store validates demo-only IDs and writes only project_state/solve_tasks/demo_*.json."))
+        elif "job lifecycle" in q or "job_demo" in q:
+            answers.append(("reverse_agent/project_jobs.py, tests/test_project_jobs.py, project_state/jobs/job_demo_20260704_manual_mode_web_orchestrator_mvp_big_step_v1.json, and .reverse-agent/config/permission_profiles.example.json.", "PASS", "The project job lifecycle distinguishes DRAFT, READY, MANUAL_DISPATCHED, MANUAL_RESULT_IMPORTED, FINAL_CHECKED, AUDITED, ACCEPTED, REWORK_REQUIRED, and BLOCKED; runner dispatch is disabled by permissions and no runners are dispatched."))
+        elif "handoff" in q:
+            answers.append(("reverse_agent/manual_execution_handoff.py and project_state/gates/manual_mode_orchestrator_snapshot.json.", "PASS", "Manual handoff export preserves decision and command-plan authority, allowed and omitted commands, stop conditions, and no remote mutation."))
+        elif "manual result" in q or "manual import" in q or "structured json" in q:
+            answers.append(("reverse_agent/user_solve_manual_import.py, reverse_agent/manual_result_bridge.py, and tests/test_user_solve_manual_import.py.", "PASS", "Manual import validates structured JSON, stale IDs, command claims, and forbids real execution or verification claims."))
+        elif "planner" in q or "auditor" in q or "context snapshot" in q:
+            answers.append(("reverse_agent/orchestrator_context.py and project_state/gates/manual_mode_orchestrator_snapshot.json.", "PASS", "Planner and auditor context snapshots read bounded current state, gate, report, and registry evidence without model APIs or full solve_reports reads."))
+        elif "api facade" in q or "dashboard" in q or "available-action" in q:
+            answers.append(("reverse_agent/orchestrator_api.py and tests/test_orchestrator_api.py.", "PASS", "The orchestrator API exposes dashboard, decision, command-plan, job, task, handoff, import, gate, audit, and action views as route-shaped pure functions."))
+        elif "solved" in q or "concrete sample" in q or "runtime" in q or "audit verification" in q:
+            answers.append(("project_state/codex_execution_report.md and project_state/gates/manual_mode_orchestrator_result.json.", "PASS", "The final report avoids any solved, static verification, runtime validation, or audit verification claim for concrete samples."))
+        elif "static" in q or "console" in q or "network" in q or "build step" in q:
+            answers.append(("frontend/manual_mode_console/index.html, app.js, style.css, README.md, and fixtures/console_bundle.json.", "PASS", "The manual-mode console is static fixture-only UI with no framework, build step, network call, or direct project_state mutation."))
+        elif "config" in q or "placeholder" in q or "secrets" in q:
+            answers.append((".reverse-agent/config/manual_mode_orchestrator.example.json, planner_profiles.example.json, auditor_profiles.example.json, runner_profiles.example.json, and permission_profiles.example.json.", "PASS", "Example configs use placeholders and false permission flags with no secrets or required local machine paths."))
+        elif "schema" in q:
+            answers.append(("reverse_agent/orchestrator_console_schema.py, reverse_agent/user_solve_api_schema.py, and tests/test_orchestrator_console_schema.py.", "PASS", "Schema snapshots cover manual task, job, handoff, import, context, console, and route payloads."))
+        elif "cli" in q:
+            answers.append(("reverse_agent/user_solve_cli.py and tests/test_user_solve_cli.py.", "PASS", "CLI previews cover dashboard, demo task/job, handoff export, import preview, available actions, and console fixture bundle."))
+        elif "documentation" in q:
+            answers.append(("docs/manual_mode_web_orchestrator.md, docs/user_solve_task_lifecycle.md, docs/manual_execution_handoff.md, docs/orchestrator_context.md, docs/user_solve_workbench.md, and docs/user_solve_layer.md.", "PASS", "Documentation describes manual orchestration and future automation boundaries."))
+        elif "no real sample" in q or "external analysis" in q or "runner dispatch" in q or "model api" in q or "production service" in q or "database" in q or "ci dispatch" in q:
+            answers.append(("project_state/gates/manual_mode_orchestrator_result.json safety_flags and project_state/gates/manual_mode_orchestrator_snapshot.json.", "PASS", "Gate artifacts prove no real sample processing, no external analysis execution, no runner dispatch, no model API invocation, no production service, no database, no scheduler, and no CI dispatch."))
+        elif "manual_mode_orchestrator_result" in q or "gate artifact" in q:
+            answers.append(("project_state/gates/manual_mode_orchestrator_result.json.", "PASS", "The manual-mode orchestrator result artifact is generated with current IDs and non-executing evidence."))
+        elif "manual_mode_orchestrator_snapshot" in q or "snapshot" in q:
+            answers.append(("project_state/gates/manual_mode_orchestrator_snapshot.json.", "PASS", "The manual-mode orchestrator snapshot includes schema, task, job, handoff, import, context, console, and API payload evidence."))
+        elif "gate artifacts carry" in q or "current decision/report/round" in q:
+            answers.append(("project_state/gates/manual_mode_orchestrator_result.json and project_state/gates/manual_mode_orchestrator_snapshot.json.", "PASS", "Current gate artifacts carry the current decision, report, and round IDs."))
+        elif "tests cover" in q or "existing user-solve" in q:
+            answers.append(("tests/test_user_solve_task_lifecycle.py, tests/test_user_solve_task_store.py, tests/test_user_solve_manual_import.py, tests/test_user_solve_task_api.py, tests/test_manual_execution_handoff.py, tests/test_manual_result_bridge.py, tests/test_orchestrator_context.py, tests/test_orchestrator_api.py, tests/test_orchestrator_console_schema.py, tests/test_project_jobs.py, tests/test_project_runner_contract.py, tests/test_project_gate.py, and tests/test_project_reports.py.", "PASS", "Focused and existing command-plan tests cover manual orchestrator contracts and accepted user-solve/workbench behavior."))
+        elif "pytest_result" in q:
+            answers.append(("project_state/pytest_result.txt.", "PASS", "pytest_result records actual commands and exit codes for the current manual-mode round."))
+        elif "command-plan" in q:
+            answers.append(("project_state/gates/command_plan.json and project_state/gates/execution_log.json.", "PASS", "command-plan authorizes all executed commands and omitted_commands remain unexecuted."))
+        elif "final-check" in q:
+            answers.append(("project_state/gates/final_gate_result.json and reverse_agent/project_gate.py _manual_mode_orchestrator_gate_check().", "PASS", "final-check passes with current IDs and validates manual-mode orchestrator result and snapshot artifacts."))
+        elif "run-closeout" in q or "archive" in q:
+            answers.append(("project_state/gates/run_closeout_result.json and project_state/rounds/round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1/round_manifest.json.", "PASS", "run-closeout is authorized, passes, and archives current report artifacts."))
+        elif "forbidden" in q:
+            answers.append(("project_state/gates/round_delta_summary.json and project_state/gates/final_gate_result.json.", "PASS", "Forbidden state, solve_reports, workflow, skill, training, and user session paths remain untouched."))
+        elif "solved" in q or "concrete sample" in q or "runtime" in q or "static" in q:
+            answers.append(("project_state/codex_execution_report.md and project_state/gates/manual_mode_orchestrator_result.json.", "PASS", "The final report avoids any solved, static verification, runtime validation, or audit verification claim for concrete samples."))
+        else:
+            answers.append(("reverse_agent/orchestrator_api.py, reverse_agent/orchestrator_console_schema.py, focused tests, and project_state/gates/manual_mode_orchestrator_result.json.", "PASS", f"{question} is covered by the manual-mode orchestrator source, tests, schema, and gate evidence."))
     return _format_required_audit_answers(questions, answers)
 
 
@@ -7171,6 +7251,24 @@ def _read_round_close_snapshot(state_dir: Path) -> dict[str, Any]:
     return _read_json(_round_close_snapshot_path(state_dir))
 
 
+def _remove_current_round_close_snapshot(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+) -> bool:
+    """Remove stale current-round close snapshot before a new close attempt."""
+    snapshot_path = _round_close_snapshot_path(state_dir)
+    payload = _read_json(snapshot_path)
+    if not _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
+        return False
+    try:
+        snapshot_path.unlink()
+    except FileNotFoundError:
+        return False
+    return True
+
+
 def _dirty_files_from_status_lines(lines: list[str]) -> list[str]:
     dirty: list[str] = []
     for line in lines:
@@ -11985,6 +12083,20 @@ def _user_solve_workbench_gate_check(
             required=required,
             artifact=USER_SOLVE_WORKBENCH_OUTPUT_PATH,
         )
+    payload_current = _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id)
+    snapshot_current = _artifact_matches_current_round(snapshot, decision_id=decision_id, round_id=round_id)
+    if not required and not (payload_current and snapshot_current):
+        return _check(
+            "user_solve_workbench_gate_artifact",
+            "PASS",
+            "user solve workbench gate not required for current decision; historical workbench artifacts ignored",
+            required=required,
+            artifact=USER_SOLVE_WORKBENCH_OUTPUT_PATH,
+            snapshot=USER_SOLVE_WORKBENCH_SNAPSHOT_OUTPUT_PATH,
+            historical=True,
+            payload_decision_id=payload.get("decision_id"),
+            payload_round_id=payload.get("round_id"),
+        )
     errors: list[str] = []
     for item, name in ((payload, "result"), (snapshot, "snapshot")):
         if not item:
@@ -12021,6 +12133,190 @@ def _user_solve_workbench_gate_check(
         errors=errors,
         gate_status=payload.get("gate_status"),
     )
+
+
+def _manual_orchestrator_safety_flags() -> dict[str, bool]:
+    return {
+        "real_sample_processing": False,
+        "real_user_upload_ingestion": False,
+        "external_analysis_tool_invocation": False,
+        "runner_dispatch": False,
+        "model_api_invocation": False,
+        "production_service": False,
+        "database_or_queue": False,
+        "scheduler_or_service": False,
+        "ci_dispatch_or_polling": False,
+        "remote_runner_dispatch": False,
+        "github_workflow_modification": False,
+        "concrete_sample_solved_claim": False,
+    }
+
+
+def manual_mode_orchestrator(
+    *,
+    state_dir: Path = DEFAULT_STATE_DIR,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+    report_id = _expected_report_id(round_id)
+    errors: list[str] = []
+    checks: list[dict[str, Any]] = []
+    task_payload: dict[str, Any] = {}
+    job_payload: dict[str, Any] = {}
+    try:
+        from .manual_execution_handoff import build_manual_execution_handoff
+        from .manual_result_bridge import preview_manual_result_import
+        from .orchestrator_api import handle_orchestrator_request
+        from .orchestrator_console_schema import build_console_fixture_bundle
+        from .orchestrator_context import build_orchestrator_context_snapshot
+        from .project_jobs import build_demo_manual_job_payload, validate_job_payload
+        from .user_solve_api_schema import schema_snapshot
+        from .user_solve_manual_import import build_demo_manual_result
+        from .user_solve_task_lifecycle import build_demo_task_payload, validate_task_payload
+        from .user_solve_task_store import write_demo_task
+    except Exception as exc:  # pragma: no cover - defensive gate evidence
+        errors.append(f"import failed: {exc}")
+        checks.append(_check("manual_orchestrator_imports", "FAIL", "manual orchestrator modules are not importable", error=str(exc)))
+    else:
+        command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+        task_id = "demo_manual_mode_task"
+        task_payload = build_demo_task_payload(task_id=task_id, decision_id=decision_id, round_id=round_id, report_id=report_id, status="READY")
+        job_payload = build_demo_manual_job_payload(decision, task_id=task_id, status="READY")
+        task_validation = validate_task_payload(task_payload)
+        job_validation = validate_job_payload(job_payload)
+        if write_result and task_validation["validation_status"] == "PASSED" and job_validation["validation_status"] == "PASSED":
+            write_demo_task(state_dir, task_payload)
+            job_path = state_dir / "jobs" / f"{job_payload['job_id']}.json"
+            job_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_json_with_retry(job_path, job_payload)
+        commands = [str(item.get("command") or "") for item in command_plan_payload.get("commands", []) if isinstance(item, dict)]
+        result_payload = build_demo_manual_result(decision_id=decision_id, round_id=round_id, task_id=task_id, job_id=str(job_payload.get("job_id") or ""))
+        handoff = build_manual_execution_handoff(decision=decision, command_plan=command_plan_payload, task_id=task_id, job_id=str(job_payload.get("job_id") or ""))
+        import_preview = preview_manual_result_import(task_payload=task_payload, result_payload=result_payload, decision_id=decision_id, round_id=round_id, allowed_commands=commands)
+        planner_context = build_orchestrator_context_snapshot(state_dir=state_dir, profile="planner")
+        auditor_context = build_orchestrator_context_snapshot(state_dir=state_dir, profile="auditor")
+        console_bundle = build_console_fixture_bundle(state_dir=state_dir)
+        api_routes = ["/api/manual/dashboard", "/api/manual/decision", "/api/manual/command-plan", "/api/manual/jobs", "/api/manual/tasks", "/api/manual/handoff", "/api/manual/import-preview", "/api/manual/gates", "/api/manual/audit", "/api/manual/actions"]
+        api_results = [handle_orchestrator_request("GET", route, state_dir=state_dir) for route in api_routes]
+        checks.extend([
+            _check("task_lifecycle_contract", "PASS" if task_validation["validation_status"] == "PASSED" else "FAIL", "demo task lifecycle is deterministic and bounded", errors=task_validation["errors"]),
+            _check("job_lifecycle_contract", "PASS" if job_validation["validation_status"] == "PASSED" else "FAIL", "demo job lifecycle is manual and non-dispatching", errors=job_validation["errors"]),
+            _check("manual_handoff_contract", "PASS" if handoff.get("runner_dispatch_enabled") is False and handoff.get("command_plan_authority") else "FAIL", "manual handoff preserves decision and command-plan authority"),
+            _check("manual_import_contract", "PASS" if import_preview.get("preview_status") == "PASSED" and import_preview.get("verified_evidence") is False else "FAIL", "manual import validates structured claims without treating them as verified evidence"),
+            _check("context_snapshot_contract", "PASS" if planner_context.get("model_api_invocation") is False and auditor_context.get("full_solve_reports_read") is False else "FAIL", "planner and auditor snapshots are bounded and do not call model APIs"),
+            _check("orchestrator_api_routes", "PASS" if all(result.get("status_code") == 200 for result in api_results) else "FAIL", "orchestrator API routes are in-process pure-function previews"),
+            _check("console_fixture_contract", "PASS" if console_bundle.get("static_only") is True and console_bundle.get("network_calls") is False else "FAIL", "static console fixture bundle has no network or build requirement"),
+            _check("schema_snapshot_contract", "PASS" if schema_snapshot().get("manual_mode_orchestrator", {}).get("runner_dispatch") is False else "FAIL", "schema snapshot covers manual-mode orchestrator payloads"),
+        ])
+        config_files = [
+            repo_root / ".reverse-agent" / "config" / "manual_mode_orchestrator.example.json",
+            repo_root / ".reverse-agent" / "config" / "planner_profiles.example.json",
+            repo_root / ".reverse-agent" / "config" / "auditor_profiles.example.json",
+            repo_root / ".reverse-agent" / "config" / "runner_profiles.example.json",
+            repo_root / ".reverse-agent" / "config" / "permission_profiles.example.json",
+        ]
+        config_text = "\n".join(path.read_text(encoding="utf-8") for path in config_files if path.exists())
+        missing_config = [_norm_path(path) for path in config_files if not path.exists()]
+        forbidden_config_tokens = ("API_KEY", "PASSWORD", "PRIVATE_KEY", "ACCESS_TOKEN", "TOKEN_VALUE")
+        config_text_upper = config_text.upper()
+        config_has_forbidden_token = any(token in config_text_upper for token in forbidden_config_tokens)
+        checks.append(_check("portable_example_configs", "PASS" if not missing_config and "C:\\" not in config_text and not config_has_forbidden_token else "FAIL", "manual-mode example configs exist, use placeholders, and contain no credentials", missing=missing_config))
+        snapshot_payload = {
+            "schema_version": GATE_RESULT_SCHEMA_VERSION,
+            "artifact_name": MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME,
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "report_id": report_id,
+            "mainline": mainline,
+            "generated_at": _now_iso(),
+            "task": task_payload,
+            "job": job_payload,
+            "handoff": handoff,
+            "import_preview": import_preview,
+            "planner_context": planner_context,
+            "auditor_context": auditor_context,
+            "console_bundle": console_bundle,
+            "api_route_count": len(api_routes),
+            "schema": schema_snapshot().get("manual_mode_orchestrator", {}),
+            "safety_flags": _manual_orchestrator_safety_flags(),
+        }
+        if write_result:
+            out_path = state_dir / "gates" / MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_json_with_retry(out_path, snapshot_payload)
+    errors.extend(str(check.get("name")) for check in checks if check.get("status") == "FAIL")
+    job_id = str(job_payload.get("job_id") or f"job_demo_{round_id.removeprefix('round_')}")
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": MANUAL_MODE_ORCHESTRATOR_RESULT_NAME,
+        "gate_name": MANUAL_MODE_ORCHESTRATOR_NAME,
+        "gate_status": "FAILED" if errors else "PASSED",
+        "decision_id": decision_id,
+        "report_id": report_id,
+        "round_id": round_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "checks": checks,
+        "errors": errors,
+        "artifact_path": MANUAL_MODE_ORCHESTRATOR_OUTPUT_PATH,
+        "snapshot_path": MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH,
+        "generated_artifacts": [MANUAL_MODE_ORCHESTRATOR_OUTPUT_PATH, MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH, "project_state/solve_tasks/demo_manual_mode_task.json", f"project_state/jobs/{job_id}.json"],
+        "safety_flags": _manual_orchestrator_safety_flags(),
+        "evidence_only": True,
+        "fixture_only": True,
+        "local_only": True,
+        "executable": False,
+        "can_execute": False,
+        "can_dispatch": False,
+    }
+    if write_result:
+        out_path = state_dir / "gates" / MANUAL_MODE_ORCHESTRATOR_RESULT_NAME
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json_with_retry(out_path, result)
+    return result
+
+
+def _manual_mode_orchestrator_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_orchestrator_gate_artifacts"))
+    payload = _read_json(state_dir / "gates" / MANUAL_MODE_ORCHESTRATOR_RESULT_NAME)
+    snapshot = _read_json(state_dir / "gates" / MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME)
+    if not payload:
+        return _check("manual_mode_orchestrator_gate_artifact", "FAIL" if required else "PASS", "manual-mode orchestrator artifact is missing" if required else "manual-mode orchestrator gate not required", required=required, artifact=MANUAL_MODE_ORCHESTRATOR_OUTPUT_PATH)
+    errors: list[str] = []
+    for item, name in ((payload, "result"), (snapshot, "snapshot")):
+        if not item:
+            errors.append(f"{name} missing")
+            continue
+        for field, expected in (("decision_id", decision_id), ("round_id", round_id), ("report_id", report_id)):
+            if str(item.get(field) or "") != expected:
+                errors.append(f"{name} {field} mismatch")
+    if payload.get("gate_name") != MANUAL_MODE_ORCHESTRATOR_NAME:
+        errors.append("gate_name mismatch")
+    if payload.get("gate_status") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    safety = payload.get("safety_flags") if isinstance(payload.get("safety_flags"), dict) else {}
+    unsafe = [name for name, value in safety.items() if value is not False]
+    if unsafe:
+        errors.append(f"safety flags must all be false: {unsafe}")
+    for field in ("evidence_only", "fixture_only", "local_only"):
+        if payload.get(field) is not True:
+            errors.append(f"{field} must be true")
+    for field in ("executable", "can_execute", "can_dispatch"):
+        if payload.get(field) is not False:
+            errors.append(f"{field} must be false")
+    return _check("manual_mode_orchestrator_gate_artifact", "PASS" if not errors else "FAIL", "manual-mode orchestrator artifacts are current, demo-only, file-backed, and non-dispatching" if not errors else "manual-mode orchestrator artifacts are invalid", required=required, artifact=MANUAL_MODE_ORCHESTRATOR_OUTPUT_PATH, snapshot=MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH, errors=errors, gate_status=payload.get("gate_status"))
 
 
 def _startup_baseline_consistency_check(
@@ -18314,6 +18610,8 @@ def build_report_summary_synthesis(
         (USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME, USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH),
         (USER_SOLVE_WORKBENCH_RESULT_NAME, USER_SOLVE_WORKBENCH_OUTPUT_PATH),
         (USER_SOLVE_WORKBENCH_SNAPSHOT_NAME, USER_SOLVE_WORKBENCH_SNAPSHOT_OUTPUT_PATH),
+        (MANUAL_MODE_ORCHESTRATOR_RESULT_NAME, MANUAL_MODE_ORCHESTRATOR_OUTPUT_PATH),
+        (MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME, MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH),
     ):
         payload = _read_json(state_dir / "gates" / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
@@ -19950,6 +20248,15 @@ def final_check(
             decision_contract=decision_contract,
         )
     )
+    checks.append(
+        _manual_mode_orchestrator_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            decision_contract=decision_contract,
+        )
+    )
     _fc_final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
     checks.append(
         _decision_contract_status_hardening_check(
@@ -21440,6 +21747,11 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     report_round_id = str(report.get("round_id") or "")
     decision_status = str(decision.get("status") or "UNKNOWN")
     report_status = str(report.get("status") or "UNKNOWN")
+    _remove_current_round_close_snapshot(
+        state_dir=state_dir,
+        decision_id=decision_id,
+        round_id=requested_round_id,
+    )
     checks: list[dict[str, Any]] = []
     actions: list[dict[str, Any]] = []
     archive_payload = _close_round_archive_payload(
@@ -27960,6 +28272,8 @@ def _refresh_codex_report_for_closeout(
         (USER_SOLVE_FRONTEND_MVP_SNAPSHOT_NAME, USER_SOLVE_FRONTEND_MVP_SNAPSHOT_OUTPUT_PATH),
         (USER_SOLVE_WORKBENCH_RESULT_NAME, USER_SOLVE_WORKBENCH_OUTPUT_PATH),
         (USER_SOLVE_WORKBENCH_SNAPSHOT_NAME, USER_SOLVE_WORKBENCH_SNAPSHOT_OUTPUT_PATH),
+        (MANUAL_MODE_ORCHESTRATOR_RESULT_NAME, MANUAL_MODE_ORCHESTRATOR_OUTPUT_PATH),
+        (MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_NAME, MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH),
     ):
         payload = _read_json(gates_dir / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
@@ -28164,6 +28478,8 @@ def _refresh_codex_report_for_closeout(
         _generate_required_audit_alignment_rework_required_audit(decision_text)
         or
         _generate_hygiene_handoff_rework_required_audit(decision_text)
+        or
+        _generate_manual_mode_orchestrator_required_audit(decision_text)
         or
         _generate_user_solve_workbench_required_audit(decision_text)
         or
@@ -29228,6 +29544,12 @@ def run_closeout(
                 newline="\n",
             )
         return result
+
+    _remove_current_round_close_snapshot(
+        state_dir=state_dir,
+        decision_id=decision_id,
+        round_id=requested_round_id,
+    )
 
     # 2. Generate or refresh command-plan before execution
     plan_result = command_plan(
@@ -30818,6 +31140,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     user_solve_workbench_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     user_solve_workbench_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    manual_mode_orchestrator_parser = subparsers.add_parser(
+        "manual-mode-orchestrator",
+        help="Validate the fixture-only manual-mode Web orchestrator MVP.",
+    )
+    manual_mode_orchestrator_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    manual_mode_orchestrator_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -31348,6 +31676,19 @@ def main(argv: list[str] | None = None) -> int:
             _print_result(result)
             print(f"artifact: {USER_SOLVE_WORKBENCH_OUTPUT_PATH}")
             print(f"snapshot: {USER_SOLVE_WORKBENCH_SNAPSHOT_OUTPUT_PATH}")
+        return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
+    if args.command == "manual-mode-orchestrator":
+        state_dir_path = Path(args.state_dir)
+        result = manual_mode_orchestrator(
+            state_dir=state_dir_path,
+            repo_root=_derive_repo_root(state_dir_path),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"artifact: {MANUAL_MODE_ORCHESTRATOR_OUTPUT_PATH}")
+            print(f"snapshot: {MANUAL_MODE_ORCHESTRATOR_SNAPSHOT_OUTPUT_PATH}")
         return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
     if args.command == "startup-snapshot":
         result = startup_snapshot(

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "profile_id": "AUDITOR_PROFILE_ID",
+      "audit_context": "bounded_current_gate_and_report_artifacts",
+      "model_api_invocation": false,
+      "accepts_manual_claims_as_verified": false
+    }
+  ]
+}

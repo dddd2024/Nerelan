@@ -22,3 +22,7 @@ The workbench API is route-shaped but in-process: callers pass `method`, `path`,
 - `reverse_agent/user_solve_workbench_api.py` exposes local route-shaped preview functions.
 
 Gate artifacts are written under `project_state/gates/` as current-round evidence only.
+
+## Manual Mode Orchestrator
+
+The manual-mode orchestrator builds on this workbench as a Web-console-shaped review layer. It can show demo tasks, demo jobs, handoff packets, import previews, gate summaries, and audit context, but it keeps the same boundary: fixture/demo evidence only, no runner dispatch, no external analysis, no model API, and no production service.

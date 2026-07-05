@@ -12,6 +12,8 @@ JOB_SCHEMA_VERSION = 1
 JOB_STATUSES = {
     "DRAFT",
     "READY",
+    "MANUAL_DISPATCHED",
+    "MANUAL_RESULT_IMPORTED",
     "RUNNING",
     "DONE",
     "FINAL_CHECKED",
@@ -30,7 +32,9 @@ JOB_TERMINAL_STATUSES = {
 }
 JOB_STATUS_TRANSITIONS = {
     "DRAFT": {"READY", "BLOCKED"},
-    "READY": {"RUNNING", "BLOCKED"},
+    "READY": {"RUNNING", "MANUAL_DISPATCHED", "BLOCKED"},
+    "MANUAL_DISPATCHED": {"MANUAL_RESULT_IMPORTED", "REWORK_REQUIRED", "BLOCKED"},
+    "MANUAL_RESULT_IMPORTED": {"FINAL_CHECKED", "REWORK_REQUIRED", "BLOCKED"},
     "RUNNING": {"DONE", "REWORK_REQUIRED", "BLOCKED"},
     "DONE": {"FINAL_CHECKED", "REWORK_REQUIRED", "BLOCKED"},
     "FINAL_CHECKED": {"AUDITED", "REWORK_REQUIRED", "BLOCKED"},
@@ -257,6 +261,57 @@ def build_planned_job_payload(
             "task_contract_path": "project_state/decision_packet.md",
             "command_plan_path": "project_state/gates/command_plan.json",
             "execution_authority": "project_state/gates/command_plan.json",
+        },
+    }
+
+
+def build_demo_manual_job_payload(
+    decision: Mapping[str, Any],
+    *,
+    task_id: str,
+    status: str = "READY",
+) -> dict[str, Any]:
+    """Build a bounded demo manual-mode job without runner dispatch."""
+
+    round_id = str(decision.get("round_id") or "").strip()
+    decision_id = str(decision.get("decision_id") or "").strip()
+    mainline = str(decision.get("mainline") or "").strip()
+    suffix = round_id.removeprefix("round_") if round_id.startswith("round_") else round_id
+    job_id = f"job_demo_{suffix}" if suffix else "job_demo_manual_mode"
+    return {
+        "schema_version": JOB_SCHEMA_VERSION,
+        "job_id": job_id,
+        "round_id": round_id,
+        "decision_id": decision_id,
+        "mainline": mainline,
+        "status": str(status or "READY").strip().upper(),
+        "runner": {"kind": "manual", "dispatch_enabled": False},
+        "required_inputs": [
+            "project_state/decision_packet.md",
+            "project_state/gates/command_plan.json",
+            f"project_state/solve_tasks/{task_id}.json",
+        ],
+        "required_outputs": [
+            f"project_state/jobs/{job_id}.json",
+            "project_state/gates/manual_mode_orchestrator_result.json",
+            "project_state/gates/manual_mode_orchestrator_snapshot.json",
+        ],
+        "permissions": {
+            "allow_remote_mutation": False,
+            "allow_llm_calls": False,
+            "allow_agent_dispatch": False,
+            "allow_reverse_solving": False,
+            "allow_github_actions": False,
+            "allow_database_writes": False,
+            "allow_scheduler": False,
+            "allow_web_ui_mutation": False,
+        },
+        "budgets": {"max_runtime_seconds": 0, "max_commands": 0},
+        "manual_mode": {
+            "task_id": task_id,
+            "handoff_export_only": True,
+            "result_import_preview_only": True,
+            "dispatch_enabled": False,
         },
     }
 

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "profile_id": "MANUAL_RUNNER_PROFILE_ID",
+      "dispatch_enabled": false,
+      "remote_runner_dispatch": false,
+      "external_tool_invocation": false
+    }
+  ]
+}

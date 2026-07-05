@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "profile_id": "LOCAL_MANUAL_REVIEW_ONLY",
+      "allow_remote_mutation": false,
+      "allow_llm_calls": false,
+      "allow_agent_dispatch": false,
+      "allow_reverse_solving": false,
+      "allow_database_writes": false,
+      "allow_scheduler": false
+    }
+  ]
+}

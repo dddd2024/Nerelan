@@ -1,0 +1,29 @@
+{
+  "audit": {
+    "auditor_required": true,
+    "claims_concrete_sample_solved": false,
+    "final_check_required": true
+  },
+  "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "fixture_only": true,
+  "history": [
+    {
+      "reason": "demo task created for manual-mode orchestrator preview",
+      "status": "READY"
+    }
+  ],
+  "manual_execution": {
+    "dispatch_enabled": false,
+    "external_tool_invocation": false,
+    "handoff_exported": false,
+    "model_api_invocation": false
+  },
+  "real_sample": false,
+  "report_id": "codex_report_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "result": null,
+  "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "schema_version": 1,
+  "source": "demo_fixture",
+  "status": "READY",
+  "task_id": "demo_manual_mode_task"
+}

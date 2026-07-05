@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260704_user_solve_workbench_foundation_big_step_v1",
-  "round_id": "round_20260704_user_solve_workbench_foundation_big_step_v1",
+  "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-04T14:41:23.609534Z",
+  "generated_at": "2026-07-05T04:02:31.775671Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -179,20 +179,20 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.user_solve_cli --demo candidate",
-      "phase": "status",
-      "kind": "user-solve-cli",
+      "command": "python -m pytest tests/test_user_solve_task_lifecycle.py tests/test_user_solve_task_store.py tests/test_user_solve_manual_import.py tests/test_user_solve_task_api.py tests/test_manual_execution_handoff.py tests/test_manual_result_bridge.py tests/test_orchestrator_context.py tests/test_orchestrator_api.py tests/test_orchestrator_console_schema.py tests/test_project_jobs.py tests/test_project_runner_contract.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "phase": "test",
+      "kind": "pytest",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "user-solve-cli expected to exit 0"
+      "notes": "pytest expected to exit 0"
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.user_solve_cli --demo missing-evidence",
+      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo dashboard",
       "phase": "status",
       "kind": "user-solve-cli",
       "required": true,
@@ -205,7 +205,7 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.user_solve_cli --demo blocked",
+      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo create-demo-task",
       "phase": "status",
       "kind": "user-solve-cli",
       "required": true,
@@ -218,7 +218,7 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.user_solve_cli --demo verified",
+      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo create-demo-job",
       "phase": "status",
       "kind": "user-solve-cli",
       "required": true,
@@ -231,7 +231,7 @@
     },
     {
       "index": 16,
-      "command": "python -m reverse_agent.user_solve_cli --workbench-demo route-plan",
+      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo export-handoff",
       "phase": "status",
       "kind": "user-solve-cli",
       "required": true,
@@ -244,7 +244,7 @@
     },
     {
       "index": 17,
-      "command": "python -m reverse_agent.user_solve_cli --workbench-demo capability",
+      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo import-result-preview",
       "phase": "status",
       "kind": "user-solve-cli",
       "required": true,
@@ -257,7 +257,20 @@
     },
     {
       "index": 18,
-      "command": "python -m reverse_agent.project_gate user-solve-workbench --state-dir project_state",
+      "command": "python -m reverse_agent.user_solve_cli --manual-console-demo available-actions",
+      "phase": "status",
+      "kind": "user-solve-cli",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "user-solve-cli expected to exit 0"
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate manual-mode-orchestrator --state-dir project_state",
       "phase": "status",
       "kind": "project-cli",
       "required": true,
@@ -269,7 +282,7 @@
       "notes": "project-cli expected to exit 0"
     },
     {
-      "index": 19,
+      "index": 20,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -283,7 +296,7 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 20,
+      "index": 21,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "phase": "gate",
       "kind": "audit-readiness-packet",
@@ -296,21 +309,8 @@
       "notes": "audit-readiness-packet expected to exit 0"
     },
     {
-      "index": 21,
-      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_user_solve_route_plan.py tests/test_user_solve_task_trace.py tests/test_user_solve_workbench.py tests/test_user_solve_workbench_api.py tests/test_project_gate.py tests/test_project_reports.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
       "index": 22,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q",
+      "command": "python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_evidence_quality.py tests/test_user_solve.py tests/test_user_solve_trace.py tests/test_fallback_ladder.py tests/test_user_solve_session.py tests/test_user_solve_request.py tests/test_user_solve_response.py tests/test_user_solve_handoff.py tests/test_user_solve_controller.py tests/test_user_solve_cli.py tests/test_user_solve_frontend_bridge.py tests/test_user_solve_local_api.py tests/test_user_solve_api_schema.py tests/test_user_solve_ui_state.py tests/test_user_solve_errors.py tests/test_user_solve_fixtures.py tests/test_tool_profiles.py tests/test_tool_capabilities.py tests/test_user_solve_route_plan.py tests/test_user_solve_task_trace.py tests/test_user_solve_workbench.py tests/test_user_solve_workbench_api.py tests/test_user_solve_task_lifecycle.py tests/test_user_solve_task_store.py tests/test_user_solve_manual_import.py tests/test_user_solve_task_api.py tests/test_manual_execution_handoff.py tests/test_manual_result_bridge.py tests/test_orchestrator_context.py tests/test_orchestrator_api.py tests/test_orchestrator_console_schema.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -323,7 +323,20 @@
     },
     {
       "index": 23,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_user_solve_workbench_foundation_big_step_v1",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py tests/test_project_agent_runner.py tests/test_project_runner_contract.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 24,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -337,5 +350,5 @@
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_user_solve_workbench_foundation_big_step_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1"
 }

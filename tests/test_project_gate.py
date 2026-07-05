@@ -50,6 +50,7 @@ from reverse_agent.project_gate import (
     _user_solve_control_plane_gate_check,
     _user_solve_local_frontend_mvp_gate_check,
     _user_solve_workbench_gate_check,
+    _manual_mode_orchestrator_gate_check,
     _ci_run_evidence_gate_check,
     _ci_bridge_gate_check,
     _ci_bridge_closeout_consistency_check,
@@ -66,6 +67,7 @@ from reverse_agent.project_gate import (
     _normalize_closed_close_round_result_for_success,
     _round_baseline_matches_startup_snapshot_check,
     _read_round_close_snapshot,
+    _remove_current_round_close_snapshot,
     _read_execution_report_summary,
     _parse_recorded_command_blocks,
     _record_startup_diagnostics,
@@ -98,6 +100,7 @@ from reverse_agent.project_gate import (
     user_solve_control_plane,
     user_solve_local_frontend_mvp,
     user_solve_workbench,
+    manual_mode_orchestrator,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -6057,6 +6060,50 @@ class TestReadRoundCloseSnapshot:
         result = _read_round_close_snapshot(state_dir)
         assert result["round_closed"] is True
         assert result["close_worktree_clean"] is True
+
+
+class TestRemoveCurrentRoundCloseSnapshot:
+    def test_removes_matching_current_round_snapshot(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        snapshot_path = gates_dir / "round_close_snapshot.json"
+        _write_json(snapshot_path, {
+            "schema_version": 1,
+            "decision_id": "decision_current",
+            "round_id": "round_current",
+            "round_closed": True,
+        })
+
+        removed = _remove_current_round_close_snapshot(
+            state_dir=state_dir,
+            decision_id="decision_current",
+            round_id="round_current",
+        )
+
+        assert removed is True
+        assert not snapshot_path.exists()
+
+    def test_keeps_other_round_snapshot(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        snapshot_path = gates_dir / "round_close_snapshot.json"
+        _write_json(snapshot_path, {
+            "schema_version": 1,
+            "decision_id": "decision_other",
+            "round_id": "round_other",
+            "round_closed": True,
+        })
+
+        removed = _remove_current_round_close_snapshot(
+            state_dir=state_dir,
+            decision_id="decision_current",
+            round_id="round_current",
+        )
+
+        assert removed is False
+        assert snapshot_path.exists()
 
 
 class TestBaselineLifecycleClosedRound:
@@ -29037,8 +29084,97 @@ def test_user_solve_workbench_gate_writes_result_and_snapshot(tmp_path: Path) ->
     assert check["status"] == "PASS"
 
 
+def test_user_solve_workbench_gate_ignores_historical_artifacts_when_not_required(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True)
+    _write_json(
+        gates_dir / "user_solve_workbench_result.json",
+        {
+            "gate_name": "user-solve-workbench",
+            "gate_status": "PASSED",
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+            "report_id": "codex_report_previous",
+        },
+    )
+    _write_json(
+        gates_dir / "user_solve_workbench_snapshot.json",
+        {
+            "decision_id": "decision_previous",
+            "round_id": "round_previous",
+            "report_id": "codex_report_previous",
+        },
+    )
+
+    check = _user_solve_workbench_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_current",
+        round_id="round_current",
+        report_id="codex_report_current",
+        decision_contract={},
+    )
+
+    assert check["status"] == "PASS"
+    assert check["historical"] is True
+
+
 def test_command_kind_keeps_user_solve_workbench_as_safe_project_cli() -> None:
     assert (
         _command_kind("python -m reverse_agent.project_gate user-solve-workbench --state-dir project_state")
+        == "project-cli"
+    )
+
+
+def test_manual_mode_orchestrator_gate_writes_result_snapshot_and_demo_artifacts(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+    decision_id = "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1"
+    round_id = "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1"
+    _write_decision(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        extra_text=(
+            "\n```json decision_contract\n"
+            '{"accepted_requires_orchestrator_gate_artifacts": true, '
+            '"accepted_requires_task_lifecycle": true}\n'
+            "```\n"
+        ),
+    )
+    (state_dir / "gates").mkdir(exist_ok=True)
+    _write_json(
+        state_dir / "gates" / "command_plan.json",
+        {
+            "schema_version": 1,
+            "plan_status": "PASSED",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "commands": [],
+            "omitted_commands": [],
+        },
+    )
+
+    result = manual_mode_orchestrator(state_dir=state_dir, repo_root=Path.cwd(), write_result=True)
+    check = _manual_mode_orchestrator_gate_check(
+        state_dir=state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        report_id="codex_report_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+        decision_contract={"accepted_requires_orchestrator_gate_artifacts": True},
+    )
+
+    assert result["gate_status"] == "PASSED"
+    assert (state_dir / "gates" / "manual_mode_orchestrator_result.json").exists()
+    assert (state_dir / "gates" / "manual_mode_orchestrator_snapshot.json").exists()
+    assert (state_dir / "solve_tasks" / "demo_manual_mode_task.json").exists()
+    assert (state_dir / "jobs" / "job_demo_20260704_manual_mode_web_orchestrator_mvp_big_step_v1.json").exists()
+    assert check["status"] == "PASS"
+
+
+def test_command_kind_keeps_manual_mode_orchestrator_as_safe_project_cli() -> None:
+    assert (
+        _command_kind("python -m reverse_agent.project_gate manual-mode-orchestrator --state-dir project_state")
         == "project-cli"
     )

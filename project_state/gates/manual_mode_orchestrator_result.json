@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "artifact_name": "manual_mode_orchestrator_result.json",
+  "gate_name": "manual-mode-orchestrator",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "report_id": "codex_report_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-05T04:02:33.063179Z",
+  "checks": [
+    {
+      "name": "task_lifecycle_contract",
+      "status": "PASS",
+      "detail": "demo task lifecycle is deterministic and bounded",
+      "errors": []
+    },
+    {
+      "name": "job_lifecycle_contract",
+      "status": "PASS",
+      "detail": "demo job lifecycle is manual and non-dispatching",
+      "errors": []
+    },
+    {
+      "name": "manual_handoff_contract",
+      "status": "PASS",
+      "detail": "manual handoff preserves decision and command-plan authority"
+    },
+    {
+      "name": "manual_import_contract",
+      "status": "PASS",
+      "detail": "manual import validates structured claims without treating them as verified evidence"
+    },
+    {
+      "name": "context_snapshot_contract",
+      "status": "PASS",
+      "detail": "planner and auditor snapshots are bounded and do not call model APIs"
+    },
+    {
+      "name": "orchestrator_api_routes",
+      "status": "PASS",
+      "detail": "orchestrator API routes are in-process pure-function previews"
+    },
+    {
+      "name": "console_fixture_contract",
+      "status": "PASS",
+      "detail": "static console fixture bundle has no network or build requirement"
+    },
+    {
+      "name": "schema_snapshot_contract",
+      "status": "PASS",
+      "detail": "schema snapshot covers manual-mode orchestrator payloads"
+    },
+    {
+      "name": "portable_example_configs",
+      "status": "PASS",
+      "detail": "manual-mode example configs exist, use placeholders, and contain no credentials",
+      "missing": []
+    }
+  ],
+  "errors": [],
+  "artifact_path": "project_state/gates/manual_mode_orchestrator_result.json",
+  "snapshot_path": "project_state/gates/manual_mode_orchestrator_snapshot.json",
+  "generated_artifacts": [
+    "project_state/gates/manual_mode_orchestrator_result.json",
+    "project_state/gates/manual_mode_orchestrator_snapshot.json",
+    "project_state/solve_tasks/demo_manual_mode_task.json",
+    "project_state/jobs/job_demo_20260704_manual_mode_web_orchestrator_mvp_big_step_v1.json"
+  ],
+  "safety_flags": {
+    "real_sample_processing": false,
+    "real_user_upload_ingestion": false,
+    "external_analysis_tool_invocation": false,
+    "runner_dispatch": false,
+    "model_api_invocation": false,
+    "production_service": false,
+    "database_or_queue": false,
+    "scheduler_or_service": false,
+    "ci_dispatch_or_polling": false,
+    "remote_runner_dispatch": false,
+    "github_workflow_modification": false,
+    "concrete_sample_solved_claim": false
+  },
+  "evidence_only": true,
+  "fixture_only": true,
+  "local_only": true,
+  "executable": false,
+  "can_execute": false,
+  "can_dispatch": false
+}

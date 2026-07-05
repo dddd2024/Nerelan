@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "profile_id": "PLANNER_PROFILE_ID",
+      "context_snapshot": "project_state/gates/manual_mode_orchestrator_snapshot.json",
+      "model_api_invocation": false,
+      "reads_full_solve_reports": false
+    }
+  ]
+}

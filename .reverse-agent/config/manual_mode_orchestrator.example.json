@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "profile_id": "manual_mode_orchestrator_example",
+  "state_dir": "project_state",
+  "console_fixture_source": "frontend/manual_mode_console/fixtures/console_bundle.json",
+  "dispatch_enabled": false,
+  "production_service": false,
+  "model_api_invocation": false,
+  "notes": "Example only. Replace placeholders in a future approved decision."
+}

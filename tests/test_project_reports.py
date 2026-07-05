@@ -14,6 +14,7 @@ from reverse_agent.project_gate import (
     _generate_user_solve_control_plane_required_audit,
     _generate_user_solve_local_frontend_mvp_required_audit,
     _generate_user_solve_workbench_required_audit,
+    _generate_manual_mode_orchestrator_required_audit,
     _generate_user_solve_session_bundle_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
@@ -834,6 +835,76 @@ def test_user_solve_workbench_required_audit_generator_is_substantive() -> None:
     assert "project_state/gates/user_solve_workbench_result.json" in audit
     assert "project_state/gates/user_solve_workbench_snapshot.json" in audit
     assert "reverse_agent/tool_profiles.py" in audit
+    assert result["status"] == "PASS"
+
+
+def test_manual_mode_orchestrator_required_audit_generator_is_substantive() -> None:
+    decision_text = "\n".join(
+        [
+            "```json decision_contract",
+            json.dumps({"accepted_requires_task_lifecycle": True}, indent=2),
+            "```",
+            "# DECISION_PACKET",
+            "Implement Manual Mode Web Orchestrator MVP Big Step v1.",
+            "## Required Audit",
+            *[
+                f"{index}. {question}"
+                for index, question in enumerate(
+                    [
+                        "Was the current decision treated as execution authority and task_packet as background only?",
+                        "Did decision metadata remain valid and aligned with active `reverse-agent-iteration@v2`?",
+                        "Was the accepted workbench foundation treated as the baseline?",
+                        "Were startup and prework provenance commands recorded before implementation validation?",
+                        "Was existing workbench/job/runner/gate functionality inspected before adding new modules?",
+                        "Was `UserSolveTaskLifecycle` implemented or compatibly extended?",
+                        "Are task status transitions deterministic, bounded, and validated?",
+                        "Was a file-backed demo-only task store implemented under `project_state/solve_tasks/demo_*.json`?",
+                        "Does the task store reject non-demo paths, unsafe names, unexpected schema, and arbitrary persistence?",
+                        "Was a project job lifecycle/demo job layer implemented or compatibly extended under `project_state/jobs/job_demo_*.json`?",
+                        "Does job lifecycle distinguish DRAFT, READY, MANUAL_DISPATCHED, MANUAL_RESULT_IMPORTED, FINAL_CHECKED, AUDITED, ACCEPTED, REWORK_REQUIRED, and BLOCKED without dispatching runners?",
+                        "Was a manual execution handoff bridge implemented?",
+                        "Does handoff export preserve decision authority, command-plan authority, allowed commands, omitted commands, stop conditions, and no-push/no-remote constraints?",
+                        "Was a manual result import bridge implemented?",
+                        "Does manual import validate structured JSON and reject unsupported file paths, arbitrary command claims, stale IDs, and real execution claims?",
+                        "Were planner/auditor context snapshots implemented without invoking model APIs?",
+                        "Do context snapshots read only bounded default files and current gate/report artifacts?",
+                        "Was a local orchestrator API facade implemented as route-shaped pure functions?",
+                        "Does the API facade expose dashboard, decision, command-plan, job, task, handoff, import preview, gate, audit, and available-action views without a production service?",
+                        "Was a static manual-mode console demo added with fixture JSON only?",
+                        "Does the static console avoid frameworks, build steps, network calls, and direct mutation of project_state?",
+                        "Were config profile examples added with placeholders and no secrets?",
+                        "Were demo task/job artifacts generated and bounded to allowed patterns?",
+                        "Were schema snapshots generated for task, job, handoff, import, context, console, and orchestrator API payloads?",
+                        "Were CLI previews added for dashboard, demo task/job creation, handoff export, manual import preview, available actions, and console fixture bundle?",
+                        "Was documentation added for manual-mode Web orchestration and future automation boundaries?",
+                        "Was a current `manual_mode_orchestrator_result.json` or equivalent gate artifact generated?",
+                        "Was a current `manual_mode_orchestrator_snapshot.json` or equivalent snapshot generated?",
+                        "Do gate artifacts carry current decision/report/round IDs?",
+                        "Do gate artifacts prove no real sample processing, no external analysis execution, no runner dispatch, no model API invocation, no production service, no database, and no CI dispatch?",
+                        "Do focused tests cover lifecycle, task store, job lifecycle, handoff export, result import, context snapshots, API facade, static console fixture bundle, config examples, CLI previews, gates, and reports?",
+                        "Do existing user-solve/workbench/control-plane tests continue passing under command-plan coverage?",
+                        "Did pytest_result record real commands and exit codes?",
+                        "Did command-plan authorize all executed commands and omit no executed commands?",
+                        "Did final-check pass with current IDs?",
+                        "Did run-closeout pass and archive current reports if authorized?",
+                        "Were forbidden files untouched?",
+                        "Did the final report avoid any solved/static/runtime/audit verification claim for concrete samples?",
+                    ],
+                    1,
+                )
+            ],
+        ]
+    )
+
+    audit = _generate_manual_mode_orchestrator_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 38
+    assert "manual-mode orchestrator result artifact" in audit
     assert result["status"] == "PASS"
     assert result["alignment_failures"] == []
 

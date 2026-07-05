@@ -7,6 +7,7 @@ from .user_solve_fixtures import FIXTURE_NAMES, fixture_catalog
 from .user_solve_ui_state import DISPLAY_STATES
 from .tool_capabilities import capability_snapshot
 from .tool_profiles import tool_profile_snapshot
+from .orchestrator_console_schema import CONSOLE_PANELS
 
 
 def schema_snapshot() -> dict[str, Any]:
@@ -17,6 +18,18 @@ def schema_snapshot() -> dict[str, Any]:
         {"method": "GET", "path": "/api/workbench/route-plan/{fixture_name}", "kind": "route_plan"},
         {"method": "GET", "path": "/api/workbench/trace/{fixture_name}", "kind": "task_trace"},
         {"method": "POST", "path": "/api/workbench/preview", "kind": "workbench_preview"},
+    ]
+    manual_routes = [
+        {"method": "GET", "path": "/api/manual/dashboard", "kind": "dashboard"},
+        {"method": "GET", "path": "/api/manual/decision", "kind": "decision"},
+        {"method": "GET", "path": "/api/manual/command-plan", "kind": "command_plan"},
+        {"method": "GET", "path": "/api/manual/jobs", "kind": "jobs"},
+        {"method": "GET", "path": "/api/manual/tasks", "kind": "tasks"},
+        {"method": "GET", "path": "/api/manual/handoff", "kind": "manual_handoff"},
+        {"method": "GET", "path": "/api/manual/import-preview", "kind": "manual_import_preview"},
+        {"method": "GET", "path": "/api/manual/gates", "kind": "gate_summary"},
+        {"method": "GET", "path": "/api/manual/audit", "kind": "audit_context"},
+        {"method": "GET", "path": "/api/manual/actions", "kind": "available_actions"},
     ]
     return {
         "schema_version": 1,
@@ -55,7 +68,7 @@ def schema_snapshot() -> dict[str, Any]:
             {"method": "GET", "path": "/api/fixtures", "kind": "catalog"},
             {"method": "GET", "path": "/api/fixtures/{fixture_name}", "kind": "fixture"},
             {"method": "POST", "path": "/api/solve", "kind": "fixture_request"},
-        ] + workbench_routes,
+        ] + workbench_routes + manual_routes,
         "fixture_catalog": fixture_catalog(),
         "tool_profiles": tool_profile_snapshot(),
         "runner_capabilities": capability_snapshot(),
@@ -73,6 +86,36 @@ def schema_snapshot() -> dict[str, Any]:
             "production_service": False,
             "persistent_tasks": False,
             "external_tool_invocation": False,
+        },
+        "manual_mode_orchestrator": {
+            "task_statuses": [
+                "DRAFT",
+                "READY",
+                "MANUAL_DISPATCHED",
+                "MANUAL_RESULT_IMPORTED",
+                "FINAL_CHECKED",
+                "AUDITED",
+                "ACCEPTED",
+                "REWORK_REQUIRED",
+                "BLOCKED",
+            ],
+            "job_statuses": [
+                "DRAFT",
+                "READY",
+                "MANUAL_DISPATCHED",
+                "MANUAL_RESULT_IMPORTED",
+                "FINAL_CHECKED",
+                "AUDITED",
+                "ACCEPTED",
+                "REWORK_REQUIRED",
+                "BLOCKED",
+            ],
+            "routes": manual_routes,
+            "console_panels": list(CONSOLE_PANELS),
+            "production_service": False,
+            "runner_dispatch": False,
+            "model_api_invocation": False,
+            "real_sample_processing": False,
         },
         "frontend_demo": {
             "root": "frontend/user_solve_demo",

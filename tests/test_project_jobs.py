@@ -4,6 +4,7 @@ from pathlib import Path
 from reverse_agent.project_jobs import (
     JOB_STATUS_TRANSITIONS,
     JOB_STATUSES,
+    build_demo_manual_job_payload,
     build_planned_job_payload,
     planned_job_artifact_path,
     planned_job_id_for_round,
@@ -98,6 +99,7 @@ def test_validate_job_payload_rejects_unknown_status() -> None:
     assert result["validation_status"] == "FAILED"
     assert any("status must be one of" in error for error in result["errors"])
     assert "ACCEPTED_WITH_LIMITATIONS" in JOB_STATUSES
+    assert "MANUAL_DISPATCHED" in JOB_STATUSES
 
 
 def test_validate_job_payload_rejects_dispatch_or_mutation_permissions() -> None:
@@ -128,6 +130,9 @@ def test_validate_job_file_reads_json_contract(tmp_path: Path) -> None:
 def test_validate_job_transition_accepts_happy_path_state_machine() -> None:
     transitions = [
         ("DRAFT", "READY"),
+        ("READY", "MANUAL_DISPATCHED"),
+        ("MANUAL_DISPATCHED", "MANUAL_RESULT_IMPORTED"),
+        ("MANUAL_RESULT_IMPORTED", "FINAL_CHECKED"),
         ("READY", "RUNNING"),
         ("RUNNING", "DONE"),
         ("DONE", "FINAL_CHECKED"),
@@ -352,3 +357,21 @@ def test_validate_jobs_dir_accepts_current_draft_job_contract() -> None:
     assert current_job["status"] == "DRAFT"
     assert current_job["round_id"] == "round_20260628_clean_baseline_job_inventory_v1"
     assert current_job["decision_id"] == "decision_20260628_clean_baseline_job_inventory_v1"
+
+
+def test_build_demo_manual_job_payload_is_non_dispatching() -> None:
+    payload = build_demo_manual_job_payload(
+        {
+            "decision_id": "decision_manual",
+            "round_id": "round_manual",
+            "mainline": "engineering_branch",
+        },
+        task_id="demo_manual_mode_task",
+    )
+    result = validate_job_payload(payload)
+
+    assert payload["job_id"] == "job_demo_manual"
+    assert payload["runner"]["kind"] == "manual"
+    assert payload["runner"]["dispatch_enabled"] is False
+    assert payload["manual_mode"]["handoff_export_only"] is True
+    assert result["validation_status"] == "PASSED"

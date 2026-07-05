@@ -84,3 +84,10 @@ snapshots, route plans, synthetic task traces, and a local in-process workbench
 API. It composes the accepted controller/session/fixture/frontend contracts and
 does not execute route plans, process real samples, persist tasks, or dispatch
 runner work.
+
+## Manual Mode Orchestrator
+
+The manual-mode orchestrator adds demo task/job lifecycle records and manual
+handoff/import previews above the workbench. It does not change user-solve
+answer semantics: imported manual results remain unverified structured evidence
+until a future authorized gate validates them.

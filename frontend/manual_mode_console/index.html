@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Manual Mode Console</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">Manual Mode</div>
+      <nav id="tabs" aria-label="Console panels"></nav>
+    </aside>
+    <main>
+      <section class="topbar">
+        <div>
+          <h1>Manual Orchestrator</h1>
+          <p id="subtitle">Fixture-only console preview</p>
+        </div>
+        <span class="pill">No dispatch</span>
+      </section>
+      <section id="panel" class="panel" aria-live="polite"></section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
