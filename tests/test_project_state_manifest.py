@@ -223,3 +223,175 @@ def test_write_pytest_result_preserves_explicit_failed_status(tmp_path: Path) ->
     text = result_path.read_text(encoding="utf-8")
     header = parse_pytest_result_header(text)
     assert header["status"] == "FAILED"
+
+
+def test_expected_exit_codes_from_plan_extracts_mapping() -> None:
+    """_expected_exit_codes_from_plan extracts command->exit codes mapping."""
+    from reverse_agent.project_state import _expected_exit_codes_from_plan
+    plan = {
+        "commands": [
+            {"command": "pytest", "expected_exit_codes": [0]},
+            {"command": "final-check", "expected_exit_codes": [0, 1]},
+            {"command": "no-codes"},
+            {"not_a_command": True, "expected_exit_codes": [0]},
+        ]
+    }
+    mapping = _expected_exit_codes_from_plan(plan)
+    assert mapping == {"pytest": [0], "final-check": [0, 1]}
+
+
+def test_expected_exit_codes_from_plan_empty_plan() -> None:
+    """_expected_exit_codes_from_plan returns empty dict for missing/invalid commands."""
+    from reverse_agent.project_state import _expected_exit_codes_from_plan
+    assert _expected_exit_codes_from_plan({}) == {}
+    assert _expected_exit_codes_from_plan({"commands": "not_a_list"}) == {}
+    assert _expected_exit_codes_from_plan({"commands": []}) == {}
+
+
+def test_has_failed_command_block_with_plan_allows_expected_nonzero() -> None:
+    """When command_plan allows exit 1, exit 1 should NOT count as failure."""
+    from reverse_agent.project_state import _has_failed_command_block_with_plan
+    body = (
+        "===== COMMAND: final-check =====\n"
+        "1 FAIL\n"
+        "===== EXIT: 1 =====\n"
+    )
+    expected_by_command = {"final-check": [0, 1]}
+    assert _has_failed_command_block_with_plan(body, expected_by_command) is False
+
+
+def test_has_failed_command_block_with_plan_fails_unexpected_nonzero() -> None:
+    """When command_plan only allows exit 0, exit 1 should count as failure."""
+    from reverse_agent.project_state import _has_failed_command_block_with_plan
+    body = (
+        "===== COMMAND: pytest =====\n"
+        "1 failed\n"
+        "===== EXIT: 1 =====\n"
+    )
+    expected_by_command = {"pytest": [0]}
+    assert _has_failed_command_block_with_plan(body, expected_by_command) is True
+
+
+def test_has_failed_command_block_with_plan_falls_back_when_no_plan() -> None:
+    """When expected_by_command is None/empty, fall back to simple non-zero check."""
+    from reverse_agent.project_state import _has_failed_command_block_with_plan
+    body = (
+        "===== COMMAND: final-check =====\n"
+        "1 FAIL\n"
+        "===== EXIT: 1 =====\n"
+    )
+    assert _has_failed_command_block_with_plan(body, None) is True
+    assert _has_failed_command_block_with_plan(body, {}) is True
+
+
+def test_has_failed_command_block_with_plan_prefix_match() -> None:
+    """Prefix matching should find expected exit codes for wrapped commands."""
+    from reverse_agent.project_state import _has_failed_command_block_with_plan
+    body = (
+        "===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====\n"
+        "1 FAIL\n"
+        "===== EXIT: 1 =====\n"
+    )
+    expected_by_command = {"final-check": [0, 1]}
+    assert _has_failed_command_block_with_plan(body, expected_by_command) is False
+
+
+def test_write_pytest_result_with_command_plan_keeps_passed_for_expected_exit(tmp_path: Path) -> None:
+    """When command_plan allows exit 1 for final-check, PASSED status stays PASSED."""
+    from reverse_agent.project_state import write_pytest_result, parse_pytest_result_header
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    body = (
+        "===== COMMAND: pytest =====\n"
+        "10 passed\n"
+        "===== EXIT: 0 =====\n"
+        "\n"
+        "===== COMMAND: final-check =====\n"
+        "1 FAIL\n"
+        "===== EXIT: 1 =====\n"
+    )
+    command_plan = {
+        "commands": [
+            {"command": "pytest", "expected_exit_codes": [0]},
+            {"command": "final-check", "expected_exit_codes": [0, 1]},
+        ]
+    }
+    result_path = write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_test",
+            "report_id": "report_test",
+            "round_id": "round_test",
+            "generated_at": "2026-07-06T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["pytest", "final-check"],
+        },
+        body=body,
+        command_plan=command_plan,
+    )
+    text = result_path.read_text(encoding="utf-8")
+    header = parse_pytest_result_header(text)
+    assert header["status"] == "PASSED"
+
+
+def test_write_pytest_result_with_command_plan_downgrades_for_unexpected_exit(tmp_path: Path) -> None:
+    """When command_plan only allows exit 0 but body has exit 1, downgrade PASSED->FAILED."""
+    from reverse_agent.project_state import write_pytest_result, parse_pytest_result_header
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    body = (
+        "===== COMMAND: pytest =====\n"
+        "1 failed\n"
+        "===== EXIT: 1 =====\n"
+    )
+    command_plan = {
+        "commands": [
+            {"command": "pytest", "expected_exit_codes": [0]},
+        ]
+    }
+    result_path = write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_test",
+            "report_id": "report_test",
+            "round_id": "round_test",
+            "generated_at": "2026-07-06T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["pytest"],
+        },
+        body=body,
+        command_plan=command_plan,
+    )
+    text = result_path.read_text(encoding="utf-8")
+    header = parse_pytest_result_header(text)
+    assert header["status"] == "FAILED"
+
+
+def test_write_pytest_result_without_command_plan_still_downgrades(tmp_path: Path) -> None:
+    """Without command_plan, PASSED with non-zero exit still downgrades to FAILED (backwards compat)."""
+    from reverse_agent.project_state import write_pytest_result, parse_pytest_result_header
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    body = (
+        "===== COMMAND: pytest =====\n"
+        "1 failed\n"
+        "===== EXIT: 1 =====\n"
+    )
+    result_path = write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_test",
+            "report_id": "report_test",
+            "round_id": "round_test",
+            "generated_at": "2026-07-06T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["pytest"],
+        },
+        body=body,
+    )
+    text = result_path.read_text(encoding="utf-8")
+    header = parse_pytest_result_header(text)
+    assert header["status"] == "FAILED"

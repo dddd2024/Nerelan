@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
-  "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
-  "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
+  "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
+  "round_id": "round_20260706_required_audit_status_truth_rework_v1",
+  "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-06T10:22:04.938204Z",
+  "generated_at": "2026-07-06T13:59:17.219879Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
-      "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
-      "sha256": "07f00cf4a72aa80af80a48f4801368a50833f6207d21b575bb9d545d4b786350"
+      "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
+      "round_id": "round_20260706_required_audit_status_truth_rework_v1",
+      "sha256": "e8d6164002f3510c08ed29a64f09a5dc0d120216b8850d6df32bbac987a62b50"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
-      "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
-      "sha256": "c5f622c2abed95adf0404b12b724a943888bd563939198f3689fec39ad7612b3"
+      "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
+      "round_id": "round_20260706_required_audit_status_truth_rework_v1",
+      "sha256": "310d606327852983e24fba0f06252c104cabcb50d7c5b235a71e28dafad60bfe"
     }
   },
   "prompt_sections": {

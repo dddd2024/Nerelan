@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
-  "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
-  "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
-  "generated_at": "2026-07-06T10:38:48.387043Z",
+  "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
+  "round_id": "round_20260706_required_audit_status_truth_rework_v1",
+  "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
+  "generated_at": "2026-07-06T14:00:33.379835Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
-    "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
-    "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
+    "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
+    "round_id": "round_20260706_required_audit_status_truth_rework_v1",
+    "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "6ad8a6bcc2baa7a6fbd89ee821452b1802fbc49dcae724225139ac1ff499faa1",
-        "size_bytes": 16621,
+        "sha256": "87ee3f715312489c0ca984e0bd92de2ea749750310c95283cfb5416be2fd6137",
+        "size_bytes": 14826,
         "command_block_count": 16
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "4d87aeb386647ae0ee0774ebc3722373ed293cffcb9225c7085c34389451382c",
-        "size_bytes": 7596,
-        "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
-        "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+        "sha256": "303f8d3a7623b632d0f167ff5d08b652be8783a18a89c3916be417fdcb5ffeee",
+        "size_bytes": 7576,
+        "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
+        "round_id": "round_20260706_required_audit_status_truth_rework_v1",
         "plan_status": "PASSED",
         "command_count": 16
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "93acfab8624c39c0bc824425d54402f9e1baf447a23036463a62fd07d86fd293",
-        "size_bytes": 38427,
-        "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
-        "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
-        "command_block_count": 14
+        "sha256": "9c81ba5efd226d5ae720f258bfeb97cfa23148f0d8e3e53ba07340653a5836bc",
+        "size_bytes": 37091,
+        "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
+        "round_id": "round_20260706_required_audit_status_truth_rework_v1",
+        "command_block_count": 15
       }
     },
     "command_count": 16,
-    "command_digest": "f1da06fad87fd2685bf69269d6866b28e52daead92d5db46e8640e72ec06e7b1"
+    "command_digest": "64caaa52527893b81fd04fd9cf081f952ec99bbd09026f8b2e16392381c08505"
   },
   "commands": [
     {
@@ -215,19 +215,19 @@
         0,
         1
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "status": "PASSED"
     },
     {
       "index": 16,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_closeout_final_check_consistency_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_required_audit_status_truth_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 1,
-      "status": "FAILED"
+      "exit_code": 0,
+      "status": "PASSED"
     }
   ],
   "warnings": [],

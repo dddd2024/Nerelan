@@ -1405,19 +1405,107 @@ def _has_failed_command_block(body: str) -> bool:
     return False
 
 
+def _expected_exit_codes_from_plan(
+    command_plan: dict[str, Any],
+) -> dict[str, list[int]]:
+    """Extract expected_exit_codes mapping from a command_plan payload."""
+    result: dict[str, list[int]] = {}
+    commands = command_plan.get("commands")
+    if not isinstance(commands, list):
+        return result
+    for item in commands:
+        if not isinstance(item, dict):
+            continue
+        command = str(item.get("command") or "")
+        codes = item.get("expected_exit_codes")
+        if not command or not isinstance(codes, list):
+            continue
+        normalized: list[int] = []
+        for code in codes:
+            try:
+                normalized.append(int(code))
+            except (TypeError, ValueError):
+                continue
+        result[command] = normalized
+    return result
+
+
+def _find_expected_exit_codes(
+    command: str,
+    expected_by_command: dict[str, list[int]],
+) -> list[int] | None:
+    """Find expected exit codes for a recorded command string.
+
+    Matches by exact string first, then by prefix to handle shell-wrapper
+    differences between the plan command and the recorded command, and
+    finally by substring to handle cases where the plan command token is
+    embedded within a longer recorded command string (e.g. ``final-check``
+    within ``python -m reverse_agent.project_gate final-check ...``).
+    """
+    if command in expected_by_command:
+        return expected_by_command[command]
+    for plan_cmd, expected in expected_by_command.items():
+        if command.startswith(plan_cmd) or plan_cmd.startswith(command):
+            return expected
+    for plan_cmd, expected in expected_by_command.items():
+        if plan_cmd and plan_cmd in command:
+            return expected
+    return None
+
+
+def _has_failed_command_block_with_plan(
+    body: str,
+    expected_by_command: dict[str, list[int]] | None,
+) -> bool:
+    """Return True if any command block exit code is outside expected_exit_codes.
+
+    When *expected_by_command* is None or empty, falls back to the simple
+    non-zero check (any non-zero exit is a failure).
+    """
+    if not expected_by_command:
+        return _has_failed_command_block(body)
+    current_command = ""
+    for line in body.splitlines():
+        line = line.strip()
+        if line.startswith("===== COMMAND: ") and line.endswith(" ====="):
+            current_command = line[len("===== COMMAND: "):-len(" =====")].strip()
+        elif line.startswith("===== EXIT: ") and line.endswith(" ====="):
+            exit_text = line[len("===== EXIT: "):-len(" =====")].strip()
+            try:
+                exit_code = int(exit_text)
+            except ValueError:
+                continue
+            expected = _find_expected_exit_codes(current_command, expected_by_command)
+            if expected is None:
+                if exit_code != 0:
+                    return True
+            elif exit_code not in expected:
+                return True
+    return False
+
+
 def write_pytest_result(
     *,
     state_dir: Path,
     summary: dict[str, Any],
     body: str,
+    command_plan: dict[str, Any] | None = None,
 ) -> Path:
     status, status_error = _normalize_status(summary.get("status"), PYTEST_RESULT_STATUSES, default="UNKNOWN")
     if status_error:
         raise ValueError(status_error)
     # If status claims PASSED but body contains failed command blocks,
     # downgrade to FAILED so the header does not contradict the evidence.
-    if status == "PASSED" and body.strip() and _has_failed_command_block(body):
-        status = "FAILED"
+    # When command_plan is provided, respect expected_exit_codes so that
+    # diagnostic gates (final-check, report-summary, execution-log) with
+    # expected_exit_codes=[0, 1] do not cause a false PASSED→FAILED downgrade.
+    if status == "PASSED" and body.strip():
+        if command_plan and isinstance(command_plan.get("commands"), list):
+            expected_by_command = _expected_exit_codes_from_plan(command_plan)
+            if _has_failed_command_block_with_plan(body, expected_by_command):
+                status = "FAILED"
+        elif _has_failed_command_block(body):
+            status = "FAILED"
     tests_ran = summary.get("tests_ran", [])
     if not isinstance(tests_ran, list) or not all(isinstance(item, str) for item in tests_ran):
         raise ValueError("tests_ran must be a list of strings")
