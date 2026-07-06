@@ -1,41 +1,37 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-  "round_id": "round_20260706_required_audit_status_truth_rework_v1",
+  "decision_id": "decision_20260706_normal_pace_state_taxonomy_roadmap_registration_v1",
+  "round_id": "round_20260706_normal_pace_state_taxonomy_roadmap_registration_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
-  "mainline": "engineering_branch",
+  "mainline": "project_governance",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
-  "follows_last_round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
-  "previous_audit_outcome": "REWORK_REQUIRED",
-  "phase_label": "phase_2_49_required_audit_status_truth_rework_v1",
-  "primary_goal": "Repair Required Audit coverage and status truthfulness so reports cannot claim accepted states while final-check or run-closeout evidence is failed.",
+  "follows_last_decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
+  "follows_last_round_id": "round_20260706_required_audit_status_truth_rework_v1",
+  "previous_audit_outcome": "ACCEPTED",
+  "phase_label": "phase_2_50_normal_pace_state_taxonomy_roadmap_registration_v1",
+  "primary_goal": "Register the normal-pace roadmap and project_state domain taxonomy workstream before any implementation of state restructuring. This is a roadmap/workstream registration round, not a project_state migration round.",
   "command_plan_authority_required": true,
-  "accepted_requires_required_audit_coverage_passed": true,
-  "accepted_requires_truthful_failed_status_when_gates_fail": true,
-  "accepted_requires_pytest_result_status_consistent_with_required_command_exit_codes": true,
-  "accepted_requires_report_summary_consistency": true,
-  "accepted_requires_final_gate_passed": true,
-  "accepted_requires_run_closeout_passed": true,
-  "accepted_requires_round_manifest_current_if_closeout_allowed": true,
+  "accepted_requires_workstream_registry_current": true,
+  "accepted_requires_new_direction_registered_before_execution": true,
+  "accepted_requires_docs_for_normal_pace_and_state_taxonomy": true,
+  "accepted_requires_no_state_file_migration": true,
   "accepted_requires_no_runner_or_workflow_dispatch": true,
   "accepted_requires_no_sample_solving": true,
-  "allowed_source_files": [
-    "reverse_agent/project_state.py",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_reports.py",
-    "reverse_agent/project_state_manifest.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_reports.py",
-    "tests/test_project_state_manifest.py"
+  "allowed_source_files": [],
+  "allowed_documentation_files": [
+    "docs/roadmap/reverse_agent_normal_pace_plan.md",
+    "docs/roadmap/project_state_domain_taxonomy_supplement.md"
+  ],
+  "allowed_governance_files": [
+    "project_state/roadmap/workstreams.json"
   ],
   "allowed_generated_or_updated_artifacts": [
     "project_state/codex_execution_report.md",
@@ -58,7 +54,7 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/execution_report_auto_summary.json",
-    "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/*"
+    "project_state/rounds/round_20260706_normal_pace_state_taxonomy_roadmap_registration_v1/*"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
@@ -71,13 +67,13 @@
     "project_state/artifact_index.json",
     "project_state/negative_results.json",
     "project_state/jobs/*",
-    "project_state/roadmap/workstreams.json",
     "project_state/user_sessions/*",
     "project_state/archives/*",
     "project_state/deletions/*",
     "project_state/blob_store/*",
     "project_state/index.sqlite",
-    "project_state/*.db"
+    "project_state/*.db",
+    "project_state/domains/*"
   ],
   "forbidden_capabilities_this_round": [
     "real_cleanup_apply",
@@ -119,68 +115,71 @@
 
 ## 1. Goal
 
-Implement **Required Audit Status Truth Rework v1**.
+Implement **Normal Pace + State Taxonomy Roadmap Registration v1**.
 
-This is a narrow `engineering_branch` rework round after `decision_20260706_closeout_final_check_consistency_rework_v1` was audited as `REWORK_REQUIRED`.
+The last accepted engineering round fixed the Required Audit, report status, pytest_result, final-check, execution-log, and run-closeout consistency chain. The project can now leave repeated closeout rework and return to normal governance planning.
 
-The previous round improved parts of closeout consistency, but it still failed hard acceptance because the execution report claimed `ACCEPTED_WITH_LIMITATIONS` while final-check and run-closeout evidence remained failed. The immediate defect is no longer broad closeout design; it is truthfulness and alignment of reports, Required Audit answers, pytest-result status semantics, report-summary synthesis, and final gate status.
+This round must not implement a state migration. It must only register the next long-term direction in roadmap/workstreams and documentation:
+
+1. Replace the old short-deadline MVP framing with a normal engineering cadence: governance stabilization first, then User Solve Layer, evidence/replay, sample inventory/capability matrix, Web workbench, tool providers, and automation.
+2. Register `project_state_domain_taxonomy` as a project-governance workstream before any `project_state/` restructuring begins.
+3. Add or refresh two roadmap documents:
+   - `docs/roadmap/reverse_agent_normal_pace_plan.md`
+   - `docs/roadmap/project_state_domain_taxonomy_supplement.md`
+4. Update `project_state/roadmap/workstreams.json` so the new workstream exists as `CANDIDATE` or `ROADMAP_ACCEPTED`, not `ACTIVE_ROUND` unless this exact decision explicitly marks it as the current roadmap-registration round.
+5. Preserve execution authority: roadmap entries remain planning facts; only `project_state/decision_packet.md` controls the current execution round.
 
 Accepted target:
 
-- Required Audit coverage passes with substantive, question-aligned answers for every audit item.
-- If final-check or run-closeout fails, both `codex_execution_report.md` and `execution_report.md` must state `FAILED / REWORK_REQUIRED`, not `ACCEPTED_WITH_LIMITATIONS`.
-- If any required command exits outside command-plan expected exit codes, `pytest_result.txt` summary must not be `PASSED`.
-- `report_summary_synthesis.json` must match the execution report status, recommendation, tests, and generated artifacts.
-- `final_gate_result.json.gate_status` must be `PASSED` before any accepted recommendation is used.
-- `run_closeout_result.json.closeout_status` must be `PASSED` if command-plan permits closeout.
-- Current round manifest must exist and match current report if closeout is permitted.
-- No forbidden paths or forbidden capabilities are used.
+- normal-pace roadmap doc exists and clearly states the phase order;
+- state taxonomy supplement doc exists and clearly states that it is not the current execution authority;
+- `workstreams.json` contains a `project_state_domain_taxonomy` workstream with lifecycle status no stronger than `ROADMAP_ACCEPTED` unless justified by this registration decision;
+- `workstreams.json` continues to state that `decision_packet.md` is execution authority and roadmap entries are not execution authority;
+- no `project_state/current_state.json`, `artifact_index.json`, `negative_results.json`, `project_state/domains/*`, Web, database, runner, sample-solving, or tool-integration implementation is performed;
+- final-check and run-closeout pass.
 
 ## 2. Current Evidence
 
-Current task authority is this `project_state/decision_packet.md`. `project_state/task_packet.json` is background only and must not control this engineering round.
+Current task authority is this `project_state/decision_packet.md`.
 
-Previous audited state:
+Previous accepted baseline:
 
-- Previous decision: `decision_20260706_closeout_final_check_consistency_rework_v1`.
-- Previous round: `round_20260706_closeout_final_check_consistency_rework_v1`.
-- Previous manual audit outcome: `REWORK_REQUIRED`.
-- `prework_provenance_result.json` was current and `PASSED`.
-- Unit tests passed: `1124 passed` and `16 passed`.
-- `command_plan.json` was present, current, and had no omitted commands.
-- `final_gate_result.json.gate_status` was `FAILED`.
-- `run_closeout_result.json.closeout_status` was `FAILED`.
-- `close-round` failed because `final_check_before_archive` failed on `required_audit_coverage`.
-- `pytest_result.txt` summary claimed `PASSED` while body recorded final-check and run-closeout failures.
-- `report_summary_fields_match_synthesis` failed because synthesized status expected `FAILED / REWORK_REQUIRED`, but the report claimed `ACCEPTED_WITH_LIMITATIONS`.
-- `status_policy_valid` failed because status evidence was contradictory.
-- `required_audit_coverage` failed because Required Audit answers did not align with audit questions.
+- Previous decision: `decision_20260706_required_audit_status_truth_rework_v1`.
+- Previous round: `round_20260706_required_audit_status_truth_rework_v1`.
+- Previous audit outcome: `ACCEPTED`.
+- The previous round had `codex_execution_report.md` status `SUCCESS` and acceptance recommendation `ACCEPTED`.
+- `pytest_result.txt` passed and recorded final-check/run-closeout success.
+- `final_gate_result.json` passed with no active warnings or blocking reasons.
+- `run_closeout_result.json` passed and archived the round.
 
-Existing capabilities that must be reused, not duplicated:
+Why this round is roadmap-only:
 
-- `project_gate` hard gates;
+- `project_state/current_state.json` still carries reverse-solving sample state for `samplereverse`, not a global project summary.
+- `project_state/negative_results.json` still mixes reverse-solving failure directions with global policy restrictions.
+- `project_state/roadmap/workstreams.json` already states that roadmap entries are not execution authority, but it does not yet register the state-domain taxonomy direction as a proper workstream.
+- A new direction must enter roadmap/workstream before becoming an implementation round.
+
+Existing capabilities that must not be duplicated:
+
+- decision packet authority;
 - command-plan authority;
+- project_gate;
 - execution-log synthesis;
 - report-summary synthesis;
 - final-check;
-- run-closeout and close-round;
-- round manifest archive;
-- prework-provenance gate;
-- startup snapshot and round baseline;
-- status-policy reconciliation;
-- generated artifact coverage checks;
-- forbidden-path checks;
-- report auto-summary and neutral execution report alias;
+- run-closeout and round archive;
+- state manifest;
 - context packet builder;
-- post-final evidence sync gate.
+- workstream registry;
+- negative_results;
+- artifact_index;
+- policy-lint and prompt-consistency foundations;
+- User Solve Layer foundation;
+- CI/state-gate foundations;
+- job lifecycle foundation;
+- manual-mode Web orchestrator foundation.
 
-This round must repair the existing report/status/audit truth chain. It must not add a parallel report format, a new closeout system, a new execution log format, or a new provenance framework.
-
-Artifact freshness policy:
-
-- Current evidence must use this decision ID and this round ID.
-- Historical sample artifacts and missing sample artifacts are nonblocking for this engineering round.
-- Stale governance artifacts may be referenced only as historical/nonblocking, not as current proof.
+This round must only connect the next direction to the existing roadmap mechanism. It must not introduce a new planner, new state store, new database, new runner, new Web runtime, or new execution workflow.
 
 Tool and execution policy:
 
@@ -194,21 +193,37 @@ Tool and execution policy:
 
 ## 3. Do Not Do
 
-Do not add new product features.
+Do not migrate `project_state/current_state.json`.
 
-Do not change workflow files, frontend files, jobs, roadmap, sample artifacts, database files, cleanup artifacts, or `.codex-skills/*`.
+Do not modify `project_state/artifact_index.json`.
 
-Do not rework timestamp precision hardening unless a regression test fails. Existing `context_sync_basis` and `timestamp_precision_policy` behavior must remain intact.
+Do not modify `project_state/negative_results.json`.
 
-Do not rework prework provenance unless required for current report/status consistency. The prior stale-prework issue was already fixed.
+Do not create `project_state/domains/*` yet.
 
-Do not suppress final-check, Required Audit, report-summary, status-policy, or closeout failures merely to pass. The report must truthfully reflect failed evidence.
+Do not split negative_results yet.
 
-Do not mark the round `ACCEPTED` or `ACCEPTED_WITH_LIMITATIONS` if final-check or run-closeout fails.
+Do not add scope/domain/mainline metadata to real state entries yet.
 
-Do not let `pytest_result.txt` claim `PASSED` when required acceptance commands fail.
+Do not modify `.codex-skills/*`.
 
-Do not read full `solve_reports/*`, run sample solving, run IDA/Ghidra/OllyDbg/MCP, invoke external reverse tools, start Web/frontend runtime, trigger runner/workflow dispatch, call model APIs, create databases, or perform cleanup apply/deletion/archive apply.
+Do not modify `.github/workflows/*`.
+
+Do not modify `frontend/*`.
+
+Do not modify `project_state/jobs/*`.
+
+Do not read or commit full `solve_reports/*`.
+
+Do not run sample solving, candidate search, runtime validation, IDA, Ghidra, OllyDbg, debugger, emulator, MCP, or external reverse tools.
+
+Do not implement Web/API runtime, frontend runtime, scheduler, service, queue, database, GitHub App, ChatGPT Action, or remote runner.
+
+Do not run workflow dispatch, agent dispatch, runner dispatch, or auto-iteration.
+
+Do not perform cleanup apply, file deletion, file moving, archive compaction apply, real deletion manifest write, or real tombstone write.
+
+Do not mark a future workstream as implementation-complete. This round only registers planning direction and readiness gates.
 
 ## 4. Files To Inspect
 
@@ -220,30 +235,22 @@ Must inspect:
 - `project_state/pytest_result.txt`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/run_closeout_result.json`
-- `project_state/gates/run_closeout_execution_log.json`
 - `project_state/gates/execution_log.json`
 - `project_state/gates/command_plan.json`
 - `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/prework_provenance_result.json`
-- `project_state/gates/startup_snapshot.json`
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_close_snapshot.json`
+- `project_state/roadmap/workstreams.json`
+- `project_state/current_state.json`
+- `project_state/negative_results.json`
+- `project_state/artifact_index.json`
 - `.codex-skills/registry.json`
-- `reverse_agent/project_state.py`
-- `reverse_agent/project_gate.py`
-- `reverse_agent/project_reports.py`
-- `tests/test_project_gate.py`
-- `tests/test_project_reports.py`
-- `tests/test_project_state_manifest.py`
 
-May inspect if needed:
+May inspect:
 
-- `reverse_agent/project_state_manifest.py`
 - `project_state/context/current_context_packet.json`
-- `project_state/gates/post_final_evidence_sync_result.json`
-- `reverse_agent/post_final_evidence_sync.py`
-- `tests/test_post_final_evidence_sync.py`
-- `tests/test_project_context_builder.py`
+- `project_state/state_manifest.json`
+- `README.md`
+- `docs/roadmap/*`
+- `docs/prompts/README.md`
 
 Do not inspect by default:
 
@@ -254,35 +261,28 @@ Do not inspect by default:
 
 ## 5. Required Audit
 
-Audit must answer all of the following with substantive answers:
+Audit must answer all of the following:
 
-1. Is `decision_meta` present, valid, `APPROVED`, and on legal mainline `engineering_branch`?
+1. Is `decision_meta` present, valid, `APPROVED`, and on legal mainline `project_governance`?
 2. Does `skill_profiles` use only active skills from `.codex-skills/registry.json`?
 3. Does `codex_execution_report.md` match this decision ID and round ID?
 4. Does `execution_report.md` semantically match `codex_execution_report.md`?
 5. Does `pytest_result.txt` match this decision ID, round ID, and report ID?
-6. Does `pytest_result.txt` status agree with command block exit codes and final-check/run-closeout evidence?
-7. Does `command_plan.json` carry current decision and round IDs?
-8. Does command-plan authorize every executed command?
-9. Were any omitted or unauthorized commands executed?
-10. Does execution-log record every command-plan required command?
-11. Does execution-log provenance match live pytest_result, command_plan, and run_closeout evidence?
-12. Does `prework_provenance_result.json` remain current and pass?
-13. Does report-summary match the execution report status, files_changed, tests_ran, generated_artifacts, and required audit coverage?
-14. Does Required Audit coverage pass without placeholder or question-misaligned answers?
-15. Does status-policy reject accepted claims when final-check or run-closeout evidence is failed?
-16. Does final-check pass before closeout?
-17. Does close-round archive the current round if closeout is permitted?
-18. Does final-check after closeout pass or is there no active post-close nested failure?
-19. Does `run_closeout_result.json.closeout_status` pass if command-plan permits closeout?
-20. Does the current round manifest exist and match the current report if closeout is permitted?
-21. Does final gate contain no active blocking reasons?
-22. Are all changed source/test files explicitly allowed by this decision?
-23. Does the round avoid forbidden paths?
-24. Did the implementation avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, sample solving, and external reverse tools?
-25. Did this round preserve existing timestamp precision hardening and prework provenance behavior without reimplementing them unnecessarily?
-26. Did this round reuse existing project_gate/report/final-check/closeout foundations instead of adding a parallel mechanism?
-27. Does the final conclusion avoid claiming `ACCEPTED` or `ACCEPTED_WITH_LIMITATIONS` unless all hard gates and closeout support it?
+6. Does `command_plan.json` carry current decision and round IDs?
+7. Does command-plan authorize every executed command?
+8. Were any omitted or unauthorized commands executed?
+9. Does execution-log record every command-plan required command?
+10. Does report-summary match the execution report?
+11. Does `final_gate_result.json` pass?
+12. Does `run_closeout_result.json` pass if closeout is permitted?
+13. Does `workstreams.json` preserve the policy that roadmap entries are not execution authority?
+14. Does `workstreams.json` register `project_state_domain_taxonomy` without pretending implementation is complete?
+15. Does the normal-pace roadmap document exist and avoid short-deadline MVP commitments?
+16. Does the state taxonomy supplement document exist and clearly state it is not a current execution authority?
+17. Did the implementation avoid modifying `current_state.json`, `artifact_index.json`, `negative_results.json`, `project_state/domains/*`, `.codex-skills/*`, `.github/workflows/*`, `frontend/*`, `solve_reports/*`, and database files?
+18. Did the implementation avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, sample solving, and external reverse tools?
+19. Did this round reuse existing roadmap/workstream/final-check/report mechanisms rather than creating a parallel planning system?
+20. Does the final conclusion avoid claiming implementation of the future state-taxonomy migration?
 
 Audit conclusion must be one of:
 
@@ -295,45 +295,37 @@ If `REWORK_REQUIRED`, the audit must give a concrete rework decision, not a gene
 
 ## 6. Implementation Scope
 
-Allowed implementation is limited to Required Audit coverage, truthful report status, pytest-result status semantics, report-summary consistency, final-check, and run-closeout status consistency.
+Allowed implementation is limited to roadmap registration and documentation.
 
-1. Repair Required Audit answer alignment.
-   - Ensure generated reports answer every Required Audit item directly and substantively.
-   - Avoid placeholder answers such as only naming the conclusion token.
-   - Ensure the final audit-conclusion options are handled as conclusion choices, not treated as malformed audit questions.
+1. Add or update `docs/roadmap/reverse_agent_normal_pace_plan.md`.
+   - Remove the assumption of a rushed 10-day MVP.
+   - Define the sequence: governance stabilization, User Solve contract, safe static solving, evidence/replay, sample inventory/capability matrix, Web workbench, tool providers, and automation.
+   - State explicitly that Web should not lead the architecture.
+   - State explicitly that candidate results are not verified answers.
 
-2. Repair report status truthfulness.
-   - If final-check or run-closeout fails, the report must be `FAILED / REWORK_REQUIRED`.
-   - `ACCEPTED_WITH_LIMITATIONS` may be used only for nonblocking limitations after hard gates pass.
-   - Do not claim core success while hard gate evidence says failed.
+2. Add or update `docs/roadmap/project_state_domain_taxonomy_supplement.md`.
+   - Explain why top-level `current_state.json` and `negative_results.json` need domain ownership metadata in future rounds.
+   - State that no state migration is performed in this round.
+   - Define future phases only as roadmap material: metadata first, domain skeleton second, reverse_solving state copy later, negative_results split later, final-check hardening later.
 
-3. Repair pytest_result status semantics.
-   - If any required command exits outside command-plan expected exit codes, top-level `pytest_result_summary.status` must not be `PASSED`.
-   - Distinguish unit-test success from round acceptance success.
-   - Preserve backwards-compatible parsing of existing command blocks.
+3. Update `project_state/roadmap/workstreams.json`.
+   - Preserve `authority_policy.decision_packet_is_execution_authority=true`.
+   - Preserve `authority_policy.roadmap_entries_are_not_execution_authority=true`.
+   - Add `project_state_domain_taxonomy` as a `project_governance` workstream.
+   - Status should be `CANDIDATE` or `ROADMAP_ACCEPTED`; do not mark the implementation as `ACCEPTED`.
+   - Include clear non-goals: no database replacement, no file moving, no deletion, no sample solving, no Web/tool/runner work.
 
-4. Repair report-summary and auto-summary consistency.
-   - `report_summary_synthesis.json`, `codex_report_auto_summary.json`, and `execution_report_auto_summary.json` must agree with the live reports.
-   - The status and acceptance recommendation must derive from current evidence, not optimistic prose.
+4. Keep all real state-migration files unchanged.
+   - No edits to `project_state/current_state.json`.
+   - No edits to `project_state/artifact_index.json`.
+   - No edits to `project_state/negative_results.json`.
+   - No creation of `project_state/domains/*`.
 
-5. Repair closeout path only as needed.
-   - Run-closeout should fail truthfully if Required Audit or final-check fails.
-   - Run-closeout should pass only after final-check and close-round conditions are satisfied.
-   - Do not weaken stale artifact or nested-failure detection.
+5. Run only command-plan authorized validation.
+   - Since this is documentation/roadmap governance, tests may be lightweight if command-plan selects a lightweight profile.
+   - Still produce pytest_result, execution report, execution-log, final-check, and closeout artifacts.
 
-6. Preserve previous fixes.
-   - Keep prework provenance current and passing.
-   - Keep digest-backed post-final timestamp precision behavior intact.
-   - Keep allowed-source handling for explicitly permitted source files.
-
-7. Add or update tests.
-   - Test Required Audit coverage for substantive aligned answers.
-   - Test that reports with failed final-check/run-closeout cannot claim accepted status.
-   - Test pytest_result summary downgrades when a required command exits outside expected codes.
-   - Test report-summary detects and rejects report/final-gate status mismatches.
-   - Test final successful closeout path if the implementation supports it within scope.
-
-Allowed source/test changes are limited to the files listed in `decision_contract`.
+Allowed documentation/governance changes are limited to the files listed in `decision_contract`.
 
 ## 7. Tests
 
@@ -351,14 +343,16 @@ python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m reverse_agent.project_gate prework-provenance --state-dir project_state
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py -q
-python -m pytest tests/test_post_final_evidence_sync.py tests/test_project_context_builder.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_required_audit_status_truth_rework_v1
-python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_normal_pace_state_taxonomy_roadmap_registration_v1
+```
+
+If command-plan requires pytest, run only the authorized subset. Suggested candidates:
+
+```powershell
+python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py -q
 ```
 
 Required result artifacts:
@@ -366,26 +360,19 @@ Required result artifacts:
 - `project_state/pytest_result.txt`
 - `project_state/codex_execution_report.md`
 - `project_state/execution_report.md`
-- `project_state/gates/prework_provenance_result.json`
 - `project_state/gates/report_summary_synthesis.json`
 - `project_state/gates/execution_log.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/run_closeout_result.json`
-- `project_state/gates/run_closeout_execution_log.json`
-- `project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json` if closeout is permitted.
+- `project_state/rounds/round_20260706_normal_pace_state_taxonomy_roadmap_registration_v1/round_manifest.json` if closeout is permitted.
 
 Acceptance requires:
 
-- all required pytest commands pass;
-- Required Audit coverage passes;
-- report-summary passes;
-- execution-log passes;
-- final-check passes before closeout;
-- run-closeout passes if command-plan permits closeout;
-- final-check passes after closeout or no active post-close nested failure remains;
-- round manifest exists if closeout is permitted;
-- no unauthorized source/test files are changed;
-- no forbidden paths are modified;
+- workstream registration is present and not overstated;
+- docs exist and clearly distinguish roadmap from execution authority;
+- no state migration files are modified;
+- no forbidden capabilities are used;
+- report-summary, execution-log, final-check, and run-closeout pass;
 - execution report recommends `ACCEPTED` only with supporting artifacts.
 
 ## 8. Stop Conditions
@@ -396,21 +383,16 @@ Stop immediately and report `BLOCKED` if:
 - `project_state/decision_packet.md` cannot be read;
 - `.codex-skills/registry.json` does not mark `reverse-agent-iteration` active;
 - command-plan cannot be generated or is inconsistent with this decision;
-- command-plan omits required testing and no approved fallback exists;
-- repairing report/status/audit consistency requires modifying forbidden paths;
-- repairing the issue requires changing workflows, frontend, jobs, roadmap, database files, cleanup artifacts, sample artifacts, or `.codex-skills`;
-- any runner dispatch, workflow dispatch, model API, Web runtime, database write, sample solving, external reverse tool invocation, cleanup apply, deletion, or archive apply becomes necessary;
-- pytest or final-check fails and cannot be fixed within allowed files;
-- the only apparent way to pass is to suppress final-check, Required Audit, report-summary, or run-closeout failures instead of resolving the evidence mismatch.
+- command-plan omits required validation and no approved fallback exists;
+- roadmap registration requires modifying forbidden paths;
+- any state migration becomes necessary;
+- any runner dispatch, workflow dispatch, model API, Web runtime, database write, sample solving, external reverse tool invocation, cleanup apply, deletion, or archive apply becomes necessary.
 
 Stop with `REWORK_REQUIRED` if:
 
-- Required Audit coverage still fails;
-- report status still claims accepted while final-check or run-closeout evidence is failed;
-- pytest_result header status contradicts failed required commands;
-- report-summary does not match live reports and final-gate evidence;
-- final-check still fails;
-- run-closeout top-level status remains failed when acceptance is claimed;
-- execution-log provenance remains inconsistent with live evidence;
-- source/test changes include files outside this decision's allowed list;
-- current round is not archived even though closeout is permitted and acceptance is claimed.
+- `project_state_domain_taxonomy` is not registered in `workstreams.json`;
+- the roadmap docs imply they are current execution authority;
+- the implementation modifies `current_state.json`, `artifact_index.json`, `negative_results.json`, or creates `project_state/domains/*`;
+- the workstream is marked implementation-complete without evidence;
+- report-summary, execution-log, final-check, or run-closeout fails;
+- the report claims `ACCEPTED` without passing final-check and closeout.
