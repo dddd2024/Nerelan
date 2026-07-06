@@ -8611,7 +8611,19 @@ def _baseline_lifecycle_checks(
     inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
     scope_text = _markdown_section(decision_text, "Implementation Scope")
     source_test_scope = _allowed_source_test_scope_paths(scope_text)
-    # Only files explicitly listed in the "Allowed Inherited Dirty Baseline
+    # Also include source/test files from the decision_contract JSON block so
+    # that files explicitly allowed as source or test changes are recognized even
+    # when they are listed only in the structured contract rather than the prose
+    # Implementation Scope section.  This prevents baseline_lifecycle_guard from
+    # failing after close-round when a file in allowed_source_files remains
+    # dirty in the close snapshot.
+    _contract_scope = extract_markdown_json_block(decision_text, "decision_contract")
+    if _contract_scope.get("found") and not _contract_scope.get("parse_error"):
+        for _p in _contract_scope.get("allowed_source_files") or []:
+            source_test_scope.add(_norm_path(_p))
+        for _p in _contract_scope.get("allowed_test_files") or []:
+            source_test_scope.add(_norm_path(_p))
+    # Only files explicitly listed in the "Allowed Inherited Dirty Baseline"
     # Files" section of the decision are allowed as inherited dirty baseline.
     # Files that merely appear in Implementation Scope are NOT automatically
     # allowed — doing so would mask late baseline capture (where Codex modifies
@@ -8887,6 +8899,14 @@ def _baseline_capture_order_checks(
     baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
     scope_text = _markdown_section(decision_text, "Implementation Scope")
     source_test_scope = _allowed_source_test_scope_paths(scope_text)
+    # Also include source/test files from the decision_contract JSON block so
+    # that files explicitly allowed as source or test changes are recognized.
+    _bco_contract_scope = extract_markdown_json_block(decision_text, "decision_contract")
+    if _bco_contract_scope.get("found") and not _bco_contract_scope.get("parse_error"):
+        for _p in _bco_contract_scope.get("allowed_source_files") or []:
+            source_test_scope.add(_norm_path(_p))
+        for _p in _bco_contract_scope.get("allowed_test_files") or []:
+            source_test_scope.add(_norm_path(_p))
     allowed_inherited = _allowed_inherited_baseline_paths(decision_text)
 
     checks: list[dict[str, Any]]

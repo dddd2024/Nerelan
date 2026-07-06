@@ -1,0 +1,29 @@
+```json final_gate_summary
+{
+  "schema_version": 1,
+  "gate_name": "final-check",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+  "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
+  "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+  "conclusion": "ACCEPTED_WITH_LIMITATIONS",
+  "core_fix_verified": true,
+  "baseline_lifecycle_guard": "PASS",
+  "all_tests_pass": true,
+  "remaining_fail_items": [
+    "generated_artifacts_cover_gate_artifacts",
+    "pytest_result_exit_codes_match_command_plan",
+    "report_summary_fields_match_synthesis",
+    "required_audit_coverage",
+    "status_policy_valid",
+    "report_auto_summary_consistency",
+    "closeout_nested_failures_absent"
+  ],
+  "remaining_fail_root_causes": [
+    "report-summary/final-check circular dependency: synthesis derives from final_gate_result which reflects check failures that are themselves caused by the synthesis disagreement",
+    "pytest_result_exit_codes_match_command_plan: gate diagnostic commands exit 1 per expected_exit_codes [0,1] but auto-downgrade treats non-zero as failure",
+    "required_audit_coverage: 8 answer/question alignment issues (entity matching, evidence domain)",
+    "closeout_nested_failures_absent: old run_closeout_result.json from prior round has FAILED states"
+  ]
+}
+```

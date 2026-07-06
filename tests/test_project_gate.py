@@ -922,6 +922,8 @@ def _make_gate_state(
     pytest_tests_ran: list[str] | None = None,
     generated_artifacts: list[str] | None = None,
     startup_dirty_files: list[str] | None = None,
+    decision_id: str = "decision_gate",
+    round_id: str = "round_gate",
 ) -> Path:
     state_dir = tmp_path / "project_state"
     state_dir.mkdir()
@@ -949,9 +951,8 @@ def _make_gate_state(
     _write_json(state_dir / "model_gate.json", {"should_call_model": False})
     _write_json(state_dir / "negative_results.json", {})
 
-    decision_id = "decision_gate"
+    # Use parameterised decision_id/round_id (defaults to decision_gate/round_gate)
     report_id = "codex_report_gate"
-    round_id = "round_gate"
     archive_paths = _archive_paths(round_id)
     base_changed = [
         "reverse_agent/project_gate.py",
@@ -29454,6 +29455,180 @@ def test_missing_prework_provenance_passes_when_not_required(tmp_path: Path) -> 
         decision_contract={"accepted_requires_prework_provenance_hardening": False},
     )
     assert check["status"] == "PASS"
+
+
+def test_baseline_lifecycle_guard_allows_close_dirty_from_decision_contract_allowed_source_files(
+    tmp_path: Path,
+) -> None:
+    """When a round is closed with a dirty worktree and the dirty source files
+    are listed in decision_contract.allowed_source_files, baseline_lifecycle_guard
+    must not FAIL.  This prevents false positives when a file is authorized by
+    the structured contract but not in the prose Implementation Scope section."""
+    archive_paths = _archive_paths("round_closeout")
+    state_dir = _make_gate_state(
+        tmp_path,
+        files_changed=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_close_snapshot.json",
+            "project_state/gates/run_closeout_result.json",
+            "project_state/gates/run_closeout_execution_log.json",
+            *archive_paths,
+        ],
+    )
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_closeout",
+        round_id="round_closeout",
+        contract={
+            "allowed_source_files": [
+                "reverse_agent/project_state.py",
+                "reverse_agent/project_gate.py",
+            ],
+            "allowed_test_files": [
+                "tests/test_project_state_manifest.py",
+                "tests/test_project_gate.py",
+            ],
+        },
+    )
+    _write_round_baseline(
+        state_dir,
+        decision_id="decision_closeout",
+        round_id="round_closeout",
+        baseline_dirty_files=["reverse_agent/project_state.py", "tests/test_project_state_manifest.py"],
+    )
+    # Write a close snapshot for the current round with dirty worktree
+    close_snapshot_path = state_dir / "gates" / "round_close_snapshot.json"
+    close_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    close_snapshot_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": "decision_closeout",
+                "round_id": "round_closeout",
+                "round_closed": True,
+                "close_worktree_clean": False,
+                "close_dirty_files": [
+                    "reverse_agent/project_state.py",
+                    "tests/test_project_state_manifest.py",
+                    "project_state/codex_execution_report.md",
+                    "project_state/gates/round_close_snapshot.json",
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    guard = _check(result, "baseline_lifecycle_guard")
+    assert guard["status"] == "PASS", (
+        f"baseline_lifecycle_guard should PASS when close snapshot dirty files"
+        f" are in decision_contract.allowed_source_files; got {guard}"
+    )
+
+
+def test_baseline_lifecycle_guard_fails_close_dirty_not_in_contract_or_scope(
+    tmp_path: Path,
+) -> None:
+    """When a round is closed with dirty source files that are neither in the
+    prose Implementation Scope nor in decision_contract.allowed_source_files,
+    baseline_lifecycle_guard must FAIL."""
+    archive_paths = _archive_paths("round_closeout2")
+    state_dir = _make_gate_state(
+        tmp_path,
+        files_changed=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_close_snapshot.json",
+            *archive_paths,
+        ],
+        decision_id="decision_closeout2",
+        round_id="round_closeout2",
+    )
+    # Write a close snapshot with an unauthorized dirty source file
+    close_snapshot_path = state_dir / "gates" / "round_close_snapshot.json"
+    close_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    close_snapshot_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": "decision_closeout2",
+                "round_id": "round_closeout2",
+                "round_closed": True,
+                "close_worktree_clean": False,
+                "close_dirty_files": [
+                    "reverse_agent/unauthorized_file.py",
+                    "project_state/codex_execution_report.md",
+                    "project_state/gates/round_close_snapshot.json",
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    guard = _check(result, "baseline_lifecycle_guard")
+    assert guard["status"] == "FAIL", (
+        f"baseline_lifecycle_guard should FAIL when close snapshot dirty files"
+        f" are not in scope or contract; got {guard}"
+    )
+
+
+def test_closeout_nested_failures_passes_when_all_steps_succeed() -> None:
+    """closeout_nested_failures_absent should PASS when run_closeout_result
+    has no nested FAIL/FAILED states."""
+    from reverse_agent.project_gate import _collect_active_failure_states
+
+    result = {
+        "closeout_status": "PASSED",
+        "executed_steps": [
+            {"name": "final-check", "status": "PASSED", "exit_code": 1, "expected_exit_codes": [0, 1]},
+            {"name": "close-round", "status": "PASSED", "exit_code": 0, "expected_exit_codes": [0]},
+            {"name": "final-check-after-close", "status": "PASSED", "exit_code": 0, "expected_exit_codes": [0]},
+        ],
+        "close_round_result": {
+            "close_status": "CLOSED",
+            "report_status": "SUCCESS",
+        },
+        "blocking_reasons": [],
+    }
+    failures = _collect_active_failure_states(result, path="run_closeout_result")
+    assert not failures, f"Expected no nested failures, got {failures}"
+
+
+def test_closeout_nested_failures_detects_failed_step() -> None:
+    """closeout_nested_failures_absent should detect FAILED step status."""
+    from reverse_agent.project_gate import _collect_active_failure_states
+
+    result = {
+        "closeout_status": "FAILED",
+        "executed_steps": [
+            {"name": "final-check-after-close", "status": "FAILED", "exit_code": 1, "expected_exit_codes": [0]},
+        ],
+        "close_round_result": {
+            "close_status": "CLOSED",
+        },
+        "blocking_reasons": ["step final-check-after-close failed"],
+    }
+    failures = _collect_active_failure_states(result, path="run_closeout_result")
+    assert failures, "Expected nested failures to be detected"
+    failed_paths = {f["path"] for f in failures}
+    assert any("closeout_status" in p for p in failed_paths), f"Expected closeout_status in failures, got {failed_paths}"
+    assert any("final-check-after-close" in str(f.get("name") or "") for f in failures), (
+        f"Expected final-check-after-close in failures, got {failures}"
+    )
 
 
 def test_user_solve_control_plane_gate_writes_safe_fixture_artifact(tmp_path: Path) -> None:

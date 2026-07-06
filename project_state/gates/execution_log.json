@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-  "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
-  "generated_at": "2026-07-06T08:57:49.533393Z",
+  "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+  "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+  "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
+  "generated_at": "2026-07-06T10:38:48.387043Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-    "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-    "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+    "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+    "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+    "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "9924ef8da2c25a96a0ab46b87d31cec965ba3cba8dc9e0a39477447067737a58",
-        "size_bytes": 27337,
-        "command_block_count": 17
+        "sha256": "6ad8a6bcc2baa7a6fbd89ee821452b1802fbc49dcae724225139ac1ff499faa1",
+        "size_bytes": 16621,
+        "command_block_count": 16
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "85b5ae1306b382f4340f1c63ad949c689a3b01989b04f53220235fcb87529099",
-        "size_bytes": 7978,
-        "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-        "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+        "sha256": "4d87aeb386647ae0ee0774ebc3722373ed293cffcb9225c7085c34389451382c",
+        "size_bytes": 7596,
+        "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+        "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
         "plan_status": "PASSED",
-        "command_count": 17
+        "command_count": 16
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "90c65a1a595b737d7cae6d7c63057e4b8f00885612b3c2eb3e18f67591e3a7b4",
-        "size_bytes": 37919,
-        "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-        "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-        "command_block_count": 16
+        "sha256": "93acfab8624c39c0bc824425d54402f9e1baf447a23036463a62fd07d86fd293",
+        "size_bytes": 38427,
+        "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+        "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+        "command_block_count": 14
       }
     },
-    "command_count": 17,
-    "command_digest": "e153151bdca49c0ebbcefe80cf562dc5796fd8e5b2a08f3a59acb753aa15fd72"
+    "command_count": 16,
+    "command_digest": "f1da06fad87fd2685bf69269d6866b28e52daead92d5db46e8640e72ec06e7b1"
   },
   "commands": [
     {
@@ -173,17 +173,6 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
-      "kind": "ci-workflow-coverage",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 13,
       "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
       "kind": "prework-provenance",
       "phase": "gate",
@@ -194,7 +183,7 @@
       "status": "PASSED"
     },
     {
-      "index": 14,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -206,7 +195,7 @@
       "status": "PASSED"
     },
     {
-      "index": 15,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -218,7 +207,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -230,15 +219,15 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_prework_provenance_closeout_rework_v1",
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_closeout_final_check_consistency_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 0,
-      "status": "PASSED"
+      "exit_code": 1,
+      "status": "FAILED"
     }
   ],
   "warnings": [],

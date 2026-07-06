@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-  "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+  "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+  "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+  "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-06T08:58:03.395832Z",
+  "generated_at": "2026-07-06T10:22:04.938204Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-      "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-      "sha256": "fa36bf6ec6491174788ce08f14382518f6b4d09399f13361952b3fea3eb848f9"
+      "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+      "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+      "sha256": "07f00cf4a72aa80af80a48f4801368a50833f6207d21b575bb9d545d4b786350"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-      "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-      "sha256": "407bd7cdd4613b3c0f61b3f600a9a3ffc9c210557dae316d1fb1a92d9e415253"
+      "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+      "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+      "sha256": "c5f622c2abed95adf0404b12b724a943888bd563939198f3689fec39ad7612b3"
     }
   },
   "prompt_sections": {

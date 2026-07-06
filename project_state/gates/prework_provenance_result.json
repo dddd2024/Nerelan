@@ -3,11 +3,11 @@
   "artifact_name": "prework_provenance_result.json",
   "gate_name": "prework-provenance",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-  "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+  "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+  "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+  "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-06T08:57:17.652371Z",
+  "generated_at": "2026-07-06T10:21:23.807103Z",
   "artifact_path": "project_state/gates/prework_provenance_result.json",
   "evidence_only": true,
   "executable": false,
@@ -22,8 +22,8 @@
       "name": "startup_snapshot_current",
       "status": "PASS",
       "detail": "startup snapshot carries current decision and round IDs",
-      "snapshot_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-      "snapshot_round_id": "round_20260706_prework_provenance_closeout_rework_v1"
+      "snapshot_decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+      "snapshot_round_id": "round_20260706_closeout_final_check_consistency_rework_v1"
     },
     {
       "name": "startup_dirty_source_test_doc_policy",
@@ -34,6 +34,7 @@
       "allowed_inherited_dirty_files": [
         "reverse_agent/project_gate.py",
         "reverse_agent/project_reports.py",
+        "reverse_agent/project_state.py",
         "reverse_agent/project_state_manifest.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",

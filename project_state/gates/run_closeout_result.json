@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "FAILED",
-  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-  "generated_at": "2026-07-06T08:57:26.183987Z",
+  "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+  "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+  "generated_at": "2026-07-06T10:21:27.692636Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -87,16 +87,6 @@
       "status": "PASSED"
     },
     {
-      "name": "ci-workflow-coverage",
-      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
-      "kind": "ci-workflow-coverage",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
       "name": "prework-provenance",
       "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
       "kind": "prework-provenance",
@@ -114,7 +104,7 @@
         0,
         1
       ],
-      "exit_code": 0,
+      "exit_code": 1,
       "status": "PASSED"
     },
     {
@@ -141,18 +131,8 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260706_prework_provenance_closeout_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260706_closeout_final_check_consistency_rework_v1",
       "kind": "close-round",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "name": "final-check-after-close",
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
       "expected_exit_codes": [
         0
       ],
@@ -165,14 +145,14 @@
   "close_round_result": {
     "schema_version": 1,
     "gate_name": "close-round",
-    "close_status": "CLOSED",
-    "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-    "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
-    "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-    "decision_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-    "report_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-    "report_status": "SUCCESS",
-    "generated_at": "2026-07-06T08:57:24.600522Z",
+    "close_status": "FAILED",
+    "decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+    "report_id": "codex_report_20260706_closeout_final_check_consistency_rework_v1",
+    "round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+    "decision_round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+    "report_round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+    "report_status": "FAILED",
+    "generated_at": "2026-07-06T10:21:27.689974Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -199,15 +179,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-        "decision_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
-        "report_round_id": "round_20260706_prework_provenance_closeout_rework_v1"
+        "requested_round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+        "decision_round_id": "round_20260706_closeout_final_check_consistency_rework_v1",
+        "report_round_id": "round_20260706_closeout_final_check_consistency_rework_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1"
+        "report_based_on_decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1"
       },
       {
         "name": "pytest_result_match",
@@ -233,8 +213,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
-        "command_plan_round_id": "round_20260706_prework_provenance_closeout_rework_v1"
+        "command_plan_decision_id": "decision_20260706_closeout_final_check_consistency_rework_v1",
+        "command_plan_round_id": "round_20260706_closeout_final_check_consistency_rework_v1"
       },
       {
         "name": "command_plan_execution_order_policy",
@@ -305,17 +285,13 @@
         "inherited_dirty_files": [],
         "new_dirty_files_since_baseline": [
           "project_state/codex_execution_report.md",
-          "project_state/context/current_context_packet.json",
           "project_state/execution_report.md",
-          "project_state/gates/ci_workflow_coverage_result.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/post_final_evidence_sync_result.json",
-          "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
@@ -325,23 +301,18 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_state.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ],
         "final_dirty_files": [
           "project_state/codex_execution_report.md",
-          "project_state/context/current_context_packet.json",
           "project_state/execution_report.md",
-          "project_state/gates/ci_workflow_coverage_result.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/post_final_evidence_sync_result.json",
-          "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
@@ -351,9 +322,8 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_state.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ]
       },
       {
@@ -369,17 +339,13 @@
         "missing_files": [],
         "git_changed_files": [
           "project_state/codex_execution_report.md",
-          "project_state/context/current_context_packet.json",
           "project_state/execution_report.md",
-          "project_state/gates/ci_workflow_coverage_result.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/post_final_evidence_sync_result.json",
-          "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
@@ -389,23 +355,18 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_state.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ],
         "required_round_delta_files": [
           "project_state/codex_execution_report.md",
-          "project_state/context/current_context_packet.json",
           "project_state/execution_report.md",
-          "project_state/gates/ci_workflow_coverage_result.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/final_gate_result.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/post_final_evidence_sync_result.json",
-          "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
@@ -415,10 +376,9 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260706_prework_provenance_closeout_rework_v1/round_manifest.json",
-          "reverse_agent/project_state.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "project_state/rounds/round_20260706_closeout_final_check_consistency_rework_v1/round_manifest.json",
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ],
         "inherited_dirty_files": []
       },
@@ -427,10 +387,8 @@
         "status": "PASS",
         "detail": "files_changed covers substantive source/test/artifact changes",
         "substantive_dirty_files": [
-          "project_state/context/current_context_packet.json",
-          "reverse_agent/project_state.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "reverse_agent/project_gate.py",
+          "tests/test_project_gate.py"
         ],
         "claimed_source_test_paths": []
       },
@@ -456,6 +414,7 @@
         "allowed_inherited_dirty_files": [
           "reverse_agent/project_gate.py",
           "reverse_agent/project_reports.py",
+          "reverse_agent/project_state.py",
           "reverse_agent/project_state_manifest.py",
           "tests/test_project_gate.py",
           "tests/test_project_reports.py",
@@ -471,6 +430,7 @@
         "allowed_inherited_dirty_files": [
           "reverse_agent/project_gate.py",
           "reverse_agent/project_reports.py",
+          "reverse_agent/project_state.py",
           "reverse_agent/project_state_manifest.py",
           "tests/test_project_gate.py",
           "tests/test_project_reports.py",
@@ -500,14 +460,11 @@
         "detail": "all live project_state/ generated artifact paths exist on disk",
         "live_paths": [
           "project_state/codex_execution_report.md",
-          "project_state/gates/ci_workflow_coverage_result.json",
           "project_state/gates/codex_report_auto_summary.json",
           "project_state/gates/command_plan.json",
           "project_state/gates/execution_log.json",
           "project_state/gates/execution_report_auto_summary.json",
           "project_state/gates/gate_profile_plan.json",
-          "project_state/gates/post_final_evidence_sync_result.json",
-          "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
@@ -614,7 +571,7 @@
         "status": "WARN",
         "detail": "generated_artifacts omits round archive files",
         "missing_artifacts": [
-          "project_state/rounds/round_20260706_prework_provenance_closeout_rework_v1/round_manifest.json"
+          "project_state/rounds/round_20260706_closeout_final_check_consistency_rework_v1/round_manifest.json"
         ]
       },
       {
@@ -633,7 +590,6 @@
           "project_state/gates/ci_observation_handoff_packet.json",
           "project_state/gates/ci_observation_reconcile_result.json",
           "project_state/gates/ci_observation_schema_result.json",
-          "project_state/gates/ci_workflow_coverage_result.json",
           "project_state/gates/cleanup_apply_approval_checklist.json",
           "project_state/gates/cleanup_apply_dry_run.json",
           "project_state/gates/cleanup_apply_review_bundle.json",
@@ -664,8 +620,6 @@
           "project_state/gates/local_execution_bundle.json",
           "project_state/gates/manual_mode_orchestrator_result.json",
           "project_state/gates/manual_mode_orchestrator_snapshot.json",
-          "project_state/gates/post_final_evidence_sync_result.json",
-          "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
           "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
@@ -720,6 +674,7 @@
           "project_state/gates/ci_observation_reconcile_result.json",
           "project_state/gates/ci_observation_schema_result.json",
           "project_state/gates/ci_run_evidence_result.json",
+          "project_state/gates/ci_workflow_coverage_result.json",
           "project_state/gates/ci_workflow_readiness_result.json",
           "project_state/gates/cleanup_apply_approval_checklist.json",
           "project_state/gates/cleanup_apply_dry_run.json",
@@ -759,6 +714,8 @@
           "project_state/gates/phase1_completion_result.json",
           "project_state/gates/policy_impact_audit.json",
           "project_state/gates/policy_lint_result.json",
+          "project_state/gates/post_final_evidence_sync_result.json",
+          "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/project_governance_context_result.json",
           "project_state/gates/project_governance_context_snapshot.json",
           "project_state/gates/retention_policy_validation.json",
@@ -815,75 +772,53 @@
     "actions": [
       {
         "name": "final_check_before_archive",
-        "status": "PASSED",
-        "gate_status": "PASSED",
+        "status": "FAILED",
+        "gate_status": "FAILED",
         "allowed_archive_pending_failures": [],
-        "unexpected_failures": [],
+        "unexpected_failures": [
+          "required_audit_coverage"
+        ],
         "closeout_tail_failed_blocks_related": false,
         "closeout_tail_failed_blocks": [],
-        "artifact": "project_state/gates/final_gate_result.json"
-      },
-      {
-        "name": "archive_round",
-        "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260706_prework_provenance_closeout_rework_v1",
-        "manifest": "project_state\\rounds\\round_20260706_prework_provenance_closeout_rework_v1\\round_manifest.json",
-        "copied": [
-          "decision_packet.md",
-          "codex_execution_report.md",
-          "pytest_result.txt"
-        ]
-      },
-      {
-        "name": "final_check_after_archive",
-        "status": "PASSED",
-        "gate_status": "PASSED",
-        "unexpected_failures": [],
         "artifact": "project_state/gates/final_gate_result.json"
       }
     ],
     "archive": {
-      "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260706_prework_provenance_closeout_rework_v1/round_manifest.json",
-      "files": [
-        "codex_execution_report.md",
-        "decision_packet.md",
-        "pytest_result.txt",
-        "round_manifest.json"
-      ],
+      "status": "not_attempted",
+      "round_manifest_path": "project_state/rounds/round_20260706_closeout_final_check_consistency_rework_v1/round_manifest.json",
+      "files": [],
       "included_diff": false,
       "included_state_snapshot": false,
-      "copied": [
-        "decision_packet.md",
-        "codex_execution_report.md",
-        "pytest_result.txt"
-      ],
+      "copied": [],
       "idempotent": false
     },
-    "blocking_reasons": [],
-    "warnings": [],
-    "resolved_pre_archive_warnings": [
+    "blocking_reasons": [
+      "final_check_before_archive: ['required_audit_coverage']"
+    ],
+    "warnings": [
       "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
     ],
-    "pre_archive_diagnostics": [
-      {
-        "check_name": "generated_artifacts_cover_round_archive",
-        "detail": "generated_artifacts omits round archive files",
-        "resolution": "resolved_by_final_check_after_archive",
-        "scope": "pre_archive_transient"
-      }
-    ],
-    "recommended_next_action": "no_action_required",
+    "resolved_pre_archive_warnings": [],
+    "pre_archive_diagnostics": [],
+    "recommended_next_action": "fix_close_round_failures_before_retry",
     "status_summary": {
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "archive_status": "archived",
-      "report_status": "SUCCESS",
-      "report_acceptance_recommendation": "ACCEPTED"
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "archive_status": "not_archived",
+      "report_status": "FAILED",
+      "report_acceptance_recommendation": "REWORK_REQUIRED"
     }
   },
   "blocking_reasons": [
-    "step final-check-after-close exited 1, expected [0]",
-    "executed step final-check-after-close failed: exit=1, expected=[0]"
+    "step close-round exited 1, expected [0]: close_status=FAILED",
+    "executed step close-round failed: exit=1, expected=[0]",
+    "close-round close_status=FAILED",
+    "close-round report_status=FAILED",
+    "close-round blocking reason: final_check_before_archive: ['required_audit_coverage']",
+    "close-round action final_check_before_archive failed: status=FAILED, gate_status=FAILED",
+    "close-round nested failure: close_round_result.report_status=FAILED",
+    "close-round nested failure: close_round_result.actions[0].status=FAILED (final_check_before_archive)",
+    "close-round nested failure: close_round_result.actions[0].gate_status=FAILED (final_check_before_archive)",
+    "close-round nested failure: close_round_result.status_summary.report_status=FAILED"
   ],
   "warnings": [],
   "recommended_next_action": "fix_run_closeout_failures_before_retry",
