@@ -100,10 +100,10 @@
       "retention_class": "current_audit_fact_source"
     }
   ],
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
   "deleted_files": [],
   "future_candidates": [],
-  "generated_at": "2026-07-05T12:49:38Z",
+  "generated_at": "2026-07-06T02:38:18Z",
   "mainline": "project_governance",
   "missing_historical_sample_references": [
     {
@@ -159,8 +159,8 @@
     "archive-candidate",
     "delete-candidate"
   ],
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "schema_version": 1,
   "written_tombstones": []
 }

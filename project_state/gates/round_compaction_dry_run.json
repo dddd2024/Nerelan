@@ -1,0 +1,37 @@
+{
+  "actions": [
+    {
+      "archive_written": false,
+      "compaction_apply_allowed": false,
+      "decision_id": "",
+      "file_deleted": false,
+      "file_moved": false,
+      "future_action": "retain",
+      "manifest_exists": false,
+      "manifest_path": "project_state/rounds/round_20260705_governance_operations_bundle_big_step_v1/round_manifest.json",
+      "role": "current_round",
+      "round_id": "round_20260705_governance_operations_bundle_big_step_v1"
+    }
+  ],
+  "archive_compaction_apply_allowed": false,
+  "archive_written": false,
+  "archives_mutated": [],
+  "artifact_name": "round_compaction_dry_run.json",
+  "artifact_path": "project_state/gates/round_compaction_dry_run.json",
+  "compaction_apply_allowed": false,
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "dry_run_only": true,
+  "dry_run_status": "PASSED",
+  "files_deleted": [],
+  "files_moved": [],
+  "gate_name": "round-compaction-dry-run",
+  "generated_artifacts": [
+    "project_state/gates/round_compaction_dry_run.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "mainline": "project_governance",
+  "recursive_rounds_scan": false,
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_version": 1
+}

@@ -85,13 +85,20 @@ def build_workstream_registry(
         contract.get("accepted_requires_final_gate_passed")
         or "status_policy_final_acceptance_rework" in decision_id
     )
+    is_governance_operations_bundle = bool(
+        contract.get("accepted_requires_governance_operations_gate")
+        or "governance_operations_bundle" in decision_id
+    )
     context_status = "ACCEPTED" if (
         is_state_governance_bundle
         or is_governance_fix_cleanup_apply
         or is_status_policy_final_acceptance_rework
+        or is_governance_operations_bundle
     ) else "ACTIVE_ROUND"
     bundle_status = (
         "ACCEPTED"
+        if is_governance_operations_bundle
+        else "ACCEPTED"
         if is_status_policy_final_acceptance_rework
         else "ACCEPTED_WITH_LIMITATIONS"
         if is_governance_fix_cleanup_apply
@@ -103,15 +110,34 @@ def build_workstream_registry(
         is_state_governance_bundle
         or is_governance_fix_cleanup_apply
         or is_status_policy_final_acceptance_rework
+        or is_governance_operations_bundle
     ) else "READY_FOR_DECISION"
     governance_fix_status = (
-        "REJECTED"
+        "ACCEPTED"
+        if is_governance_operations_bundle
+        else "REJECTED"
         if is_status_policy_final_acceptance_rework
         else ("ACTIVE_ROUND" if is_governance_fix_cleanup_apply else "READY_FOR_DECISION")
     )
-    status_rework_status = "ACTIVE_ROUND" if is_status_policy_final_acceptance_rework else "READY_FOR_DECISION"
+    status_rework_status = (
+        "ACCEPTED"
+        if is_governance_operations_bundle
+        else "ACTIVE_ROUND"
+        if is_status_policy_final_acceptance_rework
+        else "READY_FOR_DECISION"
+    )
+    operations_bundle_status = "ACTIVE_ROUND" if is_governance_operations_bundle else "READY_FOR_DECISION"
 
     workstreams = [
+        _entry(
+            "governance_operations_bundle",
+            "project_governance",
+            operations_bundle_status,
+            current_decision_id=decision_id,
+            current_round_id=round_id,
+            baseline_round_id=baseline_round_id,
+            notes="Operations readiness bundle: cleanup review, compaction dry-run, archive index, read-index schema, dashboard feed, and lifecycle guard; no destructive apply.",
+        ),
         _entry(
             "status_policy_final_acceptance_rework",
             "project_governance",
@@ -231,11 +257,11 @@ def build_workstream_registry(
         _entry(
             "sqlite_query_index",
             "database_indexing",
-            "IDEA",
+            "READY_FOR_DECISION" if is_governance_operations_bundle else "IDEA",
             current_decision_id=decision_id,
             current_round_id=round_id,
             baseline_round_id=baseline_round_id,
-            notes="Idea only; database and query index implementation is explicitly out of scope.",
+            notes="Schema-only read-index readiness exists; database creation remains out of scope." if is_governance_operations_bundle else "Idea only; database and query index implementation is explicitly out of scope.",
         ),
     ]
 
@@ -279,6 +305,7 @@ def validate_workstream_registry(payload: Mapping[str, Any], *, decision_id: str
         return errors
     required_ids = {
         "state_governance_bundle_big_step",
+        "governance_operations_bundle",
         "status_policy_final_acceptance_rework",
         "governance_fix_cleanup_apply_safety",
         "project_governance_context_registry",

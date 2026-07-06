@@ -1,27 +1,58 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
-  "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
-  "head_commit": "f12f94d04b88",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "head_commit": "457956de4efc",
   "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json",
-    " M project_state/gates/preflight_result.json",
-    " M project_state/gates/round_baseline.json"
+    " M reverse_agent/cleanup_apply_safety.py",
+    " M reverse_agent/project_context_builder.py",
+    " M reverse_agent/project_gate.py",
+    " M reverse_agent/project_state_manifest.py",
+    " M reverse_agent/project_workstreams.py",
+    " M reverse_agent/state_governance.py",
+    " M reverse_agent/state_hygiene.py",
+    " M tests/test_cleanup_apply_safety.py",
+    " M tests/test_project_gate.py",
+    " M tests/test_project_workstreams.py",
+    " M tests/test_state_hygiene.py",
+    "?? docs/cleanup_apply_review_bundle.md",
+    "?? docs/governance_operations_bundle.md",
+    "?? docs/round_compaction.md",
+    "?? docs/state_hygiene_dashboard_feed.md",
+    "?? docs/state_index_readiness.md",
+    "?? reverse_agent/round_compaction.py",
+    "?? reverse_agent/state_index_readiness.py",
+    "?? tests/test_round_compaction.py",
+    "?? tests/test_state_index_readiness.py"
   ],
   "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/round_baseline.json"
+    "docs/cleanup_apply_review_bundle.md",
+    "docs/governance_operations_bundle.md",
+    "docs/round_compaction.md",
+    "docs/state_hygiene_dashboard_feed.md",
+    "docs/state_index_readiness.md"
   ],
   "baseline_dirty_files": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/round_baseline.json"
+    "docs/cleanup_apply_review_bundle.md",
+    "docs/governance_operations_bundle.md",
+    "docs/round_compaction.md",
+    "docs/state_hygiene_dashboard_feed.md",
+    "docs/state_index_readiness.md"
   ],
-  "baseline_untracked_files": [],
-  "baseline_has_untracked_implementation_files": false,
+  "baseline_untracked_files": [
+    "docs/cleanup_apply_review_bundle.md",
+    "docs/governance_operations_bundle.md",
+    "docs/round_compaction.md",
+    "docs/state_hygiene_dashboard_feed.md",
+    "docs/state_index_readiness.md",
+    "reverse_agent/round_compaction.py",
+    "reverse_agent/state_index_readiness.py",
+    "tests/test_round_compaction.py",
+    "tests/test_state_index_readiness.py"
+  ],
+  "baseline_has_untracked_implementation_files": true,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-05T14:05:11.911843Z"
+  "generated_at": "2026-07-06T00:38:24.015711Z"
 }

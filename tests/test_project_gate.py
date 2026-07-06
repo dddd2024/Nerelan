@@ -106,6 +106,7 @@ from reverse_agent.project_gate import (
     state_governance_bundle,
     governance_fix,
     cleanup_apply_safety,
+    governance_operations_bundle,
     ci_run_evidence,
     ci_observation_schema,
     ci_observation_handoff,
@@ -17615,6 +17616,7 @@ def test_run_closeout_constants_and_allowlist():
                 "startup-snapshot",
                 "governance-fix",
                 "cleanup-apply-safety",
+                "governance-operations-bundle",
             "control-plane-snapshot", "run-round", "run-closeout",
             "execute-decision",
         }
@@ -26852,6 +26854,11 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
                 "kind": "cleanup-apply-safety",
                 "expected_exit_codes": [0],
             },
+            {
+                "command": "python -m reverse_agent.project_gate governance-operations-bundle --state-dir project_state",
+                "kind": "governance-operations-bundle",
+                "expected_exit_codes": [0],
+            },
         ]
     }
 
@@ -26869,6 +26876,7 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
     assert "python -m reverse_agent.project_state doctor --state-dir project_state" in commands
     assert "python -m reverse_agent.project_gate governance-fix --state-dir project_state" in commands
     assert "python -m reverse_agent.project_gate cleanup-apply-safety --state-dir project_state" in commands
+    assert "python -m reverse_agent.project_gate governance-operations-bundle --state-dir project_state" in commands
     assert commands.index("python -m reverse_agent.project_gate startup-snapshot --state-dir project_state") < commands.index("python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed")
     assert commands.index("python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state") < commands.index("python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state")
     assert commands.index("python -m reverse_agent.project_gate agent-runner-handoff-bundle --state-dir project_state") < commands.index("python -m reverse_agent.project_gate agent-runner-handoff-validate --state-dir project_state")
@@ -29593,3 +29601,100 @@ def test_command_kind_keeps_manual_mode_orchestrator_as_safe_project_cli() -> No
         _command_kind("python -m reverse_agent.project_gate manual-mode-orchestrator --state-dir project_state")
         == "project-cli"
     )
+
+
+def test_governance_operations_bundle_gate_generates_readiness_artifacts(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "gates").mkdir()
+    (state_dir / "context").mkdir()
+    (state_dir / "roadmap").mkdir()
+    previous_round = "round_20260705_status_policy_final_acceptance_rework_v1"
+    (state_dir / "rounds" / previous_round).mkdir(parents=True)
+    decision_id = "decision_20260705_governance_operations_bundle_big_step_v1"
+    round_id = "round_20260705_governance_operations_bundle_big_step_v1"
+    report_id = "codex_report_20260705_governance_operations_bundle_big_step_v1"
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{{
+  "schema_version": 1,
+  "decision_id": "{decision_id}",
+  "round_id": "{round_id}",
+  "based_on_state_build_id": "state_test",
+  "based_on_state_digest": "digest_test",
+  "status": "APPROVED",
+  "mainline": "project_governance",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}}
+```
+
+```json decision_contract
+{{
+  "follows_last_accepted_decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
+  "follows_last_accepted_round_id": "{previous_round}",
+  "supersedes_unexecuted_decision_id": "decision_20260705_cleanup_apply_review_bundle_v1",
+  "accepted_requires_governance_operations_gate": true,
+  "accepted_requires_cleanup_apply_review_bundle": true,
+  "accepted_requires_round_compaction_dry_run": true,
+  "accepted_requires_sqlite_read_index_schema": true,
+  "accepted_requires_state_hygiene_dashboard_feed": true,
+  "accepted_requires_lifecycle_transition_guard": true,
+  "forbidden_capabilities_this_round": ["real_cleanup_apply", "sqlite_database_creation", "web_runtime"]
+}}
+```
+""",
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        f"""```json codex_report_summary
+{{
+  "schema_version": 1,
+  "report_id": "{report_id}",
+  "round_id": "{round_id}",
+  "based_on_decision_id": "{decision_id}",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED",
+  "files_changed": [],
+  "tests_ran": [],
+  "generated_artifacts": []
+}}
+```
+""",
+        encoding="utf-8",
+    )
+    (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+    (state_dir / "task_packet.json").write_text("{}", encoding="utf-8")
+    (state_dir / "current_state.json").write_text("{}", encoding="utf-8")
+    (state_dir / "negative_results.json").write_text("[]", encoding="utf-8")
+    (state_dir / "artifact_index.json").write_text(
+        json.dumps({"missing": ["summary"], "latest_artifacts_v2": {"summary": {"freshness": "missing"}}}),
+        encoding="utf-8",
+    )
+    (state_dir / "rounds" / previous_round / "round_manifest.json").write_text(
+        json.dumps({"round_id": previous_round, "report_status": "SUCCESS"}),
+        encoding="utf-8",
+    )
+    for name, payload in {
+        "command_plan.json": {"plan_status": "PASSED", "decision_id": decision_id, "round_id": round_id},
+        "execution_log.json": {"gate_status": "PASSED", "decision_id": decision_id, "round_id": round_id},
+        "final_gate_result.json": {
+            "gate_status": "PASSED",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "status_summary": {"report_acceptance_recommendation": "ACCEPTED"},
+        },
+        "report_summary_synthesis.json": {"synthesis_status": "PASSED", "decision_id": decision_id, "round_id": round_id},
+        "run_closeout_result.json": {"closeout_status": "PASSED", "decision_id": decision_id, "round_id": round_id},
+    }.items():
+        (state_dir / "gates" / name).write_text(json.dumps(payload), encoding="utf-8")
+
+    result = governance_operations_bundle(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["operations_readiness_bundle_only"] is True
+    assert result["cleanup_apply_executed"] is False
+    assert result["compaction_apply_executed"] is False
+    assert result["database_file_created"] is False
+    assert result["web_runtime_started"] is False
+    assert (state_dir / "gates" / "governance_operations_bundle_result.json").exists()
+    assert (state_dir / "gates" / "state_hygiene_dashboard_feed.json").exists()

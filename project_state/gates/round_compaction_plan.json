@@ -1,0 +1,41 @@
+{
+  "archive_compaction_apply_allowed": false,
+  "artifact_name": "round_compaction_plan.json",
+  "artifact_path": "project_state/gates/round_compaction_plan.json",
+  "bounded_selection_policy": [
+    "current decision round",
+    "previous accepted baseline from decision_contract",
+    "explicit superseded unexecuted decision reference"
+  ],
+  "compaction_apply_allowed": false,
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "dry_run_only": true,
+  "full_solve_reports_scan": false,
+  "future_action_classes": [
+    "retain",
+    "summarize",
+    "reference_only",
+    "reject_for_lack_of_manifest"
+  ],
+  "gate_name": "round-compaction-plan",
+  "generated_artifacts": [
+    "project_state/gates/round_compaction_plan.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "mainline": "project_governance",
+  "plan_status": "DRY_RUN_READY",
+  "recursive_rounds_scan": false,
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_version": 1,
+  "source_rounds": [
+    {
+      "compaction_apply_allowed": false,
+      "future_action": "retain",
+      "manifest_exists": false,
+      "manifest_path": "project_state/rounds/round_20260705_governance_operations_bundle_big_step_v1/round_manifest.json",
+      "role": "current_round",
+      "round_id": "round_20260705_governance_operations_bundle_big_step_v1"
+    }
+  ]
+}

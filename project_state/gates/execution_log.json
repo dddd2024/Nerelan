@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
-  "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
-  "report_id": "codex_report_20260705_status_policy_final_acceptance_rework_v1",
-  "generated_at": "2026-07-05T15:16:26.257059Z",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "generated_at": "2026-07-06T02:38:55.253394Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
-    "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
-    "report_id": "codex_report_20260705_status_policy_final_acceptance_rework_v1",
+    "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+    "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+    "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "8a7f383fa56b4164089b4393f47dc71cd0fcece752e92833b099d14151316b6b",
-        "size_bytes": 16607,
+        "sha256": "acd0b71b53257e04529c6eb3bc79304acddea13eba627736366461aaff2e6c00",
+        "size_bytes": 20226,
         "command_block_count": 17
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "c33b0675c79bffde1b64206a1c7ca714ec1d383609c7dfb31cc90ee7eaf68ec1",
-        "size_bytes": 7905,
-        "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
-        "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
+        "sha256": "c43933d73676e0f357ab8b3eccba125f1e91a47d652c2b910049ee4d5675a087",
+        "size_bytes": 8049,
+        "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+        "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
         "plan_status": "PASSED",
         "command_count": 17
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "d74a96ec9b1d6b0701616f9a5cc0dde2c48f44baa8bbe21d3f8145924798f0a5",
-        "size_bytes": 43002,
-        "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
-        "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
+        "sha256": "69ffaabac87d8b809ac6e0823fb550bdd95656d0310a6af26d2c6ab8058b7bf0",
+        "size_bytes": 48817,
+        "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+        "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
         "command_block_count": 17
       }
     },
     "command_count": 17,
-    "command_digest": "b4fea358dd29242e4906d514ca367a1e4ed88ca006bad03642abbb98c6bdb465"
+    "command_digest": "73d075c4b7da5799867c1811e65c06902f3e5cb09fcad8284da92497ca2417d5"
   },
   "commands": [
     {
@@ -129,7 +129,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_state_governance.py tests/test_state_hygiene.py -q",
+      "command": "python -m pytest tests/test_cleanup_apply_safety.py tests/test_state_governance.py tests/test_state_hygiene.py tests/test_round_compaction.py tests/test_state_index_readiness.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -140,7 +140,7 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -196,8 +196,8 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate governance-fix --state-dir project_state",
-      "kind": "governance-fix",
+      "command": "python -m reverse_agent.project_gate governance-operations-bundle --state-dir project_state",
+      "kind": "governance-operations-bundle",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -231,7 +231,7 @@
     },
     {
       "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_status_policy_final_acceptance_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_governance_operations_bundle_big_step_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

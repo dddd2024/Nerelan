@@ -1,0 +1,19 @@
+{
+  "active_workstream_count": 1,
+  "artifact_name": "state_hygiene_dashboard_summary.json",
+  "artifact_path": "project_state/gates/state_hygiene_dashboard_summary.json",
+  "backlog_notice_count": 1,
+  "cleanup_review_status": "READY_FOR_HUMAN_REVIEW",
+  "compaction_dry_run_status": "PASSED",
+  "dashboard_status": "READY",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "generated_artifacts": [
+    "project_state/gates/state_hygiene_dashboard_summary.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "index_readiness_status": "SCHEMA_READY_NO_DATABASE",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_version": 1,
+  "web_runtime_started": false
+}

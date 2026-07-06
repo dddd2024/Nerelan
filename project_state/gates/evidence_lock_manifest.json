@@ -1,0 +1,30 @@
+{
+  "accepted_round_minimum_evidence": [],
+  "artifact_name": "evidence_lock_manifest.json",
+  "artifact_path": "project_state/gates/evidence_lock_manifest.json",
+  "current_audit_fact_sources": [
+    "project_state/decision_packet.md",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/pytest_result.txt",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/execution_log.json",
+    "project_state/gates/final_gate_result.json",
+    "project_state/gates/run_closeout_result.json",
+    "project_state/state_manifest.json",
+    "project_state/context/current_context_packet.json",
+    "project_state/roadmap/workstreams.json"
+  ],
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "gate_name": "evidence-lock-manifest",
+  "generated_artifacts": [
+    "project_state/gates/evidence_lock_manifest.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "lock_status": "ACTIVE_FOR_CURRENT_ROUND",
+  "mainline": "project_governance",
+  "protected_from_cleanup_apply_this_round": true,
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_version": 1
+}

@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_status_policy_final_acceptance_rework_v1",
-  "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-05T15:06:05.909930Z",
+  "generated_at": "2026-07-06T02:29:26.009137Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -26,14 +26,18 @@
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
       "startup_dirty_files": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+        "docs/cleanup_apply_review_bundle.md",
+        "docs/governance_operations_bundle.md",
+        "docs/round_compaction.md",
+        "docs/state_hygiene_dashboard_feed.md",
+        "docs/state_index_readiness.md"
       ],
       "baseline_dirty_files": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+        "docs/cleanup_apply_review_bundle.md",
+        "docs/governance_operations_bundle.md",
+        "docs/round_compaction.md",
+        "docs/state_hygiene_dashboard_feed.md",
+        "docs/state_index_readiness.md"
       ]
     },
     {
@@ -84,9 +88,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision consumption allowed for closeout",
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "report_id": "codex_report_20260705_status_policy_final_acceptance_rework_v1"
+      "detail": "decision has not been consumed by a report",
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -101,17 +105,16 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "active decision does not claim concrete sample evidence;",
-        "current required governance artifacts are present and current;",
-        "historical sample gaps are still recorded as backlog evidence.",
-        "missing artifact count;",
-        "missing artifact names or classes;",
-        "project_governance",
-        "project_state/gates/doctor_backlog_split_result.json",
-        "project_state/gates/status_policy_reconcile_result.json",
-        "pytest/report/execution-log/final-check command authority evidence is otherwise passing;",
-        "reason they are historical/nonblocking;",
-        "statement that they are not current evidence."
+        "project_state/gates/audit_handoff_for_cleanup_apply.json",
+        "project_state/gates/cleanup_apply_approval_checklist.json",
+        "project_state/gates/cleanup_apply_review_bundle.json",
+        "project_state/gates/cleanup_apply_review_result.json",
+        "project_state/gates/cleanup_apply_review_snapshot.json",
+        "project_state/gates/cleanup_candidate_risk_matrix.json",
+        "project_state/gates/deletion_manifest_dry_run.json",
+        "project_state/gates/evidence_lock_manifest.json",
+        "project_state/gates/rollback_rehearsal_plan.json",
+        "project_state/gates/tombstone_plan_dry_run.json"
       ]
     },
     {
@@ -149,20 +152,38 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
+        "docs/archive_index.md",
+        "docs/cleanup_apply_review_bundle.md",
+        "docs/deletion_manifest_and_tombstone.md",
+        "docs/governance_operations_bundle.md",
+        "docs/round_compaction.md",
+        "docs/state_hygiene_dashboard_feed.md",
+        "docs/state_hygiene_retention_policy.md",
+        "docs/state_index_readiness.md",
+        "docs/state_manifest.md",
+        "docs/workstream_registry.md",
+        "project_state/retention_policy.json",
+        "project_state/state_lifecycle_registry.json",
+        "reverse_agent/cleanup_apply_safety.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state_manifest.py",
         "reverse_agent/project_workstreams.py",
+        "reverse_agent/round_compaction.py",
         "reverse_agent/state_governance.py",
         "reverse_agent/state_hygiene.py",
+        "reverse_agent/state_index_readiness.py",
+        "tests/test_cleanup_apply_safety.py",
         "tests/test_project_context_builder.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
         "tests/test_project_state_manifest.py",
         "tests/test_project_workstreams.py",
+        "tests/test_round_compaction.py",
         "tests/test_state_governance.py",
-        "tests/test_state_hygiene.py"
+        "tests/test_state_hygiene.py",
+        "tests/test_state_index_readiness.py"
       ],
       "baseline_source_test_dirty": []
     },
@@ -179,16 +200,18 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      "project_state/gates/command_plan.json",
-      "project_state/gates/preflight_result.json",
-      "project_state/gates/round_baseline.json"
+      "docs/cleanup_apply_review_bundle.md",
+      "docs/governance_operations_bundle.md",
+      "docs/round_compaction.md",
+      "docs/state_hygiene_dashboard_feed.md",
+      "docs/state_index_readiness.md"
     ],
-    "head_commit": "f12f94d04b88"
+    "head_commit": "457956de4efc"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
+    "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

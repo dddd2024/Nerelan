@@ -5,7 +5,7 @@
   "candidates": [],
   "cleanup_apply_executed": false,
   "compacted_archives": [],
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
   "deleted_files": [],
   "dry_run_only": true,
   "dry_run_status": "PASSED",
@@ -13,13 +13,13 @@
   "generated_artifacts": [
     "project_state/gates/cleanup_apply_dry_run.json"
   ],
-  "generated_at": "2026-07-05T12:49:38Z",
+  "generated_at": "2026-07-06T02:38:18Z",
   "mainline": "project_governance",
   "moved_files": [],
   "real_cleanup_apply": false,
   "real_deletion_manifests": [],
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "schema_version": 1,
   "written_tombstones": []
 }

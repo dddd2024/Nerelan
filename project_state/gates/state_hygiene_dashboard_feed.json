@@ -1,0 +1,72 @@
+{
+  "archive_index": {
+    "entry_count": 33,
+    "index_status": "BOUNDED_INDEX_ONLY"
+  },
+  "artifact_name": "state_hygiene_dashboard_feed.json",
+  "artifact_path": "project_state/gates/state_hygiene_dashboard_feed.json",
+  "backlog_notices": [
+    {
+      "classification": "historical_backlog_notice",
+      "current_blocker": false,
+      "notice": "55 missing, 0 stale historical sample artifacts"
+    }
+  ],
+  "cleanup_readiness": {
+    "gate_status": "PASSED",
+    "real_cleanup_apply": false,
+    "review_status": "READY_FOR_HUMAN_REVIEW"
+  },
+  "compaction_readiness": {
+    "compaction_apply_allowed": false,
+    "dry_run_status": "PASSED"
+  },
+  "current_decision": {
+    "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+    "skill_profiles": [
+      "reverse-agent-iteration@v2"
+    ],
+    "status": "APPROVED"
+  },
+  "current_round": {
+    "last_accepted_round_id": "",
+    "phase_label": "",
+    "round_id": "round_20260705_governance_operations_bundle_big_step_v1"
+  },
+  "dashboard_feed_only": true,
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "final_check": {
+    "acceptance_recommendation": "REWORK_REQUIRED",
+    "gate_status": "FAILED"
+  },
+  "forbidden_capability_status": {},
+  "generated_artifacts": [
+    "project_state/gates/state_hygiene_dashboard_feed.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "index_readiness": {
+    "database_file_created": false,
+    "gate_status": "PASSED",
+    "readiness_status": "SCHEMA_READY_NO_DATABASE"
+  },
+  "latest_report": {
+    "acceptance_recommendation": "REWORK_REQUIRED",
+    "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+    "status": "FAILED"
+  },
+  "lifecycle_guard": {
+    "gate_status": "PASSED",
+    "real_cleanup_apply_deferred": true
+  },
+  "mainline": "project_governance",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_version": 1,
+  "web_runtime_started": false,
+  "workstream_state": {
+    "active_count": 1,
+    "active_ids": [
+      "governance_operations_bundle"
+    ]
+  }
+}

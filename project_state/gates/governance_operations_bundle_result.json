@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "artifact_name": "governance_operations_bundle_result.json",
+  "artifact_path": "project_state/gates/governance_operations_bundle_result.json",
+  "gate_name": "governance-operations-bundle",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "mainline": "project_governance",
+  "generated_at": "2026-07-06T02:38:20.221965Z",
+  "operations_readiness_bundle_only": true,
+  "cleanup_apply_executed": false,
+  "compaction_apply_executed": false,
+  "database_file_created": false,
+  "web_runtime_started": false,
+  "runner_dispatch": false,
+  "ci_dispatch": false,
+  "model_api_invocation": false,
+  "external_reverse_tool_invocation": false,
+  "real_sample_processing": false,
+  "checks": [
+    {
+      "name": "cleanup_apply_review_ready",
+      "status": "PASS",
+      "detail": "cleanup review artifacts are advisory/readiness only",
+      "errors": []
+    },
+    {
+      "name": "round_compaction_dry_run_ready",
+      "status": "PASS",
+      "detail": "round compaction is dry-run-only",
+      "errors": []
+    },
+    {
+      "name": "archive_index_bounded_refresh",
+      "status": "PASS",
+      "detail": "archive index refreshed in bounded mode"
+    },
+    {
+      "name": "state_index_readiness_schema_only",
+      "status": "PASS",
+      "detail": "SQLite readiness is schema-only; no DB file created",
+      "errors": []
+    },
+    {
+      "name": "state_hygiene_dashboard_feed_static",
+      "status": "PASS",
+      "detail": "dashboard feed is static JSON only",
+      "errors": []
+    },
+    {
+      "name": "lifecycle_transition_guard",
+      "status": "PASS",
+      "detail": "one active workstream and destructive work deferred",
+      "errors": []
+    },
+    {
+      "name": "status_policy_acceptance_preserved",
+      "status": "PASS",
+      "detail": "status-policy clean acceptance remains preserved"
+    },
+    {
+      "name": "forbidden_capabilities_disabled",
+      "status": "PASS",
+      "detail": "forbidden capabilities remain disabled",
+      "capabilities": {}
+    }
+  ],
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/cleanup_apply_review_bundle.json",
+    "project_state/gates/cleanup_apply_review_result.json",
+    "project_state/gates/cleanup_apply_review_snapshot.json",
+    "project_state/gates/cleanup_candidate_risk_matrix.json",
+    "project_state/gates/cleanup_apply_approval_checklist.json",
+    "project_state/gates/evidence_lock_manifest.json",
+    "project_state/gates/deletion_manifest_dry_run.json",
+    "project_state/gates/tombstone_plan_dry_run.json",
+    "project_state/gates/round_compaction_plan.json",
+    "project_state/gates/round_compaction_dry_run.json",
+    "project_state/gates/round_compaction_manifest_dry_run.json",
+    "project_state/gates/archive_index.json",
+    "project_state/gates/archive_index_summary.json",
+    "project_state/gates/state_index_readiness_schema.json",
+    "project_state/gates/state_index_readiness_plan.json",
+    "project_state/gates/state_index_readiness_result.json",
+    "project_state/gates/state_hygiene_dashboard_feed.json",
+    "project_state/gates/state_hygiene_dashboard_summary.json",
+    "project_state/gates/lifecycle_transition_guard_result.json",
+    "project_state/state_manifest.json",
+    "project_state/context/current_context_packet.json",
+    "project_state/roadmap/workstreams.json",
+    "project_state/gates/governance_operations_bundle_result.json",
+    "project_state/gates/governance_operations_bundle_snapshot.json"
+  ],
+  "snapshot_path": "project_state/gates/governance_operations_bundle_snapshot.json"
+}

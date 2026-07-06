@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "artifact_name": "governance_operations_bundle_snapshot.json",
+  "artifact_path": "project_state/gates/governance_operations_bundle_snapshot.json",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "generated_at": "2026-07-06T02:38:20.221980Z",
+  "cleanup_review_status": "READY_FOR_HUMAN_REVIEW",
+  "compaction_dry_run_status": "PASSED",
+  "archive_index_status": "BOUNDED_INDEX_ONLY",
+  "state_index_readiness_status": "SCHEMA_READY_NO_DATABASE",
+  "dashboard_status": "READY",
+  "active_workstream_ids": [
+    "governance_operations_bundle"
+  ],
+  "state_manifest_decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "context_packet_decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "operations_readiness_bundle_only": true
+}

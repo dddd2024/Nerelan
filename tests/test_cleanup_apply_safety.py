@@ -3,6 +3,7 @@ from pathlib import Path
 
 from reverse_agent.cleanup_apply_safety import (
     build_cleanup_apply_dry_run,
+    build_cleanup_apply_review_bundle,
     build_cleanup_apply_safety_bundle,
     build_cleanup_apply_safety_plan,
     build_deletion_manifest_validation,
@@ -11,6 +12,7 @@ from reverse_agent.cleanup_apply_safety import (
     build_status_policy_reconcile,
     build_tombstone_validation,
     validate_cleanup_apply_safety_bundle,
+    validate_cleanup_apply_review_result,
 )
 
 
@@ -165,3 +167,26 @@ def test_cleanup_apply_safety_bundle_refreshes_context_and_workstream(tmp_path: 
     assert active[0]["workstream_id"] == "governance_fix_cleanup_apply_safety"
     assert (state_dir / "state_manifest.json").exists()
     assert (state_dir / "context" / "current_context_packet.json").exists()
+
+
+def test_cleanup_apply_review_bundle_is_human_review_only(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    _write_state(state_dir)
+    (state_dir / "gates" / "run_closeout_20260705_000000.out.log").write_text("ok", encoding="utf-8")
+
+    result = build_cleanup_apply_review_bundle(state_dir=state_dir)
+    risk_matrix = json.loads((state_dir / "gates" / "cleanup_candidate_risk_matrix.json").read_text(encoding="utf-8"))
+    checklist = json.loads((state_dir / "gates" / "cleanup_apply_approval_checklist.json").read_text(encoding="utf-8"))
+    deletion_dry_run = json.loads((state_dir / "gates" / "deletion_manifest_dry_run.json").read_text(encoding="utf-8"))
+    tombstone_dry_run = json.loads((state_dir / "gates" / "tombstone_plan_dry_run.json").read_text(encoding="utf-8"))
+
+    assert result["gate_status"] == "PASSED"
+    assert validate_cleanup_apply_review_result(result) == []
+    assert risk_matrix["delete_allowed_now"] is False
+    assert all(row["delete_allowed_now"] is False for row in risk_matrix["rows"])
+    assert all(row["archive_allowed_now"] is False for row in risk_matrix["rows"])
+    assert checklist["cleanup_apply_allowed_now"] is False
+    assert all(item["satisfied_this_round"] is False for item in checklist["items"])
+    assert deletion_dry_run["real_deletion_manifest"] is False
+    assert deletion_dry_run["delete_allowed_now"] is False
+    assert tombstone_dry_run["real_tombstone_write"] is False

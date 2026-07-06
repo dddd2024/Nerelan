@@ -1,17 +1,17 @@
 {
   "artifact_name": "rollback_handoff_plan.json",
   "artifact_path": "project_state/gates/rollback_handoff_plan.json",
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
   "future_cleanup_apply_requires_separate_decision": true,
   "gate_name": "rollback-handoff-plan",
   "generated_artifacts": [
     "project_state/gates/rollback_handoff_plan.json"
   ],
-  "generated_at": "2026-07-05T12:49:38Z",
+  "generated_at": "2026-07-06T02:38:19Z",
   "handoff_status": "READY_FOR_FUTURE_DECISION",
   "mainline": "project_governance",
   "real_cleanup_apply_this_round": false,
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
   "required_future_inputs": [
     "per-file original hashes",
     "accepted deletion manifest",
@@ -19,6 +19,6 @@
     "restore notes for every candidate",
     "final-check before and after cleanup apply"
   ],
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "schema_version": 1
 }

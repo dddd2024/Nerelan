@@ -20,7 +20,7 @@
       "solve_reports/**",
       "full PROJECT_PROGRESS_LOG.txt"
     ],
-    "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
+    "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
     "required_governance_artifacts": [
       "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
@@ -44,12 +44,31 @@
       "project_state/gates/tombstone_validation_result.json",
       "project_state/gates/rollback_handoff_plan.json",
       "project_state/gates/audit_handoff_for_cleanup_apply.json",
+      "project_state/gates/cleanup_apply_review_bundle.json",
+      "project_state/gates/cleanup_apply_review_result.json",
+      "project_state/gates/cleanup_apply_review_snapshot.json",
+      "project_state/gates/cleanup_candidate_risk_matrix.json",
+      "project_state/gates/cleanup_apply_approval_checklist.json",
+      "project_state/gates/evidence_lock_manifest.json",
+      "project_state/gates/deletion_manifest_dry_run.json",
+      "project_state/gates/tombstone_plan_dry_run.json",
+      "project_state/gates/round_compaction_plan.json",
+      "project_state/gates/round_compaction_dry_run.json",
+      "project_state/gates/round_compaction_manifest_dry_run.json",
+      "project_state/gates/state_index_readiness_schema.json",
+      "project_state/gates/state_index_readiness_plan.json",
+      "project_state/gates/state_index_readiness_result.json",
+      "project_state/gates/state_hygiene_dashboard_feed.json",
+      "project_state/gates/state_hygiene_dashboard_summary.json",
+      "project_state/gates/lifecycle_transition_guard_result.json",
+      "project_state/gates/governance_operations_bundle_result.json",
+      "project_state/gates/governance_operations_bundle_snapshot.json",
       "project_state/gates/project_governance_context_result.json",
       "project_state/gates/project_governance_context_snapshot.json"
     ]
   },
   "bounded": true,
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
   "do_not_assume": [
     "missing sample artifacts are current blockers for this governance round",
     "roadmap workstreams grant execution authority",
@@ -80,7 +99,12 @@
     "doctor/backlog split for historical sample gaps",
     "cleanup-apply dry-run safety planning",
     "deletion manifest and tombstone dry-run validation",
-    "rollback and audit handoff planning for future cleanup apply"
+    "rollback and audit handoff planning for future cleanup apply",
+    "cleanup-apply review package",
+    "round compaction dry-run planning",
+    "SQLite read-index schema readiness without database creation",
+    "state hygiene dashboard feed generation without Web runtime",
+    "lifecycle transition guard for deferred destructive work"
   ],
   "external_analysis_tool_invocation": false,
   "forbidden_capabilities": [],
@@ -96,9 +120,12 @@
     "project_state/user_sessions/*",
     "frontend/*",
     "project_state/archives/*",
-    "project_state/deletions/*"
+    "project_state/deletions/*",
+    "project_state/blob_store/*",
+    "project_state/index.sqlite",
+    "project_state/*.db"
   ],
-  "generated_at": "2026-07-05T12:49:38Z",
+  "generated_at": "2026-07-06T02:38:20Z",
   "mainline": "project_governance",
   "model_api_invocation": false,
   "negative_results_constraints": [
@@ -159,48 +186,48 @@
     "next_action_policy": "follow command_plan; do not execute roadmap entries unless selected by decision_packet",
     "previous_accepted_baseline": {
       "decision_id": "",
-      "round_id": "round_20260705_state_governance_bundle_big_step_v1",
-      "round_manifest": "project_state/rounds/round_20260705_state_governance_bundle_big_step_v1/round_manifest.json"
+      "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
+      "round_manifest": "project_state/rounds/round_20260705_status_policy_final_acceptance_rework_v1/round_manifest.json"
     },
     "state_build_id": "state_20260618_134029_d6bd033d2532",
     "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
     "task_authority": "project_state/decision_packet.md",
     "task_packet_role": "background_only"
   },
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "runner_dispatch": false,
   "schema_version": 1,
   "source_files": {
     "codex_execution_report.md": {
       "exists": true,
       "path": "project_state/codex_execution_report.md",
-      "sha256": "043d3be32d251e047f0b307aad3c7ec9936a27aa094e2e55bd98813b192c39c7",
-      "size_bytes": 26279
+      "sha256": "69ae8978ced0e1e202c6bde315121a536ff33c8672e937abfdeb884677c3771c",
+      "size_bytes": 32174
     },
     "decision_packet.md": {
       "exists": true,
       "path": "project_state/decision_packet.md",
-      "sha256": "4d801206dc524227b38d244adf51c217a15ab3927632179043e713a1848e4e2e",
-      "size_bytes": 27947
+      "sha256": "027044fa6df189530a3f73c80fdc81fe98fd9549157fe61fe0c0a5c1a95e033a",
+      "size_bytes": 30893
     },
     "gates/command_plan.json": {
       "exists": true,
       "path": "project_state/gates/command_plan.json",
-      "sha256": "4c3a79579276fcacd58829d58a5947dc97e50c6a22450868e8530c65840326d3",
-      "size_bytes": 8336
+      "sha256": "c43933d73676e0f357ab8b3eccba125f1e91a47d652c2b910049ee4d5675a087",
+      "size_bytes": 8049
     },
     "gates/final_gate_result.json": {
       "exists": true,
       "path": "project_state/gates/final_gate_result.json",
-      "sha256": "52b7587b9b42575e56cc6d51e9a070b891257a57540b2c145c0e1f1c01b2907d",
-      "size_bytes": 79147
+      "sha256": "0adb8f4597f1ce41231289c0251a2e7f316d15cec0061c1eaa700a6dadc9e6c2",
+      "size_bytes": 96178
     },
     "gates/report_summary_synthesis.json": {
       "exists": true,
       "path": "project_state/gates/report_summary_synthesis.json",
-      "sha256": "f0cff9a581bacc89fb64ce5e7d55c9bb8e6a7854a3aad8f526b8c77a6145a4f4",
-      "size_bytes": 13195
+      "sha256": "dc289bcf67068826a2d77d7b3cd274fd9464596e87cfa6570f2b4b4e2c982cc6",
+      "size_bytes": 18054
     },
     "negative_results.json": {
       "exists": true,
@@ -211,8 +238,8 @@
     "pytest_result.txt": {
       "exists": true,
       "path": "project_state/pytest_result.txt",
-      "sha256": "a4b6fc09f09a23f810fc0f73a085fadaf9a8fe8964d4412f40ed709bad357d0c",
-      "size_bytes": 15401
+      "sha256": "82c04e7d6f65f2c80f38247542ae1a1af386125e0d1371e612925d216f218d6a",
+      "size_bytes": 18658
     }
   },
   "stop_conditions": []

@@ -35,6 +35,14 @@ DELETION_MANIFEST_VALIDATION_PATH = "project_state/gates/deletion_manifest_valid
 TOMBSTONE_VALIDATION_PATH = "project_state/gates/tombstone_validation_result.json"
 ROLLBACK_HANDOFF_PLAN_PATH = "project_state/gates/rollback_handoff_plan.json"
 AUDIT_HANDOFF_FOR_CLEANUP_APPLY_PATH = "project_state/gates/audit_handoff_for_cleanup_apply.json"
+CLEANUP_APPLY_REVIEW_BUNDLE_PATH = "project_state/gates/cleanup_apply_review_bundle.json"
+CLEANUP_APPLY_REVIEW_RESULT_PATH = "project_state/gates/cleanup_apply_review_result.json"
+CLEANUP_APPLY_REVIEW_SNAPSHOT_PATH = "project_state/gates/cleanup_apply_review_snapshot.json"
+CLEANUP_CANDIDATE_RISK_MATRIX_PATH = "project_state/gates/cleanup_candidate_risk_matrix.json"
+CLEANUP_APPLY_APPROVAL_CHECKLIST_PATH = "project_state/gates/cleanup_apply_approval_checklist.json"
+EVIDENCE_LOCK_MANIFEST_PATH = "project_state/gates/evidence_lock_manifest.json"
+DELETION_MANIFEST_DRY_RUN_PATH = "project_state/gates/deletion_manifest_dry_run.json"
+TOMBSTONE_PLAN_DRY_RUN_PATH = "project_state/gates/tombstone_plan_dry_run.json"
 
 DESTRUCTIVE_RESULT_FIELDS = (
     "deleted_files",
@@ -455,6 +463,271 @@ def build_audit_handoff_for_cleanup_apply(
     if write_result:
         _write_json(state_dir_path / "gates" / "audit_handoff_for_cleanup_apply.json", payload)
     return payload
+
+
+def _cleanup_review_risk_matrix(cleanup_plan: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in cleanup_plan.get("current_evidence_protection", []) if isinstance(cleanup_plan.get("current_evidence_protection"), list) else []:
+        if not isinstance(item, Mapping):
+            continue
+        rows.append(
+            {
+                "path": str(item.get("path") or ""),
+                "evidence_role": "current_audit_fact_source",
+                "retention_class": str(item.get("retention_class") or "current_audit_fact_source"),
+                "future_action": "retain",
+                "risk": "critical_if_modified_or_deleted",
+                "confidence": "high",
+                "required_approval": "not_applicable_retain",
+                "future_decision_required": False,
+                "delete_allowed_now": False,
+                "archive_allowed_now": False,
+            }
+        )
+    for item in cleanup_plan.get("future_candidates", []) if isinstance(cleanup_plan.get("future_candidates"), list) else []:
+        if not isinstance(item, Mapping):
+            continue
+        rows.append(
+            {
+                "path": str(item.get("path") or ""),
+                "evidence_role": "future_cleanup_candidate",
+                "retention_class": str(item.get("retention_class") or "unknown_requires_manual_review"),
+                "future_action": str(item.get("recommended_action") or "manual-review"),
+                "risk": "medium_requires_human_review",
+                "confidence": "medium",
+                "required_approval": "separate_cleanup_apply_decision",
+                "future_decision_required": True,
+                "delete_allowed_now": False,
+                "archive_allowed_now": False,
+            }
+        )
+    for item in cleanup_plan.get("missing_historical_sample_references", []) if isinstance(cleanup_plan.get("missing_historical_sample_references"), list) else []:
+        if not isinstance(item, Mapping):
+            continue
+        rows.append(
+            {
+                "path": str(item.get("artifact_kind") or ""),
+                "evidence_role": "historical_backlog_reference",
+                "retention_class": str(item.get("retention_class") or "missing_historical_sample_reference"),
+                "future_action": "retain-reference",
+                "risk": "low_nonblocking_backlog_visibility",
+                "confidence": "high",
+                "required_approval": "not_applicable_reference_only",
+                "future_decision_required": False,
+                "delete_allowed_now": False,
+                "archive_allowed_now": False,
+            }
+        )
+    return rows
+
+
+def build_cleanup_apply_review_bundle(
+    *,
+    state_dir: str | Path = "project_state",
+    write_result: bool = True,
+) -> dict[str, Any]:
+    state_dir_path = Path(state_dir)
+    policy = build_retention_policy(state_dir=state_dir_path, write_result=write_result)
+    cleanup_plan = build_cleanup_plan(state_dir=state_dir_path, write_result=write_result)[0]
+    archive_index = build_archive_index(state_dir=state_dir_path, write_result=write_result)[0]
+    safety = build_cleanup_apply_safety_bundle(state_dir=state_dir_path, write_result=write_result)
+    deletion_schema = build_deletion_manifest_schema(state_dir=state_dir_path, write_result=write_result)
+    tombstone_schema = build_tombstone_schema(state_dir=state_dir_path, write_result=write_result)
+    rollback = build_rollback_handoff_plan(state_dir=state_dir_path, write_result=write_result)
+    audit = build_audit_handoff_for_cleanup_apply(state_dir=state_dir_path, write_result=write_result)
+    decision_contract = read_decision_contract(state_dir_path)
+    current_sources = [
+        str(item.get("path") or "")
+        for item in cleanup_plan.get("current_evidence_protection", [])
+        if isinstance(item, Mapping)
+    ]
+    accepted_round = str(decision_contract.get("follows_last_accepted_round_id") or "")
+    accepted_sources = [
+        f"project_state/rounds/{accepted_round}/round_manifest.json",
+        f"project_state/rounds/{accepted_round}/codex_execution_report.md",
+        f"project_state/rounds/{accepted_round}/pytest_result.txt",
+    ] if accepted_round else []
+    risk_matrix_rows = _cleanup_review_risk_matrix(cleanup_plan)
+    risk_matrix = {
+        **_identity(state_dir_path, "cleanup_candidate_risk_matrix.json", CLEANUP_CANDIDATE_RISK_MATRIX_PATH),
+        "gate_name": "cleanup-candidate-risk-matrix",
+        "matrix_status": "READY_FOR_HUMAN_REVIEW",
+        "rows": risk_matrix_rows,
+        "delete_allowed_now": False,
+        "archive_allowed_now": False,
+        "generated_artifacts": [CLEANUP_CANDIDATE_RISK_MATRIX_PATH],
+    }
+    checklist_items = [
+        {"item": "separate APPROVED cleanup-apply decision", "required": True, "satisfied_this_round": False},
+        {"item": "command-plan authorizes real cleanup apply", "required": True, "satisfied_this_round": False},
+        {"item": "accepted deletion manifest", "required": True, "satisfied_this_round": False},
+        {"item": "accepted tombstone plan", "required": True, "satisfied_this_round": False},
+        {"item": "rollback handoff reviewed", "required": True, "satisfied_this_round": False},
+        {"item": "audit approval for every candidate", "required": True, "satisfied_this_round": False},
+    ]
+    checklist = {
+        **_identity(state_dir_path, "cleanup_apply_approval_checklist.json", CLEANUP_APPLY_APPROVAL_CHECKLIST_PATH),
+        "gate_name": "cleanup-apply-approval-checklist",
+        "checklist_status": "FUTURE_DECISION_REQUIRED",
+        "cleanup_apply_allowed_now": False,
+        "items": checklist_items,
+        "generated_artifacts": [CLEANUP_APPLY_APPROVAL_CHECKLIST_PATH],
+    }
+    evidence_lock = {
+        **_identity(state_dir_path, "evidence_lock_manifest.json", EVIDENCE_LOCK_MANIFEST_PATH),
+        "gate_name": "evidence-lock-manifest",
+        "lock_status": "ACTIVE_FOR_CURRENT_ROUND",
+        "current_audit_fact_sources": current_sources,
+        "accepted_round_minimum_evidence": accepted_sources,
+        "protected_from_cleanup_apply_this_round": True,
+        "generated_artifacts": [EVIDENCE_LOCK_MANIFEST_PATH],
+    }
+    deletion_dry_run = {
+        **_identity(state_dir_path, "deletion_manifest_dry_run.json", DELETION_MANIFEST_DRY_RUN_PATH),
+        "gate_name": "deletion-manifest-dry-run",
+        "dry_run_only": True,
+        "real_deletion_manifest": False,
+        "delete_allowed_now": False,
+        "schema_path": "project_state/gates/deletion_manifest_schema.json",
+        "entries": [
+            {
+                "path": row["path"],
+                "retention_class": row["retention_class"],
+                "future_action": row["future_action"],
+                "delete_allowed_now": False,
+                "future_decision_required": row["future_decision_required"],
+            }
+            for row in risk_matrix_rows
+            if row["future_action"] == "delete-candidate"
+        ],
+        "generated_artifacts": [DELETION_MANIFEST_DRY_RUN_PATH],
+    }
+    tombstone_dry_run = {
+        **_identity(state_dir_path, "tombstone_plan_dry_run.json", TOMBSTONE_PLAN_DRY_RUN_PATH),
+        "gate_name": "tombstone-plan-dry-run",
+        "dry_run_only": True,
+        "real_tombstone_write": False,
+        "schema_path": "project_state/gates/tombstone_schema.json",
+        "planned_tombstones": [
+            {
+                "path": item["path"],
+                "would_write_tombstone": False,
+                "future_cleanup_apply_required": True,
+            }
+            for item in deletion_dry_run["entries"]
+        ],
+        "generated_artifacts": [TOMBSTONE_PLAN_DRY_RUN_PATH],
+    }
+    errors: list[str] = []
+    if any(row["delete_allowed_now"] or row["archive_allowed_now"] for row in risk_matrix_rows):
+        errors.append("risk matrix allows immediate cleanup action")
+    if deletion_dry_run["real_deletion_manifest"] is not False or deletion_dry_run["delete_allowed_now"] is not False:
+        errors.append("deletion dry-run is not safe")
+    if tombstone_dry_run["real_tombstone_write"] is not False:
+        errors.append("tombstone dry-run allows real writes")
+    if safety.get("gate_status") != "PASSED":
+        errors.append("cleanup apply safety bundle did not pass")
+    review_bundle = {
+        **_identity(state_dir_path, "cleanup_apply_review_bundle.json", CLEANUP_APPLY_REVIEW_BUNDLE_PATH),
+        "gate_name": "cleanup-apply-review-bundle",
+        "bundle_status": "READY_FOR_HUMAN_REVIEW" if not errors else "FAILED",
+        "advisory_readiness_only": True,
+        "real_cleanup_apply": False,
+        "cleanup_apply_allowed_now": False,
+        "policy_path": "project_state/retention_policy.json",
+        "cleanup_plan_path": "project_state/gates/cleanup_plan.json",
+        "archive_index_path": "project_state/gates/archive_index.json",
+        "deletion_schema_path": str(deletion_schema.get("artifact_path") or ""),
+        "tombstone_schema_path": str(tombstone_schema.get("artifact_path") or ""),
+        "safety_result_path": str(safety.get("artifact_path") or CLEANUP_APPLY_SAFETY_RESULT_PATH),
+        "rollback_handoff_path": str(rollback.get("artifact_path") or ROLLBACK_HANDOFF_PLAN_PATH),
+        "audit_handoff_path": str(audit.get("artifact_path") or AUDIT_HANDOFF_FOR_CLEANUP_APPLY_PATH),
+        "risk_matrix_path": CLEANUP_CANDIDATE_RISK_MATRIX_PATH,
+        "approval_checklist_path": CLEANUP_APPLY_APPROVAL_CHECKLIST_PATH,
+        "evidence_lock_manifest_path": EVIDENCE_LOCK_MANIFEST_PATH,
+        "delete_allowed_now": False,
+        "archive_allowed_now": False,
+        "unknown_entries_require_manual_review": True,
+        "generated_artifacts": [CLEANUP_APPLY_REVIEW_BUNDLE_PATH],
+    }
+    result = {
+        **_identity(state_dir_path, "cleanup_apply_review_result.json", CLEANUP_APPLY_REVIEW_RESULT_PATH),
+        "gate_name": "cleanup-apply-review",
+        "gate_status": "PASSED" if not errors else "FAILED",
+        "review_status": "READY_FOR_HUMAN_REVIEW" if not errors else "FAILED",
+        "advisory_readiness_only": True,
+        "real_cleanup_apply": False,
+        "cleanup_apply_allowed_now": False,
+        "candidate_count": len(risk_matrix_rows),
+        "cleanup_plan_status": cleanup_plan.get("plan_status"),
+        "archive_index_status": archive_index.get("index_status"),
+        "retention_policy_status": policy.get("policy_status"),
+        "checks": [
+            {"name": "safety_bundle_passed", "status": "PASS" if safety.get("gate_status") == "PASSED" else "FAIL"},
+            {"name": "risk_matrix_no_immediate_actions", "status": "PASS"},
+            {"name": "future_approval_required", "status": "PASS"},
+            {"name": "evidence_lock_present", "status": "PASS" if current_sources else "FAIL"},
+            {"name": "dry_run_manifest_and_tombstone_only", "status": "PASS"},
+        ],
+        "errors": errors,
+        "generated_artifacts": [
+            CLEANUP_APPLY_REVIEW_BUNDLE_PATH,
+            CLEANUP_APPLY_REVIEW_RESULT_PATH,
+            CLEANUP_APPLY_REVIEW_SNAPSHOT_PATH,
+            CLEANUP_CANDIDATE_RISK_MATRIX_PATH,
+            CLEANUP_APPLY_APPROVAL_CHECKLIST_PATH,
+            EVIDENCE_LOCK_MANIFEST_PATH,
+            DELETION_MANIFEST_DRY_RUN_PATH,
+            TOMBSTONE_PLAN_DRY_RUN_PATH,
+        ],
+    }
+    snapshot = {
+        **_identity(state_dir_path, "cleanup_apply_review_snapshot.json", CLEANUP_APPLY_REVIEW_SNAPSHOT_PATH),
+        "gate_status": result["gate_status"],
+        "candidate_count": len(risk_matrix_rows),
+        "current_audit_fact_source_count": len(current_sources),
+        "accepted_round_minimum_evidence_count": len(accepted_sources),
+        "real_cleanup_apply": False,
+        "delete_allowed_now": False,
+        "archive_allowed_now": False,
+    }
+    if write_result:
+        _write_json(state_dir_path / "gates" / "cleanup_candidate_risk_matrix.json", risk_matrix)
+        _write_json(state_dir_path / "gates" / "cleanup_apply_approval_checklist.json", checklist)
+        _write_json(state_dir_path / "gates" / "evidence_lock_manifest.json", evidence_lock)
+        _write_json(state_dir_path / "gates" / "deletion_manifest_dry_run.json", deletion_dry_run)
+        _write_json(state_dir_path / "gates" / "tombstone_plan_dry_run.json", tombstone_dry_run)
+        _write_json(state_dir_path / "gates" / "cleanup_apply_review_bundle.json", review_bundle)
+        _write_json(state_dir_path / "gates" / "cleanup_apply_review_snapshot.json", snapshot)
+        _write_json(state_dir_path / "gates" / "cleanup_apply_review_result.json", result)
+    return result
+
+
+def validate_cleanup_apply_review_result(payload: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if payload.get("gate_status") != "PASSED":
+        errors.append("cleanup apply review gate did not pass")
+    if payload.get("advisory_readiness_only") is not True:
+        errors.append("review must be advisory/readiness only")
+    if payload.get("real_cleanup_apply") is not False:
+        errors.append("real_cleanup_apply must be false")
+    if payload.get("cleanup_apply_allowed_now") is not False:
+        errors.append("cleanup_apply_allowed_now must be false")
+    generated = {str(item) for item in payload.get("generated_artifacts", [])}
+    required = {
+        CLEANUP_APPLY_REVIEW_BUNDLE_PATH,
+        CLEANUP_APPLY_REVIEW_RESULT_PATH,
+        CLEANUP_APPLY_REVIEW_SNAPSHOT_PATH,
+        CLEANUP_CANDIDATE_RISK_MATRIX_PATH,
+        CLEANUP_APPLY_APPROVAL_CHECKLIST_PATH,
+        EVIDENCE_LOCK_MANIFEST_PATH,
+        DELETION_MANIFEST_DRY_RUN_PATH,
+        TOMBSTONE_PLAN_DRY_RUN_PATH,
+    }
+    missing = sorted(required - generated)
+    if missing:
+        errors.append(f"generated_artifacts missing: {missing}")
+    return errors
 
 
 def validate_cleanup_apply_safety_bundle(payload: Mapping[str, Any]) -> list[str]:

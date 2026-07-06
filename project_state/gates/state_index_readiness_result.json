@@ -1,0 +1,49 @@
+{
+  "artifact_name": "state_index_readiness_result.json",
+  "artifact_path": "project_state/gates/state_index_readiness_result.json",
+  "checks": [
+    {
+      "name": "schema_defines_required_tables",
+      "status": "PASS",
+      "table_names": [
+        "artifacts",
+        "audits",
+        "backlog_notices",
+        "decisions",
+        "executions",
+        "rounds",
+        "workstreams"
+      ]
+    },
+    {
+      "database_files_present": [],
+      "name": "no_database_file_created",
+      "status": "PASS"
+    },
+    {
+      "detail": "SQLite is a future query/read index only",
+      "name": "project_state_fact_source_preserved",
+      "status": "PASS"
+    }
+  ],
+  "database_file_created": false,
+  "database_files_present": [],
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "errors": [],
+  "gate_name": "state-index-readiness",
+  "gate_status": "PASSED",
+  "generated_artifacts": [
+    "project_state/gates/state_index_readiness_schema.json",
+    "project_state/gates/state_index_readiness_plan.json",
+    "project_state/gates/state_index_readiness_result.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "mainline": "project_governance",
+  "migration_created": false,
+  "project_state_remains_audit_fact_source": true,
+  "readiness_status": "SCHEMA_READY_NO_DATABASE",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_version": 1,
+  "sqlite_read_index_only": true
+}

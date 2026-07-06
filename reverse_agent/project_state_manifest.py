@@ -174,6 +174,63 @@ def build_state_manifest(
         "audit_handoff_for_cleanup_apply": _gate_ref(
             state_dir_path, "audit_handoff_for_cleanup_apply.json", "generated_or_updated", False
         ),
+        "cleanup_apply_review_bundle": _gate_ref(
+            state_dir_path, "cleanup_apply_review_bundle.json", "generated_or_updated", False
+        ),
+        "cleanup_apply_review_result": _gate_ref(
+            state_dir_path, "cleanup_apply_review_result.json", "generated_or_updated", False
+        ),
+        "cleanup_apply_review_snapshot": _gate_ref(
+            state_dir_path, "cleanup_apply_review_snapshot.json", "generated_or_updated", False
+        ),
+        "cleanup_candidate_risk_matrix": _gate_ref(
+            state_dir_path, "cleanup_candidate_risk_matrix.json", "generated_or_updated", False
+        ),
+        "cleanup_apply_approval_checklist": _gate_ref(
+            state_dir_path, "cleanup_apply_approval_checklist.json", "generated_or_updated", False
+        ),
+        "evidence_lock_manifest": _gate_ref(
+            state_dir_path, "evidence_lock_manifest.json", "generated_or_updated", False
+        ),
+        "deletion_manifest_dry_run": _gate_ref(
+            state_dir_path, "deletion_manifest_dry_run.json", "generated_or_updated", False
+        ),
+        "tombstone_plan_dry_run": _gate_ref(
+            state_dir_path, "tombstone_plan_dry_run.json", "generated_or_updated", False
+        ),
+        "round_compaction_plan": _gate_ref(
+            state_dir_path, "round_compaction_plan.json", "generated_or_updated", False
+        ),
+        "round_compaction_dry_run": _gate_ref(
+            state_dir_path, "round_compaction_dry_run.json", "generated_or_updated", False
+        ),
+        "round_compaction_manifest_dry_run": _gate_ref(
+            state_dir_path, "round_compaction_manifest_dry_run.json", "generated_or_updated", False
+        ),
+        "state_index_readiness_schema": _gate_ref(
+            state_dir_path, "state_index_readiness_schema.json", "generated_or_updated", False
+        ),
+        "state_index_readiness_plan": _gate_ref(
+            state_dir_path, "state_index_readiness_plan.json", "generated_or_updated", False
+        ),
+        "state_index_readiness_result": _gate_ref(
+            state_dir_path, "state_index_readiness_result.json", "generated_or_updated", False
+        ),
+        "state_hygiene_dashboard_feed": _gate_ref(
+            state_dir_path, "state_hygiene_dashboard_feed.json", "generated_or_updated", False
+        ),
+        "state_hygiene_dashboard_summary": _gate_ref(
+            state_dir_path, "state_hygiene_dashboard_summary.json", "generated_or_updated", False
+        ),
+        "lifecycle_transition_guard_result": _gate_ref(
+            state_dir_path, "lifecycle_transition_guard_result.json", "generated_or_updated", False
+        ),
+        "governance_operations_bundle_result": _gate_ref(
+            state_dir_path, "governance_operations_bundle_result.json", "generated_or_updated", False
+        ),
+        "governance_operations_bundle_snapshot": _gate_ref(
+            state_dir_path, "governance_operations_bundle_snapshot.json", "generated_or_updated", False
+        ),
         "project_governance_context_result": _gate_ref(
             state_dir_path, "project_governance_context_result.json", "generated_or_updated", False
         ),

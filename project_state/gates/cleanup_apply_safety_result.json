@@ -34,7 +34,7 @@
   ],
   "cleanup_apply_allowed": false,
   "compacted_archives": [],
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
   "deleted_files": [],
   "destructive_action_counts": {
     "archived_files": 0,
@@ -97,14 +97,14 @@
     "project_state/context/current_context_packet.json",
     "project_state/roadmap/workstreams.json"
   ],
-  "generated_at": "2026-07-05T12:49:38Z",
+  "generated_at": "2026-07-06T02:38:19Z",
   "mainline": "project_governance",
   "moved_files": [],
   "no_concrete_sample_claims": true,
   "real_cleanup_apply": false,
   "real_deletion_manifests": [],
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "schema_version": 1,
   "snapshot_path": "project_state/gates/cleanup_apply_safety_snapshot.json",
   "written_tombstones": []

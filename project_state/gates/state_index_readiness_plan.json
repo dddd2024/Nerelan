@@ -1,0 +1,27 @@
+{
+  "artifact_name": "state_index_readiness_plan.json",
+  "artifact_path": "project_state/gates/state_index_readiness_plan.json",
+  "database_creation_allowed_this_round": false,
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "future_required_steps": [
+    "separate APPROVED database/read-index decision",
+    "command-plan explicitly authorizes schema migration",
+    "project_state remains source of audit truth",
+    "final-check proves generated DB is derived and disposable"
+  ],
+  "gate_name": "state-index-readiness-plan",
+  "generated_artifacts": [
+    "project_state/gates/state_index_readiness_plan.json",
+    "project_state/gates/state_index_readiness_schema.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "mainline": "project_governance",
+  "migration_allowed_this_round": false,
+  "plan_status": "READY_FOR_FUTURE_DECISION",
+  "project_state_remains_audit_fact_source": true,
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_table_count": 7,
+  "schema_version": 1,
+  "sqlite_read_index_only": true
+}

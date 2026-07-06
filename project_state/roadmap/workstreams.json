@@ -7,8 +7,8 @@
     "only_current_decision_may_mark_active_round": true,
     "roadmap_entries_are_not_execution_authority": true
   },
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
-  "generated_at": "2026-07-05T12:49:38Z",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "generated_at": "2026-07-06T02:38:19Z",
   "lifecycle_states": [
     "IDEA",
     "CANDIDATE",
@@ -21,12 +21,56 @@
     "REJECTED"
   ],
   "mainline": "project_governance",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "schema_version": 1,
   "workstreams": [
     {
-      "active_decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
-      "active_round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+      "active_decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+      "active_round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+      "baseline_round_id": "",
+      "execution_authority": "project_state/decision_packet.md",
+      "family": "project_governance",
+      "is_execution_authority": false,
+      "lifecycle": [
+        "IDEA",
+        "CANDIDATE",
+        "ROADMAP_ACCEPTED",
+        "READY_FOR_DECISION",
+        "ACTIVE_ROUND",
+        "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
+        "DEFERRED",
+        "REJECTED"
+      ],
+      "notes": "Operations readiness bundle: cleanup review, compaction dry-run, archive index, read-index schema, dashboard feed, and lifecycle guard; no destructive apply.",
+      "status": "ACTIVE_ROUND",
+      "workstream_id": "governance_operations_bundle"
+    },
+    {
+      "active_decision_id": "",
+      "active_round_id": "",
+      "baseline_round_id": "",
+      "execution_authority": "project_state/decision_packet.md",
+      "family": "project_governance",
+      "is_execution_authority": false,
+      "lifecycle": [
+        "IDEA",
+        "CANDIDATE",
+        "ROADMAP_ACCEPTED",
+        "READY_FOR_DECISION",
+        "ACTIVE_ROUND",
+        "ACCEPTED",
+        "ACCEPTED_WITH_LIMITATIONS",
+        "DEFERRED",
+        "REJECTED"
+      ],
+      "notes": "Active rework for final acceptance semantics; historical sample backlog remains visible but non-limiting.",
+      "status": "ACCEPTED",
+      "workstream_id": "status_policy_final_acceptance_rework"
+    },
+    {
+      "active_decision_id": "",
+      "active_round_id": "",
       "baseline_round_id": "",
       "execution_authority": "project_state/decision_packet.md",
       "family": "project_governance",
@@ -43,7 +87,7 @@
         "REJECTED"
       ],
       "notes": "Fixes historical backlog status-policy semantics and advances cleanup-apply dry-run safety only; no real cleanup apply.",
-      "status": "ACTIVE_ROUND",
+      "status": "ACCEPTED",
       "workstream_id": "governance_fix_cleanup_apply_safety"
     },
     {
@@ -64,8 +108,8 @@
         "DEFERRED",
         "REJECTED"
       ],
-      "notes": "Accepted-with-limitations baseline for governance_fix_cleanup_apply_safety.",
-      "status": "ACCEPTED_WITH_LIMITATIONS",
+      "notes": "Retention policy, cleanup plan, archive index, schema design, lifecycle registry, and governance context refresh; planning/index/schema only.",
+      "status": "ACCEPTED",
       "workstream_id": "state_governance_bundle_big_step"
     },
     {
@@ -284,8 +328,8 @@
         "DEFERRED",
         "REJECTED"
       ],
-      "notes": "Idea only; database and query index implementation is explicitly out of scope.",
-      "status": "IDEA",
+      "notes": "Schema-only read-index readiness exists; database creation remains out of scope.",
+      "status": "READY_FOR_DECISION",
       "workstream_id": "sqlite_query_index"
     }
   ]

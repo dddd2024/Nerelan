@@ -9,72 +9,72 @@
     "state_manifest artifact roles",
     "report_summary artifact roles"
   ],
-  "current_round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
-  "decision_id": "decision_20260705_governance_fix_cleanup_apply_safety_v1",
+  "current_round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
   "entries": [
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/retention_policy.json",
       "role": "current",
-      "sha256": "70fe98d7384af9b8574e435bfdfd06d8e0a8f22b720f88152c24b39d5a7ca80d",
-      "size_bytes": 5338
+      "sha256": "4a7498eaf68decb6ede66ae78f03a09e0cf49a92accdad8ab805500d6e180c93",
+      "size_bytes": 5344
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/state_lifecycle_registry.json",
       "role": "current",
-      "sha256": "4328194bd3028e3fc260e3a89723d98478893ebc681a4e769e816e8cd685212a",
-      "size_bytes": 2298
+      "sha256": "72d0bf05b9321717cf44661f50b6197c9ab972cd6844586f246ebb408f485763",
+      "size_bytes": 2304
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/cleanup_plan.json",
       "role": "current",
-      "sha256": "8585de9d8ad2fc2c87f184b558c20754b857a75c9bb7ee7a9048835d8386d6a9",
-      "size_bytes": 6009
+      "sha256": "9d4e51176b78427ac5230e3da60adbe4a1af3994fe34949afdde539f4f084397",
+      "size_bytes": 6015
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/cleanup_plan_summary.json",
       "role": "current",
-      "sha256": "0cd5c67734eb88e18501540bfa0a5fbb97bc4da4775e31ea5a55398186ce0b33",
-      "size_bytes": 855
+      "sha256": "b34348c9dd315b958379ca755b8e3842a6d15a1f6791bf4d8c1dfe5d84885c17",
+      "size_bytes": 861
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/archive_index.json",
       "role": "current",
-      "sha256": "85e0fbf7f59ecaaeaf344f95ae72055716a37ebf16297995ae05f8d901c9593a",
-      "size_bytes": 4911
+      "sha256": "55aaedba54fc586f6613f6fe753b84f1c2dc1d7a80187044975f12fd5b4b147a",
+      "size_bytes": 10108
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/archive_index_summary.json",
       "role": "current",
-      "sha256": "844451ff69c1f54f28abedaecc3b0798904947eb973159fd241704c9721e591a",
-      "size_bytes": 706
+      "sha256": "2c8bd191b1c66ac71a987b886f48f8c49a56db7c246203a42fd0be110c53d3f2",
+      "size_bytes": 712
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/deletion_manifest_schema.json",
       "role": "current",
-      "sha256": "8dc546d87ac02c77f940ecf586b6a54d73be498d45384ab7bb28fe4b6d4c9f4f",
-      "size_bytes": 883
+      "sha256": "e1f8aaa220d3d5ffe47083dd58a3a47dc52a4c56036382a86ec6419b19e91a32",
+      "size_bytes": 889
     },
     {
       "archive_role": "current",
       "exists": true,
       "path": "project_state/gates/tombstone_schema.json",
       "role": "current",
-      "sha256": "bfebc313a6f1eb082fc1eb4b33f81b9f6b43a87ee8a779bd07393fd0fac0310a",
-      "size_bytes": 859
+      "sha256": "f32b51bd4e994c485f7e49ab7e5b378a5627fade9e373ca90ccdee790244f905",
+      "size_bytes": 865
     },
     {
       "archive_role": "current",
@@ -91,6 +91,158 @@
       "role": "current",
       "sha256": "59aed7fe354c5c4b694bc57680730e6142cb1042eca6330c7dbc5bf7d896d2a3",
       "size_bytes": 1170
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/cleanup_apply_review_bundle.json",
+      "role": "current",
+      "sha256": "74dfaa43a7e556d035c495891258de5c42f30e52486cae1830446ccb31931f70",
+      "size_bytes": 1697
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/cleanup_apply_review_result.json",
+      "role": "current",
+      "sha256": "8d8487b20c81b4a80924f2923b9d17c6aca655c7c8667333af559c1fd4e4a654",
+      "size_bytes": 1792
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/cleanup_apply_review_snapshot.json",
+      "role": "current",
+      "sha256": "640fd71be8f4089313f7049302053f23689f6d9eba93a848edaf347efcc149ef",
+      "size_bytes": 704
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/cleanup_candidate_risk_matrix.json",
+      "role": "current",
+      "sha256": "a790d82e86788bee0c4e2a564df49dfd07573d8b5b69a7ead1c4bab3af1abc30",
+      "size_bytes": 7933
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/cleanup_apply_approval_checklist.json",
+      "role": "current",
+      "sha256": "ccbcbe7e5ec7f1e9719926041649eb3eff59eacee227cce3a762b002c8f8535e",
+      "size_bytes": 1465
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/evidence_lock_manifest.json",
+      "role": "current",
+      "sha256": "ae739ca9f451bc414c8e765e8fedd2101039dd7c355d5a0210e6332bdeefa7e7",
+      "size_bytes": 1263
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/deletion_manifest_dry_run.json",
+      "role": "current",
+      "sha256": "56d24ec10c4e01678ad59e2646f7c69a7281eb787d5f745901ae670ecb783be8",
+      "size_bytes": 773
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/tombstone_plan_dry_run.json",
+      "role": "current",
+      "sha256": "bf2de2518395c04cb569c95b2ae67db6c65ddd4f5e513b4ccd6937a0ce3c28f9",
+      "size_bytes": 731
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/round_compaction_plan.json",
+      "role": "current",
+      "sha256": "ade30da0c03d986b90d8584857e420da04618fc90608096fbc4f846e3dafad70",
+      "size_bytes": 1465
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/round_compaction_dry_run.json",
+      "role": "current",
+      "sha256": "79df327d69ab314c937c48b31bda76e7bb43cde131fa2348e0c6755e44dae796",
+      "size_bytes": 1341
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/round_compaction_manifest_dry_run.json",
+      "role": "current",
+      "sha256": "7238aaae4f52088df1b2e53b5f2626b883ada72992a43d0b99e14b305185afd0",
+      "size_bytes": 1251
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/state_index_readiness_schema.json",
+      "role": "current",
+      "sha256": "36573415e7fade50d3d2e76717fd853493b17132d8cb2753ed8be95689d98aa6",
+      "size_bytes": 1659
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/state_index_readiness_plan.json",
+      "role": "current",
+      "sha256": "b6715631b7d5da9ec87150cc057d464ef99699217649fe6ece6281ca9cef09d3",
+      "size_bytes": 1171
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/state_index_readiness_result.json",
+      "role": "current",
+      "sha256": "c61be6473d3a27eb8076e9413ee5c27ec032eb28dfd8604578f180f7a6a00539",
+      "size_bytes": 1541
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/state_hygiene_dashboard_feed.json",
+      "role": "current",
+      "sha256": "bbb0d0f377070b6ecaa9c7de00b3de9335cda651cd1704ce0f35f93e687f4cf2",
+      "size_bytes": 2185
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/state_hygiene_dashboard_summary.json",
+      "role": "current",
+      "sha256": "f8ea80fae445429f6fe58af71083bf73bf925932744a67c97540d399ec591619",
+      "size_bytes": 808
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/lifecycle_transition_guard_result.json",
+      "role": "current",
+      "sha256": "79548289fb23b4e6640f74ba20a39fdfb428b581d879a956d63e8b3292ce22aa",
+      "size_bytes": 1010
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/governance_operations_bundle_result.json",
+      "role": "current",
+      "sha256": "a10412f161cb98dff8f47de1cfc9cff750751dc923f9d475489a4b1c60ed1ad9",
+      "size_bytes": 3777
+    },
+    {
+      "archive_role": "current",
+      "exists": true,
+      "path": "project_state/gates/governance_operations_bundle_snapshot.json",
+      "role": "current",
+      "sha256": "e68136c01ba6db97501b7b74fb1cb0c27fea11b48fddace73082e1a2ec809ea3",
+      "size_bytes": 1021
     },
     {
       "archive_role": "historical_nonblocking",
@@ -126,12 +278,12 @@
     }
   ],
   "full_solve_reports_scan": false,
-  "generated_at": "2026-07-05T12:49:38Z",
+  "generated_at": "2026-07-06T02:38:19Z",
   "index_status": "BOUNDED_INDEX_ONLY",
   "mainline": "project_governance",
   "previous_accepted_round_id": "",
   "recursive_rounds_scan": false,
-  "report_id": "codex_report_20260705_governance_fix_cleanup_apply_safety_v1",
-  "round_id": "round_20260705_governance_fix_cleanup_apply_safety_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
   "schema_version": 1
 }

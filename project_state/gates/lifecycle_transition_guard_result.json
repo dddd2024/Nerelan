@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "artifact_name": "lifecycle_transition_guard_result.json",
+  "artifact_path": "project_state/gates/lifecycle_transition_guard_result.json",
+  "gate_name": "lifecycle-transition-guard",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "mainline": "project_governance",
+  "generated_at": "2026-07-06T02:38:19.601568Z",
+  "active_workstream_count": 1,
+  "active_workstream_ids": [
+    "governance_operations_bundle"
+  ],
+  "real_cleanup_apply_deferred": true,
+  "future_destructive_work_requires_separate_decision": true,
+  "status_policy_clean_acceptance_preserved": true,
+  "final_check_gate_status_at_guard_time": "FAILED",
+  "forbidden_capabilities": {},
+  "errors": [],
+  "generated_artifacts": [
+    "project_state/gates/lifecycle_transition_guard_result.json"
+  ]
+}

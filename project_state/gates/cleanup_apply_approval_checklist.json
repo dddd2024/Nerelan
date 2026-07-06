@@ -1,0 +1,48 @@
+{
+  "artifact_name": "cleanup_apply_approval_checklist.json",
+  "artifact_path": "project_state/gates/cleanup_apply_approval_checklist.json",
+  "checklist_status": "FUTURE_DECISION_REQUIRED",
+  "cleanup_apply_allowed_now": false,
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "gate_name": "cleanup-apply-approval-checklist",
+  "generated_artifacts": [
+    "project_state/gates/cleanup_apply_approval_checklist.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "items": [
+    {
+      "item": "separate APPROVED cleanup-apply decision",
+      "required": true,
+      "satisfied_this_round": false
+    },
+    {
+      "item": "command-plan authorizes real cleanup apply",
+      "required": true,
+      "satisfied_this_round": false
+    },
+    {
+      "item": "accepted deletion manifest",
+      "required": true,
+      "satisfied_this_round": false
+    },
+    {
+      "item": "accepted tombstone plan",
+      "required": true,
+      "satisfied_this_round": false
+    },
+    {
+      "item": "rollback handoff reviewed",
+      "required": true,
+      "satisfied_this_round": false
+    },
+    {
+      "item": "audit approval for every candidate",
+      "required": true,
+      "satisfied_this_round": false
+    }
+  ],
+  "mainline": "project_governance",
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_version": 1
+}

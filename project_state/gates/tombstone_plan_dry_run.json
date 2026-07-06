@@ -1,0 +1,18 @@
+{
+  "artifact_name": "tombstone_plan_dry_run.json",
+  "artifact_path": "project_state/gates/tombstone_plan_dry_run.json",
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "dry_run_only": true,
+  "gate_name": "tombstone-plan-dry-run",
+  "generated_artifacts": [
+    "project_state/gates/tombstone_plan_dry_run.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "mainline": "project_governance",
+  "planned_tombstones": [],
+  "real_tombstone_write": false,
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_path": "project_state/gates/tombstone_schema.json",
+  "schema_version": 1
+}

@@ -1,0 +1,68 @@
+{
+  "artifact_name": "state_index_readiness_schema.json",
+  "artifact_path": "project_state/gates/state_index_readiness_schema.json",
+  "database_file_created": false,
+  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
+  "gate_name": "state-index-readiness-schema",
+  "generated_artifacts": [
+    "project_state/gates/state_index_readiness_schema.json"
+  ],
+  "generated_at": "2026-07-06T02:38:19Z",
+  "mainline": "project_governance",
+  "migration_created": false,
+  "project_state_remains_audit_fact_source": true,
+  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
+  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "schema_status": "SCHEMA_ONLY",
+  "schema_version": 1,
+  "sqlite_read_index_only": true,
+  "tables": {
+    "artifacts": [
+      "artifact_path",
+      "artifact_name",
+      "round_id",
+      "role",
+      "sha256",
+      "freshness"
+    ],
+    "audits": [
+      "audit_item",
+      "status",
+      "evidence_path",
+      "round_id"
+    ],
+    "backlog_notices": [
+      "notice_id",
+      "classification",
+      "blocking_current_round",
+      "source_path"
+    ],
+    "decisions": [
+      "decision_id",
+      "round_id",
+      "status",
+      "mainline",
+      "state_digest"
+    ],
+    "executions": [
+      "command",
+      "kind",
+      "round_id",
+      "exit_code",
+      "expected_exit_codes"
+    ],
+    "rounds": [
+      "round_id",
+      "decision_id",
+      "report_id",
+      "closeout_status",
+      "archive_manifest_path"
+    ],
+    "workstreams": [
+      "workstream_id",
+      "family",
+      "status",
+      "active_round_id"
+    ]
+  }
+}

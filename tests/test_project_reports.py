@@ -8,6 +8,7 @@ from reverse_agent.project_gate import (
     _generate_ci_workflow_readiness_required_audit,
     _generate_current_handoff_packet_required_audit,
     _generate_final_check_exit_and_audit_readiness_required_audit,
+    _generate_governance_operations_bundle_required_audit,
     _generate_local_execution_loop_required_audit,
     _generate_required_audit_direct_evidence_rework_required_audit,
     _generate_required_audit_alignment_rework_required_audit,
@@ -88,6 +89,53 @@ REQUIRED_AUDIT_DIRECT_EVIDENCE_QUESTIONS = [
     "Did `final_gate_result.json` pass only after corrected Required Audit prose was produced?",
     "If run-closeout was authorized and executed, did it pass and archive the corrected report artifacts?",
     "Did the final report avoid generic/template prose and provide direct, claim-specific evidence for every Required Audit answer?",
+]
+
+GOVERNANCE_OPERATIONS_BUNDLE_QUESTIONS = [
+    "Was `project_state/decision_packet.md` treated as the only task authority?",
+    "Was `project_state/task_packet.json` treated as background only?",
+    "Did `decision_meta` remain valid, `APPROVED`, and aligned with active `reverse-agent-iteration@v2`?",
+    "Was `decision_20260705_status_policy_final_acceptance_rework_v1` treated as the last accepted baseline?",
+    "Did this round remain one mainline, `project_governance`?",
+    "Did the round supersede the smaller unexecuted `cleanup_apply_review_bundle_v1` plan rather than running both?",
+    "Were existing retention, cleanup, archive, status-policy, doctor/backlog, cleanup-apply safety, command-plan, execution-log, report-summary, final-check, closeout, manifest, context, and workstream capabilities inspected before modification?",
+    "Did the implementation avoid duplicating existing capabilities from scratch?",
+    "Was `cleanup_apply_review_bundle.json` generated?",
+    "Was `cleanup_apply_review_result.json` generated?",
+    "Was `cleanup_candidate_risk_matrix.json` generated and did it classify candidates by evidence role, retention class, future action, risk, confidence, required approval, and future decision requirement?",
+    "Was `cleanup_apply_approval_checklist.json` generated and did it require a separate future decision before any real cleanup-apply?",
+    "Was `evidence_lock_manifest.json` generated and did it protect current audit fact sources and accepted-round minimum evidence?",
+    "Was `deletion_manifest_dry_run.json` generated with `real_deletion_manifest=false` and `delete_allowed_now=false`?",
+    "Was `tombstone_plan_dry_run.json` generated with `real_tombstone_write=false`?",
+    "Was `round_compaction_plan.json` generated?",
+    "Was `round_compaction_dry_run.json` generated?",
+    "Did round compaction dry-run avoid writing archives, moving files, deleting files, or mutating `project_state/archives/*`?",
+    "Was `round_compaction_manifest_dry_run.json` generated and clearly marked dry-run-only?",
+    "Was `archive_index.json` refreshed in bounded mode without recursive full history scan?",
+    "Was `state_index_readiness_schema.json` generated without creating a real database?",
+    "Was `state_index_readiness_plan.json` generated and did it state SQLite is a read/query index, not the audit fact source?",
+    "Was `state_index_readiness_result.json` generated and did it prove no SQLite/db file was created?",
+    "Was `state_hygiene_dashboard_feed.json` generated?",
+    "Did dashboard feed contain current decision, round, report, final-check, backlog notices, cleanup readiness, compaction readiness, and index readiness?",
+    "Was `lifecycle_transition_guard_result.json` generated?",
+    "Did lifecycle guard verify exactly one active workstream and keep real cleanup-apply deferred?",
+    "Were `state_manifest`, `current_context_packet`, and `workstreams` refreshed for this round if needed?",
+    "Does `workstreams.json` mark only `governance_operations_bundle` as `ACTIVE_ROUND`?",
+    "Did status-policy/final-check acceptance remain `PASSED`/`ACCEPTED`?",
+    "Did historical sample backlog remain visible as nonblocking backlog?",
+    "Did the round prove no cleanup-apply, deletion, move, archive apply, archive compaction, real tombstone, real deletion manifest, database migration, Web runtime, runner dispatch, CI dispatch, model API, external reverse tool, or real sample processing occurred?",
+    "Did command-plan authorize every executed command?",
+    "Were command-plan omitted commands left unexecuted?",
+    "Did pytest_result record real commands and exit codes?",
+    "Did focused tests cover review bundle, compaction dry-run, read-index schema, dashboard feed, lifecycle guard, and no-op safety behavior?",
+    "Did existing governance/gate/report tests continue to pass?",
+    "Did report-summary synthesis pass and match the execution report?",
+    "Did final-check pass?",
+    "Did run-closeout pass if authorized?",
+    "Were forbidden paths untouched?",
+    "Were `.github/workflows/*`, `.codex-skills/*`, `solve_reports/*`, `project_state/archives/*`, `project_state/deletions/*`, `project_state/blob_store/*`, and SQLite/db files untouched or absent as required?",
+    "Did the final report avoid any concrete sample solve/static/runtime/audit validation claim?",
+    "Did the final report explicitly state this is an operations readiness bundle only, not cleanup apply, not compaction apply, not database creation, and not Web/runtime work?",
 ]
 
 CURRENT_HANDOFF_PACKET_QUESTIONS = [
@@ -367,6 +415,30 @@ def test_required_audit_direct_evidence_rework_generator_is_substantive() -> Non
     assert "project_state/gates/run_closeout_result.json" in audit
     assert "project_state/gates/ci_observation_reconcile_result.json" in audit
     assert "project_state/gates/ci_audit_handoff_bundle.json" in audit
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
+    assert result["placeholder_answers"] == []
+
+
+def test_governance_operations_bundle_required_audit_generator_is_substantive() -> None:
+    decision_text = (
+        "# Decision\n\n"
+        "Governance Operations Bundle Big Step accepted_requires_governance_operations_gate "
+        "governance_operations_bundle\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(GOVERNANCE_OPERATIONS_BUNDLE_QUESTIONS, start=1)
+        )
+    )
+    audit = _generate_governance_operations_bundle_required_audit(decision_text)
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit
     assert result["status"] == "PASS"
     assert result["alignment_failures"] == []
     assert result["placeholder_answers"] == []
