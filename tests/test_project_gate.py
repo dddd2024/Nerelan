@@ -29374,6 +29374,88 @@ def test_prework_provenance_accepts_explicit_inherited_baseline(tmp_path: Path) 
     assert result["undeclared_dirty_source_test_doc_files"] == []
 
 
+def test_stale_prework_provenance_blocks_final_check(tmp_path: Path) -> None:
+    """When prework_provenance_result.json exists with stale IDs,
+    _prework_provenance_gate_check should return FAIL."""
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_new",
+        round_id="round_new",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    # Write a stale prework_provenance_result.json with old IDs
+    _write_json(
+        state_dir / "gates" / "prework_provenance_result.json",
+        {
+            "artifact_name": "prework_provenance_result.json",
+            "gate_name": "prework-provenance",
+            "gate_status": "PASSED",
+            "decision_id": "decision_old",
+            "round_id": "round_old",
+            "report_id": "codex_report_old",
+            "dirty_source_test_doc_files": [],
+            "undeclared_dirty_source_test_doc_files": [],
+        },
+    )
+    check = _prework_provenance_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_new",
+        round_id="round_new",
+        report_id=_expected_report_id("round_new"),
+        decision_contract={"accepted_requires_prework_provenance_hardening": True},
+    )
+    assert check["status"] == "FAIL"
+
+
+def test_current_prework_provenance_allows_final_check(tmp_path: Path) -> None:
+    """When prework_provenance_result.json exists with current IDs,
+    _prework_provenance_gate_check should return PASS."""
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_current",
+        round_id="round_current",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    _write_startup_snapshot_fixture(
+        state_dir,
+        decision_id="decision_current",
+        round_id="round_current",
+    )
+    result = prework_provenance(state_dir=state_dir, repo_root=tmp_path)
+    assert result["gate_status"] == "PASSED"
+    check = _prework_provenance_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_current",
+        round_id="round_current",
+        report_id=_expected_report_id("round_current"),
+        decision_contract={"accepted_requires_prework_provenance_hardening": True},
+    )
+    assert check["status"] == "PASS"
+
+
+def test_missing_prework_provenance_passes_when_not_required(tmp_path: Path) -> None:
+    """When prework_provenance_result.json is missing and required=False,
+    _prework_provenance_gate_check should return PASS."""
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_no_prework",
+        round_id="round_no_prework",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    # Ensure no prework_provenance_result.json exists
+    pp_path = state_dir / "gates" / "prework_provenance_result.json"
+    if pp_path.exists():
+        pp_path.unlink()
+    check = _prework_provenance_gate_check(
+        state_dir=state_dir,
+        decision_id="decision_no_prework",
+        round_id="round_no_prework",
+        report_id=_expected_report_id("round_no_prework"),
+        decision_contract={"accepted_requires_prework_provenance_hardening": False},
+    )
+    assert check["status"] == "PASS"
+
+
 def test_user_solve_control_plane_gate_writes_safe_fixture_artifact(tmp_path: Path) -> None:
     state_dir = _make_preflight_state(
         tmp_path,

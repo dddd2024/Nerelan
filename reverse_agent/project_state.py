@@ -1391,6 +1391,20 @@ def validate_pytest_result_for_report(
     }
 
 
+def _has_failed_command_block(body: str) -> bool:
+    """Return True if any command block in the body has a non-zero exit code."""
+    for line in body.splitlines():
+        line = line.strip()
+        if line.startswith("===== EXIT: ") and line.endswith(" ====="):
+            exit_text = line[len("===== EXIT: "):-len(" =====")].strip()
+            try:
+                if int(exit_text) != 0:
+                    return True
+            except ValueError:
+                pass
+    return False
+
+
 def write_pytest_result(
     *,
     state_dir: Path,
@@ -1400,6 +1414,10 @@ def write_pytest_result(
     status, status_error = _normalize_status(summary.get("status"), PYTEST_RESULT_STATUSES, default="UNKNOWN")
     if status_error:
         raise ValueError(status_error)
+    # If status claims PASSED but body contains failed command blocks,
+    # downgrade to FAILED so the header does not contradict the evidence.
+    if status == "PASSED" and body.strip() and _has_failed_command_block(body):
+        status = "FAILED"
     tests_ran = summary.get("tests_ran", [])
     if not isinstance(tests_ran, list) or not all(isinstance(item, str) for item in tests_ran):
         raise ValueError("tests_ran must be a list of strings")

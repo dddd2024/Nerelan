@@ -3,10 +3,10 @@
   "artifact_name": "ci_workflow_coverage_result.json",
   "gate_name": "ci-workflow-coverage",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-  "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
-  "generated_at": "2026-07-06T07:52:50.193912Z",
+  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+  "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+  "generated_at": "2026-07-06T08:57:17.170821Z",
   "inspected_workflows": [
     {
       "path": ".github/workflows/ci.yml",

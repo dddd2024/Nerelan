@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "FAILED",
-  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-  "generated_at": "2026-07-06T07:52:54.182022Z",
+  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+  "generated_at": "2026-07-06T08:57:26.183987Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -37,18 +37,8 @@
       "status": "PASSED"
     },
     {
-      "name": "post-final-evidence-sync",
-      "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-      "kind": "post-final-evidence-sync",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
       "name": "pytest",
-      "command": "python -m pytest tests/test_post_final_evidence_sync.py tests/test_project_context_builder.py tests/test_project_gate.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py -q",
       "kind": "pytest",
       "expected_exit_codes": [
         0
@@ -58,7 +48,7 @@
     },
     {
       "name": "pytest",
-      "command": "python -m pytest tests/test_project_reports.py tests/test_project_state_manifest.py -q",
+      "command": "python -m pytest tests/test_post_final_evidence_sync.py tests/test_project_context_builder.py -q",
       "kind": "pytest",
       "expected_exit_codes": [
         0
@@ -107,6 +97,16 @@
       "status": "PASSED"
     },
     {
+      "name": "prework-provenance",
+      "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
+      "kind": "prework-provenance",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
       "name": "report-summary",
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
@@ -141,8 +141,18 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260706_post_final_timestamp_precision_hardening_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260706_prework_provenance_closeout_rework_v1",
       "kind": "close-round",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "name": "final-check-after-close",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
       "expected_exit_codes": [
         0
       ],
@@ -155,14 +165,14 @@
   "close_round_result": {
     "schema_version": 1,
     "gate_name": "close-round",
-    "close_status": "FAILED",
-    "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-    "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
-    "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-    "decision_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-    "report_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-    "report_status": "FAILED",
-    "generated_at": "2026-07-06T07:52:54.178993Z",
+    "close_status": "CLOSED",
+    "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+    "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+    "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+    "decision_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+    "report_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+    "report_status": "SUCCESS",
+    "generated_at": "2026-07-06T08:57:24.600522Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -189,15 +199,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-        "decision_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-        "report_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1"
+        "requested_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+        "decision_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+        "report_round_id": "round_20260706_prework_provenance_closeout_rework_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1"
+        "report_based_on_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1"
       },
       {
         "name": "pytest_result_match",
@@ -223,8 +233,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-        "command_plan_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1"
+        "command_plan_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+        "command_plan_round_id": "round_20260706_prework_provenance_closeout_rework_v1"
       },
       {
         "name": "command_plan_execution_order_policy",
@@ -307,6 +317,7 @@
           "project_state/gates/post_final_evidence_sync_result.json",
           "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
+          "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
           "project_state/gates/round_delta_summary.json",
@@ -314,11 +325,9 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/post_final_evidence_sync.py",
-          "reverse_agent/project_context_builder.py",
-          "reverse_agent/project_gate.py",
-          "tests/test_post_final_evidence_sync.py",
-          "tests/test_project_context_builder.py"
+          "reverse_agent/project_state.py",
+          "tests/test_project_gate.py",
+          "tests/test_project_state_manifest.py"
         ],
         "final_dirty_files": [
           "project_state/codex_execution_report.md",
@@ -334,6 +343,7 @@
           "project_state/gates/post_final_evidence_sync_result.json",
           "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
+          "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
           "project_state/gates/round_delta_summary.json",
@@ -341,11 +351,9 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/post_final_evidence_sync.py",
-          "reverse_agent/project_context_builder.py",
-          "reverse_agent/project_gate.py",
-          "tests/test_post_final_evidence_sync.py",
-          "tests/test_project_context_builder.py"
+          "reverse_agent/project_state.py",
+          "tests/test_project_gate.py",
+          "tests/test_project_state_manifest.py"
         ]
       },
       {
@@ -373,6 +381,7 @@
           "project_state/gates/post_final_evidence_sync_result.json",
           "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
+          "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
           "project_state/gates/round_delta_summary.json",
@@ -380,11 +389,9 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/post_final_evidence_sync.py",
-          "reverse_agent/project_context_builder.py",
-          "reverse_agent/project_gate.py",
-          "tests/test_post_final_evidence_sync.py",
-          "tests/test_project_context_builder.py"
+          "reverse_agent/project_state.py",
+          "tests/test_project_gate.py",
+          "tests/test_project_state_manifest.py"
         ],
         "required_round_delta_files": [
           "project_state/codex_execution_report.md",
@@ -400,6 +407,7 @@
           "project_state/gates/post_final_evidence_sync_result.json",
           "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
+          "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
           "project_state/gates/round_delta_summary.json",
@@ -407,12 +415,10 @@
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260706_post_final_timestamp_precision_hardening_v1/round_manifest.json",
-          "reverse_agent/post_final_evidence_sync.py",
-          "reverse_agent/project_context_builder.py",
-          "reverse_agent/project_gate.py",
-          "tests/test_post_final_evidence_sync.py",
-          "tests/test_project_context_builder.py"
+          "project_state/rounds/round_20260706_prework_provenance_closeout_rework_v1/round_manifest.json",
+          "reverse_agent/project_state.py",
+          "tests/test_project_gate.py",
+          "tests/test_project_state_manifest.py"
         ],
         "inherited_dirty_files": []
       },
@@ -422,11 +428,9 @@
         "detail": "files_changed covers substantive source/test/artifact changes",
         "substantive_dirty_files": [
           "project_state/context/current_context_packet.json",
-          "reverse_agent/post_final_evidence_sync.py",
-          "reverse_agent/project_context_builder.py",
-          "reverse_agent/project_gate.py",
-          "tests/test_post_final_evidence_sync.py",
-          "tests/test_project_context_builder.py"
+          "reverse_agent/project_state.py",
+          "tests/test_project_gate.py",
+          "tests/test_project_state_manifest.py"
         ],
         "claimed_source_test_paths": []
       },
@@ -450,15 +454,9 @@
         "detail": "baseline source/test dirty files are absent or explicitly allowed",
         "source_test_baseline_dirty": [],
         "allowed_inherited_dirty_files": [
-          "docs/post_final_evidence_sync.md",
-          "docs/post_final_timestamp_precision.md",
-          "reverse_agent/post_final_evidence_sync.py",
-          "reverse_agent/project_context_builder.py",
           "reverse_agent/project_gate.py",
           "reverse_agent/project_reports.py",
           "reverse_agent/project_state_manifest.py",
-          "tests/test_post_final_evidence_sync.py",
-          "tests/test_project_context_builder.py",
           "tests/test_project_gate.py",
           "tests/test_project_reports.py",
           "tests/test_project_state_manifest.py"
@@ -471,15 +469,9 @@
         "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
         "suspected_late_baseline_files": [],
         "allowed_inherited_dirty_files": [
-          "docs/post_final_evidence_sync.md",
-          "docs/post_final_timestamp_precision.md",
-          "reverse_agent/post_final_evidence_sync.py",
-          "reverse_agent/project_context_builder.py",
           "reverse_agent/project_gate.py",
           "reverse_agent/project_reports.py",
           "reverse_agent/project_state_manifest.py",
-          "tests/test_post_final_evidence_sync.py",
-          "tests/test_project_context_builder.py",
           "tests/test_project_gate.py",
           "tests/test_project_reports.py",
           "tests/test_project_state_manifest.py"
@@ -517,6 +509,7 @@
           "project_state/gates/post_final_evidence_sync_result.json",
           "project_state/gates/post_final_evidence_sync_snapshot.json",
           "project_state/gates/preflight_result.json",
+          "project_state/gates/prework_provenance_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
           "project_state/gates/round_delta_summary.json",
@@ -621,7 +614,7 @@
         "status": "WARN",
         "detail": "generated_artifacts omits round archive files",
         "missing_artifacts": [
-          "project_state/rounds/round_20260706_post_final_timestamp_precision_hardening_v1/round_manifest.json"
+          "project_state/rounds/round_20260706_prework_provenance_closeout_rework_v1/round_manifest.json"
         ]
       },
       {
@@ -766,7 +759,6 @@
           "project_state/gates/phase1_completion_result.json",
           "project_state/gates/policy_impact_audit.json",
           "project_state/gates/policy_lint_result.json",
-          "project_state/gates/prework_provenance_result.json",
           "project_state/gates/project_governance_context_result.json",
           "project_state/gates/project_governance_context_snapshot.json",
           "project_state/gates/retention_policy_validation.json",
@@ -823,53 +815,75 @@
     "actions": [
       {
         "name": "final_check_before_archive",
-        "status": "FAILED",
-        "gate_status": "FAILED",
+        "status": "PASSED",
+        "gate_status": "PASSED",
         "allowed_archive_pending_failures": [],
-        "unexpected_failures": [
-          "prework_provenance_gate_artifact"
-        ],
+        "unexpected_failures": [],
         "closeout_tail_failed_blocks_related": false,
         "closeout_tail_failed_blocks": [],
+        "artifact": "project_state/gates/final_gate_result.json"
+      },
+      {
+        "name": "archive_round",
+        "status": "created",
+        "round_dir": "project_state\\rounds\\round_20260706_prework_provenance_closeout_rework_v1",
+        "manifest": "project_state\\rounds\\round_20260706_prework_provenance_closeout_rework_v1\\round_manifest.json",
+        "copied": [
+          "decision_packet.md",
+          "codex_execution_report.md",
+          "pytest_result.txt"
+        ]
+      },
+      {
+        "name": "final_check_after_archive",
+        "status": "PASSED",
+        "gate_status": "PASSED",
+        "unexpected_failures": [],
         "artifact": "project_state/gates/final_gate_result.json"
       }
     ],
     "archive": {
-      "status": "not_attempted",
-      "round_manifest_path": "project_state/rounds/round_20260706_post_final_timestamp_precision_hardening_v1/round_manifest.json",
-      "files": [],
+      "status": "created",
+      "round_manifest_path": "project_state/rounds/round_20260706_prework_provenance_closeout_rework_v1/round_manifest.json",
+      "files": [
+        "codex_execution_report.md",
+        "decision_packet.md",
+        "pytest_result.txt",
+        "round_manifest.json"
+      ],
       "included_diff": false,
       "included_state_snapshot": false,
-      "copied": [],
+      "copied": [
+        "decision_packet.md",
+        "codex_execution_report.md",
+        "pytest_result.txt"
+      ],
       "idempotent": false
     },
-    "blocking_reasons": [
-      "final_check_before_archive: ['prework_provenance_gate_artifact']"
-    ],
-    "warnings": [
+    "blocking_reasons": [],
+    "warnings": [],
+    "resolved_pre_archive_warnings": [
       "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
     ],
-    "resolved_pre_archive_warnings": [],
-    "pre_archive_diagnostics": [],
-    "recommended_next_action": "fix_close_round_failures_before_retry",
+    "pre_archive_diagnostics": [
+      {
+        "check_name": "generated_artifacts_cover_round_archive",
+        "detail": "generated_artifacts omits round archive files",
+        "resolution": "resolved_by_final_check_after_archive",
+        "scope": "pre_archive_transient"
+      }
+    ],
+    "recommended_next_action": "no_action_required",
     "status_summary": {
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "archive_status": "not_archived",
-      "report_status": "FAILED",
-      "report_acceptance_recommendation": "REWORK_REQUIRED"
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "archive_status": "archived",
+      "report_status": "SUCCESS",
+      "report_acceptance_recommendation": "ACCEPTED"
     }
   },
   "blocking_reasons": [
-    "step close-round exited 1, expected [0]: close_status=FAILED",
-    "executed step close-round failed: exit=1, expected=[0]",
-    "close-round close_status=FAILED",
-    "close-round report_status=FAILED",
-    "close-round blocking reason: final_check_before_archive: ['prework_provenance_gate_artifact']",
-    "close-round action final_check_before_archive failed: status=FAILED, gate_status=FAILED",
-    "close-round nested failure: close_round_result.report_status=FAILED",
-    "close-round nested failure: close_round_result.actions[0].status=FAILED (final_check_before_archive)",
-    "close-round nested failure: close_round_result.actions[0].gate_status=FAILED (final_check_before_archive)",
-    "close-round nested failure: close_round_result.status_summary.report_status=FAILED"
+    "step final-check-after-close exited 1, expected [0]",
+    "executed step final-check-after-close failed: exit=1, expected=[0]"
   ],
   "warnings": [],
   "recommended_next_action": "fix_run_closeout_failures_before_retry",

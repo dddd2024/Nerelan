@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-06T07:42:37.717315Z",
+  "generated_at": "2026-07-06T08:46:54.288202Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -78,7 +78,7 @@
       "status": "PASS",
       "detail": "decision consumption allowed for closeout",
       "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1"
+      "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -93,31 +93,29 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "Add new fields without breaking old consumers.",
-        "Avoid comparing only rounded string timestamps.",
-        "Do not expand into broader architecture planning.",
-        "Final-check should accept digest-backed current sync even if generated_at precision makes strict timestamp ordering ambiguous.",
-        "Final-check should require the post-final sync artifact for this decision.",
-        "Final-check should still block or warn on true stale context/final-gate mismatch.",
-        "If context is pre-final, mark pre-final rather than current.",
-        "If context was generated before a different final gate artifact, mark stale.",
-        "If final gate IDs or digest do not match, continue to warn or fail.",
-        "Keep docs focused on timestamp precision and source artifact identity.",
-        "Normalize timezone handling deterministically.",
-        "Parse ISO timestamps with fractional seconds when present.",
-        "Preserve current fields for backward compatibility.",
-        "Record context packet source path, generated_at, decision_id, round_id, report_id, and digest when available.",
-        "Record final gate source path, generated_at, decision_id, round_id, report_id, and digest.",
-        "Test backward compatibility for consumers of old context fields.",
-        "Test malformed timestamp behavior.",
-        "Test microsecond precision mismatch where strict timestamp ordering would falsely warn.",
-        "Test source digest/ID match with rounded context timestamp.",
-        "Test source digest/ID mismatch.",
-        "Test stale context after a newer final gate artifact.",
-        "Treat absent/invalid timestamps as explicit warning or failure, not silent success.",
-        "final_gate_source_path",
-        "generated_at",
-        "timestamp_and_digest"
+        "Avoid hardcoding a specific historical round or artifact SHA.",
+        "Do not silently ignore failed required commands.",
+        "Ensure execution-log provenance matches live pytest_result, command_plan, and closeout evidence.",
+        "Ensure it references current startup snapshot/baseline evidence rather than a previous round.",
+        "FAILED/REWORK_REQUIRED",
+        "If command-plan permits closeout, closeout must run only after final-check can pass.",
+        "If hybrid provenance is used, record the evidence sources and digests consistently.",
+        "If pytest commands pass but final-check or run-closeout fails, distinguish test success from round acceptance failure.",
+        "If the gate already exists, strengthen it; do not introduce a parallel provenance artifact.",
+        "Keep digest-backed timestamp precision fields working.",
+        "Only touch post-final sync code if required to keep existing tests green; otherwise leave it unchanged.",
+        "PASSED",
+        "Preserve existing parsers and backward compatibility.",
+        "Test current prework provenance allows final-check to pass.",
+        "Test execution-log provenance detects stale/mismatched live evidence.",
+        "Test pytest_result status does not contradict failed required commands.",
+        "Test run-closeout fails before final-check and passes after valid provenance.",
+        "Test stale prework provenance blocks final-check.",
+        "closeout must archive the current round and write a current round manifest.",
+        "context_sync_basis",
+        "final-check must pass when current prework provenance is present and valid.",
+        "final-check must treat stale prework provenance as a blocker.",
+        "prework_provenance_result.json"
       ]
     },
     {
@@ -155,15 +153,9 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
-        "docs/post_final_evidence_sync.md",
-        "docs/post_final_timestamp_precision.md",
-        "reverse_agent/post_final_evidence_sync.py",
-        "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state_manifest.py",
-        "tests/test_post_final_evidence_sync.py",
-        "tests/test_project_context_builder.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
         "tests/test_project_state_manifest.py"
@@ -183,7 +175,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "2c60ad563de7"
+    "head_commit": "2828e6e5675d"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",

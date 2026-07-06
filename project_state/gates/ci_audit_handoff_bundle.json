@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-  "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
-  "generated_at": "2026-07-06T07:53:11.413689Z",
+  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+  "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+  "generated_at": "2026-07-06T08:57:43.377944Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -131,7 +131,9 @@
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [],
+      "errors": [
+        "round closed with dirty worktree; close snapshot contains unauthorized source/test dirty files"
+      ],
       "warnings": []
     },
     "execution_log": {
@@ -158,18 +160,12 @@
       "acceptance_recommendation": "REWORK_REQUIRED",
       "recommendation": null,
       "errors": [
-        "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
-        "prework_provenance_gate_artifact: prework provenance artifact is invalid",
-        "status_policy_valid: status policy found blocking issues",
+        "baseline_lifecycle_guard: round closed with dirty worktree; close snapshot contains unauthorized source/test dirty files",
         "closeout_nested_failures_absent: run_closeout_result.json contains active nested FAIL/FAILED states"
       ],
       "warnings": [
-        "round_manifest_present: round manifest is missing",
-        "archived_report_matches_live_report: archived report differs from live report",
-        "archived_execution_report_alias_matches_live_alias: archived execution_report.md differs from live execution_report.md",
-        "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
-        "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
-        "closeout_active_warnings_clean: closeout result has active warnings"
+        "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
+        "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
       ]
     },
     "run_closeout": {
@@ -178,21 +174,13 @@
       "current_round": true,
       "gate_status": null,
       "status": "FAILED",
-      "close_round_status": "FAILED",
+      "close_round_status": "CLOSED",
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
       "errors": [
-        "step close-round exited 1, expected [0]: close_status=FAILED",
-        "executed step close-round failed: exit=1, expected=[0]",
-        "close-round close_status=FAILED",
-        "close-round report_status=FAILED",
-        "close-round blocking reason: final_check_before_archive: ['prework_provenance_gate_artifact']",
-        "close-round action final_check_before_archive failed: status=FAILED, gate_status=FAILED",
-        "close-round nested failure: close_round_result.report_status=FAILED",
-        "close-round nested failure: close_round_result.actions[0].status=FAILED (final_check_before_archive)",
-        "close-round nested failure: close_round_result.actions[0].gate_status=FAILED (final_check_before_archive)",
-        "close-round nested failure: close_round_result.status_summary.report_status=FAILED"
+        "step final-check-after-close exited 1, expected [0]",
+        "executed step final-check-after-close failed: exit=1, expected=[0]"
       ],
       "warnings": []
     }
@@ -211,7 +199,7 @@
   "post_closeout_status": {
     "final_check_gate_status": "FAILED",
     "run_closeout_status": "FAILED",
-    "close_round_status": "FAILED",
+    "close_round_status": "CLOSED",
     "execution_log_gate_status": "PASSED",
     "report_summary_status": null
   },

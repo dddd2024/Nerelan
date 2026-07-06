@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "artifact_name": "post_final_evidence_sync_snapshot.json",
-  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-  "generated_at": "2026-07-06T07:42:37Z",
+  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+  "generated_at": "2026-07-06T08:44:11Z",
   "before_context_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
   "before_context_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
   "before_context_final_gate_status": "FAILED",
-  "after_context_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "after_context_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-  "after_context_final_gate_status": "FAILED",
+  "after_context_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "after_context_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+  "after_context_final_gate_status": "",
   "final_gate_status": "FAILED",
-  "stale_context_detected": false,
-  "context_sync_basis": "timestamp_and_digest",
-  "final_gate_source_sha256": "664d77225798b1fc3e9160a0bd1c60e0ddbe576b2bff0636a64cb2c636dc4e01"
+  "stale_context_detected": true,
+  "context_sync_basis": "pre_final",
+  "final_gate_source_sha256": "ecb44b3087bd941e07d90a3e0d64afc8529b39d8cc8777246b84d29d23940f18"
 }

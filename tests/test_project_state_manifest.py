@@ -113,3 +113,113 @@ def test_state_manifest_indexes_current_state_without_promoting_sample_gaps(tmp_
     assert manifest["artifact_freshness"]["missing_sample_artifacts_blocking_for_current_round"] is False
     assert validate_state_manifest(manifest, decision_id=DECISION_ID, round_id=ROUND_ID) == []
     assert (state_dir / "state_manifest.json").exists()
+
+
+def test_has_failed_command_block_detects_nonzero_exit() -> None:
+    from reverse_agent.project_state import _has_failed_command_block
+    body_with_failure = (
+        "===== COMMAND: some-cmd =====\n"
+        "output\n"
+        "===== EXIT: 1 =====\n"
+    )
+    assert _has_failed_command_block(body_with_failure) is True
+
+
+def test_has_failed_command_block_all_zero_exit() -> None:
+    from reverse_agent.project_state import _has_failed_command_block
+    body_all_pass = (
+        "===== COMMAND: some-cmd =====\n"
+        "output\n"
+        "===== EXIT: 0 =====\n"
+    )
+    assert _has_failed_command_block(body_all_pass) is False
+
+
+def test_has_failed_command_block_empty_body() -> None:
+    from reverse_agent.project_state import _has_failed_command_block
+    assert _has_failed_command_block("") is False
+
+
+def test_write_pytest_result_downgrades_passed_to_failed_when_body_has_nonzero_exit(tmp_path: Path) -> None:
+    """When status is PASSED but body contains non-zero exit codes,
+    write_pytest_result should auto-downgrade the status to FAILED."""
+    from reverse_agent.project_state import write_pytest_result, parse_pytest_result_header
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    body = (
+        "===== COMMAND: pytest =====\n"
+        "10 passed\n"
+        "===== EXIT: 0 =====\n"
+        "\n"
+        "===== COMMAND: final-check =====\n"
+        "1 FAIL\n"
+        "===== EXIT: 1 =====\n"
+    )
+    result_path = write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_test",
+            "report_id": "report_test",
+            "round_id": "round_test",
+            "generated_at": "2026-07-06T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["pytest", "final-check"],
+        },
+        body=body,
+    )
+    text = result_path.read_text(encoding="utf-8")
+    header = parse_pytest_result_header(text)
+    assert header["status"] == "FAILED"
+
+
+def test_write_pytest_result_keeps_passed_when_all_exits_zero(tmp_path: Path) -> None:
+    """When status is PASSED and all command exits are 0, status stays PASSED."""
+    from reverse_agent.project_state import write_pytest_result, parse_pytest_result_header
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    body = (
+        "===== COMMAND: pytest =====\n"
+        "10 passed\n"
+        "===== EXIT: 0 =====\n"
+    )
+    result_path = write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_test",
+            "report_id": "report_test",
+            "round_id": "round_test",
+            "generated_at": "2026-07-06T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["pytest"],
+        },
+        body=body,
+    )
+    text = result_path.read_text(encoding="utf-8")
+    header = parse_pytest_result_header(text)
+    assert header["status"] == "PASSED"
+
+
+def test_write_pytest_result_preserves_explicit_failed_status(tmp_path: Path) -> None:
+    """When status is already FAILED, it should remain FAILED regardless of exit codes."""
+    from reverse_agent.project_state import write_pytest_result, parse_pytest_result_header
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    body = "===== COMMAND: pytest =====\n5 failed\n===== EXIT: 1 =====\n"
+    result_path = write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_test",
+            "report_id": "report_test",
+            "round_id": "round_test",
+            "generated_at": "2026-07-06T00:00:00Z",
+            "status": "FAILED",
+            "tests_ran": ["pytest"],
+        },
+        body=body,
+    )
+    text = result_path.read_text(encoding="utf-8")
+    header = parse_pytest_result_header(text)
+    assert header["status"] == "FAILED"

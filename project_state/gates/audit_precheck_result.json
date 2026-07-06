@@ -3,10 +3,10 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-  "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
-  "generated_at": "2026-07-06T07:53:30.658236Z",
+  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+  "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+  "generated_at": "2026-07-06T08:58:03.413711Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
@@ -37,7 +37,7 @@
     },
     {
       "name": "close_round_closed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "close-round is CLOSED"
     },
     {
@@ -55,7 +55,7 @@
         "audit_inventory_status.current is not true"
       ],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
+      "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,
@@ -84,7 +84,6 @@
     "report_current_and_accepted: report is current SUCCESS/ACCEPTED",
     "final_check_passed: final-check is current and PASSED or only audit_precheck_valid remains pending",
     "run_closeout_passed: run-closeout is current and PASSED",
-    "close_round_closed: close-round is CLOSED",
     "audit_readiness_ready: audit readiness is READY/ACCEPTED/no_action_required",
     "current_handoff_packet_valid: current handoff packet is missing required current evidence or safety fields"
   ],

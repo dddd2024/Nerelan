@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-  "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
-  "generated_at": "2026-07-06T07:53:17.208512Z",
+  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+  "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+  "generated_at": "2026-07-06T08:57:49.533393Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-    "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-    "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
+    "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+    "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+    "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "273c614871529917b8fb94adbe6bbc4d0fc50a74b1eeb46fd850230506487e6e",
-        "size_bytes": 19085,
+        "sha256": "9924ef8da2c25a96a0ab46b87d31cec965ba3cba8dc9e0a39477447067737a58",
+        "size_bytes": 27337,
         "command_block_count": 17
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "bf71c6c48c9e54679d02a163b1cc8ea6e36348e7a6a024ccafe27fbd241aec9a",
-        "size_bytes": 8020,
-        "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-        "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+        "sha256": "85b5ae1306b382f4340f1c63ad949c689a3b01989b04f53220235fcb87529099",
+        "size_bytes": 7978,
+        "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+        "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
         "plan_status": "PASSED",
         "command_count": 17
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "3ad6ade1740379b152a03184200542408733d90068bf3548c3467560df074e2e",
-        "size_bytes": 39827,
-        "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-        "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
-        "command_block_count": 15
+        "sha256": "90c65a1a595b737d7cae6d7c63057e4b8f00885612b3c2eb3e18f67591e3a7b4",
+        "size_bytes": 37919,
+        "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+        "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+        "command_block_count": 16
       }
     },
     "command_count": 17,
-    "command_digest": "e0d8d1d6341fcc95b19f9156eb9bbc1de4dffa8ff6fc2289677d6af18d12c299"
+    "command_digest": "e153151bdca49c0ebbcefe80cf562dc5796fd8e5b2a08f3a59acb753aa15fd72"
   },
   "commands": [
     {
@@ -129,9 +129,9 @@
     },
     {
       "index": 8,
-      "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-      "kind": "post-final-evidence-sync",
-      "phase": "gate",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py -q",
+      "kind": "pytest",
+      "phase": "test",
       "expected_exit_codes": [
         0
       ],
@@ -140,7 +140,7 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_post_final_evidence_sync.py tests/test_project_context_builder.py tests/test_project_gate.py -q",
+      "command": "python -m pytest tests/test_post_final_evidence_sync.py tests/test_project_context_builder.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -151,17 +151,6 @@
     },
     {
       "index": 10,
-      "command": "python -m pytest tests/test_project_reports.py tests/test_project_state_manifest.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 11,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -172,7 +161,7 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -183,9 +172,20 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "kind": "ci-workflow-coverage",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
+      "kind": "prework-provenance",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -231,14 +231,14 @@
     },
     {
       "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_post_final_timestamp_precision_hardening_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_prework_provenance_closeout_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 1,
-      "status": "FAILED"
+      "exit_code": 0,
+      "status": "PASSED"
     }
   ],
   "warnings": [],

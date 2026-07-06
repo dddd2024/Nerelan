@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-06T07:52:49.530748Z",
+  "generated_at": "2026-07-06T08:57:16.548371Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -113,32 +113,6 @@
     },
     {
       "index": 7,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 8,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 9,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "phase": "gate",
       "kind": "ci-workflow-coverage",
@@ -151,21 +125,7 @@
       "notes": "ci-workflow-coverage expected to exit 0"
     },
     {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "phase": "gate",
-      "kind": "report-summary",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 11,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -177,6 +137,46 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "phase": "gate",
+      "kind": "report-summary",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
       "index": 12,
@@ -193,20 +193,20 @@
     },
     {
       "index": 13,
-      "command": "python -m pytest tests/test_post_final_evidence_sync.py tests/test_project_context_builder.py tests/test_project_gate.py -q",
-      "phase": "test",
-      "kind": "pytest",
+      "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
+      "phase": "gate",
+      "kind": "prework-provenance",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
+      "notes": "prework-provenance expected to exit 0"
     },
     {
       "index": 14,
-      "command": "python -m pytest tests/test_project_reports.py tests/test_project_state_manifest.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -219,16 +219,16 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-      "phase": "gate",
-      "kind": "post-final-evidence-sync",
+      "command": "python -m pytest tests/test_post_final_evidence_sync.py tests/test_project_context_builder.py -q",
+      "phase": "test",
+      "kind": "pytest",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "post-final-evidence-sync expected to exit 0"
+      "notes": "pytest expected to exit 0"
     },
     {
       "index": 16,
@@ -246,7 +246,7 @@
     },
     {
       "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_post_final_timestamp_precision_hardening_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_prework_provenance_closeout_rework_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -260,5 +260,5 @@
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_post_final_timestamp_precision_hardening_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_prework_provenance_closeout_rework_v1"
 }
