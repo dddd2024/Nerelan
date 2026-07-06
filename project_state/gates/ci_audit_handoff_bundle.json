@@ -2,17 +2,17 @@
   "schema_version": 1,
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
-  "generated_at": "2026-07-06T06:37:50.185278Z",
-  "handoff_status": "READY_FOR_AUDIT",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+  "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
+  "generated_at": "2026-07-06T07:53:11.413689Z",
+  "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
       "artifact": "project_state/gates/ci_observation_schema_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -25,7 +25,7 @@
     "ci_observation_handoff": {
       "artifact": "project_state/gates/ci_observation_handoff_packet.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": "AWAITING_EXTERNAL_OBSERVATION",
       "close_round_status": null,
@@ -41,13 +41,15 @@
       "artifact": "project_state/gates/ci_observation_reconcile_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "PASSED",
+      "gate_status": "FAILED",
       "status": "AWAITING_EXTERNAL_OBSERVATION",
       "close_round_status": null,
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [],
+      "errors": [
+        "source artifacts are stale: ci_observation_schema, ci_observation_handoff, ci_run_evidence, local_ci_parity, ci_workflow_readiness"
+      ],
       "warnings": [
         "external CI observation is still pending"
       ]
@@ -55,7 +57,7 @@
     "ci_artifact_manifest": {
       "artifact": "project_state/gates/ci_artifact_manifest_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": "READY",
       "close_round_status": null,
@@ -68,7 +70,7 @@
     "ci_run_evidence": {
       "artifact": "project_state/gates/ci_run_evidence_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": "NOT_OBSERVED",
       "close_round_status": null,
@@ -83,7 +85,7 @@
     "local_ci_parity": {
       "artifact": "project_state/gates/local_ci_parity_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -109,7 +111,7 @@
     "ci_workflow_readiness": {
       "artifact": "project_state/gates/ci_workflow_readiness_result.json",
       "exists": true,
-      "current_round": true,
+      "current_round": false,
       "gate_status": "PASSED",
       "status": "READY",
       "close_round_status": null,
@@ -149,39 +151,67 @@
       "artifact": "project_state/gates/final_gate_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "PASSED",
+      "gate_status": "FAILED",
       "status": null,
       "close_round_status": null,
-      "report_status": "SUCCESS",
-      "acceptance_recommendation": "ACCEPTED",
+      "report_status": "FAILED",
+      "acceptance_recommendation": "REWORK_REQUIRED",
       "recommendation": null,
-      "errors": [],
-      "warnings": []
+      "errors": [
+        "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+        "prework_provenance_gate_artifact: prework provenance artifact is invalid",
+        "status_policy_valid: status policy found blocking issues",
+        "closeout_nested_failures_absent: run_closeout_result.json contains active nested FAIL/FAILED states"
+      ],
+      "warnings": [
+        "round_manifest_present: round manifest is missing",
+        "archived_report_matches_live_report: archived report differs from live report",
+        "archived_execution_report_alias_matches_live_alias: archived execution_report.md differs from live execution_report.md",
+        "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+        "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
+        "closeout_active_warnings_clean: closeout result has active warnings"
+      ]
     },
     "run_closeout": {
       "artifact": "project_state/gates/run_closeout_result.json",
       "exists": true,
       "current_round": true,
       "gate_status": null,
-      "status": "PASSED",
-      "close_round_status": "CLOSED",
+      "status": "FAILED",
+      "close_round_status": "FAILED",
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [],
+      "errors": [
+        "step close-round exited 1, expected [0]: close_status=FAILED",
+        "executed step close-round failed: exit=1, expected=[0]",
+        "close-round close_status=FAILED",
+        "close-round report_status=FAILED",
+        "close-round blocking reason: final_check_before_archive: ['prework_provenance_gate_artifact']",
+        "close-round action final_check_before_archive failed: status=FAILED, gate_status=FAILED",
+        "close-round nested failure: close_round_result.report_status=FAILED",
+        "close-round nested failure: close_round_result.actions[0].status=FAILED (final_check_before_archive)",
+        "close-round nested failure: close_round_result.actions[0].gate_status=FAILED (final_check_before_archive)",
+        "close-round nested failure: close_round_result.status_summary.report_status=FAILED"
+      ],
       "warnings": []
     }
   },
   "audit_summary": {
-    "failed_sources": [],
+    "failed_sources": [
+      "ci_observation_reconcile"
+    ],
     "missing_sources": [],
     "external_observation_pending": true,
-    "pending_diagnostic_sources": []
+    "pending_diagnostic_sources": [
+      "final_check",
+      "run_closeout"
+    ]
   },
   "post_closeout_status": {
-    "final_check_gate_status": "PASSED",
-    "run_closeout_status": "PASSED",
-    "close_round_status": "CLOSED",
+    "final_check_gate_status": "FAILED",
+    "run_closeout_status": "FAILED",
+    "close_round_status": "FAILED",
     "execution_log_gate_status": "PASSED",
     "report_summary_status": null
   },
@@ -193,6 +223,8 @@
   "generated_artifacts": [
     "project_state/gates/ci_audit_handoff_bundle.json"
   ],
-  "errors": [],
+  "errors": [
+    "source artifact gate failures: ci_observation_reconcile"
+  ],
   "warnings": []
 }

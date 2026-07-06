@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-06T06:05:05.720714Z",
+  "generated_at": "2026-07-06T07:42:37.717315Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -25,24 +25,8 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/gates/command_plan.json"
-      ],
-      "baseline_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/gates/command_plan.json"
-      ]
+      "startup_dirty_files": [],
+      "baseline_dirty_files": []
     },
     {
       "name": "decision_not_dirty_in_baseline",
@@ -92,9 +76,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1"
+      "detail": "decision consumption allowed for closeout",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -109,37 +93,31 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        ".github/workflows/decision-preflight.yml",
-        "Add tests for matching status, stale pre-final context, missing final-check, and nonblocking historical backlog cases.",
-        "Enforce at most one active/running job unless explicitly authorized by a future decision.",
-        "FAILED",
-        "If context is intentionally pre-final, it must say so explicitly and must not look like current final evidence.",
-        "It must not call model APIs.",
-        "It must not dispatch any runner.",
-        "It must not trigger other workflows.",
-        "Job contracts must remain backward compatible with existing tests.",
-        "Job validation must not start execution.",
-        "Keep lock/lease validation deterministic and non-mutating unless writing the planned job artifact itself.",
-        "Keep runner dispatch disabled.",
-        "Preserve command-plan as command authority.",
-        "Preserve existing report-summary and final-check semantics.",
-        "Preserve the previous governance rule that historical sample backlog is visible but nonblocking.",
-        "The READY job must reference this decision and round.",
-        "The fix must preserve the rule that context packet is an index, not a replacement fact source.",
-        "Update command-plan generation so all required commands for this round are represented.",
-        "Update execution-log/report-summary/final-check only as needed to recognize new artifacts and commands.",
-        "Update run-closeout to archive this round if command-plan permits.",
-        "decision_meta",
-        "final_gate_generated_at",
-        "project_context_builder",
-        "project_gate",
-        "project_state/gates/decision_preflight_result.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
-        "reverse_agent/decision_preflight.py",
-        "reverse_agent/project_jobs.py",
-        "state-gate.yml",
-        "workflow_dispatch"
+        "Add new fields without breaking old consumers.",
+        "Avoid comparing only rounded string timestamps.",
+        "Do not expand into broader architecture planning.",
+        "Final-check should accept digest-backed current sync even if generated_at precision makes strict timestamp ordering ambiguous.",
+        "Final-check should require the post-final sync artifact for this decision.",
+        "Final-check should still block or warn on true stale context/final-gate mismatch.",
+        "If context is pre-final, mark pre-final rather than current.",
+        "If context was generated before a different final gate artifact, mark stale.",
+        "If final gate IDs or digest do not match, continue to warn or fail.",
+        "Keep docs focused on timestamp precision and source artifact identity.",
+        "Normalize timezone handling deterministically.",
+        "Parse ISO timestamps with fractional seconds when present.",
+        "Preserve current fields for backward compatibility.",
+        "Record context packet source path, generated_at, decision_id, round_id, report_id, and digest when available.",
+        "Record final gate source path, generated_at, decision_id, round_id, report_id, and digest.",
+        "Test backward compatibility for consumers of old context fields.",
+        "Test malformed timestamp behavior.",
+        "Test microsecond precision mismatch where strict timestamp ordering would falsely warn.",
+        "Test source digest/ID match with rounded context timestamp.",
+        "Test source digest/ID mismatch.",
+        "Test stale context after a newer final gate artifact.",
+        "Treat absent/invalid timestamps as explicit warning or failure, not silent success.",
+        "final_gate_source_path",
+        "generated_at",
+        "timestamp_and_digest"
       ]
     },
     {
@@ -177,25 +155,18 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
         "docs/post_final_evidence_sync.md",
-        "reverse_agent/decision_preflight.py",
+        "docs/post_final_timestamp_precision.md",
         "reverse_agent/post_final_evidence_sync.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state_manifest.py",
-        "reverse_agent/project_workstreams.py",
-        "tests/test_decision_preflight.py",
         "tests/test_post_final_evidence_sync.py",
         "tests/test_project_context_builder.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_reports.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
+        "tests/test_project_state_manifest.py"
       ],
       "baseline_source_test_dirty": []
     },
@@ -211,21 +182,13 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [
-      ".github/workflows/ci.yml",
-      ".github/workflows/decision-preflight.yml",
-      ".github/workflows/state-gate.yml",
-      "docs/github_decision_preflight.md",
-      "docs/job_lifecycle_and_decision_preflight.md",
-      "docs/post_final_evidence_sync.md",
-      "project_state/gates/command_plan.json"
-    ],
-    "head_commit": "9b91b28dd0e3"
+    "baseline_dirty_files": [],
+    "head_commit": "2c60ad563de7"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

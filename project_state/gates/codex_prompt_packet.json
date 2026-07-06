@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
+  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+  "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-06T06:38:07.075643Z",
+  "generated_at": "2026-07-06T07:53:30.651785Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-      "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-      "sha256": "1a903711ac74a77a01f8602988f34a6e91b4fe69928af2e869734cca586a012d"
+      "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+      "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+      "sha256": "17dd54892fabaa7d155c0f192226ad9f4903a7318d2299c87d806eaecf1c4317"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-      "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-      "sha256": "636c7ea04fc3017e386c5c3fee6bd0eaffe1b0685554463a2b02f58264a1f70c"
+      "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+      "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+      "sha256": "6cf0db1c7189ddb15eb98238ebdafb4a2146d804f04b9cc460f7954fdf70cf03"
     }
   },
   "prompt_sections": {

@@ -1,59 +1,15 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-  "head_commit": "9b91b28dd0e3",
-  "baseline_git_status_short": [
-    " M .github/workflows/ci.yml",
-    " M .github/workflows/decision-preflight.yml",
-    " M .github/workflows/state-gate.yml",
-    " M project_state/gates/command_plan.json",
-    " M reverse_agent/project_context_builder.py",
-    " M reverse_agent/project_gate.py",
-    " M reverse_agent/project_state_manifest.py",
-    " M reverse_agent/project_workstreams.py",
-    " M tests/test_project_context_builder.py",
-    " M tests/test_project_gate.py",
-    " M tests/test_project_state_manifest.py",
-    " M tests/test_project_workstreams.py",
-    "?? docs/github_decision_preflight.md",
-    "?? docs/job_lifecycle_and_decision_preflight.md",
-    "?? docs/post_final_evidence_sync.md",
-    "?? reverse_agent/decision_preflight.py",
-    "?? reverse_agent/post_final_evidence_sync.py",
-    "?? tests/test_decision_preflight.py",
-    "?? tests/test_post_final_evidence_sync.py"
-  ],
-  "baseline_git_diff_name_only": [
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/state-gate.yml",
-    "docs/github_decision_preflight.md",
-    "docs/job_lifecycle_and_decision_preflight.md",
-    "docs/post_final_evidence_sync.md",
-    "project_state/gates/command_plan.json"
-  ],
-  "baseline_dirty_files": [
-    ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml",
-    ".github/workflows/state-gate.yml",
-    "docs/github_decision_preflight.md",
-    "docs/job_lifecycle_and_decision_preflight.md",
-    "docs/post_final_evidence_sync.md",
-    "project_state/gates/command_plan.json"
-  ],
-  "baseline_untracked_files": [
-    "docs/github_decision_preflight.md",
-    "docs/job_lifecycle_and_decision_preflight.md",
-    "docs/post_final_evidence_sync.md",
-    "reverse_agent/decision_preflight.py",
-    "reverse_agent/post_final_evidence_sync.py",
-    "tests/test_decision_preflight.py",
-    "tests/test_post_final_evidence_sync.py"
-  ],
-  "baseline_has_untracked_implementation_files": true,
+  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+  "head_commit": "2c60ad563de7",
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
+  "baseline_untracked_files": [],
+  "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-06T03:47:59.747661Z"
+  "generated_at": "2026-07-06T06:54:32.019218Z"
 }

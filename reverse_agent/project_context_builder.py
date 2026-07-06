@@ -17,7 +17,7 @@ CONTEXT_PACKET_PATH = "project_state/context/current_context_packet.json"
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _norm_path(path: str | Path) -> str:
@@ -121,6 +121,11 @@ def build_current_context_packet(
         final_gate_status_source = "missing_final_gate_result"
         post_final_sync_status = "PRE_FINAL_CONTEXT"
 
+    # Source artifact identity for final gate
+    final_gate_source_path = "project_state/gates/final_gate_result.json" if final_gate else ""
+    final_gate_source_sha256 = _source_ref(state_dir_path, "gates/final_gate_result.json")["sha256"] if final_gate else ""
+    final_gate_report_id = str(final_gate.get("report_id") or "")
+
     packet = {
         "schema_version": CONTEXT_PACKET_SCHEMA_VERSION,
         "artifact_name": "current_context_packet.json",
@@ -153,6 +158,12 @@ def build_current_context_packet(
             "final_gate_round_id": final_gate_round_id,
             "final_gate_current": final_gate_is_current,
             "context_generated_after_final_gate": context_generated_after_final_gate,
+            "final_gate_source_path": final_gate_source_path,
+            "final_gate_source_sha256": final_gate_source_sha256,
+            "final_gate_report_id": final_gate_report_id,
+            "context_sync_basis": "",  # populated by post_final_evidence_sync
+            "timestamp_precision_policy": "precise_parsed_with_digest_fallback",
+            "post_final_sync_evaluated_at": "",  # populated by post_final_evidence_sync
             "post_final_sync_status": post_final_sync_status,
             "stale_context_detected": not final_gate_is_current,
             "required_governance_artifacts": [
@@ -291,6 +302,8 @@ def validate_current_context_packet(payload: Mapping[str, Any], *, decision_id: 
     auditor = payload.get("auditor_context") if isinstance(payload.get("auditor_context"), Mapping) else {}
     if auditor.get("governance_artifacts_are_fact_source_replacements") is not False:
         errors.append("context packet must not replace fact sources")
+    if not str(auditor.get("timestamp_precision_policy") or ""):
+        errors.append("timestamp_precision_policy is missing in auditor_context")
     if payload.get("model_api_invocation") is not False:
         errors.append("model API invocation must be false")
     if payload.get("runner_dispatch") is not False:

@@ -14058,6 +14058,8 @@ def _post_final_evidence_sync_gate_check(
         context_final_gate_status=payload.get("context_final_gate_status"),
         context_generated_after_final_gate=payload.get("context_generated_after_final_gate"),
         stale_context_detected=payload.get("stale_context_detected"),
+        context_sync_basis=payload.get("context_sync_basis"),
+        timestamp_precision_policy=payload.get("timestamp_precision_policy"),
         errors=errors,
     )
 
@@ -22463,6 +22465,58 @@ def final_check(
             decision_id=decision_id,
             round_id=round_id,
             decision_contract=decision_contract,
+        )
+    )
+    # Timestamp precision hardening check: post-final sync should use
+    # digest-backed current sync when timestamps are ambiguous, and must
+    # not emit active stale warnings solely because context generated_at
+    # is second-granularity while final_gate generated_at has fractional
+    # seconds.
+    _fc_pfs_payload = _read_json(state_dir / "gates" / POST_FINAL_EVIDENCE_SYNC_RESULT_NAME)
+    _fc_pfs_basis = str((_fc_pfs_payload or {}).get("context_sync_basis") or "")
+    _fc_pfs_precision = str((_fc_pfs_payload or {}).get("timestamp_precision_policy") or "")
+    _fc_pfs_digest_ok = _fc_pfs_basis in (
+        "timestamp_and_digest",
+        "digest_current_timestamp_rounded",
+    )
+    _fc_pfs_stale_basis = _fc_pfs_basis in ("stale", "pre_final")
+    _fc_pfs_active_warning = any(
+        "generated before final_gate_result timestamp" in w
+        for w in ((_fc_pfs_payload or {}).get("warnings") or [])
+    )
+    _fc_ts_precision_ok = (
+        _fc_pfs_precision == "precise_parsed_with_digest_fallback"
+        and (
+            _fc_pfs_digest_ok
+            or not _fc_pfs_active_warning
+        )
+    )
+    _fc_ts_precision_required = bool(
+        decision_contract.get("accepted_requires_source_artifact_identity_checks")
+        or decision_contract.get("accepted_requires_context_packet_precise_sync_fields")
+        or decision_contract.get("accepted_requires_final_check_coverage_for_timestamp_precision")
+    )
+    if _fc_ts_precision_required:
+        _fc_ts_detail = (
+            "post-final sync uses digest-backed timestamp precision"
+            if _fc_ts_precision_ok
+            else "post-final sync timestamp precision is insufficient"
+        )
+        if _fc_pfs_stale_basis:
+            _fc_ts_detail = "post-final sync context is stale; timestamp precision check is not applicable"
+            _fc_ts_precision_ok = True
+    else:
+        _fc_ts_detail = "timestamp precision hardening not required for this round"
+        _fc_ts_precision_ok = True
+    checks.append(
+        _check(
+            "timestamp_precision_hardening",
+            "PASS" if _fc_ts_precision_ok else "FAIL",
+            _fc_ts_detail,
+            required=_fc_ts_precision_required,
+            context_sync_basis=_fc_pfs_basis,
+            timestamp_precision_policy=_fc_pfs_precision,
+            active_timestamp_warning=_fc_pfs_active_warning,
         )
     )
     _fc_final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)

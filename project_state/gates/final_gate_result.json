@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
-  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-  "generated_at": "2026-07-06T06:38:20.328966Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+  "report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
+  "round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+  "generated_at": "2026-07-06T07:55:50.349942Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -48,23 +48,23 @@
       "name": "pytest_result_status_supports_accepted_report",
       "status": "PASS",
       "detail": "pytest_result_summary.status supports accepted report",
-      "report_status": "SUCCESS",
-      "acceptance_recommendation": "ACCEPTED",
+      "report_status": "FAILED",
+      "acceptance_recommendation": "REWORK_REQUIRED",
       "pytest_result_status": "PASSED",
-      "required": true
+      "required": false
     },
     {
       "name": "pytest_result_failed_command_blocks_absent",
       "status": "PASS",
-      "detail": "accepted pytest_result has no failed command blocks",
+      "detail": "report is not accepted; failed command block absence is not an acceptance precondition",
       "failed_command_blocks": [],
-      "required": true
+      "required": false
     },
     {
       "name": "round_manifest_present",
-      "status": "PASS",
-      "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260706_post_final_sync_job_preflight_big_step_v1\\round_manifest.json"
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": "project_state\\rounds\\round_20260706_post_final_timestamp_precision_hardening_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -74,19 +74,19 @@
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "PASS",
-      "detail": "archived report matches live report"
+      "status": "WARN",
+      "detail": "archived report differs from live report"
     },
     {
       "name": "archived_execution_report_alias_matches_live_alias",
-      "status": "PASS",
-      "detail": "archived execution_report.md matches live execution_report.md",
+      "status": "WARN",
+      "detail": "archived execution_report.md differs from live execution_report.md",
       "required": true
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result",
+      "status": "WARN",
+      "detail": "archived pytest_result differs from live pytest_result",
       "required": true,
       "skipped_reason": null
     },
@@ -96,140 +96,81 @@
       "detail": "round delta summary is baseline-aware",
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
-      "inherited_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/gates/command_plan.json"
-      ],
+      "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
         "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
         "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
-        "project_state/gates/codex_prompt_packet.json",
-        "project_state/gates/codex_report_auto_summary.json",
-        "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/decision_preflight_result.json",
-        "project_state/gates/decision_preflight_workflow_readiness.json",
-        "project_state/gates/execution_log.json",
-        "project_state/gates/execution_report_auto_summary.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/job_lifecycle_snapshot.json",
-        "project_state/gates/job_lifecycle_validation_result.json",
-        "project_state/gates/local_ci_parity_result.json",
-        "project_state/gates/local_execution_bundle.json",
-        "project_state/gates/post_final_evidence_sync_result.json",
-        "project_state/gates/post_final_evidence_sync_snapshot.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_closeout_execution_log.json",
-        "project_state/gates/run_closeout_result.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/round_manifest.json",
-        "reverse_agent/decision_preflight.py",
-        "reverse_agent/post_final_evidence_sync.py",
-        "reverse_agent/project_context_builder.py",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "reverse_agent/project_workstreams.py",
-        "tests/test_decision_preflight.py",
-        "tests/test_post_final_evidence_sync.py",
-        "tests/test_project_context_builder.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
-      ],
-      "final_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/codex_execution_report.md",
-        "project_state/context/current_context_packet.json",
-        "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
-        "project_state/gates/audit_precheck_result.json",
-        "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
-        "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
-        "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
-        "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/decision_preflight_result.json",
-        "project_state/gates/decision_preflight_workflow_readiness.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/job_lifecycle_snapshot.json",
-        "project_state/gates/job_lifecycle_validation_result.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/post_final_evidence_sync_result.json",
         "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/round_manifest.json",
-        "reverse_agent/decision_preflight.py",
         "reverse_agent/post_final_evidence_sync.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "reverse_agent/project_workstreams.py",
-        "tests/test_decision_preflight.py",
         "tests/test_post_final_evidence_sync.py",
-        "tests/test_project_context_builder.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
+        "tests/test_project_context_builder.py"
+      ],
+      "final_dirty_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/context/current_context_packet.json",
+        "project_state/execution_report.md",
+        "project_state/gates/audit_precheck_result.json",
+        "project_state/gates/audit_readiness_packet.json",
+        "project_state/gates/ci_audit_handoff_bundle.json",
+        "project_state/gates/ci_observation_reconcile_result.json",
+        "project_state/gates/ci_workflow_coverage_result.json",
+        "project_state/gates/codex_prompt_packet.json",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/current_handoff_packet.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/post_final_evidence_sync_result.json",
+        "project_state/gates/post_final_evidence_sync_snapshot.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt",
+        "reverse_agent/post_final_evidence_sync.py",
+        "reverse_agent/project_context_builder.py",
+        "reverse_agent/project_gate.py",
+        "tests/test_post_final_evidence_sync.py",
+        "tests/test_project_context_builder.py"
       ]
+    },
+    {
+      "name": "files_changed_excludes_inherited_dirty_files",
+      "status": "PASS",
+      "detail": "files_changed excludes inherited baseline dirty files",
+      "inherited_dirty_files": []
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -237,139 +178,75 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
         "project_state/codex_execution_report.md",
         "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
         "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/decision_preflight_result.json",
-        "project_state/gates/decision_preflight_workflow_readiness.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/job_lifecycle_snapshot.json",
-        "project_state/gates/job_lifecycle_validation_result.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/post_final_evidence_sync_result.json",
         "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/round_manifest.json",
-        "reverse_agent/decision_preflight.py",
         "reverse_agent/post_final_evidence_sync.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "reverse_agent/project_workstreams.py",
-        "tests/test_decision_preflight.py",
         "tests/test_post_final_evidence_sync.py",
-        "tests/test_project_context_builder.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
+        "tests/test_project_context_builder.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
         "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
         "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/decision_preflight_result.json",
-        "project_state/gates/decision_preflight_workflow_readiness.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/job_lifecycle_snapshot.json",
-        "project_state/gates/job_lifecycle_validation_result.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/post_final_evidence_sync_result.json",
         "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/round_manifest.json",
-        "reverse_agent/decision_preflight.py",
+        "project_state/rounds/round_20260706_post_final_timestamp_precision_hardening_v1/round_manifest.json",
         "reverse_agent/post_final_evidence_sync.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "reverse_agent/project_workstreams.py",
-        "tests/test_decision_preflight.py",
         "tests/test_post_final_evidence_sync.py",
-        "tests/test_project_context_builder.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
+        "tests/test_project_context_builder.py"
       ],
-      "inherited_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/gates/command_plan.json"
-      ]
+      "inherited_dirty_files": []
     },
     {
       "name": "files_changed_covers_substantive_changes",
@@ -377,19 +254,11 @@
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
         "project_state/context/current_context_packet.json",
-        "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
-        "reverse_agent/decision_preflight.py",
         "reverse_agent/post_final_evidence_sync.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "reverse_agent/project_workstreams.py",
-        "tests/test_decision_preflight.py",
         "tests/test_post_final_evidence_sync.py",
-        "tests/test_project_context_builder.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
+        "tests/test_project_context_builder.py"
       ],
       "claimed_source_test_paths": []
     },
@@ -402,67 +271,31 @@
     {
       "name": "baseline_lifecycle_violation",
       "status": "PASS",
-      "detail": "baseline untracked implementation files are explicitly allowed by decision contract scope",
-      "baseline_untracked_implementation_files": [
-        "reverse_agent/decision_preflight.py",
-        "reverse_agent/post_final_evidence_sync.py",
-        "tests/test_decision_preflight.py",
-        "tests/test_post_final_evidence_sync.py"
-      ],
-      "allowed_inherited_untracked_implementation_files": [
-        "reverse_agent/decision_preflight.py",
-        "reverse_agent/post_final_evidence_sync.py",
-        "tests/test_decision_preflight.py",
-        "tests/test_post_final_evidence_sync.py"
-      ],
+      "detail": "baseline was captured before implementation; no untracked implementation files in baseline",
+      "baseline_untracked_implementation_files": [],
+      "allowed_inherited_untracked_implementation_files": [],
       "unauthorized_untracked_implementation_files": []
     },
     {
       "name": "baseline_lifecycle_guard",
       "status": "PASS",
-      "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
+      "detail": "baseline source/test dirty files are absent or explicitly allowed",
       "source_test_baseline_dirty": [],
-      "close_source_test_dirty": [],
       "allowed_inherited_dirty_files": [
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
         "docs/post_final_evidence_sync.md",
-        "reverse_agent/decision_preflight.py",
+        "docs/post_final_timestamp_precision.md",
         "reverse_agent/post_final_evidence_sync.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state_manifest.py",
-        "reverse_agent/project_workstreams.py",
-        "tests/test_decision_preflight.py",
         "tests/test_post_final_evidence_sync.py",
         "tests/test_project_context_builder.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_reports.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
+        "tests/test_project_state_manifest.py"
       ],
-      "generated_or_archive_baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ],
-      "close_worktree_clean": false,
-      "close_snapshot_available": true
-    },
-    {
-      "name": "baseline_inherited_allowlist_explained",
-      "status": "PASS",
-      "detail": "no source/test inherited baseline explanation is required",
-      "inherited_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/gates/command_plan.json"
-      ]
+      "generated_or_archive_baseline_dirty_files": []
     },
     {
       "name": "baseline_capture_order",
@@ -470,25 +303,18 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
         "docs/post_final_evidence_sync.md",
-        "reverse_agent/decision_preflight.py",
+        "docs/post_final_timestamp_precision.md",
         "reverse_agent/post_final_evidence_sync.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_jobs.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state_manifest.py",
-        "reverse_agent/project_workstreams.py",
-        "tests/test_decision_preflight.py",
         "tests/test_post_final_evidence_sync.py",
         "tests/test_project_context_builder.py",
         "tests/test_project_gate.py",
-        "tests/test_project_jobs.py",
         "tests/test_project_reports.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py"
+        "tests/test_project_state_manifest.py"
       ],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
@@ -514,37 +340,24 @@
       "detail": "all live project_state/ generated artifact paths exist on disk",
       "live_paths": [
         "project_state/codex_execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
         "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/decision_preflight_result.json",
-        "project_state/gates/decision_preflight_workflow_readiness.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/job_lifecycle_snapshot.json",
-        "project_state/gates/job_lifecycle_validation_result.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/post_final_evidence_sync_result.json",
         "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
@@ -612,22 +425,16 @@
       "status": "PASS",
       "detail": "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
       "startup_source_test_dirty": [],
-      "baseline_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/gates/command_plan.json"
-      ],
+      "baseline_dirty_files": [],
       "missing_from_baseline": []
     },
     {
       "name": "generated_artifacts_cover_round_archive",
-      "status": "PASS",
-      "detail": "generated_artifacts covers round archive files",
-      "missing_artifacts": []
+      "status": "WARN",
+      "detail": "generated_artifacts omits round archive files",
+      "missing_artifacts": [
+        "project_state/rounds/round_20260706_post_final_timestamp_precision_hardening_v1/round_manifest.json"
+      ]
     },
     {
       "name": "generated_artifacts_cover_gate_artifacts",
@@ -638,7 +445,6 @@
         "project_state/gates/archive_index.json",
         "project_state/gates/archive_index_summary.json",
         "project_state/gates/audit_handoff_for_cleanup_apply.json",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
         "project_state/gates/ci_artifact_manifest_result.json",
@@ -646,9 +452,7 @@
         "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
         "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
         "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/cleanup_apply_approval_checklist.json",
         "project_state/gates/cleanup_apply_dry_run.json",
         "project_state/gates/cleanup_apply_review_bundle.json",
@@ -664,8 +468,6 @@
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/decision_preflight_result.json",
-        "project_state/gates/decision_preflight_workflow_readiness.json",
         "project_state/gates/deletion_manifest_dry_run.json",
         "project_state/gates/deletion_manifest_schema.json",
         "project_state/gates/deletion_manifest_validation_result.json",
@@ -678,10 +480,7 @@
         "project_state/gates/governance_fix_result.json",
         "project_state/gates/governance_operations_bundle_result.json",
         "project_state/gates/governance_operations_bundle_snapshot.json",
-        "project_state/gates/job_lifecycle_snapshot.json",
-        "project_state/gates/job_lifecycle_validation_result.json",
         "project_state/gates/lifecycle_transition_guard_result.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/manual_mode_orchestrator_result.json",
         "project_state/gates/manual_mode_orchestrator_snapshot.json",
@@ -693,7 +492,6 @@
         "project_state/gates/retention_policy_validation.json",
         "project_state/gates/rollback_handoff_plan.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_compaction_dry_run.json",
         "project_state/gates/round_compaction_manifest_dry_run.json",
         "project_state/gates/round_compaction_plan.json",
@@ -722,6 +520,7 @@
         "project_state/gates/user_solve_workbench_snapshot.json"
       ],
       "referenced_artifacts": [
+        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/run_round_result.json"
       ],
@@ -732,6 +531,12 @@
         "project_state/gates/archive_index.json",
         "project_state/gates/archive_index_summary.json",
         "project_state/gates/audit_handoff_for_cleanup_apply.json",
+        "project_state/gates/audit_inventory_result.json",
+        "project_state/gates/ci_artifact_manifest_result.json",
+        "project_state/gates/ci_observation_handoff_packet.json",
+        "project_state/gates/ci_observation_schema_result.json",
+        "project_state/gates/ci_run_evidence_result.json",
+        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/cleanup_apply_approval_checklist.json",
         "project_state/gates/cleanup_apply_dry_run.json",
         "project_state/gates/cleanup_apply_review_bundle.json",
@@ -744,6 +549,8 @@
         "project_state/gates/cleanup_plan.json",
         "project_state/gates/cleanup_plan_summary.json",
         "project_state/gates/control_plane_snapshot.json",
+        "project_state/gates/decision_preflight_result.json",
+        "project_state/gates/decision_preflight_workflow_readiness.json",
         "project_state/gates/deletion_manifest_dry_run.json",
         "project_state/gates/deletion_manifest_schema.json",
         "project_state/gates/deletion_manifest_validation_result.json",
@@ -753,19 +560,24 @@
         "project_state/gates/governance_fix_result.json",
         "project_state/gates/governance_operations_bundle_result.json",
         "project_state/gates/governance_operations_bundle_snapshot.json",
+        "project_state/gates/job_lifecycle_snapshot.json",
+        "project_state/gates/job_lifecycle_validation_result.json",
         "project_state/gates/job_orchestration_result.json",
         "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/lifecycle_transition_guard_result.json",
+        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/manual_mode_orchestrator_result.json",
         "project_state/gates/manual_mode_orchestrator_snapshot.json",
         "project_state/gates/naming_migration_plan.json",
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
+        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/project_governance_context_result.json",
         "project_state/gates/project_governance_context_snapshot.json",
         "project_state/gates/retention_policy_validation.json",
         "project_state/gates/rollback_handoff_plan.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_compaction_dry_run.json",
         "project_state/gates/round_compaction_manifest_dry_run.json",
         "project_state/gates/round_compaction_plan.json",
@@ -797,17 +609,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-      "closeout_log_round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-      "expected_decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-      "expected_round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1"
+      "closeout_log_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+      "closeout_log_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+      "expected_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+      "expected_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
-      "expected_report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1"
+      "execution_log_report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
+      "expected_report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -815,6 +627,7 @@
       "detail": "no required closeout artifacts declared in decision",
       "required_closeout_artifacts": [],
       "referenced_artifacts": [
+        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/run_round_result.json"
       ],
@@ -832,8 +645,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-      "command_plan_round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1"
+      "command_plan_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+      "command_plan_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1"
     },
     {
       "name": "command_plan_execution_order_policy",
@@ -881,7 +694,7 @@
       "status": "PASS",
       "detail": "accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics",
       "errors": [],
-      "required": true
+      "required": false
     },
     {
       "name": "command_plan_generated_artifact_recorded",
@@ -891,9 +704,17 @@
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "PASS",
-      "detail": "recorded command exit codes match command_plan expected_exit_codes",
-      "errors": []
+      "status": "FAIL",
+      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+      "errors": [
+        {
+          "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_post_final_timestamp_precision_hardening_v1",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        }
+      ]
     },
     {
       "name": "command_plan_execution_authority",
@@ -978,24 +799,8 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/gates/command_plan.json"
-      ],
-      "baseline_dirty_files": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "docs/github_decision_preflight.md",
-        "docs/job_lifecycle_and_decision_preflight.md",
-        "docs/post_final_evidence_sync.md",
-        "project_state/gates/command_plan.json"
-      ]
+      "startup_dirty_files": [],
+      "baseline_dirty_files": []
     },
     {
       "name": "github_ci_state_gate_workflows",
@@ -1029,24 +834,19 @@
     {
       "name": "ci_workflow_readiness_gate_artifact",
       "status": "PASS",
-      "detail": "ci workflow readiness artifact is current, complete, and safety-clean",
-      "required": true,
-      "artifact": "project_state/gates/ci_workflow_readiness_result.json",
-      "readiness_status": "READY",
-      "missing_coverage": [],
-      "unsafe_patterns_found": [],
-      "errors": []
+      "detail": "ci workflow readiness gate not required",
+      "required": false,
+      "artifact": "project_state/gates/ci_workflow_readiness_result.json"
     },
     {
       "name": "decision_preflight_gate_artifact",
       "status": "PASS",
-      "detail": "decision-preflight is current, local-only, and non-dispatching",
-      "required": true,
-      "artifact": "project_state/gates/decision_preflight_result.json",
-      "workflow_readiness_status": "READY",
-      "job_validation_status": "PASSED",
-      "post_final_sync_status": "PASSED",
-      "errors": []
+      "detail": "decision-preflight artifact is stale and not required",
+      "required": false,
+      "errors": [
+        "decision_id mismatch",
+        "round_id mismatch"
+      ]
     },
     {
       "name": "ci_run_evidence_gate_artifact",
@@ -1147,13 +947,12 @@
     {
       "name": "job_lifecycle_gate_artifact",
       "status": "PASS",
-      "detail": "job lifecycle validation is current, READY, and non-dispatching",
-      "required": true,
-      "artifact": "project_state/gates/job_lifecycle_validation_result.json",
-      "job_artifact_path": "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
-      "job_id": "job_20260706_post_final_sync_job_preflight_big_step_v1",
-      "job_status": "READY",
-      "errors": []
+      "detail": "job lifecycle artifact is stale and not required for this decision",
+      "required": false,
+      "errors": [
+        "decision_id mismatch",
+        "round_id mismatch"
+      ]
     },
     {
       "name": "job_orchestration_artifact",
@@ -1221,10 +1020,13 @@
     {
       "name": "audit_inventory_gate_artifact",
       "status": "PASS",
-      "detail": "audit inventory gate artifact is current and validated",
+      "detail": "audit inventory gate artifact is stale and not required for this decision",
       "required": false,
       "artifact": "project_state/gates/audit_inventory_result.json",
-      "errors": [],
+      "errors": [
+        "decision_id mismatch",
+        "round_id mismatch"
+      ],
       "gate_status": "PASSED",
       "inventory_validation_status": "PASSED",
       "audit_count": 4,
@@ -1286,56 +1088,35 @@
       "missing_fields": [],
       "generated_mismatch": [],
       "historical_overlap": [],
-      "historical_only_claimed_current": [
-        "project_state/gates/audit_inventory_result.json"
-      ],
+      "historical_only_claimed_current": [],
       "generated_or_updated_artifacts": [
         "project_state/codex_execution_report.md",
         "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
-        "project_state/gates/audit_inventory_result.json",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
-        "project_state/gates/ci_artifact_manifest_result.json",
         "project_state/gates/ci_audit_handoff_bundle.json",
-        "project_state/gates/ci_observation_handoff_packet.json",
         "project_state/gates/ci_observation_reconcile_result.json",
-        "project_state/gates/ci_observation_schema_result.json",
-        "project_state/gates/ci_run_evidence_result.json",
         "project_state/gates/ci_workflow_coverage_result.json",
-        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/codex_prompt_packet.json",
         "project_state/gates/codex_report_auto_summary.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/current_handoff_packet.json",
-        "project_state/gates/decision_preflight_result.json",
-        "project_state/gates/decision_preflight_workflow_readiness.json",
         "project_state/gates/execution_log.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/job_lifecycle_snapshot.json",
-        "project_state/gates/job_lifecycle_validation_result.json",
-        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/post_final_evidence_sync_result.json",
         "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_closeout_execution_log.json",
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/round_manifest.json"
+        "project_state/pytest_result.txt"
       ],
       "historical_nonblocking_artifacts": [
         "project_state/gates/agent_runner_dry_run_result.json",
@@ -1344,6 +1125,12 @@
         "project_state/gates/archive_index.json",
         "project_state/gates/archive_index_summary.json",
         "project_state/gates/audit_handoff_for_cleanup_apply.json",
+        "project_state/gates/audit_inventory_result.json",
+        "project_state/gates/ci_artifact_manifest_result.json",
+        "project_state/gates/ci_observation_handoff_packet.json",
+        "project_state/gates/ci_observation_schema_result.json",
+        "project_state/gates/ci_run_evidence_result.json",
+        "project_state/gates/ci_workflow_readiness_result.json",
         "project_state/gates/cleanup_apply_approval_checklist.json",
         "project_state/gates/cleanup_apply_dry_run.json",
         "project_state/gates/cleanup_apply_review_bundle.json",
@@ -1356,6 +1143,8 @@
         "project_state/gates/cleanup_plan.json",
         "project_state/gates/cleanup_plan_summary.json",
         "project_state/gates/control_plane_snapshot.json",
+        "project_state/gates/decision_preflight_result.json",
+        "project_state/gates/decision_preflight_workflow_readiness.json",
         "project_state/gates/deletion_manifest_dry_run.json",
         "project_state/gates/deletion_manifest_schema.json",
         "project_state/gates/deletion_manifest_validation_result.json",
@@ -1365,19 +1154,24 @@
         "project_state/gates/governance_fix_result.json",
         "project_state/gates/governance_operations_bundle_result.json",
         "project_state/gates/governance_operations_bundle_snapshot.json",
+        "project_state/gates/job_lifecycle_snapshot.json",
+        "project_state/gates/job_lifecycle_validation_result.json",
         "project_state/gates/job_orchestration_result.json",
         "project_state/gates/jobs_inventory_result.json",
         "project_state/gates/lifecycle_transition_guard_result.json",
+        "project_state/gates/local_ci_parity_result.json",
         "project_state/gates/manual_mode_orchestrator_result.json",
         "project_state/gates/manual_mode_orchestrator_snapshot.json",
         "project_state/gates/naming_migration_plan.json",
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
+        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/project_governance_context_result.json",
         "project_state/gates/project_governance_context_snapshot.json",
         "project_state/gates/retention_policy_validation.json",
         "project_state/gates/rollback_handoff_plan.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_compaction_dry_run.json",
         "project_state/gates/round_compaction_manifest_dry_run.json",
         "project_state/gates/round_compaction_plan.json",
@@ -1404,13 +1198,7 @@
         "project_state/gates/user_solve_workbench_result.json",
         "project_state/gates/user_solve_workbench_snapshot.json"
       ],
-      "archived_artifacts": [
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/execution_report.md",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/round_manifest.json"
-      ]
+      "archived_artifacts": []
     },
     {
       "name": "audit_readiness_packet_valid",
@@ -1418,9 +1206,9 @@
       "detail": "audit readiness packet is current and evidence-only",
       "required": false,
       "errors": [],
-      "readiness_status": "READY",
-      "closeout_status": "PASSED",
-      "next_action": "no_action_required",
+      "readiness_status": "PENDING",
+      "closeout_status": "FAILED",
+      "next_action": "complete_closeout_and_rerun_final_check",
       "artifact": "project_state/gates/audit_readiness_packet.json"
     },
     {
@@ -1474,29 +1262,23 @@
     {
       "name": "local_execution_bundle_valid",
       "status": "PASS",
-      "detail": "local execution bundle is current, evidence-only, and command-plan aligned",
-      "required": true,
-      "artifact": "project_state/gates/local_execution_bundle.json",
-      "errors": [],
-      "audit_recommendation": null
+      "detail": "local execution bundle not required",
+      "required": false,
+      "artifact": "project_state/gates/local_execution_bundle.json"
     },
     {
       "name": "codex_prompt_packet_valid",
       "status": "PASS",
-      "detail": "codex prompt packet is current and derived from current bundle/handoff",
-      "required": true,
-      "artifact": "project_state/gates/codex_prompt_packet.json",
-      "errors": []
+      "detail": "codex prompt packet not required",
+      "required": false,
+      "artifact": "project_state/gates/codex_prompt_packet.json"
     },
     {
       "name": "audit_precheck_valid",
       "status": "PASS",
-      "detail": "audit precheck is current and gives a structurally valid recommendation",
-      "required": true,
-      "artifact": "project_state/gates/audit_precheck_result.json",
-      "errors": [],
-      "audit_recommendation": "READY_FOR_GPT_AUDIT",
-      "blocking_reasons": []
+      "detail": "audit precheck not required",
+      "required": false,
+      "artifact": "project_state/gates/audit_precheck_result.json"
     },
     {
       "name": "user_solve_layer_gate_artifact",
@@ -1526,11 +1308,15 @@
     },
     {
       "name": "prework_provenance_gate_artifact",
-      "status": "PASS",
-      "detail": "prework provenance artifact is current and blocks undeclared dirty startup state",
+      "status": "FAIL",
+      "detail": "prework provenance artifact is invalid",
       "required": false,
       "artifact": "project_state/gates/prework_provenance_result.json",
-      "errors": [],
+      "errors": [
+        "decision_id mismatch",
+        "round_id mismatch",
+        "report_id mismatch"
+      ],
       "gate_status": "PASSED"
     },
     {
@@ -1622,13 +1408,24 @@
       "name": "post_final_evidence_sync_gate_artifact",
       "status": "PASS",
       "detail": "post-final context/final-check evidence is current and synchronized",
-      "required": true,
+      "required": false,
       "artifact": "project_state/gates/post_final_evidence_sync_result.json",
-      "final_gate_status": "PASSED",
-      "context_final_gate_status": "PASSED",
-      "context_generated_after_final_gate": false,
+      "final_gate_status": "FAILED",
+      "context_final_gate_status": "FAILED",
+      "context_generated_after_final_gate": true,
       "stale_context_detected": false,
+      "context_sync_basis": "timestamp_and_digest",
+      "timestamp_precision_policy": "precise_parsed_with_digest_fallback",
       "errors": []
+    },
+    {
+      "name": "timestamp_precision_hardening",
+      "status": "PASS",
+      "detail": "post-final sync uses digest-backed timestamp precision",
+      "required": true,
+      "context_sync_basis": "timestamp_and_digest",
+      "timestamp_precision_policy": "precise_parsed_with_digest_fallback",
+      "active_timestamp_warning": false
     },
     {
       "name": "decision_contract_status_hardening",
@@ -1648,8 +1445,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-      "gate_profile_round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1"
+      "gate_profile_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
+      "gate_profile_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -1682,7 +1479,7 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 36 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 24 Required Audit items with substantive aligned answers",
       "required_audit_items": [
         "Is `decision_meta` present, valid, `APPROVED`, and on legal mainline `engineering_branch`?",
         "Does `skill_profiles` use only active skills from `.codex-skills/registry.json`?",
@@ -1690,36 +1487,24 @@
         "Does `pytest_result.txt` match this decision ID, round ID, and report ID?",
         "Does `execution_log.json` record every required command from command-plan?",
         "Were any omitted or unauthorized commands executed?",
-        "Was `current_context_packet.json` regenerated or validated after final-check?",
-        "Does `auditor_context.final_gate_status` match current `final_gate_result.json.gate_status`, or does the context packet explicitly mark itself pre-final/stale?",
-        "Is there a post-final evidence sync result artifact?",
-        "Does the post-final sync gate fail or warn on stale context/final-check mismatch?",
-        "Is the new READY job artifact present under `project_state/jobs/`?",
-        "Does the job artifact validate with `validate_jobs_dir` or equivalent gate?",
-        "Does the job artifact keep runner dispatch disabled?",
-        "Does the job artifact keep remote mutation, model calls, reverse solving, database writes, scheduler, Web mutation, and GitHub Actions dispatch disabled?",
-        "Are job transitions still backward compatible with existing tests?",
-        "Does `decision-preflight.yml` exist?",
-        "Does `decision-preflight.yml` validate decision metadata and command-plan without running agents?",
-        "Does `decision-preflight.yml` avoid model API calls, runner dispatch, workflow dispatch, external tools, and database writes?",
-        "Is `state-gate.yml` or CI workflow coverage updated to cover decision-preflight?",
-        "Did this round avoid implementing `agent-execute.yml`, `audit.yml`, self-hosted runner dispatch, or auto-iteration?",
-        "Did this round avoid Web/frontend runtime?",
-        "Did this round avoid sample solving and external reverse tools?",
-        "Did this round avoid cleanup-apply, real deletion manifests, real tombstones, archives, and destructive mutations?",
-        "Were `project_state/current_state.json`, `task_packet.json`, `artifact_index.json`, and `negative_results.json` left untouched?",
-        "Were `.codex-skills/*` left untouched?",
-        "Were `solve_reports/*` and `training_materials/local_reverse/*` left untouched?",
-        "Were `project_state/archives/*`, `deletions/*`, `blob_store/*`, and database files left untouched?",
-        "Did the implementation reuse existing job, CI, command-plan, execution-log, report-summary, final-check, and run-closeout foundations instead of reimplementing them from scratch?",
-        "Did new artifacts carry the current decision ID and round ID?",
-        "Did historical sample artifact gaps remain visible but nonblocking?",
-        "Did final-check pass?",
-        "Did report-summary match the execution report?",
-        "Did pytest cover post-final sync, decision-preflight, job lifecycle, project gate, project reports, context builder, and state manifest changes?",
-        "Did run-closeout archive this round's report, pytest, decision, and manifest if command-plan permits closeout?",
-        "Did the execution report list all changed files and generated artifacts?",
-        "Did the final conclusion avoid claiming `ACCEPTED` unless all hard gates and tests support it?"
+        "Did the implementation avoid modifying forbidden paths?",
+        "Did the implementation avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, sample solving, and external reverse tools?",
+        "Does post-final sync preserve and compare precise timestamps rather than only truncated timestamp strings?",
+        "Does post-final sync record final gate artifact identity, such as path plus SHA-256 or equivalent digest?",
+        "Does post-final sync record context packet artifact identity, such as path plus SHA-256 or equivalent digest?",
+        "Does `current_context_packet.json.auditor_context` explain the source of `final_gate_status` with current final gate IDs and source artifact identity?",
+        "Does the previous warning condition become either absent or explicitly reclassified as non-active when the context packet is source-synced to the current final gate artifact?",
+        "Does a genuinely stale context packet still warn or fail in tests?",
+        "Does `post_final_evidence_sync_result.json` carry current decision, round, and report IDs?",
+        "Does `final_gate_result.json` pass?",
+        "Does report-summary match the execution report?",
+        "Does run-closeout archive this round if command-plan permits closeout?",
+        "Did this round reuse existing post-final sync/context/final-check/report foundations instead of reimplementing them?",
+        "Did the final conclusion avoid claiming `ACCEPTED` unless all hard gates and tests support it?",
+        "`ACCEPTED`",
+        "`ACCEPTED_WITH_LIMITATIONS`",
+        "`REWORK_REQUIRED`",
+        "`BLOCKED`"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
@@ -1730,16 +1515,14 @@
       "status": "PASS",
       "detail": "policy impact coverage satisfied or no policy-sensitive changes",
       "policy_sensitive_files": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_gate.py"
       ],
       "impacted_domains": [
         "command_plan",
         "final_check",
         "policy_lint",
         "report_status_schema",
-        "report_summary",
-        "tests"
+        "report_summary"
       ],
       "missing_report_topics": []
     },
@@ -1750,14 +1533,21 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
-      "lint_errors": [],
-      "warnings": [],
-      "doctor_status": "PASS",
-      "report_status": "SUCCESS",
+      "status": "FAIL",
+      "detail": "status policy found blocking issues",
+      "lint_errors": [
+        "pytest_result header status is PASSED but body indicates failures (0 failed). Contradiction detected.",
+        "pytest_result header status is PASSED but 1 command block(s) have non-zero exit codes. Contradiction detected.",
+        "doctor status is FAIL"
+      ],
+      "warnings": [
+        "report_status is FAILED",
+        "report round not archived yet"
+      ],
+      "doctor_status": "FAIL",
+      "report_status": "FAILED",
       "canonical_status_source": "execution_report_summary",
-      "canonical_acceptance_recommendation": "ACCEPTED",
+      "canonical_acceptance_recommendation": "REWORK_REQUIRED",
       "status_source_reconciliations": [],
       "limitations": null,
       "artifact_freshness_policy": "claim_aware",
@@ -1776,8 +1566,9 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "no recorded final-check stdout status to compare",
-      "required": false
+      "detail": "archive-pending final-check status is allowed to differ before close-round",
+      "required": false,
+      "skipped_reason": "archive_pending_pre_close_round"
     },
     {
       "name": "execution_log_consistency",
@@ -1839,33 +1630,75 @@
     },
     {
       "name": "closeout_active_warnings_clean",
-      "status": "PASS",
-      "detail": "closeout result has no active warnings",
+      "status": "WARN",
+      "detail": "closeout result has active warnings",
       "closeout_warnings": [],
-      "close_round_result_warnings": [],
-      "resolved_pre_archive_warnings": [
+      "close_round_result_warnings": [
         "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
       ],
-      "active_close_round_result_warnings": [],
-      "final_check_after_archive_passed": true,
-      "close_round_close_status": "CLOSED"
+      "resolved_pre_archive_warnings": [],
+      "active_close_round_result_warnings": [
+        "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
+      ],
+      "final_check_after_archive_passed": false,
+      "close_round_close_status": "FAILED"
     },
     {
       "name": "closeout_nested_failures_absent",
-      "status": "PASS",
-      "detail": "run_closeout_result.json contains no active nested FAIL/FAILED states",
-      "nested_failures": []
+      "status": "FAIL",
+      "detail": "run_closeout_result.json contains active nested FAIL/FAILED states",
+      "nested_failures": [
+        {
+          "path": "run_closeout_result.closeout_status",
+          "status": "FAILED"
+        },
+        {
+          "path": "run_closeout_result.executed_steps[13].status",
+          "status": "FAILED",
+          "name": "close-round"
+        },
+        {
+          "path": "run_closeout_result.close_round_result.report_status",
+          "status": "FAILED"
+        },
+        {
+          "path": "run_closeout_result.close_round_result.actions[0].status",
+          "status": "FAILED",
+          "name": "final_check_before_archive"
+        },
+        {
+          "path": "run_closeout_result.close_round_result.actions[0].gate_status",
+          "status": "FAILED",
+          "name": "final_check_before_archive"
+        },
+        {
+          "path": "run_closeout_result.close_round_result.status_summary.report_status",
+          "status": "FAILED"
+        }
+      ]
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [],
-  "recommended_next_action": "no_action_required",
+  "blocking_reasons": [
+    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+    "prework_provenance_gate_artifact: prework provenance artifact is invalid",
+    "status_policy_valid: status policy found blocking issues",
+    "closeout_nested_failures_absent: run_closeout_result.json contains active nested FAIL/FAILED states"
+  ],
+  "warnings": [
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_execution_report_alias_matches_live_alias: archived execution_report.md differs from live execution_report.md",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
+    "closeout_active_warnings_clean: closeout result has active warnings"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
-    "archive_status": "archived",
-    "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED"
+    "decision_consumed_by_report": false,
+    "archive_status": "not_archived",
+    "report_status": "FAILED",
+    "report_acceptance_recommendation": "REWORK_REQUIRED"
   }
 }
