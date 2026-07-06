@@ -231,6 +231,30 @@ def build_state_manifest(
         "governance_operations_bundle_snapshot": _gate_ref(
             state_dir_path, "governance_operations_bundle_snapshot.json", "generated_or_updated", False
         ),
+        "post_final_evidence_sync": _gate_ref(
+            state_dir_path, "post_final_evidence_sync_result.json", "generated_or_updated", False
+        ),
+        "post_final_evidence_sync_snapshot": _gate_ref(
+            state_dir_path, "post_final_evidence_sync_snapshot.json", "generated_or_updated", False
+        ),
+        "job_lifecycle_validation": _gate_ref(
+            state_dir_path, "job_lifecycle_validation_result.json", "generated_or_updated", False
+        ),
+        "job_lifecycle_snapshot": _gate_ref(
+            state_dir_path, "job_lifecycle_snapshot.json", "generated_or_updated", False
+        ),
+        "decision_preflight": _gate_ref(
+            state_dir_path, "decision_preflight_result.json", "generated_or_updated", False
+        ),
+        "decision_preflight_workflow_readiness": _gate_ref(
+            state_dir_path, "decision_preflight_workflow_readiness.json", "generated_or_updated", False
+        ),
+        "current_planned_job": _file_ref(
+            state_dir_path,
+            f"jobs/job_{round_id.removeprefix('round_')}.json" if round_id else "jobs/.missing-current-planned-job.json",
+            "generated_or_updated",
+            False,
+        ),
         "project_governance_context_result": _gate_ref(
             state_dir_path, "project_governance_context_result.json", "generated_or_updated", False
         ),

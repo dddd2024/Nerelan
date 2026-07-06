@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "artifact_name": "job_lifecycle_snapshot.json",
+  "gate_name": "job-lifecycle",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "generated_at": "2026-07-06T06:05:05.830184Z",
+  "job_artifact_path": "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
+  "job_payload": {
+    "schema_version": 1,
+    "job_id": "job_20260706_post_final_sync_job_preflight_big_step_v1",
+    "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+    "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+    "mainline": "engineering_branch",
+    "status": "READY",
+    "runner": {
+      "kind": "none",
+      "dispatch_enabled": false
+    },
+    "required_inputs": [
+      "project_state/decision_packet.md",
+      "project_state/gates/command_plan.json"
+    ],
+    "required_outputs": [
+      "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
+      "project_state/gates/job_orchestration_result.json",
+      "project_state/gates/runner_contract_result.json",
+      "project_state/gates/control_plane_snapshot.json",
+      "project_state/codex_execution_report.md",
+      "project_state/pytest_result.txt"
+    ],
+    "permissions": {
+      "allow_remote_mutation": false,
+      "allow_llm_calls": false,
+      "allow_agent_dispatch": false,
+      "allow_reverse_solving": false,
+      "allow_github_actions": false,
+      "allow_database_writes": false,
+      "allow_scheduler": false,
+      "allow_web_ui_mutation": false
+    },
+    "budgets": {
+      "max_runtime_seconds": 0,
+      "max_commands": 0
+    },
+    "orchestration": {
+      "planning_mode": "non_dispatching",
+      "dispatch_policy": "disabled_by_default",
+      "task_contract_path": "project_state/decision_packet.md",
+      "command_plan_path": "project_state/gates/command_plan.json",
+      "execution_authority": "project_state/gates/command_plan.json"
+    }
+  },
+  "validation": {
+    "schema_version": 1,
+    "validation_status": "PASSED",
+    "errors": [],
+    "warnings": [],
+    "jobs_dir": "project_state\\jobs",
+    "job_count": 8,
+    "validated_paths": [
+      "project_state\\jobs\\job_20260628_clean_baseline_job_inventory_v1.json",
+      "project_state\\jobs\\job_20260629_job_orchestration_foundation_v1.json",
+      "project_state\\jobs\\job_20260630_hygiene_and_handoff_bundle_v1.json",
+      "project_state\\jobs\\job_20260630_hygiene_handoff_rework_v1.json",
+      "project_state\\jobs\\job_20260630_local_runner_dry_run_foundation_v1.json",
+      "project_state\\jobs\\job_20260630_required_audit_alignment_rework_v1.json",
+      "project_state\\jobs\\job_20260706_post_final_sync_job_preflight_big_step_v1.json",
+      "project_state\\jobs\\job_demo_20260704_manual_mode_web_orchestrator_mvp_big_step_v1.json"
+    ],
+    "status_counts": {
+      "ACCEPTED": 0,
+      "ACCEPTED_WITH_LIMITATIONS": 0,
+      "AUDITED": 0,
+      "BLOCKED": 0,
+      "DONE": 0,
+      "DRAFT": 6,
+      "FINAL_CHECKED": 0,
+      "MANUAL_DISPATCHED": 0,
+      "MANUAL_RESULT_IMPORTED": 0,
+      "READY": 2,
+      "REWORK_REQUIRED": 0,
+      "RUNNING": 0
+    },
+    "jobs": [
+      {
+        "path": "project_state\\jobs\\job_20260628_clean_baseline_job_inventory_v1.json",
+        "job_id": "job_20260628_clean_baseline_job_inventory_v1",
+        "round_id": "round_20260628_clean_baseline_job_inventory_v1",
+        "decision_id": "decision_20260628_clean_baseline_job_inventory_v1",
+        "status": "DRAFT",
+        "validation_status": "PASSED",
+        "errors": []
+      },
+      {
+        "path": "project_state\\jobs\\job_20260629_job_orchestration_foundation_v1.json",
+        "job_id": "job_20260629_job_orchestration_foundation_v1",
+        "round_id": "round_20260629_job_orchestration_foundation_v1",
+        "decision_id": "decision_20260629_job_orchestration_foundation_v1",
+        "status": "DRAFT",
+        "validation_status": "PASSED",
+        "errors": []
+      },
+      {
+        "path": "project_state\\jobs\\job_20260630_hygiene_and_handoff_bundle_v1.json",
+        "job_id": "job_20260630_hygiene_and_handoff_bundle_v1",
+        "round_id": "round_20260630_hygiene_and_handoff_bundle_v1",
+        "decision_id": "decision_20260630_hygiene_and_handoff_bundle_v1",
+        "status": "DRAFT",
+        "validation_status": "PASSED",
+        "errors": []
+      },
+      {
+        "path": "project_state\\jobs\\job_20260630_hygiene_handoff_rework_v1.json",
+        "job_id": "job_20260630_hygiene_handoff_rework_v1",
+        "round_id": "round_20260630_hygiene_handoff_rework_v1",
+        "decision_id": "decision_20260630_hygiene_handoff_rework_v1",
+        "status": "DRAFT",
+        "validation_status": "PASSED",
+        "errors": []
+      },
+      {
+        "path": "project_state\\jobs\\job_20260630_local_runner_dry_run_foundation_v1.json",
+        "job_id": "job_20260630_local_runner_dry_run_foundation_v1",
+        "round_id": "round_20260630_local_runner_dry_run_foundation_v1",
+        "decision_id": "decision_20260630_local_runner_dry_run_foundation_v1",
+        "status": "DRAFT",
+        "validation_status": "PASSED",
+        "errors": []
+      },
+      {
+        "path": "project_state\\jobs\\job_20260630_required_audit_alignment_rework_v1.json",
+        "job_id": "job_20260630_required_audit_alignment_rework_v1",
+        "round_id": "round_20260630_required_audit_alignment_rework_v1",
+        "decision_id": "decision_20260630_required_audit_alignment_rework_v1",
+        "status": "DRAFT",
+        "validation_status": "PASSED",
+        "errors": []
+      },
+      {
+        "path": "project_state\\jobs\\job_20260706_post_final_sync_job_preflight_big_step_v1.json",
+        "job_id": "job_20260706_post_final_sync_job_preflight_big_step_v1",
+        "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+        "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+        "status": "READY",
+        "validation_status": "PASSED",
+        "errors": []
+      },
+      {
+        "path": "project_state\\jobs\\job_demo_20260704_manual_mode_web_orchestrator_mvp_big_step_v1.json",
+        "job_id": "job_demo_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+        "round_id": "round_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+        "decision_id": "decision_20260704_manual_mode_web_orchestrator_mvp_big_step_v1",
+        "status": "READY",
+        "validation_status": "PASSED",
+        "errors": []
+      }
+    ],
+    "dispatch_enabled": false
+  },
+  "non_dispatching": true
+}

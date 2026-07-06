@@ -63,6 +63,11 @@ def test_current_context_packet_is_bounded_and_non_dispatching(tmp_path: Path) -
     assert packet["planner_context"]["task_authority"] == "project_state/decision_packet.md"
     assert packet["planner_context"]["task_packet_role"] == "background_only"
     assert packet["auditor_context"]["governance_artifacts_are_fact_source_replacements"] is False
+    assert packet["auditor_context"]["final_gate_status"] == ""
+    assert packet["auditor_context"]["final_gate_status_source"] == "stale_final_gate_result"
+    assert packet["auditor_context"]["final_gate_current"] is False
+    assert packet["auditor_context"]["post_final_sync_status"] == "STALE_PRE_FINAL_CONTEXT"
+    assert packet["auditor_context"]["stale_context_detected"] is True
     assert packet["model_api_invocation"] is False
     assert packet["runner_dispatch"] is False
     assert packet["external_analysis_tool_invocation"] is False

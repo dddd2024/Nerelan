@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "artifact_name": "post_final_evidence_sync_snapshot.json",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "generated_at": "2026-07-06T06:38:20Z",
+  "before_context_decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "before_context_round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "before_context_final_gate_status": "PASSED",
+  "after_context_decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "after_context_round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "after_context_final_gate_status": "PASSED",
+  "final_gate_status": "PASSED",
+  "stale_context_detected": false
+}

@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
-  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-06T02:39:00.768767Z",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-06T06:38:07.074389Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-    "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+    "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+    "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,62 +43,36 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/cleanup_apply_safety.py",
-      "reverse_agent/state_governance.py",
-      "reverse_agent/state_hygiene.py",
+      "reverse_agent/project_context_builder.py",
       "reverse_agent/project_gate.py",
+      "reverse_agent/project_jobs.py",
       "reverse_agent/project_reports.py",
       "reverse_agent/project_state_manifest.py",
-      "reverse_agent/project_context_builder.py",
       "reverse_agent/project_workstreams.py",
-      "reverse_agent/state_index_readiness.py",
-      "reverse_agent/round_compaction.py",
-      "tests/test_cleanup_apply_safety.py",
-      "tests/test_state_governance.py",
-      "tests/test_state_hygiene.py",
+      "reverse_agent/post_final_evidence_sync.py",
+      "reverse_agent/decision_preflight.py",
+      "tests/test_project_context_builder.py",
       "tests/test_project_gate.py",
+      "tests/test_project_jobs.py",
       "tests/test_project_reports.py",
       "tests/test_project_state_manifest.py",
-      "tests/test_project_context_builder.py",
       "tests/test_project_workstreams.py",
-      "tests/test_state_index_readiness.py",
-      "tests/test_round_compaction.py"
+      "tests/test_post_final_evidence_sync.py",
+      "tests/test_decision_preflight.py"
     ],
     "generated_or_updated_artifacts": [
-      "project_state/retention_policy.json",
-      "project_state/state_lifecycle_registry.json",
-      "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
+      "project_state/state_manifest.json",
       "project_state/roadmap/workstreams.json",
-      "project_state/gates/governance_operations_bundle_result.json",
-      "project_state/gates/governance_operations_bundle_snapshot.json",
-      "project_state/gates/cleanup_apply_review_bundle.json",
-      "project_state/gates/cleanup_apply_review_result.json",
-      "project_state/gates/cleanup_apply_review_snapshot.json",
-      "project_state/gates/cleanup_candidate_risk_matrix.json",
-      "project_state/gates/cleanup_apply_approval_checklist.json",
-      "project_state/gates/evidence_lock_manifest.json",
-      "project_state/gates/deletion_manifest_dry_run.json",
-      "project_state/gates/tombstone_plan_dry_run.json",
-      "project_state/gates/round_compaction_plan.json",
-      "project_state/gates/round_compaction_dry_run.json",
-      "project_state/gates/round_compaction_manifest_dry_run.json",
-      "project_state/gates/archive_index.json",
-      "project_state/gates/archive_index_summary.json",
-      "project_state/gates/state_index_readiness_schema.json",
-      "project_state/gates/state_index_readiness_plan.json",
-      "project_state/gates/state_index_readiness_result.json",
-      "project_state/gates/state_hygiene_dashboard_feed.json",
-      "project_state/gates/state_hygiene_dashboard_summary.json",
-      "project_state/gates/lifecycle_transition_guard_result.json",
-      "project_state/gates/status_policy_reconcile_result.json",
-      "project_state/gates/doctor_backlog_split_result.json",
-      "project_state/gates/cleanup_plan.json",
-      "project_state/gates/cleanup_plan_summary.json",
-      "project_state/gates/deletion_manifest_schema.json",
-      "project_state/gates/tombstone_schema.json",
-      "project_state/gates/rollback_rehearsal_plan.json",
-      "project_state/gates/audit_handoff_for_cleanup_apply.json",
+      "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
+      "project_state/gates/post_final_evidence_sync_result.json",
+      "project_state/gates/post_final_evidence_sync_snapshot.json",
+      "project_state/gates/job_lifecycle_validation_result.json",
+      "project_state/gates/job_lifecycle_snapshot.json",
+      "project_state/gates/decision_preflight_result.json",
+      "project_state/gates/decision_preflight_workflow_readiness.json",
+      "project_state/gates/ci_workflow_coverage_result.json",
+      "project_state/gates/ci_workflow_readiness_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/command_plan.json",
       "project_state/gates/execution_log.json",
@@ -112,14 +86,13 @@
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260705_governance_operations_bundle_big_step_v1/*"
+      "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/*"
     ]
   },
   "forbidden_scope": {
     "preserve_only_files": [],
     "forbidden_mutated_paths": [
       ".codex-skills/*",
-      ".github/workflows/*",
       "solve_reports/*",
       "training_materials/local_reverse/*",
       "project_state/current_state.json",
@@ -196,63 +169,203 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
-      "kind": "doctor",
-      "phase": "status",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
       "required": true
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
+      "kind": "pytest",
+      "phase": "test",
       "required": true
     },
     {
       "index": 11,
+      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
+      "kind": "ci-workflow-coverage",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+      "kind": "ci-workflow-readiness",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+      "kind": "ci-run-evidence",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+      "kind": "local-ci-parity",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+      "kind": "ci-observation-schema",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+      "kind": "ci-observation-handoff",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+      "kind": "ci-observation-reconcile",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+      "kind": "ci-artifact-manifest",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+      "kind": "ci-audit-handoff-bundle",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+      "kind": "audit-readiness-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 22,
+      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+      "kind": "current-handoff-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 23,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "kind": "local-execution-bundle",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 24,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "kind": "codex-prompt-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 25,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "kind": "audit-precheck",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 26,
+      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+      "kind": "execution-log",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 27,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
-      "kind": "prework-provenance",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 13,
+      "index": 28,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight",
       "phase": "preflight",
       "required": true
     },
     {
-      "index": 14,
-      "command": "python -m pytest tests/test_cleanup_apply_safety.py tests/test_state_governance.py tests/test_state_hygiene.py tests/test_round_compaction.py tests/test_state_index_readiness.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "required": true
-    },
-    {
-      "index": 15,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "required": true
-    },
-    {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate governance-operations-bundle --state-dir project_state",
-      "kind": "governance-operations-bundle",
+      "index": 29,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260705_governance_operations_bundle_big_step_v1",
+      "index": 30,
+      "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+      "kind": "doctor",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 31,
+      "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
+      "kind": "post-final-evidence-sync",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 32,
+      "command": "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
+      "kind": "job-lifecycle",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 33,
+      "command": "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
+      "kind": "decision-preflight",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 34,
+      "command": "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
+      "kind": "prework-provenance",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 35,
+      "command": "python -m pytest tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_jobs.py tests/test_project_context_builder.py tests/test_project_state_manifest.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "required": true
+    },
+    {
+      "index": 36,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_workstreams.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "required": true
+    },
+    {
+      "index": 37,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_post_final_sync_job_preflight_big_step_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "required": true
@@ -260,8 +373,10 @@
   ],
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_cleanup_apply_safety.py tests/test_state_governance.py tests/test_state_hygiene.py tests/test_round_compaction.py tests/test_state_index_readiness.py -q",
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py tests/test_project_context_builder.py tests/test_project_workstreams.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
+      "python -m pytest tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_jobs.py tests/test_project_context_builder.py tests/test_project_state_manifest.py -q",
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_workstreams.py -q"
     ],
     "includes_project_reports": true
   },
@@ -282,11 +397,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-    "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+    "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+    "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "4107ee9cbfd426658ae3a0f1b33e01a1f4bf205ca711d5887a078e4b0337c094"
+    "sha256": "636c7ea04fc3017e386c5c3fee6bd0eaffe1b0685554463a2b02f58264a1f70c"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -300,9 +415,9 @@
     "artifact": "project_state/gates/audit_inventory_result.json",
     "gate_status": "PASSED",
     "inventory_validation_status": "PASSED",
-    "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-    "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-    "current": false
+    "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+    "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+    "current": true
   },
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
@@ -310,8 +425,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-    "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+    "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+    "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -319,7 +434,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260705_governance_operations_bundle_big_step_v1"
+    "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,
@@ -336,9 +451,7 @@
   "can_dispatch": false,
   "mutates_state": false,
   "remote_mutation_allowed": false,
-  "warnings": [
-    "audit_inventory_result.json is missing or historical"
-  ],
+  "warnings": [],
   "errors": [],
   "generated_artifacts": [
     "project_state/gates/local_execution_bundle.json"

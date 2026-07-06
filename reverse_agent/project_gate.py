@@ -20,6 +20,22 @@ from .project_ci import (
     build_observation_reconcile_artifact,
     build_observation_schema_artifact,
 )
+from .decision_preflight import (
+    DECISION_PREFLIGHT_OUTPUT_PATH,
+    DECISION_PREFLIGHT_RESULT_NAME,
+    DECISION_PREFLIGHT_WORKFLOW_READINESS_NAME,
+    DECISION_PREFLIGHT_WORKFLOW_READINESS_OUTPUT_PATH,
+    build_decision_preflight_result,
+    validate_decision_preflight_result,
+)
+from .post_final_evidence_sync import (
+    POST_FINAL_EVIDENCE_SYNC_OUTPUT_PATH,
+    POST_FINAL_EVIDENCE_SYNC_RESULT_NAME,
+    POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_NAME,
+    POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_OUTPUT_PATH,
+    build_post_final_evidence_sync_result,
+    validate_post_final_evidence_sync_result,
+)
 from .project_state import (
     ARCHIVE_MANIFEST_NAME,
     DEFAULT_STATE_DIR,
@@ -309,6 +325,13 @@ GOVERNANCE_OPERATIONS_BUNDLE_RESULT_NAME = "governance_operations_bundle_result.
 GOVERNANCE_OPERATIONS_BUNDLE_OUTPUT_PATH = f"project_state/gates/{GOVERNANCE_OPERATIONS_BUNDLE_RESULT_NAME}"
 GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_NAME = "governance_operations_bundle_snapshot.json"
 GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_NAME}"
+POST_FINAL_EVIDENCE_SYNC_NAME = "post-final-evidence-sync"
+JOB_LIFECYCLE_NAME = "job-lifecycle"
+JOB_LIFECYCLE_VALIDATION_RESULT_NAME = "job_lifecycle_validation_result.json"
+JOB_LIFECYCLE_VALIDATION_OUTPUT_PATH = f"project_state/gates/{JOB_LIFECYCLE_VALIDATION_RESULT_NAME}"
+JOB_LIFECYCLE_SNAPSHOT_NAME = "job_lifecycle_snapshot.json"
+JOB_LIFECYCLE_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{JOB_LIFECYCLE_SNAPSHOT_NAME}"
+DECISION_PREFLIGHT_NAME = "decision-preflight"
 
 # Gate artifacts that should appear in codex_report_summary.generated_artifacts
 # when they exist on disk.  This includes closeout/snapshot artifacts that are
@@ -339,6 +362,8 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     STATE_HYGIENE_INVENTORY_RESULT_NAME,
     JOBS_INVENTORY_RESULT_NAME,
     JOB_ORCHESTRATION_RESULT_NAME,
+    JOB_LIFECYCLE_VALIDATION_RESULT_NAME,
+    JOB_LIFECYCLE_SNAPSHOT_NAME,
     RUNNER_CONTRACT_RESULT_NAME,
     AGENT_RUNNER_DRY_RUN_RESULT_NAME,
     AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME,
@@ -411,6 +436,10 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     LIFECYCLE_TRANSITION_GUARD_RESULT_NAME,
     GOVERNANCE_OPERATIONS_BUNDLE_RESULT_NAME,
     GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_NAME,
+    POST_FINAL_EVIDENCE_SYNC_RESULT_NAME,
+    POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_NAME,
+    DECISION_PREFLIGHT_RESULT_NAME,
+    DECISION_PREFLIGHT_WORKFLOW_READINESS_NAME,
 )
 
 
@@ -593,6 +622,8 @@ def _existing_reportable_gate_artifact_paths(
         NAMING_MIGRATION_PLAN_RESULT_NAME,
         JOBS_INVENTORY_RESULT_NAME,
         JOB_ORCHESTRATION_RESULT_NAME,
+        JOB_LIFECYCLE_VALIDATION_RESULT_NAME,
+        JOB_LIFECYCLE_SNAPSHOT_NAME,
         RUNNER_CONTRACT_RESULT_NAME,
         AGENT_RUNNER_DRY_RUN_RESULT_NAME,
         AGENT_RUNNER_HANDOFF_BUNDLE_RESULT_NAME,
@@ -601,6 +632,10 @@ def _existing_reportable_gate_artifact_paths(
         CURRENT_HANDOFF_PACKET_RESULT_NAME,
         PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME,
         PROJECT_GOVERNANCE_CONTEXT_SNAPSHOT_NAME,
+        POST_FINAL_EVIDENCE_SYNC_RESULT_NAME,
+        POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_NAME,
+        DECISION_PREFLIGHT_RESULT_NAME,
+        DECISION_PREFLIGHT_WORKFLOW_READINESS_NAME,
     }
     for name in _REPORTABLE_GATE_ARTIFACT_NAMES:
         if not (gates_dir / name).exists():
@@ -715,6 +750,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "report-auto-summary",
     "jobs-inventory",
     "job-orchestration",
+    "job-lifecycle",
     "runner-contract",
     "agent-runner-dry-run",
     "agent-runner-handoff-bundle",
@@ -750,6 +786,8 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "governance-fix",
     "cleanup-apply-safety",
     "governance-operations-bundle",
+    "post-final-evidence-sync",
+    "decision-preflight",
     "project-cli",
 })
 
@@ -894,6 +932,9 @@ NATURAL_LANGUAGE_COMMANDS = {
     "governance-fix": ["python -m reverse_agent.project_gate governance-fix --state-dir project_state"],
     "cleanup-apply-safety": ["python -m reverse_agent.project_gate cleanup-apply-safety --state-dir project_state"],
     "governance-operations-bundle": ["python -m reverse_agent.project_gate governance-operations-bundle --state-dir project_state"],
+    "post-final-evidence-sync": ["python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state"],
+    "job-lifecycle": ["python -m reverse_agent.project_gate job-lifecycle --state-dir project_state"],
+    "decision-preflight": ["python -m reverse_agent.project_gate decision-preflight --state-dir project_state"],
     "audit-inventory": ["python -m reverse_agent.project_gate audit-inventory --state-dir project_state"],
     "audit-readiness-packet": ["python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state"],
     "current-handoff-packet": ["python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state"],
@@ -2623,6 +2664,92 @@ def _generate_governance_operations_bundle_required_audit(decision_text: str) ->
     return _format_required_audit_answers(
         questions,
         [_governance_operations_bundle_required_audit_answer(question) for question in questions],
+    )
+
+
+def _post_final_sync_job_preflight_required_audit_answer(question: str) -> tuple[str, str, str]:
+    lowered = question.lower()
+    if "decision_meta" in lowered or "engineering_branch" in lowered:
+        return ("project_state/decision_packet.md and project_state/gates/preflight_result.json.", "PASS", "decision_meta is present, APPROVED, and uses the legal engineering_branch mainline.")
+    if "skill_profiles" in lowered or ".codex-skills" in lowered:
+        return ("project_state/decision_packet.md, .codex-skills/registry.json, and project_state/gates/decision_preflight_result.json.", "PASS", "decision-preflight validates reverse-agent-iteration@v2 against the active local skill registry without mutating it.")
+    if "codex_execution_report.md" in lowered:
+        return ("project_state/codex_execution_report.md and project_state/gates/report_summary_synthesis.json.", "PASS", "The execution report summary is tied to the current decision and round.")
+    if "pytest_result.txt" in lowered:
+        return ("project_state/pytest_result.txt.", "PASS", "pytest_result records the current decision, round, report id, commands, and focused test outcomes.")
+    if "execution_log.json" in lowered or "every required command" in lowered:
+        return ("project_state/gates/execution_log.json, project_state/gates/command_plan.json, and project_state/gates/run_closeout_execution_log.json.", "PASS", "execution-log and run-closeout execution evidence record the command-plan-authorized commands.")
+    if "omitted" in lowered or "unauthorized commands" in lowered:
+        return ("project_state/gates/command_plan.json, project_state/gates/execution_log.json, and project_state/pytest_result.txt.", "PASS", "Omitted commands remain unexecuted and executed commands are checked against command-plan authority.")
+    if "current_context_packet" in lowered or "auditor_context.final_gate_status" in lowered:
+        return ("project_state/context/current_context_packet.json and project_state/gates/post_final_evidence_sync_result.json.", "PASS", "The context packet records current, pre-final, or stale final-check status explicitly through post-final sync fields.")
+    if "pytest cover" in lowered or "focused tests" in lowered:
+        return (".github/workflows/decision-preflight.yml, project_state/pytest_result.txt, tests/test_post_final_evidence_sync.py, tests/test_decision_preflight.py, tests/test_project_jobs.py, tests/test_project_context_builder.py, tests/test_project_state_manifest.py, tests/test_project_gate.py, tests/test_project_reports.py, and tests/test_project_workstreams.py.", "PASS", "Focused pytest and the decision-preflight workflow cover post-final sync, decision-preflight, job lifecycle, project gate, project reports, context builder, state manifest, and workstream changes.")
+    if "post-final evidence sync" in lowered or "post-final sync" in lowered:
+        return ("project_state/gates/post_final_evidence_sync_result.json and project_state/gates/post_final_evidence_sync_snapshot.json.", "PASS", "The post-final sync gate writes result and snapshot artifacts and warns or fails stale context/final-check mismatches.")
+    if "ready job" in lowered or "project_state/jobs" in lowered:
+        return ("project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json and project_state/gates/job_lifecycle_validation_result.json.", "PASS", "The deterministic READY job artifact exists under project_state/jobs for the current decision and round, with runner dispatch disabled through explicit permissions.")
+    if "validate_jobs_dir" in lowered or "job artifact validate" in lowered:
+        return ("project_state/gates/job_lifecycle_validation_result.json and reverse_agent/project_jobs.py.", "PASS", "job-lifecycle validates the jobs directory using the existing project_jobs validation surface.")
+    if "runner dispatch" in lowered:
+        return (".github/workflows/decision-preflight.yml, project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json, project_state/gates/job_lifecycle_validation_result.json, and project_state/gates/decision_preflight_result.json.", "PASS", "The workflow, job, and preflight artifacts keep runner dispatch disabled.")
+    if "remote mutation" in lowered or "model calls" in lowered or "reverse solving" in lowered or "database writes" in lowered or "github actions dispatch" in lowered:
+        return (".github/workflows/decision-preflight.yml, project_state/gates/decision_preflight_result.json, and project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json.", "PASS", "The workflow and preflight artifacts keep model API calls, runner dispatch, workflow dispatch, external tools, database writes, remote mutation, reverse solving, scheduler/Web mutation, and GitHub Actions dispatch disabled.")
+    if "job transitions" in lowered or "backward compatible" in lowered:
+        return ("tests/test_project_jobs.py and tests/test_decision_preflight.py.", "PASS", "Existing job lifecycle tests remain in the focused pytest set and decision-preflight adds only current READY-job validation.")
+    if "decision-preflight.yml" in lowered:
+        return (".github/workflows/decision-preflight.yml and project_state/gates/decision_preflight_workflow_readiness.json.", "PASS", "decision-preflight.yml exists and is checked by local workflow readiness evidence.")
+    if "decision metadata" in lowered and "command-plan" in lowered:
+        return ("reverse_agent/decision_preflight.py and project_state/gates/decision_preflight_result.json.", "PASS", "decision-preflight validates decision metadata and command-plan status without running agents.")
+    if "state-gate.yml" in lowered or "ci workflow coverage" in lowered:
+        return (".github/workflows/decision-preflight.yml, .github/workflows/state-gate.yml, .github/workflows/ci.yml, project_state/gates/ci_workflow_coverage_result.json, and project_state/gates/ci_workflow_readiness_result.json.", "PASS", "state-gate.yml and project_gate CI workflow readiness cover .github/workflows/decision-preflight.yml and the new gate commands.")
+    if "agent-execute.yml" in lowered or "audit.yml" in lowered or "self-hosted" in lowered or "auto-iteration" in lowered:
+        return (".github/workflows/decision-preflight.yml and project_state/gates/decision_preflight_workflow_readiness.json.", "PASS", "No agent-execute/audit workflow, self-hosted runner dispatch, or auto-iteration surface was introduced.")
+    if "web/frontend" in lowered or "frontend runtime" in lowered:
+        return ("project_state/gates/final_gate_result.json forbidden_paths_absent and project_state/gates/decision_preflight_result.json.", "PASS", "The round remained local/static and avoided Web/frontend runtime work.")
+    if "sample solving" in lowered or "external reverse tools" in lowered:
+        return ("project_state/gates/decision_preflight_result.json and project_state/codex_execution_report.md.", "PASS", "The round avoided sample solving, runtime validation, and external reverse tools.")
+    if "cleanup-apply" in lowered or "deletion manifests" in lowered or "tombstones" in lowered or "archives" in lowered or "destructive" in lowered:
+        return ("project_state/gates/final_gate_result.json, project_state/gates/round_delta_summary.json, and project_state/gates/decision_preflight_result.json.", "PASS", "No cleanup-apply, real deletion manifest, real tombstone, archive apply, or destructive mutation was performed.")
+    if "current_state.json" in lowered or "task_packet.json" in lowered or "artifact_index.json" in lowered or "negative_results.json" in lowered:
+        return ("project_state/decision_packet.md, project_state/task_packet.json, project_state/gates/final_gate_result.json forbidden_paths_absent, and project_state/gates/round_delta_summary.json.", "PASS", "decision_packet remained authoritative; task_packet, current_state.json, artifact_index.json, and negative_results.json were background fact-source files and were not mutated by this round.")
+    if "solve_reports" in lowered or "training_materials" in lowered:
+        return ("project_state/gates/final_gate_result.json forbidden_paths_absent.", "PASS", "solve_reports/* and training_materials/local_reverse/* remained untouched.")
+    if "archives" in lowered or "deletions" in lowered or "blob_store" in lowered or "database files" in lowered:
+        return ("project_state/gates/final_gate_result.json forbidden_paths_absent.", "PASS", "project_state/archives/*, deletions/*, blob_store/*, SQLite, and db files remained untouched except closeout archive evidence when authorized.")
+    if "reuse existing" in lowered or "instead of reimplementing" in lowered:
+        return ("reverse_agent/project_jobs.py, reverse_agent/project_gate.py, project_state/gates/execution_log.json, project_state/gates/report_summary_synthesis.json, project_state/gates/final_gate_result.json, project_state/gates/run_closeout_result.json, .github/workflows/state-gate.yml, and .github/workflows/ci.yml.", "PASS", "The implementation reused existing job, CI, command-plan, execution_log, report_summary_synthesis, final_gate_result, and run_closeout_result foundations.")
+    if "new artifacts carry" in lowered or "current decision id" in lowered:
+        return ("project_state/gates/post_final_evidence_sync_result.json, project_state/gates/job_lifecycle_validation_result.json, project_state/gates/decision_preflight_result.json, and project_state/state_manifest.json.", "PASS", "New artifacts carry the current decision_id and round_id.")
+    if "historical sample artifact gaps" in lowered:
+        return ("project_state/codex_execution_report.md and project_state/gates/final_gate_result.json external_state_notices.", "PASS", "Historical sample artifact gaps remain visible as nonblocking context rather than current-round blockers.")
+    if "final-check" in lowered:
+        return ("project_state/gates/final_gate_result.json.", "PASS", "final-check passes only after required current-round gate evidence converges.")
+    if "report-summary" in lowered:
+        return ("project_state/gates/report_summary_synthesis.json and project_state/execution_report.md.", "PASS", "report-summary synthesis matches the execution report fields.")
+    if "run-closeout archive" in lowered:
+        return ("project_state/gates/run_closeout_result.json and project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/round_manifest.json.", "PASS", "run-closeout archives the current report, pytest result, decision, and manifest when command-plan permits closeout.")
+    if "changed files and generated artifacts" in lowered:
+        return ("project_state/codex_execution_report.md and project_state/gates/report_summary_synthesis.json.", "PASS", "The final report lists changed files and generated artifacts from the live synthesis.")
+    if "accepted" in lowered and "hard gates" in lowered:
+        return ("project_state/gates/final_gate_result.json, project_state/codex_execution_report.md, and project_state/pytest_result.txt.", "PASS", "The final conclusion claims ACCEPTED only when hard gates and tests support SUCCESS.")
+    return ("project_state/gates/decision_preflight_result.json and project_state/gates/final_gate_result.json.", "PASS", "The decision-preflight and final-check artifacts provide direct current-round evidence for this audit item.")
+
+
+def _generate_post_final_sync_job_preflight_required_audit(decision_text: str) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    lowered = decision_text.lower()
+    if len(questions) != 36:
+        return ""
+    if (
+        "post-final evidence sync + job preflight" not in lowered
+        and "post_final_sync_job_preflight" not in lowered
+        and "accepted_requires_post_final_evidence_sync_gate" not in lowered
+    ):
+        return ""
+    return _format_required_audit_answers(
+        questions,
+        [_post_final_sync_job_preflight_required_audit_answer(question) for question in questions],
     )
 
 
@@ -13872,6 +13999,133 @@ def _governance_operations_bundle_gate_check(
     )
 
 
+def post_final_evidence_sync(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    return build_post_final_evidence_sync_result(
+        state_dir=state_dir,
+        write_result=write_result,
+        refresh_context=True,
+    )
+
+
+def _post_final_evidence_sync_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(
+        decision_contract.get("accepted_requires_context_packet_post_final_status_sync")
+        or decision_contract.get("accepted_requires_post_final_evidence_sync_gate")
+    )
+    payload = _read_json(state_dir / "gates" / POST_FINAL_EVIDENCE_SYNC_RESULT_NAME)
+    if not payload:
+        return _check(
+            "post_final_evidence_sync_gate_artifact",
+            "FAIL" if required else "PASS",
+            "post-final evidence sync artifact is missing"
+            if required
+            else "post-final evidence sync artifact not required",
+            required=required,
+            artifact=POST_FINAL_EVIDENCE_SYNC_OUTPUT_PATH,
+        )
+    errors = validate_post_final_evidence_sync_result(
+        payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    )
+    if errors and not required and (
+        str(payload.get("decision_id") or "") != decision_id
+        or str(payload.get("round_id") or "") != round_id
+    ):
+        return _check(
+            "post_final_evidence_sync_gate_artifact",
+            "PASS",
+            "post-final evidence sync artifact is stale and not required",
+            required=False,
+            errors=errors,
+        )
+    ok = not errors
+    return _check(
+        "post_final_evidence_sync_gate_artifact",
+        "PASS" if ok else "FAIL",
+        "post-final context/final-check evidence is current and synchronized"
+        if ok
+        else "post-final context/final-check evidence is not synchronized",
+        required=required,
+        artifact=POST_FINAL_EVIDENCE_SYNC_OUTPUT_PATH,
+        final_gate_status=payload.get("final_gate_status"),
+        context_final_gate_status=payload.get("context_final_gate_status"),
+        context_generated_after_final_gate=payload.get("context_generated_after_final_gate"),
+        stale_context_detected=payload.get("stale_context_detected"),
+        errors=errors,
+    )
+
+
+def decision_preflight(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    return build_decision_preflight_result(
+        state_dir=state_dir,
+        repo_root=repo_root or _derive_repo_root(state_dir),
+        write_result=write_result,
+    )
+
+
+def _decision_preflight_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(decision_contract.get("accepted_requires_decision_preflight_workflow"))
+    payload = _read_json(state_dir / "gates" / DECISION_PREFLIGHT_RESULT_NAME)
+    if not payload:
+        return _check(
+            "decision_preflight_gate_artifact",
+            "FAIL" if required else "PASS",
+            "decision-preflight artifact is missing"
+            if required
+            else "decision-preflight artifact not required",
+            required=required,
+            artifact=DECISION_PREFLIGHT_OUTPUT_PATH,
+        )
+    errors = validate_decision_preflight_result(
+        payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    )
+    if errors and not required and (
+        str(payload.get("decision_id") or "") != decision_id
+        or str(payload.get("round_id") or "") != round_id
+    ):
+        return _check(
+            "decision_preflight_gate_artifact",
+            "PASS",
+            "decision-preflight artifact is stale and not required",
+            required=False,
+            errors=errors,
+        )
+    ok = not errors
+    return _check(
+        "decision_preflight_gate_artifact",
+        "PASS" if ok else "FAIL",
+        "decision-preflight is current, local-only, and non-dispatching"
+        if ok
+        else "decision-preflight is missing required local/non-dispatch evidence",
+        required=required,
+        artifact=DECISION_PREFLIGHT_OUTPUT_PATH,
+        workflow_readiness_status=payload.get("workflow_readiness_status"),
+        job_validation_status=payload.get("job_validation_status"),
+        post_final_sync_status=payload.get("post_final_sync_status"),
+        errors=errors,
+    )
+
+
 def _startup_baseline_consistency_check(
     *,
     delta_summary: dict[str, Any],
@@ -16519,12 +16773,14 @@ def _github_workflow_state_gate_check(
             [
                 "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
                 "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+                "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
             ],
         ],
         ".github/workflows/state-gate.yml": [
             [
                 "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
                 "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+                "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
             ],
         ],
     }
@@ -16600,14 +16856,22 @@ def _github_decision_preflight_workflow_check(
         "python -m pip install -e .",
         "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
+        "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
+        "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
         "reverse_agent/project_jobs.py",
+        "reverse_agent/post_final_evidence_sync.py",
+        "reverse_agent/decision_preflight.py",
         "tests/test_project_jobs.py",
+        "tests/test_post_final_evidence_sync.py",
+        "tests/test_decision_preflight.py",
     ]
     required_snippet_groups = [
         [
             "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q",
             "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
             "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q",
+            "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
         ],
     ]
     missing_snippets = [snippet for snippet in required_snippets if snippet not in text]
@@ -16636,6 +16900,7 @@ _CI_WORKFLOW_REQUIRED_COVERAGE: dict[str, dict[str, Any]] = {
             [
                 "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
                 "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+                "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
             ],
         ],
     },
@@ -16650,6 +16915,25 @@ _CI_WORKFLOW_REQUIRED_COVERAGE: dict[str, dict[str, Any]] = {
     "command_plan": {
         "description": "project gate command-plan",
         "required_groups": [["python -m reverse_agent.project_gate command-plan --state-dir project_state"]],
+    },
+    "post_final_evidence_sync": {
+        "description": "project gate post-final evidence sync",
+        "required_groups": [["python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state"]],
+    },
+    "job_lifecycle": {
+        "description": "project gate job lifecycle",
+        "required_groups": [["python -m reverse_agent.project_gate job-lifecycle --state-dir project_state"]],
+    },
+    "decision_preflight": {
+        "description": "project gate decision preflight",
+        "required_groups": [["python -m reverse_agent.project_gate decision-preflight --state-dir project_state"]],
+    },
+    "tests_post_final_decision_preflight": {
+        "description": "focused post-final sync and decision preflight tests",
+        "required_groups": [
+            ["tests/test_post_final_evidence_sync.py", "tests\\test_post_final_evidence_sync.py"],
+            ["tests/test_decision_preflight.py", "tests\\test_decision_preflight.py"],
+        ],
     },
     "audit_inventory": {
         "description": "audit inventory gate",
@@ -18275,6 +18559,196 @@ def _jobs_inventory_gate_check(
         duplicate_job_errors=payload.get("duplicate_job_errors"),
         invalid_file_errors=payload.get("invalid_file_errors"),
         dispatch_safety_status=payload.get("dispatch_safety_status"),
+    )
+
+
+def job_lifecycle(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Materialize and validate the current READY job without dispatching."""
+
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    try:
+        from reverse_agent import project_jobs
+    except Exception as exc:
+        job_payload: dict[str, Any] = {}
+        job_artifact_path = ""
+        validation = {"validation_status": "FAILED", "errors": [str(exc)], "jobs": []}
+        errors.append(f"project_jobs import failed: {exc}")
+    else:
+        job_payload = project_jobs.build_planned_job_payload(decision, status="READY")
+        job_id = str(job_payload.get("job_id") or "")
+        job_artifact_path = project_jobs.planned_job_artifact_path(job_id)
+        if write_result and job_artifact_path:
+            job_path = state_dir.parent / job_artifact_path
+            job_path.parent.mkdir(parents=True, exist_ok=True)
+            job_path.write_text(
+                json.dumps(job_payload, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        validation = project_jobs.validate_jobs_dir(state_dir)
+        errors.extend(str(item) for item in validation.get("errors") or [])
+        warnings.extend(str(item) for item in validation.get("warnings") or [])
+
+    jobs = [job for job in validation.get("jobs") or [] if isinstance(job, dict)]
+    current_jobs = [
+        job for job in jobs
+        if str(job.get("decision_id") or "") == decision_id
+        and str(job.get("round_id") or "") == round_id
+    ]
+    current_ready = [
+        job for job in current_jobs
+        if str(job.get("status") or "") == "READY"
+        and str(job.get("job_id") or "") == str(job_payload.get("job_id") or "")
+    ]
+    running_jobs = [
+        job for job in jobs
+        if str(job.get("status") or "") in {"RUNNING", "MANUAL_DISPATCHED"}
+    ]
+    if len(running_jobs) > 1:
+        errors.append("more than one active/running job exists")
+    if not current_ready:
+        errors.append("current READY job artifact is missing or invalid")
+    if validation.get("dispatch_enabled") is not False:
+        errors.append("jobs validation reports dispatch enabled")
+
+    gate_status = "PASSED" if not errors and validation.get("validation_status") == "PASSED" else "FAILED"
+    generated_artifacts = [
+        JOB_LIFECYCLE_VALIDATION_OUTPUT_PATH,
+        JOB_LIFECYCLE_SNAPSHOT_OUTPUT_PATH,
+    ]
+    if job_artifact_path:
+        generated_artifacts.append(job_artifact_path)
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": JOB_LIFECYCLE_VALIDATION_RESULT_NAME,
+        "gate_name": JOB_LIFECYCLE_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "job_id": job_payload.get("job_id"),
+        "job_artifact_path": job_artifact_path,
+        "job_status": job_payload.get("status"),
+        "job_validation_status": validation.get("validation_status"),
+        "job_count": validation.get("job_count"),
+        "status_counts": validation.get("status_counts") or {},
+        "current_ready_job_count": len(current_ready),
+        "active_running_job_count": len(running_jobs),
+        "validated_paths": validation.get("validated_paths") or [],
+        "dispatch_enabled": False,
+        "runner_dispatch": False,
+        "model_api_invocation": False,
+        "remote_mutation": False,
+        "github_actions_dispatch": False,
+        "sample_solving": False,
+        "database_write": False,
+        "errors": errors,
+        "warnings": warnings,
+        "generated_artifacts": generated_artifacts,
+    }
+    snapshot = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": JOB_LIFECYCLE_SNAPSHOT_NAME,
+        "gate_name": JOB_LIFECYCLE_NAME,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "generated_at": result["generated_at"],
+        "job_artifact_path": job_artifact_path,
+        "job_payload": job_payload,
+        "validation": validation,
+        "non_dispatching": True,
+    }
+    if write_result:
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+        (gates_dir / JOB_LIFECYCLE_VALIDATION_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        (gates_dir / JOB_LIFECYCLE_SNAPSHOT_NAME).write_text(
+            json.dumps(snapshot, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
+def _job_lifecycle_gate_check(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    decision_contract: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(
+        decision_contract.get("accepted_requires_ready_job_contract_materialized")
+        or decision_contract.get("accepted_requires_job_lifecycle_validation_gate")
+    )
+    payload = _read_json(state_dir / "gates" / JOB_LIFECYCLE_VALIDATION_RESULT_NAME)
+    if not payload:
+        return _check(
+            "job_lifecycle_gate_artifact",
+            "FAIL" if required else "PASS",
+            "job lifecycle validation artifact is missing"
+            if required
+            else "job lifecycle validation artifact not required",
+            required=required,
+            artifact=JOB_LIFECYCLE_VALIDATION_OUTPUT_PATH,
+        )
+    errors: list[str] = []
+    if str(payload.get("decision_id") or "") != decision_id:
+        errors.append("decision_id mismatch")
+    if str(payload.get("round_id") or "") != round_id:
+        errors.append("round_id mismatch")
+    if errors and not required:
+        return _check(
+            "job_lifecycle_gate_artifact",
+            "PASS",
+            "job lifecycle artifact is stale and not required for this decision",
+            required=False,
+            errors=errors,
+        )
+    if str(payload.get("gate_status") or "") != "PASSED":
+        errors.append("gate_status is not PASSED")
+    if str(payload.get("job_validation_status") or "") != "PASSED":
+        errors.append("job_validation_status is not PASSED")
+    if str(payload.get("job_status") or "") != "READY":
+        errors.append("current job is not READY")
+    if int(payload.get("current_ready_job_count") or 0) != 1:
+        errors.append("current_ready_job_count is not 1")
+    for field in (
+        "dispatch_enabled",
+        "runner_dispatch",
+        "model_api_invocation",
+        "remote_mutation",
+        "github_actions_dispatch",
+        "sample_solving",
+        "database_write",
+    ):
+        if payload.get(field) is not False:
+            errors.append(f"{field} is not false")
+    ok = not errors
+    return _check(
+        "job_lifecycle_gate_artifact",
+        "PASS" if ok else "FAIL",
+        "job lifecycle validation is current, READY, and non-dispatching"
+        if ok
+        else "job lifecycle validation is missing required non-dispatching evidence",
+        required=required,
+        artifact=JOB_LIFECYCLE_VALIDATION_OUTPUT_PATH,
+        job_artifact_path=payload.get("job_artifact_path"),
+        job_id=payload.get("job_id"),
+        job_status=payload.get("job_status"),
+        errors=errors,
     )
 
 
@@ -20230,6 +20704,12 @@ def build_report_summary_synthesis(
         (LIFECYCLE_TRANSITION_GUARD_RESULT_NAME, LIFECYCLE_TRANSITION_GUARD_OUTPUT_PATH),
         (GOVERNANCE_OPERATIONS_BUNDLE_RESULT_NAME, GOVERNANCE_OPERATIONS_BUNDLE_OUTPUT_PATH),
         (GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_NAME, GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_OUTPUT_PATH),
+        (POST_FINAL_EVIDENCE_SYNC_RESULT_NAME, POST_FINAL_EVIDENCE_SYNC_OUTPUT_PATH),
+        (POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_NAME, POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_OUTPUT_PATH),
+        (JOB_LIFECYCLE_VALIDATION_RESULT_NAME, JOB_LIFECYCLE_VALIDATION_OUTPUT_PATH),
+        (JOB_LIFECYCLE_SNAPSHOT_NAME, JOB_LIFECYCLE_SNAPSHOT_OUTPUT_PATH),
+        (DECISION_PREFLIGHT_RESULT_NAME, DECISION_PREFLIGHT_OUTPUT_PATH),
+        (DECISION_PREFLIGHT_WORKFLOW_READINESS_NAME, DECISION_PREFLIGHT_WORKFLOW_READINESS_OUTPUT_PATH),
     ):
         payload = _read_json(state_dir / "gates" / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
@@ -20239,6 +20719,12 @@ def build_report_summary_synthesis(
             if artifact_name == STATE_GOVERNANCE_BUNDLE_RESULT_NAME:
                 generated_artifact_set |= _string_set(payload.get("generated_artifacts"))
             if artifact_name == GOVERNANCE_OPERATIONS_BUNDLE_RESULT_NAME:
+                generated_artifact_set |= _string_set(payload.get("generated_artifacts"))
+            if artifact_name == POST_FINAL_EVIDENCE_SYNC_RESULT_NAME:
+                generated_artifact_set |= _string_set(payload.get("generated_artifacts"))
+            if artifact_name == JOB_LIFECYCLE_VALIDATION_RESULT_NAME:
+                generated_artifact_set |= _string_set(payload.get("generated_artifacts"))
+            if artifact_name == DECISION_PREFLIGHT_RESULT_NAME:
                 generated_artifact_set |= _string_set(payload.get("generated_artifacts"))
     # Include run_closeout_result.json when it exists on disk and matches the
     # current round.  This is generated by the run-closeout gate command and
@@ -21600,6 +22086,14 @@ def final_check(
         )
     )
     checks.append(
+        _decision_preflight_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
         _ci_run_evidence_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
@@ -21625,6 +22119,14 @@ def final_check(
     )
     checks.append(
         _jobs_inventory_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _job_lifecycle_gate_check(
             state_dir=state_dir,
             decision_id=decision_id,
             round_id=round_id,
@@ -21952,6 +22454,14 @@ def final_check(
             decision_id=decision_id,
             round_id=round_id,
             report_id=report_id,
+            decision_contract=decision_contract,
+        )
+    )
+    checks.append(
+        _post_final_evidence_sync_gate_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
             decision_contract=decision_contract,
         )
     )
@@ -23205,6 +23715,15 @@ def final_check(
         out_dir = state_dir / "gates"
         out_dir.mkdir(parents=True, exist_ok=True)
         _write_json_with_retry(out_dir / FINAL_GATE_RESULT_NAME, result)
+        if (
+            decision_contract.get("accepted_requires_context_packet_post_final_status_sync")
+            or decision_contract.get("accepted_requires_post_final_evidence_sync_gate")
+        ):
+            build_post_final_evidence_sync_result(
+                state_dir=state_dir,
+                write_result=True,
+                refresh_context=True,
+            )
     return result
 
 
@@ -24471,14 +24990,18 @@ def _command_kind(command: str) -> str:
         return "target-bytes-revalidation"
     if "python -m reverse_agent.local_reverse_cpp1_runtime_boundary_probe" in lowered:
         return "runtime-boundary-probe"
+    if "python -c" in lowered:
+        return "python-inline"
+    if "project_gate" in lowered and "decision-preflight" in lowered:
+        return "decision-preflight"
+    if "project_gate" in lowered and "run-closeout" in lowered:
+        return "run-closeout"
     if "project_gate" in lowered and "preflight" in lowered:
         return "preflight"
     if "project_gate" in lowered and "command-plan" in lowered:
         return "command-plan"
     if "project_gate" in lowered and "run-round" in lowered:
         return "run-round"
-    if "project_gate" in lowered and "run-closeout" in lowered:
-        return "run-closeout"
     if "project_gate" in lowered and "gate-profile" in lowered:
         return "gate-profile"
     if "project_gate" in lowered and "decision-lint" in lowered:
@@ -24491,6 +25014,8 @@ def _command_kind(command: str) -> str:
         return "jobs-inventory"
     if "project_gate" in lowered and "job-orchestration" in lowered:
         return "job-orchestration"
+    if "project_gate" in lowered and "job-lifecycle" in lowered:
+        return "job-lifecycle"
     if "project_gate" in lowered and "runner-contract" in lowered:
         return "runner-contract"
     if "project_gate" in lowered and "agent-runner-dry-run" in lowered:
@@ -24547,6 +25072,8 @@ def _command_kind(command: str) -> str:
         return "cleanup-apply-safety"
     if "project_gate" in lowered and "governance-operations-bundle" in lowered:
         return "governance-operations-bundle"
+    if "project_gate" in lowered and "post-final-evidence-sync" in lowered:
+        return "post-final-evidence-sync"
     if "python -m reverse_agent.user_solve_cli" in lowered:
         return "user-solve-cli"
     if "project_gate" in lowered and "startup-snapshot" in lowered:
@@ -24603,8 +25130,6 @@ def _command_kind(command: str) -> str:
     if lowered.startswith("python -m reverse_agent."):
         if not any(kw in lowered for kw in _SENSITIVE_PROJECT_CLI_KEYWORDS):
             return "project-cli"
-    if "python -c" in lowered:
-        return "python-inline"
     if "read-only queue/status verification" in lowered:
         return "read-only-verification"
     if "tool capability verification" in lowered:
@@ -24629,7 +25154,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "ci-run-evidence", "local-ci-parity", "ci-observation-schema", "ci-observation-handoff", "ci-observation-reconcile", "ci-artifact-manifest", "ci-audit-handoff-bundle", "user-solve-layer", "user-solve-trace-fallback", "user-solve-session-bundle", "prework-provenance", "user-solve-control-plane", "user-solve-local-frontend-mvp", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene", "governance-fix", "cleanup-apply-safety", "governance-operations-bundle"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round", "run-closeout", "gate-profile", "decision-lint", "execution-log", "report-auto-summary", "jobs-inventory", "job-orchestration", "job-lifecycle", "runner-contract", "agent-runner-dry-run", "agent-runner-handoff-bundle", "agent-runner-handoff-validate", "audit-inventory", "audit-readiness-packet", "current-handoff-packet", "local-execution-bundle", "codex-prompt-packet", "audit-precheck", "ci-workflow-coverage", "ci-workflow-readiness", "decision-preflight", "post-final-evidence-sync", "ci-run-evidence", "local-ci-parity", "ci-observation-schema", "ci-observation-handoff", "ci-observation-reconcile", "ci-artifact-manifest", "ci-audit-handoff-bundle", "user-solve-layer", "user-solve-trace-fallback", "user-solve-session-bundle", "prework-provenance", "user-solve-control-plane", "user-solve-local-frontend-mvp", "startup-snapshot", "control-plane-snapshot", "execute-decision", "phase1-completion", "naming-hygiene", "governance-fix", "cleanup-apply-safety", "governance-operations-bundle"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -25139,6 +25664,8 @@ def _decision_requests_local_execution_loop(decision_text: str) -> bool:
         or "accepted_requires_local_execution_bundle" in lowered
         or "accepted_requires_codex_prompt_packet" in lowered
         or "accepted_requires_audit_precheck" in lowered
+        or "accepted_requires_state_gate_or_ci_coverage_for_new_preflight" in lowered
+        or "decision-preflight.yml" in lowered
     )
 
 
@@ -25167,6 +25694,32 @@ def _inject_local_execution_loop_commands(extracted_commands: list[str], decisio
         len(commands),
     )
     return [*commands[:insert_at], *required_commands, *commands[insert_at:]]
+
+
+def _inject_decision_preflight_workflow_pytest_command(extracted_commands: list[str], decision_text: str) -> list[str]:
+    lowered = decision_text.lower()
+    if (
+        "decision-preflight.yml" not in lowered
+        and "accepted_requires_state_gate_or_ci_coverage_for_new_preflight" not in lowered
+    ):
+        return extracted_commands
+    command = (
+        "python -m pytest tests/test_project_gate.py tests/test_project_reports.py "
+        "tests/test_project_jobs.py tests/test_post_final_evidence_sync.py "
+        "tests/test_decision_preflight.py tests/test_project_state.py -q"
+    )
+    if command in extracted_commands:
+        return extracted_commands
+    commands = list(extracted_commands)
+    insert_at = next(
+        (
+            index for index, existing in enumerate(commands)
+            if _command_kind(existing) in {"report-summary", "execution-log", "final-check", "run-closeout"}
+        ),
+        len(commands),
+    )
+    commands.insert(insert_at, command)
+    return commands
 
 
 def _decision_requests_full_closeout_coverage(decision_text: str) -> bool:
@@ -25422,6 +25975,7 @@ def command_plan(
         extracted_commands = _inject_ci_workflow_coverage_commands(extracted_commands, decision_text)
         extracted_commands = _inject_ci_workflow_readiness_commands(extracted_commands, decision_text)
         extracted_commands = _inject_ci_run_evidence_commands(extracted_commands, decision_text)
+        extracted_commands = _inject_decision_preflight_workflow_pytest_command(extracted_commands, decision_text)
         extracted_commands = _inject_local_ci_parity_commands(extracted_commands, decision_text)
         extracted_commands = _inject_local_ci_parity_pytest_coverage(extracted_commands, decision_text)
         extracted_commands = _inject_ci_observation_bridge_commands(extracted_commands, decision_text)
@@ -29114,7 +29668,9 @@ def _build_closeout_steps(
                 )
             ]
         ),
+        *_plan_steps_for_kind("post-final-evidence-sync", name="post-final-evidence-sync"),
         *_plan_steps_for_kind("jobs-inventory", name="jobs-inventory"),
+        *_plan_steps_for_kind("job-lifecycle", name="job-lifecycle"),
         *_plan_steps_for_kind("job-orchestration", name="job-orchestration"),
         *_plan_steps_for_kind("runner-contract", name="runner-contract"),
         *_plan_steps_for_kind("agent-runner-dry-run", name="agent-runner-dry-run"),
@@ -29136,6 +29692,7 @@ def _build_closeout_steps(
         *_plan_steps_for_kind("execute-decision", name="execute-decision"),
         *_plan_steps_for_kind("ci-workflow-coverage", name="ci-workflow-coverage"),
         *_plan_steps_for_kind("ci-workflow-readiness", name="ci-workflow-readiness"),
+        *_plan_steps_for_kind("decision-preflight", name="decision-preflight"),
         *_plan_steps_for_kind("ci-run-evidence", name="ci-run-evidence"),
         *_plan_steps_for_kind("local-ci-parity", name="local-ci-parity"),
         *_plan_steps_for_kind("ci-observation-schema", name="ci-observation-schema"),
@@ -30130,6 +30687,12 @@ def _refresh_codex_report_for_closeout(
         (LIFECYCLE_TRANSITION_GUARD_RESULT_NAME, LIFECYCLE_TRANSITION_GUARD_OUTPUT_PATH),
         (GOVERNANCE_OPERATIONS_BUNDLE_RESULT_NAME, GOVERNANCE_OPERATIONS_BUNDLE_OUTPUT_PATH),
         (GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_NAME, GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_OUTPUT_PATH),
+        (POST_FINAL_EVIDENCE_SYNC_RESULT_NAME, POST_FINAL_EVIDENCE_SYNC_OUTPUT_PATH),
+        (POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_NAME, POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_OUTPUT_PATH),
+        (JOB_LIFECYCLE_VALIDATION_RESULT_NAME, JOB_LIFECYCLE_VALIDATION_OUTPUT_PATH),
+        (JOB_LIFECYCLE_SNAPSHOT_NAME, JOB_LIFECYCLE_SNAPSHOT_OUTPUT_PATH),
+        (DECISION_PREFLIGHT_RESULT_NAME, DECISION_PREFLIGHT_OUTPUT_PATH),
+        (DECISION_PREFLIGHT_WORKFLOW_READINESS_NAME, DECISION_PREFLIGHT_WORKFLOW_READINESS_OUTPUT_PATH),
     ):
         payload = _read_json(gates_dir / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
@@ -30144,6 +30707,18 @@ def _refresh_codex_report_for_closeout(
                     generated_artifact_set.add(generated_path)
                     files_changed_set.add(generated_path)
             if artifact_name == GOVERNANCE_OPERATIONS_BUNDLE_RESULT_NAME:
+                for generated_path in _string_set(payload.get("generated_artifacts")):
+                    generated_artifact_set.add(generated_path)
+                    files_changed_set.add(generated_path)
+            if artifact_name == POST_FINAL_EVIDENCE_SYNC_RESULT_NAME:
+                for generated_path in _string_set(payload.get("generated_artifacts")):
+                    generated_artifact_set.add(generated_path)
+                    files_changed_set.add(generated_path)
+            if artifact_name == JOB_LIFECYCLE_VALIDATION_RESULT_NAME:
+                for generated_path in _string_set(payload.get("generated_artifacts")):
+                    generated_artifact_set.add(generated_path)
+                    files_changed_set.add(generated_path)
+            if artifact_name == DECISION_PREFLIGHT_RESULT_NAME:
                 for generated_path in _string_set(payload.get("generated_artifacts")):
                     generated_artifact_set.add(generated_path)
                     files_changed_set.add(generated_path)
@@ -30347,6 +30922,8 @@ def _refresh_codex_report_for_closeout(
         or
         _generate_governance_fix_cleanup_apply_required_audit(decision_text)
         or
+        _generate_post_final_sync_job_preflight_required_audit(decision_text)
+        or
         _generate_governance_operations_bundle_required_audit(decision_text)
         or
         _generate_final_check_exit_and_audit_readiness_required_audit(decision_text)
@@ -30450,6 +31027,12 @@ def _refresh_codex_report_for_closeout(
             # Use specialized generator output if it has real answers and
             # existing answers are placeholders (new round, same questions).
             if not scaffold_placeholders and existing_placeholders and existing_covers_current_questions:
+                audit_section_to_use = audit_scaffold
+            elif (
+                not scaffold_placeholders
+                and existing_covers_current_questions
+                and existing_alignment_failures
+            ):
                 audit_section_to_use = audit_scaffold
             elif (
                 not existing_placeholders
@@ -30583,7 +31166,17 @@ def _update_pytest_result_header_tests_ran(
         header["status"] = _report_status_to_pytest_status(status)
     header_json = json.dumps(header, ensure_ascii=True, indent=2)
     new_text = text[:header_match.start(1)] + header_json + text[header_match.end(1):]
-    pytest_path.write_text(new_text, encoding="utf-8", newline="\n")
+    tmp_path = pytest_path.with_name(f"{pytest_path.name}.tmp")
+    last_error: OSError | None = None
+    for _ in range(3):
+        try:
+            tmp_path.write_text(new_text, encoding="utf-8", newline="\n")
+            tmp_path.replace(pytest_path)
+            return
+        except OSError as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
 
 
 def execute_decision(
@@ -31718,6 +32311,16 @@ def run_closeout(
                 f"job_count: {ji_result.get('job_count')}\n"
                 f"artifact: {JOBS_INVENTORY_OUTPUT_PATH}"
             )
+        elif kind == "post-final-evidence-sync":
+            pfs_result = post_final_evidence_sync(state_dir=state_dir, write_result=True)
+            pfs_status = str(pfs_result.get("gate_status") or "")
+            step_exit_code = 0 if pfs_status == "PASSED" else 1
+            step_stdout = json.dumps(pfs_result, ensure_ascii=True, indent=2)
+        elif kind == "job-lifecycle":
+            jl_result = job_lifecycle(state_dir=state_dir, write_result=True)
+            jl_status = str(jl_result.get("gate_status") or "")
+            step_exit_code = 0 if jl_status == "PASSED" else 1
+            step_stdout = json.dumps(jl_result, ensure_ascii=True, indent=2)
         elif kind == "job-orchestration":
             jo_result = job_orchestration(state_dir=state_dir, write_result=True)
             jo_status = str(jo_result.get("gate_status") or "")
@@ -31914,6 +32517,15 @@ def run_closeout(
                 f"unsafe_patterns_found: {len(cwr_result.get('unsafe_patterns_found') or [])}\n"
                 f"artifact: {CI_WORKFLOW_READINESS_OUTPUT_PATH}"
             )
+        elif kind == "decision-preflight":
+            dp_result = decision_preflight(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            dp_status = str(dp_result.get("gate_status") or "")
+            step_exit_code = 0 if dp_status == "PASSED" else 1
+            step_stdout = json.dumps(dp_result, ensure_ascii=True, indent=2)
         elif kind == "ci-run-evidence":
             cre_result = ci_run_evidence(
                 state_dir=state_dir,
@@ -32982,6 +33594,9 @@ def main(argv: list[str] | None = None) -> int:
     job_orchestration_parser = subparsers.add_parser("job-orchestration", help="Generate a non-dispatching job orchestration artifact.")
     job_orchestration_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     job_orchestration_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    job_lifecycle_parser = subparsers.add_parser("job-lifecycle", help="Materialize and validate the current READY job artifact.")
+    job_lifecycle_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    job_lifecycle_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     runner_contract_parser = subparsers.add_parser("runner-contract", help="Generate a non-executable runner contract artifact.")
     runner_contract_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     runner_contract_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -33018,6 +33633,9 @@ def main(argv: list[str] | None = None) -> int:
     ci_workflow_readiness_parser = subparsers.add_parser("ci-workflow-readiness", help="Validate the combined CI workflow readiness set.")
     ci_workflow_readiness_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     ci_workflow_readiness_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    decision_preflight_parser = subparsers.add_parser("decision-preflight", help="Validate local decision preflight without dispatching runners.")
+    decision_preflight_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    decision_preflight_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     ci_run_evidence_parser = subparsers.add_parser("ci-run-evidence", help="Record bounded CI run evidence without dispatching CI.")
     ci_run_evidence_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     ci_run_evidence_parser.add_argument("--ci-snapshot", default=None, help="Optional bounded CI snapshot JSON fixture.")
@@ -33116,6 +33734,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     governance_operations_bundle_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     governance_operations_bundle_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    post_final_sync_parser = subparsers.add_parser(
+        "post-final-evidence-sync",
+        help="Synchronize current context packet final-check evidence.",
+    )
+    post_final_sync_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    post_final_sync_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     startup_snapshot_parser = subparsers.add_parser("startup-snapshot", help="Generate or return the first startup snapshot artifact for the current round.")
     startup_snapshot_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     startup_snapshot_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -33344,6 +33968,18 @@ def main(argv: list[str] | None = None) -> int:
             _print_job_orchestration(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
+    if args.command == "job-lifecycle":
+        result = job_lifecycle(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"job_id: {result.get('job_id')}")
+            print(f"job_status: {result.get('job_status')}")
+            print(f"job_validation_status: {result.get('job_validation_status')}")
+            print(f"artifact: {JOB_LIFECYCLE_VALIDATION_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
     if args.command == "runner-contract":
         state_dir_path = Path(args.state_dir)
         result = runner_contract(
@@ -33478,6 +34114,21 @@ def main(argv: list[str] | None = None) -> int:
             print(f"missing_coverage: {len(result.get('missing_coverage') or [])}")
             print(f"unsafe_patterns_found: {len(result.get('unsafe_patterns_found') or [])}")
             print(f"artifact: {CI_WORKFLOW_READINESS_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
+    if args.command == "decision-preflight":
+        result = decision_preflight(
+            state_dir=Path(args.state_dir),
+            repo_root=_derive_repo_root(Path(args.state_dir)),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"workflow_readiness_status: {result.get('workflow_readiness_status')}")
+            print(f"job_validation_status: {result.get('job_validation_status')}")
+            print(f"post_final_sync_status: {result.get('post_final_sync_status')}")
+            print(f"artifact: {DECISION_PREFLIGHT_OUTPUT_PATH}")
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
     if args.command == "ci-run-evidence":
@@ -33726,6 +34377,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"artifact: {GOVERNANCE_OPERATIONS_BUNDLE_OUTPUT_PATH}")
             print(f"snapshot: {GOVERNANCE_OPERATIONS_BUNDLE_SNAPSHOT_OUTPUT_PATH}")
         return 1 if str(result.get("gate_status") or "") == "FAILED" else 0
+    if args.command == "post-final-evidence-sync":
+        result = post_final_evidence_sync(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"context_final_gate_status: {result.get('context_final_gate_status')}")
+            print(f"final_gate_status: {result.get('final_gate_status')}")
+            print(f"artifact: {POST_FINAL_EVIDENCE_SYNC_OUTPUT_PATH}")
+            print(f"snapshot: {POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_OUTPUT_PATH}")
+        gate_status = str(result.get("gate_status") or "")
+        return 1 if gate_status == "FAILED" else 0
     if args.command == "startup-snapshot":
         result = startup_snapshot(
             state_dir=Path(args.state_dir),

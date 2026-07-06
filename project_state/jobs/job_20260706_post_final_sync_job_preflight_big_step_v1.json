@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "job_id": "job_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "mainline": "engineering_branch",
+  "status": "READY",
+  "runner": {
+    "kind": "none",
+    "dispatch_enabled": false
+  },
+  "required_inputs": [
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json"
+  ],
+  "required_outputs": [
+    "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
+    "project_state/gates/job_orchestration_result.json",
+    "project_state/gates/runner_contract_result.json",
+    "project_state/gates/control_plane_snapshot.json",
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt"
+  ],
+  "permissions": {
+    "allow_remote_mutation": false,
+    "allow_llm_calls": false,
+    "allow_agent_dispatch": false,
+    "allow_reverse_solving": false,
+    "allow_github_actions": false,
+    "allow_database_writes": false,
+    "allow_scheduler": false,
+    "allow_web_ui_mutation": false
+  },
+  "budgets": {
+    "max_runtime_seconds": 0,
+    "max_commands": 0
+  },
+  "orchestration": {
+    "planning_mode": "non_dispatching",
+    "dispatch_policy": "disabled_by_default",
+    "task_contract_path": "project_state/decision_packet.md",
+    "command_plan_path": "project_state/gates/command_plan.json",
+    "execution_authority": "project_state/gates/command_plan.json"
+  }
+}

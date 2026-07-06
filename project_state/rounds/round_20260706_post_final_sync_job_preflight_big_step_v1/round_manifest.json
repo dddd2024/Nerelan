@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-07-06T06:37:16Z",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260706_post_final_sync_job_preflight_big_step_v1\\codex_execution_report.md",
+      "sha256": "4529966fbd0277abb47055cc54ad5a390838525d6fc2bd7cb3b01c6105c3319b",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260706_post_final_sync_job_preflight_big_step_v1\\decision_packet.md",
+      "sha256": "e44f621fbba90030d4ec29d67c0c6627aa551f170b86c2795e87e168ce3fc087",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260706_post_final_sync_job_preflight_big_step_v1\\pytest_result.txt",
+      "sha256": "124819a97a8a523eb907ffede2076fbef337ad825e42f8d4485dde6861482b88",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260706_post_final_sync_job_preflight_big_step_v1\\execution_report.md",
+      "sha256": "fce8bff8846f31db8f54e027666ff8a49c4a8e018cf5bf890fefded968d97956",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "schema_version": 1,
+  "source_git_commit": "9b91b28dd0e3",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

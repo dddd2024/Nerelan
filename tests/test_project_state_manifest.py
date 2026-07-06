@@ -98,6 +98,18 @@ def test_state_manifest_indexes_current_state_without_promoting_sample_gaps(tmp_
     assert manifest["artifact_kind"] == "governance_index"
     assert manifest["authority"]["governance_artifacts_are_fact_source_replacements"] is False
     assert manifest["artifact_roles"]["historical_nonblocking"]["task_packet"]["role"] == "historical_nonblocking"
+    assert manifest["artifact_roles"]["generated_or_updated"]["post_final_evidence_sync"]["path"] == (
+        "project_state/gates/post_final_evidence_sync_result.json"
+    )
+    assert manifest["artifact_roles"]["generated_or_updated"]["job_lifecycle_validation"]["path"] == (
+        "project_state/gates/job_lifecycle_validation_result.json"
+    )
+    assert manifest["artifact_roles"]["generated_or_updated"]["decision_preflight"]["path"] == (
+        "project_state/gates/decision_preflight_result.json"
+    )
+    assert manifest["artifact_roles"]["generated_or_updated"]["current_planned_job"]["path"].endswith(
+        "jobs/job_20260705_project_governance_context_registry_v1.json"
+    )
     assert manifest["artifact_freshness"]["missing_sample_artifacts_blocking_for_current_round"] is False
     assert validate_state_manifest(manifest, decision_id=DECISION_ID, round_id=ROUND_ID) == []
     assert (state_dir / "state_manifest.json").exists()

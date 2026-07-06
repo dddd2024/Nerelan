@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-06T02:29:26.009137Z",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-06T06:05:05.720714Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -26,18 +26,22 @@
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
       "startup_dirty_files": [
-        "docs/cleanup_apply_review_bundle.md",
-        "docs/governance_operations_bundle.md",
-        "docs/round_compaction.md",
-        "docs/state_hygiene_dashboard_feed.md",
-        "docs/state_index_readiness.md"
+        ".github/workflows/ci.yml",
+        ".github/workflows/decision-preflight.yml",
+        ".github/workflows/state-gate.yml",
+        "docs/github_decision_preflight.md",
+        "docs/job_lifecycle_and_decision_preflight.md",
+        "docs/post_final_evidence_sync.md",
+        "project_state/gates/command_plan.json"
       ],
       "baseline_dirty_files": [
-        "docs/cleanup_apply_review_bundle.md",
-        "docs/governance_operations_bundle.md",
-        "docs/round_compaction.md",
-        "docs/state_hygiene_dashboard_feed.md",
-        "docs/state_index_readiness.md"
+        ".github/workflows/ci.yml",
+        ".github/workflows/decision-preflight.yml",
+        ".github/workflows/state-gate.yml",
+        "docs/github_decision_preflight.md",
+        "docs/job_lifecycle_and_decision_preflight.md",
+        "docs/post_final_evidence_sync.md",
+        "project_state/gates/command_plan.json"
       ]
     },
     {
@@ -59,7 +63,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is project_governance",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "project_governance",
@@ -90,7 +94,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1"
+      "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -105,16 +109,37 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "project_state/gates/audit_handoff_for_cleanup_apply.json",
-        "project_state/gates/cleanup_apply_approval_checklist.json",
-        "project_state/gates/cleanup_apply_review_bundle.json",
-        "project_state/gates/cleanup_apply_review_result.json",
-        "project_state/gates/cleanup_apply_review_snapshot.json",
-        "project_state/gates/cleanup_candidate_risk_matrix.json",
-        "project_state/gates/deletion_manifest_dry_run.json",
-        "project_state/gates/evidence_lock_manifest.json",
-        "project_state/gates/rollback_rehearsal_plan.json",
-        "project_state/gates/tombstone_plan_dry_run.json"
+        ".github/workflows/decision-preflight.yml",
+        "Add tests for matching status, stale pre-final context, missing final-check, and nonblocking historical backlog cases.",
+        "Enforce at most one active/running job unless explicitly authorized by a future decision.",
+        "FAILED",
+        "If context is intentionally pre-final, it must say so explicitly and must not look like current final evidence.",
+        "It must not call model APIs.",
+        "It must not dispatch any runner.",
+        "It must not trigger other workflows.",
+        "Job contracts must remain backward compatible with existing tests.",
+        "Job validation must not start execution.",
+        "Keep lock/lease validation deterministic and non-mutating unless writing the planned job artifact itself.",
+        "Keep runner dispatch disabled.",
+        "Preserve command-plan as command authority.",
+        "Preserve existing report-summary and final-check semantics.",
+        "Preserve the previous governance rule that historical sample backlog is visible but nonblocking.",
+        "The READY job must reference this decision and round.",
+        "The fix must preserve the rule that context packet is an index, not a replacement fact source.",
+        "Update command-plan generation so all required commands for this round are represented.",
+        "Update execution-log/report-summary/final-check only as needed to recognize new artifacts and commands.",
+        "Update run-closeout to archive this round if command-plan permits.",
+        "decision_meta",
+        "final_gate_generated_at",
+        "project_context_builder",
+        "project_gate",
+        "project_state/gates/decision_preflight_result.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/jobs/job_20260706_post_final_sync_job_preflight_big_step_v1.json",
+        "reverse_agent/decision_preflight.py",
+        "reverse_agent/project_jobs.py",
+        "state-gate.yml",
+        "workflow_dispatch"
       ]
     },
     {
@@ -152,38 +177,25 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
-        "docs/archive_index.md",
-        "docs/cleanup_apply_review_bundle.md",
-        "docs/deletion_manifest_and_tombstone.md",
-        "docs/governance_operations_bundle.md",
-        "docs/round_compaction.md",
-        "docs/state_hygiene_dashboard_feed.md",
-        "docs/state_hygiene_retention_policy.md",
-        "docs/state_index_readiness.md",
-        "docs/state_manifest.md",
-        "docs/workstream_registry.md",
-        "project_state/retention_policy.json",
-        "project_state/state_lifecycle_registry.json",
-        "reverse_agent/cleanup_apply_safety.py",
+        "docs/github_decision_preflight.md",
+        "docs/job_lifecycle_and_decision_preflight.md",
+        "docs/post_final_evidence_sync.md",
+        "reverse_agent/decision_preflight.py",
+        "reverse_agent/post_final_evidence_sync.py",
         "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_jobs.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state_manifest.py",
         "reverse_agent/project_workstreams.py",
-        "reverse_agent/round_compaction.py",
-        "reverse_agent/state_governance.py",
-        "reverse_agent/state_hygiene.py",
-        "reverse_agent/state_index_readiness.py",
-        "tests/test_cleanup_apply_safety.py",
+        "tests/test_decision_preflight.py",
+        "tests/test_post_final_evidence_sync.py",
         "tests/test_project_context_builder.py",
         "tests/test_project_gate.py",
+        "tests/test_project_jobs.py",
         "tests/test_project_reports.py",
         "tests/test_project_state_manifest.py",
-        "tests/test_project_workstreams.py",
-        "tests/test_round_compaction.py",
-        "tests/test_state_governance.py",
-        "tests/test_state_hygiene.py",
-        "tests/test_state_index_readiness.py"
+        "tests/test_project_workstreams.py"
       ],
       "baseline_source_test_dirty": []
     },
@@ -200,13 +212,15 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      "docs/cleanup_apply_review_bundle.md",
-      "docs/governance_operations_bundle.md",
-      "docs/round_compaction.md",
-      "docs/state_hygiene_dashboard_feed.md",
-      "docs/state_index_readiness.md"
+      ".github/workflows/ci.yml",
+      ".github/workflows/decision-preflight.yml",
+      ".github/workflows/state-gate.yml",
+      "docs/github_decision_preflight.md",
+      "docs/job_lifecycle_and_decision_preflight.md",
+      "docs/post_final_evidence_sync.md",
+      "project_state/gates/command_plan.json"
     ],
-    "head_commit": "457956de4efc"
+    "head_commit": "9b91b28dd0e3"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

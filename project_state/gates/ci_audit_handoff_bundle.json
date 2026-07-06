@@ -2,17 +2,17 @@
   "schema_version": 1,
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
-  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
-  "generated_at": "2026-07-06T02:38:48.900556Z",
-  "handoff_status": "REWORK_REQUIRED",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
+  "generated_at": "2026-07-06T06:37:50.185278Z",
+  "handoff_status": "READY_FOR_AUDIT",
   "source_artifacts": {
     "ci_observation_schema": {
       "artifact": "project_state/gates/ci_observation_schema_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -25,7 +25,7 @@
     "ci_observation_handoff": {
       "artifact": "project_state/gates/ci_observation_handoff_packet.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "AWAITING_EXTERNAL_OBSERVATION",
       "close_round_status": null,
@@ -41,15 +41,13 @@
       "artifact": "project_state/gates/ci_observation_reconcile_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "FAILED",
+      "gate_status": "PASSED",
       "status": "AWAITING_EXTERNAL_OBSERVATION",
       "close_round_status": null,
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [
-        "source artifacts are stale: ci_observation_schema, ci_observation_handoff, ci_run_evidence, local_ci_parity, ci_workflow_coverage, ci_workflow_readiness"
-      ],
+      "errors": [],
       "warnings": [
         "external CI observation is still pending"
       ]
@@ -57,7 +55,7 @@
     "ci_artifact_manifest": {
       "artifact": "project_state/gates/ci_artifact_manifest_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "READY",
       "close_round_status": null,
@@ -70,7 +68,7 @@
     "ci_run_evidence": {
       "artifact": "project_state/gates/ci_run_evidence_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "NOT_OBSERVED",
       "close_round_status": null,
@@ -85,7 +83,7 @@
     "local_ci_parity": {
       "artifact": "project_state/gates/local_ci_parity_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -98,7 +96,7 @@
     "ci_workflow_coverage": {
       "artifact": "project_state/gates/ci_workflow_coverage_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -111,7 +109,7 @@
     "ci_workflow_readiness": {
       "artifact": "project_state/gates/ci_workflow_readiness_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "READY",
       "close_round_status": null,
@@ -175,9 +173,7 @@
     }
   },
   "audit_summary": {
-    "failed_sources": [
-      "ci_observation_reconcile"
-    ],
+    "failed_sources": [],
     "missing_sources": [],
     "external_observation_pending": true,
     "pending_diagnostic_sources": []
@@ -197,8 +193,6 @@
   "generated_artifacts": [
     "project_state/gates/ci_audit_handoff_bundle.json"
   ],
-  "errors": [
-    "source artifact gate failures: ci_observation_reconcile"
-  ],
+  "errors": [],
   "warnings": []
 }

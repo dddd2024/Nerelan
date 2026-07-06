@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "artifact_name": "decision_preflight_result.json",
+  "gate_name": "decision-preflight",
+  "gate_status": "PASSED",
+  "preflight_status": "PASSED",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
+  "generated_at": "2026-07-06T06:37:04Z",
+  "decision_status": "APPROVED",
+  "mainline": "engineering_branch",
+  "requested_skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ],
+  "active_skill_profiles": [
+    "reverse-agent-iteration@2",
+    "reverse-agent-iteration@v2",
+    "samplereverse-frontier@2",
+    "samplereverse-frontier@v2"
+  ],
+  "command_plan_status": "PASSED",
+  "post_final_sync_status": "PASSED",
+  "job_validation_status": "PASSED",
+  "expected_job_id": "job_20260706_post_final_sync_job_preflight_big_step_v1",
+  "current_job_count": 1,
+  "workflow_readiness_status": "READY",
+  "forbidden_capability_checks": {
+    "runner_dispatch": false,
+    "model_api": false,
+    "workflow_dispatch_trigger": false,
+    "sample_solving": false,
+    "database_creation": false
+  },
+  "non_dispatching": true,
+  "runner_dispatch": false,
+  "model_api_invocation": false,
+  "github_actions_dispatch": false,
+  "remote_mutation": false,
+  "database_write": false,
+  "sample_solving": false,
+  "errors": [],
+  "warnings": [
+    "decision contract does not explicitly forbid every checked external capability"
+  ],
+  "generated_artifacts": [
+    "project_state/gates/decision_preflight_result.json",
+    "project_state/gates/decision_preflight_workflow_readiness.json"
+  ]
+}

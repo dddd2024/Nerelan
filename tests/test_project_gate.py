@@ -224,7 +224,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install -e .
-      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+      - run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight"
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
 """,
         encoding="utf-8",
     )
@@ -255,8 +256,39 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m reverse_agent.project_gate preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
-      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+      - run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
+      - run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
+      - run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
       - run: python -m reverse_agent.project_gate final-check --state-dir project_state
+""",
+        encoding="utf-8",
+    )
+    (workflows_dir / "decision-preflight.yml").write_text(
+        """name: Decision Preflight
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decision-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -e .
+      - run: python -m reverse_agent.project_gate preflight --state-dir project_state
+      - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
+      - run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
+      - run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
 """,
         encoding="utf-8",
     )
@@ -17588,7 +17620,7 @@ def test_run_closeout_constants_and_allowlist():
             "git diff", "preflight", "pytest", "command-plan", "report-summary",
                 "doctor", "final-check", "close-round", "decision-lint", "gate-profile",
             "execution-log", "report-auto-summary", "jobs-inventory",
-            "job-orchestration", "runner-contract", "agent-runner-dry-run",
+            "job-orchestration", "job-lifecycle", "runner-contract", "agent-runner-dry-run",
             "agent-runner-handoff-bundle", "agent-runner-handoff-validate",
             "audit-inventory",
             "audit-readiness-packet",
@@ -17598,6 +17630,8 @@ def test_run_closeout_constants_and_allowlist():
             "audit-precheck",
             "ci-workflow-coverage",
             "ci-workflow-readiness",
+            "decision-preflight",
+            "post-final-evidence-sync",
             "ci-run-evidence",
             "local-ci-parity",
             "ci-observation-schema",
@@ -17625,6 +17659,9 @@ def test_run_closeout_constants_and_allowlist():
 
 def test_command_kind_recognizes_run_closeout():
     assert _command_kind("python -m reverse_agent.project_gate run-closeout --state-dir project_state") == "run-closeout"
+    assert _command_kind(
+        "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_post_final_sync_job_preflight_big_step_v1"
+    ) == "run-closeout"
     assert _command_kind("python -m reverse_agent.project_gate gate-profile --state-dir project_state") == "gate-profile"
     assert _command_kind("python -m reverse_agent.project_gate decision-lint --state-dir project_state") == "decision-lint"
 
@@ -24895,7 +24932,11 @@ on:
   pull_request:
     paths:
       - "reverse_agent/project_jobs.py"
+      - "reverse_agent/post_final_evidence_sync.py"
+      - "reverse_agent/decision_preflight.py"
       - "tests/test_project_jobs.py"
+      - "tests/test_post_final_evidence_sync.py"
+      - "tests/test_decision_preflight.py"
   workflow_dispatch:
 permissions:
   contents: read
@@ -24906,7 +24947,10 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m reverse_agent.project_gate preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
-      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
+      - run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
+      - run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
+      - run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
 """,
             encoding="utf-8",
         )
@@ -24937,8 +24981,11 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m reverse_agent.project_gate preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
+      - run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
+      - run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_gate
-      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_project_jobs.py -q
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
 """,
             encoding="utf-8",
         )
@@ -26733,6 +26780,26 @@ def test_command_kind_recognizes_job_orchestration_and_runner_contract_gates() -
     assert "runner-contract" in RUN_CLOSEOUT_ALLOWED_KINDS
 
 
+def test_command_kind_recognizes_post_final_job_lifecycle_and_decision_preflight_gates() -> None:
+    commands = {
+        "post-final-evidence-sync": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
+        "job-lifecycle": "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
+        "decision-preflight": "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
+    }
+    for kind, command in commands.items():
+        assert _command_kind(command) == kind
+        assert _command_phase(kind, archive_seen=False) == "gate"
+        assert kind in RUN_CLOSEOUT_ALLOWED_KINDS
+
+
+def test_command_kind_keeps_python_inline_import_check_out_of_preflight() -> None:
+    command = (
+        'python -c "import reverse_agent.project_gate; '
+        'import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight"'
+    )
+    assert _command_kind(command) == "python-inline"
+
+
 def test_command_kind_recognizes_agent_runner_dry_run_gate() -> None:
     command = "python -m reverse_agent.project_gate agent-runner-dry-run --state-dir project_state"
 
@@ -28401,8 +28468,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python -m pip install -e .
-      - run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state"
-      - run: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+      - run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight"
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
 """,
         encoding="utf-8",
     )
@@ -28425,6 +28492,9 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m reverse_agent.project_gate preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
+      - run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
+      - run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
       - run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
@@ -28433,7 +28503,7 @@ jobs:
       - run: python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
-      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
       - uses: actions/upload-artifact@v4
         with:
           name: project-gate-evidence
@@ -28489,6 +28559,8 @@ jobs:
       - run: python -m pip install -e .
       - run: python -m reverse_agent.project_gate preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate command-plan --state-dir project_state
+      - run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
+      - run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
       - run: python -m reverse_agent.project_gate audit-inventory --state-dir project_state
       - run: python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
       - run: python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state
@@ -28499,6 +28571,7 @@ jobs:
       - run: python -m reverse_agent.project_gate execution-log --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
+      - run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
       - run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state
@@ -28507,7 +28580,7 @@ jobs:
       - run: python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state
       - run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
       - run: python -m reverse_agent.project_gate final-check --state-dir project_state
-      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q
+      - run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
       - uses: actions/upload-artifact@v4
         with:
           name: project-gate-evidence
@@ -28775,6 +28848,8 @@ def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tm
     commands = [
         "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
+        "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
         "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
         "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
         "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
@@ -28785,6 +28860,7 @@ def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tm
         "python -m reverse_agent.project_gate execution-log --state-dir project_state",
         "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
         "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+        "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
         "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
         "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
         "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
@@ -28795,6 +28871,7 @@ def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tm
         "python -m reverse_agent.project_gate final-check --state-dir project_state",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q",
+        "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
     ]
     _write_local_ci_parity_command_plan(state_dir, commands)
     (state_dir / "pytest_result.txt").write_text(
@@ -28996,7 +29073,8 @@ jobs:
     assert result["gate_status"] == "PASSED"
     assert result["recommendation"] == "WORKFLOW_UPDATE_RECOMMENDED"
     missing = set(result["missing_coverage"])
-    assert "tests_project_reports_py" in missing
+    assert "post_final_evidence_sync" in missing
+    assert "decision_preflight" in missing
     assert "local_execution_bundle" in missing
     assert "codex_prompt_packet" in missing
     assert "audit_precheck" in missing

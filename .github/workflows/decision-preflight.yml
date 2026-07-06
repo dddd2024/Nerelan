@@ -7,10 +7,20 @@ on:
       - "reverse_agent/project_gate.py"
       - "reverse_agent/project_ci.py"
       - "reverse_agent/project_jobs.py"
+      - "reverse_agent/post_final_evidence_sync.py"
+      - "reverse_agent/decision_preflight.py"
+      - "reverse_agent/project_context_builder.py"
+      - "reverse_agent/project_state_manifest.py"
+      - "reverse_agent/project_workstreams.py"
       - "tests/test_project_gate.py"
       - "tests/test_project_jobs.py"
+      - "tests/test_post_final_evidence_sync.py"
+      - "tests/test_decision_preflight.py"
       - "tests/test_project_ci.py"
       - "tests/test_project_reports.py"
+      - "docs/post_final_evidence_sync.md"
+      - "docs/job_lifecycle_and_decision_preflight.md"
+      - "docs/github_decision_preflight.md"
       - ".github/workflows/decision-preflight.yml"
   workflow_dispatch:
 
@@ -39,8 +49,17 @@ jobs:
       - name: Project gate command plan
         run: python -m reverse_agent.project_gate command-plan --state-dir project_state
 
+      - name: Project gate post-final evidence sync
+        run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
+
+      - name: Project gate job lifecycle
+        run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
+
       - name: CI workflow readiness
         run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
+
+      - name: Decision preflight
+        run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
 
       - name: CI run evidence
         run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
@@ -64,7 +83,7 @@ jobs:
         run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
 
       - name: Focused preflight tests
-        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py tests/test_project_jobs.py -q
+        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
 
       - name: Upload project gate evidence
         if: always()

@@ -43,6 +43,12 @@ jobs:
       - name: Project gate command plan
         run: python -m reverse_agent.project_gate command-plan --state-dir project_state
 
+      - name: Project gate post-final evidence sync
+        run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
+
+      - name: Project gate job lifecycle
+        run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
+
       - name: Project gate audit inventory
         run: python -m reverse_agent.project_gate audit-inventory --state-dir project_state
 
@@ -73,6 +79,9 @@ jobs:
       - name: CI workflow readiness
         run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
 
+      - name: Decision preflight
+        run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
+
       - name: CI run evidence
         run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
 
@@ -95,7 +104,7 @@ jobs:
         run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
 
       - name: Focused gate tests
-        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py -q
+        run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
 
       - name: Project gate final check
         run: python -m reverse_agent.project_gate final-check --state-dir project_state

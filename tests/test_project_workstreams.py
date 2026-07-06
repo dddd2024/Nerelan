@@ -178,3 +178,43 @@ def test_workstream_registry_marks_governance_operations_bundle_as_only_active(t
     assert by_id["cleanup_apply"]["status"] == "DEFERRED"
     assert by_id["sqlite_query_index"]["status"] == "READY_FOR_DECISION"
     assert validate_workstream_registry(registry, decision_id=decision_id, round_id=round_id) == []
+
+
+def test_workstream_registry_marks_post_final_sync_job_preflight_as_only_active(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    decision_id = "decision_20260706_post_final_sync_job_preflight_big_step_v1"
+    round_id = "round_20260706_post_final_sync_job_preflight_big_step_v1"
+    state_dir.mkdir()
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{{
+  "schema_version": 1,
+  "decision_id": "{decision_id}",
+  "round_id": "{round_id}",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}}
+```
+
+```json decision_contract
+{{
+  "follows_last_accepted_round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "accepted_requires_post_final_evidence_sync_gate": true,
+  "accepted_requires_decision_preflight_gate": true
+}}
+```
+""",
+        encoding="utf-8",
+    )
+
+    registry = build_workstream_registry(state_dir=state_dir)
+    active = [item for item in registry["workstreams"] if item["status"] == "ACTIVE_ROUND"]
+    by_id = {item["workstream_id"]: item for item in registry["workstreams"]}
+
+    assert len(active) == 1
+    assert active[0]["workstream_id"] == "post_final_sync_job_preflight"
+    assert by_id["governance_operations_bundle"]["status"] == "ACCEPTED"
+    assert by_id["status_policy_final_acceptance_rework"]["status"] == "ACCEPTED"
+    assert by_id["governance_fix_cleanup_apply_safety"]["status"] == "ACCEPTED"
+    assert validate_workstream_registry(registry, decision_id=decision_id, round_id=round_id) == []

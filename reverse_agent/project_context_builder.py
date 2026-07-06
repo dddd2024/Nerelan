@@ -40,6 +40,15 @@ def _read_json_list(path: Path) -> list[Any]:
     return payload if isinstance(payload, list) else []
 
 
+def _parse_time(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
 def _source_ref(path: Path, rel: str) -> dict[str, Any]:
     full = path / rel
     exists = full.exists()
@@ -87,13 +96,37 @@ def build_current_context_packet(
     report_id = f"codex_report_{round_id.removeprefix('round_')}" if round_id else ""
     forbidden_capabilities = list(contract.get("forbidden_capabilities_this_round") or [])
     allowed_source_files = list(contract.get("allowed_source_files") or [])
+    final_gate_status = str(final_gate.get("gate_status") or "")
+    final_gate_decision_id = str(final_gate.get("decision_id") or "")
+    final_gate_round_id = str(final_gate.get("round_id") or "")
+    final_gate_generated_at = str(final_gate.get("generated_at") or "")
+    final_gate_is_current = bool(
+        final_gate
+        and final_gate_decision_id == decision_id
+        and final_gate_round_id == round_id
+    )
+    now = _now_iso()
+    context_time = _parse_time(now)
+    final_time = _parse_time(final_gate_generated_at)
+    context_generated_after_final_gate = bool(
+        final_gate_is_current and context_time and final_time and context_time >= final_time
+    )
+    if final_gate_is_current:
+        final_gate_status_source = "current_final_gate_result"
+        post_final_sync_status = "CURRENT_POST_FINAL_SYNCED"
+    elif final_gate:
+        final_gate_status_source = "stale_final_gate_result"
+        post_final_sync_status = "STALE_PRE_FINAL_CONTEXT"
+    else:
+        final_gate_status_source = "missing_final_gate_result"
+        post_final_sync_status = "PRE_FINAL_CONTEXT"
 
     packet = {
         "schema_version": CONTEXT_PACKET_SCHEMA_VERSION,
         "artifact_name": "current_context_packet.json",
         "artifact_kind": "governance_index",
         "artifact_path": CONTEXT_PACKET_PATH,
-        "generated_at": _now_iso(),
+        "generated_at": now,
         "decision_id": decision_id,
         "round_id": round_id,
         "report_id": report_id,
@@ -113,7 +146,15 @@ def build_current_context_packet(
         "auditor_context": {
             "report_id": report_id,
             "command_plan_status": str(command_plan.get("plan_status") or ""),
-            "final_gate_status": str(final_gate.get("gate_status") or ""),
+            "final_gate_status": final_gate_status if final_gate_is_current else "",
+            "final_gate_status_source": final_gate_status_source,
+            "final_gate_generated_at": final_gate_generated_at,
+            "final_gate_decision_id": final_gate_decision_id,
+            "final_gate_round_id": final_gate_round_id,
+            "final_gate_current": final_gate_is_current,
+            "context_generated_after_final_gate": context_generated_after_final_gate,
+            "post_final_sync_status": post_final_sync_status,
+            "stale_context_detected": not final_gate_is_current,
             "required_governance_artifacts": [
                 "project_state/state_manifest.json",
                 CONTEXT_PACKET_PATH,

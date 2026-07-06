@@ -89,15 +89,21 @@ def build_workstream_registry(
         contract.get("accepted_requires_governance_operations_gate")
         or "governance_operations_bundle" in decision_id
     )
+    is_post_final_sync_job_preflight = bool(
+        contract.get("accepted_requires_post_final_evidence_sync_gate")
+        or contract.get("accepted_requires_decision_preflight_gate")
+        or "post_final_sync_job_preflight" in decision_id
+    )
     context_status = "ACCEPTED" if (
         is_state_governance_bundle
         or is_governance_fix_cleanup_apply
         or is_status_policy_final_acceptance_rework
         or is_governance_operations_bundle
+        or is_post_final_sync_job_preflight
     ) else "ACTIVE_ROUND"
     bundle_status = (
         "ACCEPTED"
-        if is_governance_operations_bundle
+        if is_governance_operations_bundle or is_post_final_sync_job_preflight
         else "ACCEPTED"
         if is_status_policy_final_acceptance_rework
         else "ACCEPTED_WITH_LIMITATIONS"
@@ -111,24 +117,41 @@ def build_workstream_registry(
         or is_governance_fix_cleanup_apply
         or is_status_policy_final_acceptance_rework
         or is_governance_operations_bundle
+        or is_post_final_sync_job_preflight
     ) else "READY_FOR_DECISION"
     governance_fix_status = (
         "ACCEPTED"
-        if is_governance_operations_bundle
+        if is_governance_operations_bundle or is_post_final_sync_job_preflight
         else "REJECTED"
         if is_status_policy_final_acceptance_rework
         else ("ACTIVE_ROUND" if is_governance_fix_cleanup_apply else "READY_FOR_DECISION")
     )
     status_rework_status = (
         "ACCEPTED"
-        if is_governance_operations_bundle
+        if is_governance_operations_bundle or is_post_final_sync_job_preflight
         else "ACTIVE_ROUND"
         if is_status_policy_final_acceptance_rework
         else "READY_FOR_DECISION"
     )
-    operations_bundle_status = "ACTIVE_ROUND" if is_governance_operations_bundle else "READY_FOR_DECISION"
+    operations_bundle_status = (
+        "ACCEPTED"
+        if is_post_final_sync_job_preflight
+        else "ACTIVE_ROUND"
+        if is_governance_operations_bundle
+        else "READY_FOR_DECISION"
+    )
+    post_final_sync_status = "ACTIVE_ROUND" if is_post_final_sync_job_preflight else "READY_FOR_DECISION"
 
     workstreams = [
+        _entry(
+            "post_final_sync_job_preflight",
+            "engineering_control_plane",
+            post_final_sync_status,
+            current_decision_id=decision_id,
+            current_round_id=round_id,
+            baseline_round_id=baseline_round_id,
+            notes="Post-final context packet sync, READY job materialization, and local/static decision-preflight workflow validation; no dispatch or runtime solving.",
+        ),
         _entry(
             "governance_operations_bundle",
             "project_governance",
@@ -304,6 +327,7 @@ def validate_workstream_registry(payload: Mapping[str, Any], *, decision_id: str
         errors.append("workstreams must be a list")
         return errors
     required_ids = {
+        "post_final_sync_job_preflight",
         "state_governance_bundle_big_step",
         "governance_operations_bundle",
         "status_policy_final_acceptance_rework",

@@ -3,10 +3,10 @@
   "artifact_name": "ci_workflow_readiness_result.json",
   "gate_name": "ci-workflow-readiness",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260703_user_solve_layer_foundation_big_step_v1",
-  "round_id": "round_20260703_user_solve_layer_foundation_big_step_v1",
-  "report_id": "codex_report_20260703_user_solve_layer_foundation_big_step_v1",
-  "generated_at": "2026-07-03T09:05:03.436230Z",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
+  "generated_at": "2026-07-06T06:37:04.406249Z",
   "readiness_status": "READY",
   "recommendation": "NO_ACTION_REQUIRED",
   "required_workflows": [
@@ -19,35 +19,39 @@
       "path": ".github/workflows/ci.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": false,
-      "sha256": "b15e0a23ea680393a8ffa5d0a39ee630dc588a98fcbfbb7e1f4810f208873db7",
-      "size_bytes": 716,
+      "modified": true,
+      "sha256": "967a147c20441869f2bc90ce8712c6b58c97c5749297ed077b54874f6fef463b",
+      "size_bytes": 876,
       "line_count": 32
     },
     {
       "path": ".github/workflows/state-gate.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": false,
-      "sha256": "c3216275d7561e7dfb952215f45fd5f4f73cb95f9e58b4319bd8f4db9afc7ef7",
-      "size_bytes": 3921,
-      "line_count": 111
+      "modified": true,
+      "sha256": "4935d8a2ada7b9b2b89bfaaf30f928f28064c365bf97277edaed9d625a031dfe",
+      "size_bytes": 4408,
+      "line_count": 120
     },
     {
       "path": ".github/workflows/decision-preflight.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": false,
-      "sha256": "7699f6be3ac2b15396e19f25866bffc773ed448213329e950c7a9005da98bd89",
-      "size_bytes": 2600,
-      "line_count": 77
+      "modified": true,
+      "sha256": "55a5d6bafa6580b412a5654ea15ffe89c4befbfc3698fe89ab142a343b0caba8",
+      "size_bytes": 3567,
+      "line_count": 96
     }
   ],
   "coverage_gate_status": "PASSED",
   "coverage_recommendation": "NO_ACTION_REQUIRED",
   "missing_coverage": [],
   "unsafe_patterns_found": [],
-  "workflow_files_dirty": [],
+  "workflow_files_dirty": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml"
+  ],
   "evidence_only": true,
   "executable": false,
   "can_execute": false,

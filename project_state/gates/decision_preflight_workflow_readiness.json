@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "artifact_name": "decision_preflight_workflow_readiness.json",
+  "gate_name": "decision-preflight-workflow-readiness",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
+  "generated_at": "2026-07-06T06:37:04Z",
+  "workflow_path": ".github/workflows/decision-preflight.yml",
+  "workflow_exists": true,
+  "state_gate_path": ".github/workflows/state-gate.yml",
+  "state_gate_exists": true,
+  "missing_workflow_snippets": [],
+  "missing_state_gate_snippets": [],
+  "forbidden_hits": [],
+  "readiness_status": "READY",
+  "read_only": true,
+  "dispatch_enabled": false,
+  "remote_mutation": false,
+  "generated_artifacts": [
+    "project_state/gates/decision_preflight_workflow_readiness.json"
+  ]
+}

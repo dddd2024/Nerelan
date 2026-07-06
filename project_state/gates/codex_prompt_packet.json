@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
-  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-06T02:39:00.771759Z",
+  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-06T06:38:07.075643Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-      "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
-      "sha256": "270d78cc787cfd649fe7beeeb6325738e2ebb1b4c3ca5b8413e61b369fd95fdf"
+      "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+      "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+      "sha256": "1a903711ac74a77a01f8602988f34a6e91b4fe69928af2e869734cca586a012d"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-      "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
-      "sha256": "4107ee9cbfd426658ae3a0f1b33e01a1f4bf205ca711d5887a078e4b0337c094"
+      "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
+      "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
+      "sha256": "636c7ea04fc3017e386c5c3fee6bd0eaffe1b0685554463a2b02f58264a1f70c"
     }
   },
   "prompt_sections": {
