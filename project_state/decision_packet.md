@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,15 +13,16 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "follows_last_round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "supersedes_rework_decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "supersedes_rework_round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "follows_last_decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "follows_last_round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "supersedes_rework_decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "supersedes_rework_round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "phase_label": "phase_2_51_next_step_roadmap_registration_fast_text_fix_v1",
-  "primary_goal": "Register and audit the already uploaded next-step roadmap document as project-governance roadmap material using a fast artifact-registration profile, with Tests containing only allowed executable command blocks.",
+  "phase_label": "phase_2_51_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+  "primary_goal": "Register and audit the already uploaded next-step roadmap document as project-governance roadmap material using a fast artifact-registration profile, with closeout explicitly disabled under both closeout_required and close_round_required contract keys.",
   "command_plan_authority_required": true,
   "closeout_required": false,
+  "close_round_required": false,
   "closeout_allowed": false,
   "accepted_requires_next_step_doc_present": true,
   "accepted_requires_doc_marked_roadmap_not_execution_authority": true,
@@ -72,7 +73,7 @@
     "project_state/index.sqlite",
     "project_state/*.db",
     "project_state/domains/*",
-    "project_state/rounds/round_20260707_next_step_roadmap_registration_fast_text_fix_v1/*",
+    "project_state/rounds/round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1/*",
     "reverse_agent/*",
     "tests/*"
   ],
@@ -130,10 +131,16 @@ docs/roadmap/next_step_after_scoped_metadata_foundation.md
 This decision replaces the rework-required decision:
 
 ```text
-decision_20260707_next_step_roadmap_registration_fast_fix_v1
+decision_20260707_next_step_roadmap_registration_fast_text_fix_v1
 ```
 
-The previous fast-fix decision had the right contract shape (`closeout_required=false`, `closeout_allowed=false`) but its Tests section documented forbidden closeout commands inside a fenced executable code block. The preflight extractor treated that documentation block as required commands. This decision keeps Option A and changes only the decision text shape: the Tests section contains executable fenced code blocks only for commands that may actually be run.
+The previous fast text-fix decision removed forbidden closeout commands from fenced executable command blocks, but preflight still treated the round as closeout-required because the gate checks `close_round_required` with a default of `true`. This decision keeps the same fast artifact-registration scope and adds the compatibility key:
+
+```json
+"close_round_required": false
+```
+
+This is a decision-contract compatibility fix only. It must not modify `reverse_agent/*`, must not modify tests, must not implement Phase A.1, and must not run closeout.
 
 This round must only verify and register the roadmap document as project-governance evidence. It must not implement Phase A.1, must not create Phase B domain skeletons, and must not open reverse-solving, Web, database, runner, workflow, model API, cleanup, deletion, or external-tool capability.
 
@@ -143,6 +150,7 @@ Accepted target:
 - the document clearly says it is roadmap material and not execution authority;
 - the document recommends Phase A.1 before Phase B without claiming either phase is implemented;
 - the document preserves the rule that only `project_state/decision_packet.md` is execution authority and only `project_state/gates/command_plan.json` is command authority;
+- `decision_contract` explicitly contains `closeout_required=false`, `close_round_required=false`, and `closeout_allowed=false`;
 - gate-profile may classify this as `profile=fast` and `closeout_allowed=false`;
 - command-plan must omit closeout/close-round style commands for this round;
 - no `project_state/rounds/<this_round_id>/*` archive is required or generated;
@@ -157,16 +165,16 @@ Current task authority is this `project_state/decision_packet.md`.
 The immediately preceding decision was:
 
 ```text
-decision_20260707_next_step_roadmap_registration_fast_fix_v1
+decision_20260707_next_step_roadmap_registration_fast_text_fix_v1
 ```
 
 The immediately preceding round was:
 
 ```text
-round_20260707_next_step_roadmap_registration_fast_fix_v1
+round_20260707_next_step_roadmap_registration_fast_text_fix_v1
 ```
 
-That round is `REWORK_REQUIRED`, not accepted. The blocker was not the roadmap document and not a closeout execution. The blocker was a preflight false-positive caused by a fenced Tests block that listed commands under a "Do not run" heading.
+That round is `REWORK_REQUIRED`, not accepted. The blocker was not the roadmap document, not the Tests fenced block, and not closeout execution. The blocker was a contract-key mismatch: preflight checks `close_round_required` with default `true`, while the decision contract only provided `closeout_required=false` and `closeout_allowed=false`.
 
 The last successfully closed governance round remains:
 
@@ -219,6 +227,7 @@ Existing capabilities that must be reused, not duplicated:
 Closeout policy for this round:
 
 - Closeout is intentionally not allowed.
+- Both `closeout_required` and `close_round_required` are explicitly false.
 - This is a fast artifact-registration round.
 - The absence of closeout is expected and must not be treated as a failure if command-plan also omits it.
 - If command-plan emits any closeout or close-round command anyway, stop and report `REWORK_REQUIRED` because command-plan and this decision are no longer aligned.
@@ -268,7 +277,7 @@ Do not modify `training_materials/local_reverse/*`.
 
 Do not create, update, or migrate any SQLite/database file.
 
-Do not create `project_state/rounds/round_20260707_next_step_roadmap_registration_fast_text_fix_v1/*`.
+Do not create `project_state/rounds/round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1/*`.
 
 Do not run Web/frontend runtime.
 
@@ -347,19 +356,20 @@ The execution report must answer all of the following:
 10. Does report-summary match the execution report?
 11. Does `final_gate_result.json` pass?
 12. Is closeout correctly not required and not executed?
-13. Does `docs/roadmap/next_step_after_scoped_metadata_foundation.md` exist?
-14. Does that document explicitly state it is roadmap material and not execution authority?
-15. Does that document preserve `decision_packet.md` as execution authority and `command_plan.json` as command authority?
-16. Does that document recommend Phase A.1 before Phase B without claiming either is implemented?
-17. Does this round avoid implementing Phase A.1?
-18. Does this round avoid creating `project_state/domains/*`?
-19. Does this round avoid modifying `current_state.json` and `task_packet.json`?
-20. Does this round avoid splitting or migrating `negative_results.json`?
-21. Does this round avoid modifying source files and test files?
-22. Does this round avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, deletion, file move, sample solving, and external reverse tools?
-23. Does this round avoid local `git commit`, `git push`, branch creation, PR creation, merge, and rebase?
-24. Does the report avoid claiming completion of Phase A.1, Phase B, Phase C, Phase D, Phase E, or Phase F?
-25. Does the final conclusion fit one of `ACCEPTED`, `ACCEPTED_WITH_LIMITATIONS`, `REWORK_REQUIRED`, or `BLOCKED`?
+13. Does `decision_contract` explicitly contain `close_round_required=false` as compatibility evidence for the current gate checker?
+14. Does `docs/roadmap/next_step_after_scoped_metadata_foundation.md` exist?
+15. Does that document explicitly state it is roadmap material and not execution authority?
+16. Does that document preserve `decision_packet.md` as execution authority and `command_plan.json` as command authority?
+17. Does that document recommend Phase A.1 before Phase B without claiming either is implemented?
+18. Does this round avoid implementing Phase A.1?
+19. Does this round avoid creating `project_state/domains/*`?
+20. Does this round avoid modifying `current_state.json` and `task_packet.json`?
+21. Does this round avoid splitting or migrating `negative_results.json`?
+22. Does this round avoid modifying source files and test files?
+23. Does this round avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, deletion, file move, sample solving, and external reverse tools?
+24. Does this round avoid local `git commit`, `git push`, branch creation, PR creation, merge, and rebase?
+25. Does the report avoid claiming completion of Phase A.1, Phase B, Phase C, Phase D, Phase E, or Phase F?
+26. Does the final conclusion fit one of `ACCEPTED`, `ACCEPTED_WITH_LIMITATIONS`, `REWORK_REQUIRED`, or `BLOCKED`?
 
 The audit conclusion must be exactly one of:
 
@@ -374,7 +384,7 @@ Use `ACCEPTED` only if all command-plan-required gates pass, closeout remains om
 
 Use `ACCEPTED_WITH_LIMITATIONS` only if the document exists and all hard gates pass, but there is a clearly documented non-blocking limitation that does not contradict this fast-profile decision.
 
-Use `REWORK_REQUIRED` if any required gate fails, if report status is inconsistent, if an unauthorized command was executed, if command-plan still requires closeout, if the round implements Phase A.1 or Phase B, or if forbidden paths are modified.
+Use `REWORK_REQUIRED` if any required gate fails, if report status is inconsistent, if an unauthorized command was executed, if command-plan still requires closeout, if preflight still reports `closeout_forbidden`, if the round implements Phase A.1 or Phase B, or if forbidden paths are modified.
 
 Use `BLOCKED` if the local executor cannot see the uploaded document because the local workspace has not been synced to GitHub, or if command-plan/preflight cannot be generated.
 
@@ -482,6 +492,7 @@ Stop with `REWORK_REQUIRED` if:
 - `report-summary` fails;
 - `final-check` fails;
 - command-plan requires closeout or close-round command kinds;
+- preflight still reports `closeout_forbidden` after the explicit `close_round_required=false` fix;
 - closeout or close-round command kinds are executed;
 - an omitted or unauthorized command was executed;
 - source files or test files were modified;
