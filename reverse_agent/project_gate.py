@@ -23779,9 +23779,35 @@ def final_check(
     closeout_nested_payload = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
     if closeout_nested_payload:
         nested_failures = _collect_active_failure_states(closeout_nested_payload, path="run_closeout_result")
+        artifact_round_id = str(closeout_nested_payload.get("round_id") or "")
+        artifact_decision_id = str(closeout_nested_payload.get("decision_id") or "")
+        # Detect stale closeout artifact from a previous round when the
+        # current round does not require closeout (fast profile with
+        # closeout_allowed=false).  In this scenario, the previous round's
+        # run_closeout_result.json is historical evidence and its nested
+        # failures must not be treated as current-round blockers.
+        _gp_payload = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+        _gp_closeout_allowed = (
+            _gp_payload.get("closeout_allowed") is True
+            if isinstance(_gp_payload, dict)
+            else None
+        )
+        _cp_profile_meta = command_plan_data.get("profile_meta") if isinstance(command_plan_data, dict) else None
+        _cp_closeout_allowed = (
+            _cp_profile_meta.get("closeout_allowed")
+            if isinstance(_cp_profile_meta, dict)
+            else None
+        )
+        closeout_not_allowed_this_round = (
+            _gp_closeout_allowed is False
+            or _cp_closeout_allowed is False
+        )
+        stale_round = bool(artifact_round_id) and artifact_round_id != round_id
+        stale_decision = bool(artifact_decision_id) and artifact_decision_id != decision_id
+        is_stale_previous_round = stale_round or stale_decision
         if (
             close_round_in_progress
-            and str(closeout_nested_payload.get("round_id") or "") == round_id
+            and artifact_round_id == round_id
         ):
             checks.append(
                 _check(
@@ -23790,6 +23816,32 @@ def final_check(
                     "run_closeout_result.json nested failures are pending while close-round is in progress",
                     required=False,
                     skipped_reason="close_round_in_progress",
+                    pending_failures=nested_failures,
+                )
+            )
+        elif (
+            is_stale_previous_round
+            and closeout_not_allowed_this_round
+            and not close_round_in_progress
+        ):
+            # Stale closeout artifact from a previous round; current round
+            # does not require closeout (fast profile).  The nested failures
+            # belong to the previous round and must not block the current
+            # round's final-check.  This implements the decision_packet
+            # requirement: "stale previous-round closeout failures are not
+            # treated as current blockers unless the current decision and
+            # round require them."
+            checks.append(
+                _check(
+                    "closeout_nested_failures_absent",
+                    "PASS",
+                    "run_closeout_result.json is from a previous round and closeout is not allowed this round; stale nested failures are not current-round blockers",
+                    required=False,
+                    skipped_reason="stale_previous_round_closeout_not_allowed",
+                    artifact_round_id=artifact_round_id,
+                    artifact_decision_id=artifact_decision_id,
+                    current_round_id=round_id,
+                    current_decision_id=decision_id,
                     pending_failures=nested_failures,
                 )
             )

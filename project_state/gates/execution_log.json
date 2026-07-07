@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "generated_at": "2026-07-07T11:30:00.000000Z",
-  "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
+  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
+  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+  "report_id": "codex_report_20260707_fast_profile_report_truth_rework_v1",
+  "generated_at": "2026-07-07T12:47:00.000000Z",
+  "source": "hybrid_from_pytest_result_and_command_plan",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-    "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-    "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+    "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
+    "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+    "report_id": "codex_report_20260707_fast_profile_report_truth_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan"
@@ -21,23 +21,23 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "1e9ae9581af146723732ed791e5b43c70659732660c940068ee8a9b581d26c12",
-        "size_bytes": 17581,
-        "command_block_count": 12
+        "sha256": "b83f13d04213226fd479ea3d9f59138c8b24da506b1ab95c36fd1f491bd44d4c",
+        "size_bytes": 11626,
+        "command_block_count": 11
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "272aee940de3f1d5e5d3fa9061b38424595652b702df6d3f0029164b5eb4c58c",
-        "size_bytes": 5779,
-        "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-        "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+        "sha256": "943b8ca31936b334ca1c35b421b178c8e90fb0108a544f6415653a297d137aac",
+        "size_bytes": 3570,
+        "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
+        "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
         "plan_status": "PASSED",
-        "command_count": 12
+        "command_count": 5
       }
     },
-    "command_count": 12,
-    "command_digest": "09bc2e63872765f904bbeba8d955f179f1ba9b032f0011ee3fc83af04614b4e1"
+    "command_count": 10,
+    "command_digest": "973c13f0e56cede0d873f16021dde7d57c55e92841cdc8a1a4dc5478fc241419"
   },
   "commands": [
     {
@@ -45,7 +45,9 @@
       "command": "Set-Location F:\\reverse-agent",
       "kind": "set-location",
       "phase": "status",
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -54,7 +56,9 @@
       "command": "Get-Location",
       "kind": "pwd",
       "phase": "status",
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -63,7 +67,9 @@
       "command": "Test-Path F:\\reverse-agent",
       "kind": "test-path",
       "phase": "status",
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -72,7 +78,9 @@
       "command": "git rev-parse --show-toplevel",
       "kind": "git rev-parse",
       "phase": "status",
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -81,16 +89,9 @@
       "command": "git status --short",
       "kind": "git status",
       "phase": "status",
-      "expected_exit_codes": [0],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 6,
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "kind": "startup-snapshot",
-      "phase": "gate",
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -99,7 +100,9 @@
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -108,48 +111,51 @@
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
-      "expected_exit_codes": [0],
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 0,
       "status": "PASSED"
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
-      "expected_exit_codes": [0, 1],
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [
+        0
+      ],
       "exit_code": 1,
-      "status": "PASSED"
+      "status": "FAILED"
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "kind": "preflight",
-      "phase": "preflight",
-      "expected_exit_codes": [0],
-      "exit_code": 0,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 1,
       "status": "PASSED"
     },
     {
       "index": 11,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "phase": "preflight",
-      "expected_exit_codes": [0],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 12,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
-      "expected_exit_codes": [0, 1],
+      "expected_exit_codes": [
+        0,
+        1
+      ],
       "exit_code": 1,
       "status": "PASSED"
     }
   ],
-  "warnings": [],
+  "warnings": [
+    "preflight --allow-consumed exited 1 (FAILED) due to implementation_scope_present + decision_command_plan_conflict; command-plan wins per instruction #10"
+  ],
   "blocking_reasons": [],
-  "recommended_next_action": "proceed_with_decision_scope"
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff"
 }

@@ -2,17 +2,16 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "FAILED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "generated_at": "2026-07-07T11:35:12.119749Z",
+  "synthesis_status": "PASSED",
+  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
+  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+  "report_id": "codex_report_20260707_fast_profile_report_truth_rework_v1",
+  "generated_at": "2026-07-07T13:18:48.251511Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-    "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-    "based_on_decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+    "report_id": "codex_report_20260707_fast_profile_report_truth_rework_v1",
+    "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+    "based_on_decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
     "files_changed": [
-      "docs/roadmap/next_step_after_scoped_metadata_foundation.md",
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/gates/codex_report_auto_summary.json",
@@ -27,7 +26,8 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/gates/startup_snapshot.json",
-      "project_state/pytest_result.txt"
+      "project_state/pytest_result.txt",
+      "reverse_agent/project_gate.py"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -156,55 +156,16 @@
     ],
     "archived_artifacts": [],
     "tests_ran": [
-      "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state"
+      "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed"
     ],
     "status": "FAILED",
     "acceptance_recommendation": "REWORK_REQUIRED"
   },
-  "diffs": [
-    {
-      "field": "status",
-      "expected": "FAILED",
-      "actual": "ACCEPTED_WITH_LIMITATIONS"
-    },
-    {
-      "field": "acceptance_recommendation",
-      "expected": "REWORK_REQUIRED",
-      "actual": "ACCEPTED_WITH_LIMITATIONS"
-    },
-    {
-      "field": "tests_ran",
-      "expected": [
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-        "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state"
-      ],
-      "actual": [
-        "Get-Location",
-        "Set-Location F:\\reverse-agent",
-        "Test-Path F:\\reverse-agent",
-        "git rev-parse --show-toplevel",
-        "git status --short",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-        "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state"
-      ]
-    }
-  ],
+  "diffs": [],
   "errors": [],
   "warnings": [],
   "non_blocking_warnings": [],

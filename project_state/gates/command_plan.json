@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
+  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T11:07:01.108454Z",
+  "generated_at": "2026-07-07T12:46:06.815942Z",
   "profile_meta": {
     "profile": "fast",
     "profile_reason": "artifact-only cleanup does not require close-round",
@@ -27,6 +27,11 @@
   },
   "omitted_commands": [
     {
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "reason": "omitted by fast profile: pytest not in required_command_kinds"
+    },
+    {
       "command": null,
       "kind": "close-round",
       "reason": "omitted by fast profile: closeout not allowed"
@@ -35,84 +40,6 @@
   "commands": [
     {
       "index": 1,
-      "command": "Set-Location F:\\reverse-agent",
-      "phase": "status",
-      "kind": "set-location",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "set-location expected to exit 0"
-    },
-    {
-      "index": 2,
-      "command": "Get-Location",
-      "phase": "status",
-      "kind": "pwd",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pwd expected to exit 0"
-    },
-    {
-      "index": 3,
-      "command": "Test-Path F:\\reverse-agent",
-      "phase": "status",
-      "kind": "test-path",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "test-path expected to exit 0"
-    },
-    {
-      "index": 4,
-      "command": "git rev-parse --show-toplevel",
-      "phase": "status",
-      "kind": "git rev-parse",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "git rev-parse expected to exit 0"
-    },
-    {
-      "index": 5,
-      "command": "git status --short",
-      "phase": "status",
-      "kind": "git status",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "git status expected to exit 0"
-    },
-    {
-      "index": 6,
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
-      "kind": "startup-snapshot",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "startup-snapshot expected to exit 0"
-    },
-    {
-      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "phase": "gate",
       "kind": "command-plan",
@@ -125,7 +52,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 8,
+      "index": 2,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "phase": "gate",
       "kind": "command-plan",
@@ -138,7 +65,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 9,
+      "index": 3,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -152,33 +79,7 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "phase": "preflight",
-      "kind": "preflight",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "phase": "preflight",
-      "kind": "preflight",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
-    },
-    {
-      "index": 12,
+      "index": 4,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -190,6 +91,19 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 5,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "phase": "preflight",
+      "kind": "preflight",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "preflight expected to exit 0"
     }
   ],
   "warnings": [],

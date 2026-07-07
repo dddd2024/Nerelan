@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "head_commit": "e5078342c359",
+  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
+  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+  "head_commit": "d38db9d910a3",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -25,7 +25,8 @@
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
     " M project_state/gates/startup_snapshot.json",
-    " M project_state/pytest_result.txt"
+    " M project_state/pytest_result.txt",
+    " M reverse_agent/project_gate.py"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -42,7 +43,8 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py"
   ],
   "final_dirty_files": [
     "project_state/codex_execution_report.md",
@@ -59,7 +61,8 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -76,9 +79,10 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-07-07T11:35:12.095693Z"
+  "generated_at": "2026-07-07T13:18:48.226300Z"
 }
