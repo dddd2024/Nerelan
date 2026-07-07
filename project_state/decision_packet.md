@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,54 +13,32 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-  "follows_last_round_id": "round_20260706_required_audit_status_truth_rework_v1",
-  "supersedes_unexecuted_decision_id": "decision_20260706_normal_pace_state_taxonomy_roadmap_registration_v1",
-  "previous_audit_outcome": "ACCEPTED",
-  "phase_label": "phase_2_50_scoped_state_metadata_foundation_big_step_v1",
-  "primary_goal": "Register the normal-pace roadmap and implement Project State Domain Taxonomy Phase A: add scoped metadata foundations for state_manifest, artifact_index, and negative_results without moving, deleting, or migrating state files.",
+  "follows_last_decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "follows_last_round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
+  "phase_label": "phase_2_51_next_step_roadmap_registration_v1",
+  "primary_goal": "Register and audit the already uploaded next-step roadmap document as project-governance roadmap material without implementing Phase A.1, Phase B, or any runtime capability.",
   "command_plan_authority_required": true,
-  "accepted_requires_workstream_registry_current": true,
-  "accepted_requires_docs_for_normal_pace_and_state_taxonomy": true,
-  "accepted_requires_state_manifest_scope_metadata": true,
-  "accepted_requires_artifact_index_scope_metadata": true,
-  "accepted_requires_negative_results_scope_metadata": true,
-  "accepted_requires_backward_compatibility": true,
-  "accepted_requires_scope_validation_tests": true,
+  "accepted_requires_next_step_doc_present": true,
+  "accepted_requires_doc_marked_roadmap_not_execution_authority": true,
+  "accepted_requires_no_phase_a1_implementation": true,
+  "accepted_requires_no_phase_b_domain_skeleton": true,
   "accepted_requires_no_file_moves_or_deletes": true,
   "accepted_requires_no_domain_directory_creation": true,
   "accepted_requires_no_runner_or_workflow_dispatch": true,
   "accepted_requires_no_sample_solving": true,
-  "allowed_source_files": [
-    "reverse_agent/project_state.py",
-    "reverse_agent/project_state_manifest.py",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_reports.py",
-    "tests/test_project_state.py",
-    "tests/test_project_state_manifest.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_reports.py"
-  ],
+  "accepted_requires_no_local_git_commit_or_push": true,
+  "allowed_source_files": [],
+  "allowed_test_files": [],
   "allowed_documentation_files": [
-    "docs/roadmap/reverse_agent_normal_pace_plan.md",
-    "docs/roadmap/project_state_domain_taxonomy_supplement.md"
+    "docs/roadmap/next_step_after_scoped_metadata_foundation.md"
   ],
-  "allowed_governance_files": [
-    "project_state/roadmap/workstreams.json"
-  ],
-  "allowed_state_files": [
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "project_state/negative_results.json"
-  ],
+  "allowed_governance_files": [],
+  "allowed_state_files": [],
   "allowed_generated_or_updated_artifacts": [
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/context/current_context_packet.json",
-    "project_state/state_manifest.json",
-    "project_state/artifact_index.json",
-    "project_state/negative_results.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/command_plan.json",
@@ -76,7 +54,7 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/execution_report_auto_summary.json",
-    "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/*"
+    "project_state/rounds/round_20260707_next_step_roadmap_registration_v1/*"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
@@ -93,7 +71,9 @@
     "project_state/blob_store/*",
     "project_state/index.sqlite",
     "project_state/*.db",
-    "project_state/domains/*"
+    "project_state/domains/*",
+    "reverse_agent/*",
+    "tests/*"
   ],
   "forbidden_capabilities_this_round": [
     "real_cleanup_apply",
@@ -123,6 +103,7 @@
     "workflow_dispatch_trigger",
     "github_actions_dispatch_or_polling",
     "model_api_invocation",
+    "git_commit_from_local_executor",
     "git_push_from_local_executor",
     "branch_creation_from_local_executor",
     "pull_request_creation_from_local_executor",
@@ -135,52 +116,75 @@
 
 ## 1. Goal
 
-Implement **Scoped State Metadata Foundation Big Step v1**.
+Register and audit **Next Step After Scoped Metadata Foundation** as roadmap material.
 
-This is a larger `project_governance` round. It supersedes the unexecuted small roadmap-only decision `decision_20260706_normal_pace_state_taxonomy_roadmap_registration_v1`.
+The target document is:
 
-The last accepted engineering baseline fixed Required Audit, status truthfulness, pytest_result, final-check, execution-log, and run-closeout consistency. The next useful larger step is to stop merely registering the state-taxonomy idea and implement the safe first foundation phase.
+```text
+docs/roadmap/next_step_after_scoped_metadata_foundation.md
+```
 
-This round combines three related but bounded tasks:
+This round exists because the roadmap document was uploaded to GitHub through an explicit user request, but it has not yet been consumed by a normal `decision_packet.md` / `command_plan.json` / `execution_log.json` / `final-check` / `run-closeout` project-governance round.
 
-1. **Roadmap documentation**: add or refresh the normal-pace roadmap and state-domain taxonomy supplement.
-2. **Workstream registry**: register `project_state_domain_taxonomy` in `project_state/roadmap/workstreams.json` as a real project-governance workstream, without treating roadmap as execution authority.
-3. **Phase A metadata foundation**: add backward-compatible `scope`, `domain`, `mainline`, `role`, and `freshness` metadata support to `state_manifest`, `artifact_index`, and `negative_results` records, plus validation tests and final-check/report support.
-
-This round must not perform Phase B/C/D migrations. It must not create `project_state/domains/*`, move files, delete files, split `negative_results` into domain files, or turn top-level `current_state.json` into a global summary. Those are future rounds.
+This round must only verify and register the roadmap document as project-governance evidence. It must not implement Phase A.1, must not create Phase B domain skeletons, and must not open any reverse-solving, Web, database, runner, workflow, or external-tool capability.
 
 Accepted target:
 
-- normal-pace roadmap doc exists and replaces rushed MVP framing;
-- state taxonomy supplement doc exists and identifies future phases;
-- `workstreams.json` contains `project_state_domain_taxonomy` with status no stronger than `ROADMAP_ACCEPTED` unless the registry explicitly marks this round only as the active registration/foundation round;
-- `state_manifest.json` records or can emit role/scope/domain/mainline/freshness metadata for current state files while preserving existing consumers;
-- `artifact_index.json` records or can be upgraded to include artifact scope/domain/mainline/freshness metadata while preserving existing consumers;
-- `negative_results.json` records or can be upgraded to include global/domain scope metadata while preserving existing list-style compatibility;
-- validation warns on missing scope metadata for old entries but does not hard-fail legacy records in this first phase;
-- final-check/report-summary can surface scoped metadata coverage without requiring full domain migration;
-- no `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/domains/*`, Web, database, runner, sample-solving, or tool-integration work is performed;
-- pytest, report-summary, execution-log, final-check, and run-closeout pass.
+- `docs/roadmap/next_step_after_scoped_metadata_foundation.md` exists in the working tree after the executor syncs to the GitHub state that contains it;
+- the document clearly says it is roadmap material and not execution authority;
+- the document recommends Phase A.1 before Phase B without claiming either phase is implemented;
+- the document preserves the rule that only `project_state/decision_packet.md` is execution authority and only `project_state/gates/command_plan.json` is command authority;
+- no source files, test files, `current_state.json`, `task_packet.json`, `project_state/domains/*`, database files, Web/frontend files, workflow files, solve reports, or training materials are modified;
+- no local executor commit, push, branch, PR, workflow dispatch, runner dispatch, sample solving, external reverse tool, database, cleanup apply, file move, or file deletion is performed;
+- pytest, report-summary, execution-log, final-check, and run-closeout pass under command-plan authority.
 
 ## 2. Current Evidence
 
 Current task authority is this `project_state/decision_packet.md`.
 
-Previous accepted baseline:
+The previous active decision was:
 
-- Previous accepted decision: `decision_20260706_required_audit_status_truth_rework_v1`.
-- Previous accepted round: `round_20260706_required_audit_status_truth_rework_v1`.
-- Previous audit outcome: `ACCEPTED`.
-- Previous final gate and run-closeout passed.
-- The current small roadmap registration decision was uploaded but not executed; this decision supersedes it to provide a larger, still bounded engineering step.
+```text
+decision_20260706_scoped_state_metadata_foundation_big_step_v1
+```
 
-Why this larger step is justified now:
+The previous active round was:
 
-- `project_state/current_state.json` still contains reverse-solving sample state for `samplereverse`, which is not suitable as a permanent global project summary.
-- `project_state/negative_results.json` still mixes reverse-solving failure directions and global policy restrictions.
-- `artifact_index.json` and state manifest need scope/freshness metadata before User Solve, Evidence Replay, Web, tool integration, or automation can safely consume state.
-- The uploaded long-term plan states the normal sequence should be governance stabilization before User Solve, evidence replay, Web, tools, and automation.
-- The state taxonomy supplement identifies Phase A as adding scope/domain/mainline metadata before moving files or creating domain directories.
+```text
+round_20260706_scoped_state_metadata_foundation_big_step_v1
+```
+
+That round has current evidence of completion:
+
+- `project_state/codex_execution_report.md` reports `status=SUCCESS` and `acceptance_recommendation=ACCEPTED` for the previous scoped metadata foundation round;
+- `project_state/pytest_result.txt` reports `status=PASSED`;
+- `project_state/gates/final_gate_result.json` reports `gate_status=PASSED`;
+- `project_state/gates/run_closeout_result.json` reports `closeout_status=PASSED`.
+
+The external audit conclusion for the previous round was `ACCEPTED_WITH_LIMITATIONS`, because Phase A source-level scoped metadata support and tests were accepted, but full on-disk scoped metadata visibility in all current artifacts and the later Phase B/C/D/E/F migrations were not accepted as complete.
+
+The uploaded roadmap document records a safe next-step sequence after that limitation:
+
+```text
+Phase A.1 — materialize scoped metadata visibility in on-disk governance artifacts.
+Phase B — create empty domain skeletons with README/manifests only.
+Phase C — copy reverse-solving current_state into reverse_solving domain scope.
+Phase D — split negative_results with compatibility shim.
+Phase E — convert top-level current_state into global summary.
+Phase F — harden final-check for new scope metadata regressions.
+```
+
+This round only registers and audits that roadmap note. It does not execute Phase A.1 or Phase B.
+
+`task_packet.json` remains background only and must not control this round. It is associated with reverse-solving sample state and is not current execution authority.
+
+`current_state.json` still contains reverse-solving sample state and must not be turned into a global project summary in this round.
+
+`artifact_index.json` and `state_manifest.json` may still contain legacy or missing scoped metadata warnings. This round does not fix those warnings; Phase A.1 is a future decision.
+
+`negative_results.json` contains historical reverse-solving failed directions and global policy restrictions. This round does not split or migrate it.
+
+The workstream registry exists and records that roadmap entries are not execution authority. It must not be treated as permission to skip the current decision packet or command plan.
 
 Existing capabilities that must be reused, not duplicated:
 
@@ -201,8 +205,6 @@ Existing capabilities that must be reused, not duplicated:
 - CI/state-gate foundations;
 - job lifecycle foundation.
 
-This round must extend those mechanisms. It must not introduce a new state database, second manifest format, second artifact registry, parallel negative-results system, or new workflow engine.
-
 Tool and execution policy:
 
 - Local deterministic Python and pytest are allowed only through command-plan.
@@ -212,22 +214,29 @@ Tool and execution policy:
 - No Web/frontend runtime is allowed.
 - No sample solving or external reverse tool invocation is allowed.
 - No cleanup apply, deletion, archive compaction apply, tombstone write, database creation, or database migration is allowed.
+- No local executor commit, push, branch, PR, merge, or rebase is allowed.
+
+This round must not repeat Phase A implementation. It only verifies the next-step roadmap artifact and produces audit evidence.
 
 ## 3. Do Not Do
 
-Do not migrate `project_state/current_state.json`.
-
-Do not modify `project_state/task_packet.json`.
+Do not implement Phase A.1.
 
 Do not create `project_state/domains/*`.
 
-Do not move files.
+Do not implement Phase B domain skeletons.
 
-Do not delete files.
+Do not copy or migrate `project_state/current_state.json`.
 
-Do not split `negative_results.json` into domain-specific files yet.
+Do not modify `project_state/task_packet.json`.
 
-Do not make missing scope metadata a hard failure for legacy entries in this first phase; it should be warning/coverage information unless the current decision explicitly requires new records.
+Do not split `project_state/negative_results.json`.
+
+Do not convert top-level `current_state.json` into a global project summary.
+
+Do not modify source files under `reverse_agent/*`.
+
+Do not modify tests under `tests/*`.
 
 Do not modify `.codex-skills/*`.
 
@@ -235,155 +244,172 @@ Do not modify `.github/workflows/*`.
 
 Do not modify `frontend/*`.
 
-Do not modify `project_state/jobs/*`.
+Do not modify `solve_reports/*`.
 
-Do not read or commit full `solve_reports/*`.
+Do not modify `training_materials/local_reverse/*`.
 
-Do not run sample solving, candidate search, runtime validation, IDA, Ghidra, OllyDbg, debugger, emulator, MCP, or external reverse tools.
+Do not create, update, or migrate any SQLite/database file.
 
-Do not implement Web/API runtime, frontend runtime, scheduler, service, queue, database, GitHub App, ChatGPT Action, or remote runner.
+Do not run Web/frontend runtime.
 
-Do not run workflow dispatch, agent dispatch, runner dispatch, or auto-iteration.
+Do not run sample solving, candidate search, runtime validation, binary parsing, unpacking, debugger, emulator, IDA, Ghidra, OllyDbg, radare2, MCP, or any external reverse-analysis tool.
 
-Do not perform cleanup apply, file deletion, file moving, archive compaction apply, real deletion manifest write, or real tombstone write.
+Do not perform cleanup apply, deletion, file move, archive compaction apply, tombstone write, or deletion manifest write.
 
-Do not mark the state taxonomy implementation as complete. This round only completes Phase A metadata foundation.
+Do not run GitHub Actions dispatch or polling.
+
+Do not dispatch local, remote, or automatic runners.
+
+Do not invoke any model API.
+
+Do not run `git commit`, `git push`, `git branch`, `git checkout -b`, `git merge`, `git rebase`, create a PR, or push from the local executor.
+
+Do not claim `ACCEPTED` if `pytest_result`, `report-summary`, `execution-log`, `final-check`, or `run-closeout` fails.
+
+Do not claim that Phase A.1, Phase B, Phase C, Phase D, Phase E, or Phase F is complete.
 
 ## 4. Files To Inspect
 
-Must inspect:
+Required files:
 
-- `project_state/decision_packet.md`
-- `project_state/codex_execution_report.md`
-- `project_state/execution_report.md`
-- `project_state/pytest_result.txt`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/run_closeout_result.json`
-- `project_state/gates/execution_log.json`
-- `project_state/gates/command_plan.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/roadmap/workstreams.json`
-- `project_state/state_manifest.json`
-- `project_state/artifact_index.json`
-- `project_state/negative_results.json`
-- `project_state/current_state.json`
-- `.codex-skills/registry.json`
-- `reverse_agent/project_state.py`
-- `reverse_agent/project_state_manifest.py`
-- `reverse_agent/project_gate.py`
-- `reverse_agent/project_reports.py`
-- `tests/test_project_state.py`
-- `tests/test_project_state_manifest.py`
-- `tests/test_project_gate.py`
-- `tests/test_project_reports.py`
+```text
+project_state/decision_packet.md
+.codex-skills/registry.json
+project_state/codex_execution_report.md
+project_state/execution_report.md
+project_state/pytest_result.txt
+project_state/gates/command_plan.json
+project_state/gates/report_summary_synthesis.json
+project_state/gates/execution_log.json
+project_state/gates/final_gate_result.json
+project_state/gates/run_closeout_result.json
+docs/roadmap/next_step_after_scoped_metadata_foundation.md
+docs/roadmap/project_state_domain_taxonomy_supplement.md
+docs/roadmap/reverse_agent_normal_pace_plan.md
+project_state/roadmap/workstreams.json
+project_state/current_state.json
+project_state/artifact_index.json
+project_state/negative_results.json
+```
 
-May inspect:
+Optional files:
 
-- `project_state/context/current_context_packet.json`
-- `README.md`
-- `docs/roadmap/*`
-- `docs/prompts/README.md`
+```text
+project_state/context/current_context_packet.json
+project_state/state_manifest.json
+project_state/gates/startup_snapshot.json
+project_state/gates/gate_profile_plan.json
+project_state/gates/preflight_result.json
+project_state/gates/round_baseline.json
+project_state/gates/round_close_snapshot.json
+project_state/gates/round_delta_summary.json
+project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json
+```
 
-Do not inspect by default:
+Do not read full `solve_reports/`.
 
-- full `solve_reports/*`
-- full `PROJECT_PROGRESS_LOG.txt`
-- `training_materials/local_reverse/*`
-- archived/cold historical artifacts unless a failing gate explicitly requires them.
+Do not read full `PROJECT_PROGRESS_LOG.txt` unless a required gate explicitly references it.
+
+Do not inspect binaries or training samples in this round.
 
 ## 5. Required Audit
 
-Audit must answer all of the following:
+The execution report must answer all of the following:
 
 1. Is `decision_meta` present, valid, `APPROVED`, and on legal mainline `project_governance`?
 2. Does `skill_profiles` use only active skills from `.codex-skills/registry.json`?
-3. Does `codex_execution_report.md` match this decision ID and round ID?
+3. Does the report match this decision ID and round ID?
 4. Does `execution_report.md` semantically match `codex_execution_report.md`?
 5. Does `pytest_result.txt` match this decision ID, round ID, and report ID?
-6. Does `command_plan.json` carry current decision and round IDs?
+6. Does `command_plan.json` carry the current decision and round IDs?
 7. Does command-plan authorize every executed command?
 8. Were any omitted or unauthorized commands executed?
-9. Does execution-log record every command-plan required command?
+9. Does `execution_log.json` record every command-plan required command?
 10. Does report-summary match the execution report?
 11. Does `final_gate_result.json` pass?
-12. Does `run_closeout_result.json` pass if closeout is permitted?
-13. Does `workstreams.json` preserve the policy that roadmap entries are not execution authority?
-14. Does `workstreams.json` register `project_state_domain_taxonomy` without claiming full implementation completion?
-15. Does the normal-pace roadmap document exist and avoid rushed MVP commitments?
-16. Does the state taxonomy supplement document exist and distinguish Phase A from future migration phases?
-17. Does `state_manifest.json` include or support role/scope/domain/mainline/freshness metadata for state files?
-18. Does `artifact_index.json` include or support scope/domain/mainline/freshness metadata for artifact entries?
-19. Does `negative_results.json` include or support global/domain scope metadata while preserving legacy compatibility?
-20. Do tests cover legacy records without metadata and new scoped records with metadata?
-21. Does final-check/report-summary surface scoped metadata coverage without hard-failing old records in this phase?
-22. Did the implementation avoid modifying `current_state.json`, `task_packet.json`, `project_state/domains/*`, `.codex-skills/*`, `.github/workflows/*`, `frontend/*`, `solve_reports/*`, and database files?
-23. Did the implementation avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, file deletion/move, sample solving, and external reverse tools?
-24. Did this round reuse existing state_manifest/artifact_index/negative_results/project_gate/report mechanisms rather than creating parallel systems?
-25. Does the final conclusion avoid claiming completion of future domain migration phases?
+12. Does `run_closeout_result.json` pass?
+13. Does `docs/roadmap/next_step_after_scoped_metadata_foundation.md` exist?
+14. Does that document explicitly state it is roadmap material and not execution authority?
+15. Does that document preserve `decision_packet.md` as execution authority and `command_plan.json` as command authority?
+16. Does that document recommend Phase A.1 before Phase B without claiming either is implemented?
+17. Does this round avoid implementing Phase A.1?
+18. Does this round avoid creating `project_state/domains/*`?
+19. Does this round avoid modifying `current_state.json` and `task_packet.json`?
+20. Does this round avoid splitting or migrating `negative_results.json`?
+21. Does this round avoid modifying source files and test files?
+22. Does this round avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, deletion, file move, sample solving, and external reverse tools?
+23. Does this round avoid local `git commit`, `git push`, branch creation, PR creation, merge, and rebase?
+24. Does the report avoid claiming completion of Phase A.1, Phase B, Phase C, Phase D, Phase E, or Phase F?
+25. Does the final conclusion fit one of `ACCEPTED`, `ACCEPTED_WITH_LIMITATIONS`, `REWORK_REQUIRED`, or `BLOCKED`?
 
-Audit conclusion must be one of:
+The audit conclusion must be exactly one of:
 
-- `ACCEPTED`
-- `ACCEPTED_WITH_LIMITATIONS`
-- `REWORK_REQUIRED`
-- `BLOCKED`
+```text
+ACCEPTED
+ACCEPTED_WITH_LIMITATIONS
+REWORK_REQUIRED
+BLOCKED
+```
 
-If `REWORK_REQUIRED`, the audit must give a concrete rework decision, not a generic “continue improving” instruction.
+Use `ACCEPTED` only if all required gates pass and the document is properly registered as roadmap material.
+
+Use `ACCEPTED_WITH_LIMITATIONS` only if the document exists and all hard gates pass, but there is a clearly documented non-blocking limitation, such as local working tree sync lag that does not affect the GitHub artifact.
+
+Use `REWORK_REQUIRED` if any required gate fails, if report status is inconsistent, if an unauthorized command was executed, if the round implements Phase A.1 or Phase B, or if forbidden paths are modified.
+
+Use `BLOCKED` if the local executor cannot see the uploaded document because the local workspace has not been synced to GitHub, or if command-plan/preflight cannot be generated.
 
 ## 6. Implementation Scope
 
-Allowed implementation is a larger but bounded governance foundation bundle.
+This is a documentation-registration and audit round only.
 
-1. Roadmap documentation.
-   - Add or update `docs/roadmap/reverse_agent_normal_pace_plan.md`.
-   - Add or update `docs/roadmap/project_state_domain_taxonomy_supplement.md`.
-   - The docs must define normal phase order and state taxonomy migration phases.
-   - The docs must state they are roadmap material, not execution authority.
+Allowed substantive artifact:
 
-2. Workstream registry update.
-   - Update `project_state/roadmap/workstreams.json`.
-   - Preserve `authority_policy.decision_packet_is_execution_authority=true`.
-   - Preserve `authority_policy.roadmap_entries_are_not_execution_authority=true`.
-   - Register `project_state_domain_taxonomy` with `family=project_governance`.
-   - Status may be `ROADMAP_ACCEPTED` for the direction; do not mark full migration as `ACCEPTED`.
-   - Include phase list: Phase A metadata, Phase B domain skeleton, Phase C reverse_solving current_state copy, Phase D negative_results split, Phase E top-level current_state summary, Phase F final-check hardening.
+```text
+docs/roadmap/next_step_after_scoped_metadata_foundation.md
+```
 
-3. State manifest Phase A metadata.
-   - Extend manifest entry generation or validation to support `role`, `scope`, `domain`, `mainline`, and `freshness`.
-   - Preserve old schema consumers.
-   - Current top-level files should be classifiable, for example: global state summary, legacy sample state, gate artifact, roadmap registry, context packet, report artifact.
-   - Missing metadata on legacy entries should produce warnings/coverage information, not hard failure.
+The executor may read and validate this file. It may not substantially rewrite it unless command-plan and final-check explicitly allow the documentation path and the change is limited to clarifying roadmap-not-authority language.
 
-4. Artifact index Phase A metadata.
-   - Extend artifact records or upgrade logic to support `scope`, `domain`, `mainline`, `freshness`, `producer`, and `consumed_by` where safe.
-   - Do not store bulky artifact contents in the index.
-   - Do not require every historical artifact to be fully annotated immediately.
-   - Add tests for current artifact metadata and legacy artifact compatibility.
+Allowed generated artifacts:
 
-5. Negative results Phase A metadata.
-   - Extend negative result record parsing/upgrading to support `scope`, `domain`, `mainline`, `sample_id`, `severity`, `override_allowed`, and `replacement_direction`.
-   - Preserve current list-style JSON compatibility.
-   - Classify existing entries as best-effort: reverse-solving domain entries vs global policy entries such as `commit full solve_reports directory`.
-   - Do not split the file into domain files yet.
+```text
+project_state/codex_execution_report.md
+project_state/execution_report.md
+project_state/pytest_result.txt
+project_state/gates/startup_snapshot.json
+project_state/gates/gate_profile_plan.json
+project_state/gates/command_plan.json
+project_state/gates/preflight_result.json
+project_state/gates/prework_provenance_result.json
+project_state/gates/report_summary_synthesis.json
+project_state/gates/execution_log.json
+project_state/gates/final_gate_result.json
+project_state/gates/run_closeout_execution_log.json
+project_state/gates/run_closeout_result.json
+project_state/gates/round_baseline.json
+project_state/gates/round_close_snapshot.json
+project_state/gates/round_delta_summary.json
+project_state/gates/codex_report_auto_summary.json
+project_state/gates/execution_report_auto_summary.json
+project_state/rounds/round_20260707_next_step_roadmap_registration_v1/*
+```
 
-6. Gate/report integration.
-   - Add final-check or report-summary visibility for scope metadata coverage.
-   - The new check should report coverage status and warnings in Phase A.
-   - It should not block legacy records unless new current-round records violate this decision's requirements.
+No source files or test files may be modified.
 
-7. Tests.
-   - Add/update tests for state_manifest scoped entries.
-   - Add/update tests for artifact_index scoped entries or upgrade helpers.
-   - Add/update tests for negative_results scoped entries and legacy list compatibility.
-   - Add/update final-check/report-summary tests for scoped metadata coverage warnings.
+No state migration may be performed.
 
-Allowed source, state, governance, and documentation changes are limited to the files listed in `decision_contract`.
+No domain directory may be created.
+
+No local Git commit or push may be performed by the executor.
+
+This round should be small, auditable, and reversible. It should only close the governance gap created by the out-of-band user-requested roadmap upload.
 
 ## 7. Tests
 
-Run only command-plan authorized commands. If this Tests section conflicts with `project_state/gates/command_plan.json`, command-plan wins.
+Run only commands authorized by `project_state/gates/command_plan.json`.
 
-Expected minimum validation set:
+Expected minimum validation:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -395,62 +421,59 @@ python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m pytest tests/test_project_state.py tests/test_project_state_manifest.py tests/test_project_gate.py tests/test_project_reports.py -q
+python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_scoped_state_metadata_foundation_big_step_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1
 ```
 
-If command-plan requires broader validation, run the authorized broader set.
+If command-plan requires broader tests, command-plan wins.
 
-Required result artifacts:
+The executor must write:
 
-- `project_state/pytest_result.txt`
-- `project_state/codex_execution_report.md`
-- `project_state/execution_report.md`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/execution_log.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/run_closeout_result.json`
-- `project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json` if closeout is permitted.
+```text
+project_state/pytest_result.txt
+project_state/codex_execution_report.md
+project_state/execution_report.md
+project_state/gates/report_summary_synthesis.json
+project_state/gates/execution_log.json
+project_state/gates/final_gate_result.json
+project_state/gates/run_closeout_result.json
+project_state/rounds/round_20260707_next_step_roadmap_registration_v1/round_manifest.json
+```
 
-Acceptance requires:
+`pytest_result.txt` must include the executed command transcript and a summary block with the current decision ID, round ID, report ID, and status.
 
-- roadmap docs exist;
-- workstream registration exists and is not overstated;
-- state_manifest scoped metadata support exists;
-- artifact_index scoped metadata support exists;
-- negative_results scoped metadata support exists;
-- legacy compatibility tests pass;
-- no state files are moved or deleted;
-- no `project_state/domains/*` is created;
-- no forbidden capabilities are used;
-- report-summary, execution-log, final-check, and run-closeout pass;
-- execution report recommends `ACCEPTED` only with supporting artifacts.
+`codex_execution_report.md` and `execution_report.md` must not claim acceptance unless the tests and gates support it.
 
 ## 8. Stop Conditions
 
-Stop immediately and report `BLOCKED` if:
+Stop with `BLOCKED` if:
 
 - repository root is not `F:\reverse-agent` or equivalent;
 - `project_state/decision_packet.md` cannot be read;
-- `.codex-skills/registry.json` does not mark `reverse-agent-iteration` active;
-- command-plan cannot be generated or is inconsistent with this decision;
-- command-plan omits required validation and no approved fallback exists;
-- implementation requires moving, deleting, or archiving files;
-- implementation requires creating `project_state/domains/*`;
-- implementation requires editing forbidden paths;
-- implementation requires workflow files, frontend files, database files, jobs, sample artifacts, cleanup artifacts, or `.codex-skills`;
-- any runner dispatch, workflow dispatch, model API, Web runtime, database write, sample solving, external reverse tool invocation, cleanup apply, deletion, file move, or archive apply becomes necessary.
+- `.codex-skills/registry.json` does not mark `reverse-agent-iteration@v2` active;
+- `docs/roadmap/next_step_after_scoped_metadata_foundation.md` is missing from the local working tree after sync;
+- command-plan cannot be generated;
+- preflight cannot be generated;
+- the work requires GitHub Actions dispatch, runner dispatch, Web runtime, database work, sample solving, external reverse tools, cleanup apply, file move, file deletion, or local Git commit/push.
 
 Stop with `REWORK_REQUIRED` if:
 
-- `project_state_domain_taxonomy` is not registered in `workstreams.json`;
-- roadmap docs imply they are current execution authority;
-- scope/domain/mainline metadata support is absent from state_manifest/artifact_index/negative_results;
-- legacy compatibility breaks;
-- the implementation modifies `current_state.json`, `task_packet.json`, or creates `project_state/domains/*`;
-- the workstream is marked fully implemented without evidence;
-- report-summary, execution-log, final-check, or run-closeout fails;
-- the report claims `ACCEPTED` without passing final-check and closeout.
+- report status and audit conclusion disagree;
+- `pytest_result.txt` is missing or failed;
+- `report-summary` fails;
+- `execution-log` fails or omits required commands;
+- `final-check` fails;
+- `run-closeout` fails;
+- an omitted or unauthorized command was executed;
+- source files or test files were modified;
+- `current_state.json` or `task_packet.json` was modified;
+- `negative_results.json` was split or migrated;
+- `project_state/domains/*` was created;
+- the round implements Phase A.1 or Phase B instead of registering the roadmap;
+- local executor runs `git commit`, `git push`, branch creation, PR creation, merge, or rebase;
+- the report claims `ACCEPTED` without passing final-check and run-closeout.
+
+The correct next decision after this registration round, if accepted, is still expected to be a separate Phase A.1 decision to materialize scoped metadata visibility in on-disk governance artifacts.
