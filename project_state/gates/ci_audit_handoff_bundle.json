@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-  "round_id": "round_20260706_required_audit_status_truth_rework_v1",
-  "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
-  "generated_at": "2026-07-06T13:59:09.806139Z",
+  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "generated_at": "2026-07-06T16:11:27.313584Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -151,26 +151,35 @@
       "artifact": "project_state/gates/final_gate_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "PASSED",
+      "gate_status": "FAILED",
       "status": null,
       "close_round_status": null,
-      "report_status": "SUCCESS",
-      "acceptance_recommendation": "ACCEPTED",
+      "report_status": "FAILED",
+      "acceptance_recommendation": "REWORK_REQUIRED",
       "recommendation": null,
-      "errors": [],
-      "warnings": []
+      "errors": [
+        "status_policy_valid: status policy found blocking issues",
+        "closeout_active_warnings_clean: close_round_result has active warnings despite final_check_after_archive PASSED; these should be normalized to resolved_pre_archive_warnings",
+        "closeout_nested_failures_absent: run_closeout_result.json contains active nested FAIL/FAILED states"
+      ],
+      "warnings": [
+        "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
+        "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)"
+      ]
     },
     "run_closeout": {
       "artifact": "project_state/gates/run_closeout_result.json",
       "exists": true,
       "current_round": true,
       "gate_status": null,
-      "status": "PASSED",
+      "status": "FAILED",
       "close_round_status": "CLOSED",
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [],
+      "errors": [
+        "close-round active warning: scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)"
+      ],
       "warnings": []
     }
   },
@@ -180,11 +189,14 @@
     ],
     "missing_sources": [],
     "external_observation_pending": true,
-    "pending_diagnostic_sources": []
+    "pending_diagnostic_sources": [
+      "final_check",
+      "run_closeout"
+    ]
   },
   "post_closeout_status": {
-    "final_check_gate_status": "PASSED",
-    "run_closeout_status": "PASSED",
+    "final_check_gate_status": "FAILED",
+    "run_closeout_status": "FAILED",
     "close_round_status": "CLOSED",
     "execution_log_gate_status": "PASSED",
     "report_summary_status": null

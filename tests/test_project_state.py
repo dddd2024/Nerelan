@@ -18,8 +18,17 @@ from reverse_agent.project_state import (
     _latest_closed_round_info,
     _reverse_solving_blocker_only_report,
     archive_round,
+    artifact_scope_metadata,
+    build_artifact_index,
+    build_artifact_index_scope_coverage,
+    build_artifact_index_scope_metadata,
+    build_negative_results,
+    build_negative_results_scope_coverage,
     build_project_state,
     build_round_consistency,
+    build_state_file_scope_coverage,
+    classify_negative_result_scope,
+    classify_state_file_scope,
     doctor,
     ensure_state_layout,
     extract_markdown_json_block,
@@ -34,6 +43,7 @@ from reverse_agent.project_state import (
     rebuild_preview,
     rebuild_stage,
     status_summary,
+    upgrade_negative_results_scope,
     validate_pytest_result_for_report,
     write_pytest_result,
 )
@@ -8055,3 +8065,212 @@ class TestActiveExecutionView:
         state_dir = self._setup_state(tmp_path, mainline="reverse_solving")
         view = active_execution_view(state_dir=state_dir)
         assert view["historical_artifacts_role"] == "blocking_requirement"
+
+
+# ---------------------------------------------------------------------------
+# Phase A scoped state metadata foundation tests.
+# ---------------------------------------------------------------------------
+
+
+def test_classify_negative_result_scope_reverse_solving_entry() -> None:
+    entry = {"direction": "exact2 basin value-pool evaluation", "severity": "soft_block"}
+    meta = classify_negative_result_scope(entry)
+    assert meta["scope"] == "reverse_solving"
+    assert meta["domain"] == "reverse_solving"
+    assert meta["mainline"] == "reverse_solving"
+    assert meta["sample_id"] == "samplereverse"
+    assert meta["replacement_direction"]
+
+
+def test_classify_negative_result_scope_global_policy_entry() -> None:
+    entry = {"direction": "commit full solve_reports directory"}
+    meta = classify_negative_result_scope(entry)
+    assert meta["scope"] == "global_policy"
+    assert meta["domain"] == "global"
+    assert meta["mainline"] == "project_governance"
+    assert meta["sample_id"] == ""
+
+
+def test_classify_negative_result_scope_unknown_entry_is_blank() -> None:
+    entry = {"direction": "some unclassified future direction"}
+    meta = classify_negative_result_scope(entry)
+    assert meta["scope"] == ""
+    assert meta["domain"] == ""
+    # Unknown entries still get a mainline default of project_governance
+    assert meta["mainline"] == "project_governance"
+
+
+def test_upgrade_negative_results_scope_preserves_existing_fields() -> None:
+    records = [
+        {
+            "direction": "old sample_solver blind search",
+            "severity": "soft_block",
+            "do_not_repeat": True,
+            "reason": "compare-aware profile path is current primary route",
+            "override_allowed": True,
+            "override_reason_required": True,
+        }
+    ]
+    upgraded = upgrade_negative_results_scope(records)
+    assert len(upgraded) == 1
+    # Original fields preserved
+    assert upgraded[0]["direction"] == "old sample_solver blind search"
+    assert upgraded[0]["severity"] == "soft_block"
+    assert upgraded[0]["do_not_repeat"] is True
+    assert upgraded[0]["override_allowed"] is True
+    # Scope metadata added
+    assert upgraded[0]["scope"] == "reverse_solving"
+    assert upgraded[0]["domain"] == "reverse_solving"
+    assert upgraded[0]["sample_id"] == "samplereverse"
+    assert upgraded[0]["replacement_direction"]
+
+
+def test_upgrade_negative_results_scope_legacy_record_without_scope_kept() -> None:
+    """Legacy records that cannot be classified keep their original shape."""
+    records = [
+        {
+            "direction": "some novel direction not in the classifier list",
+            "severity": "soft_block",
+            "do_not_repeat": True,
+        }
+    ]
+    upgraded = upgrade_negative_results_scope(records)
+    assert len(upgraded) == 1
+    assert upgraded[0]["direction"] == "some novel direction not in the classifier list"
+    # scope is empty (legacy) but the record is preserved
+    assert upgraded[0].get("scope", "") == ""
+    assert upgraded[0]["severity"] == "soft_block"
+
+
+def test_upgrade_negative_results_scope_empty_and_none() -> None:
+    assert upgrade_negative_results_scope(None) == []
+    assert upgrade_negative_results_scope([]) == []
+
+
+def test_build_negative_results_emits_scope_metadata() -> None:
+    """build_negative_results should attach Phase A scope metadata to each record."""
+    results = build_negative_results(artifact_index=None)
+    assert len(results) > 0
+    # At least one reverse_solving and one global_policy entry should be classified
+    scopes = {r.get("scope") for r in results}
+    assert "reverse_solving" in scopes
+    assert "global_policy" in scopes
+    # Every record should have the scope key (possibly empty for unclassifiable)
+    for record in results:
+        assert "scope" in record
+        assert "domain" in record
+        assert "sample_id" in record
+
+
+def test_build_negative_results_scope_coverage_is_non_blocking() -> None:
+    results = build_negative_results(artifact_index=None)
+    coverage = build_negative_results_scope_coverage(results)
+    assert coverage["phase"] == "A"
+    assert coverage["hard_failure"] is False
+    assert coverage["legacy_compatible"] is True
+    assert coverage["total_records"] == len(results)
+    assert coverage["scoped_records"] >= 1
+    assert coverage["coverage_pct"] >= 0.0
+
+
+def test_build_negative_results_scope_coverage_legacy_records_non_blocking() -> None:
+    """Legacy records without scope metadata do not trigger hard_failure."""
+    legacy_records = [
+        {"direction": "novel unclassified direction", "severity": "soft_block"},
+        {"direction": "another novel direction", "severity": "soft_block"},
+    ]
+    coverage = build_negative_results_scope_coverage(legacy_records)
+    assert coverage["total_records"] == 2
+    assert coverage["scoped_records"] == 0
+    assert coverage["legacy_records_without_scope"] == 2
+    assert coverage["hard_failure"] is False
+    assert coverage["legacy_compatible"] is True
+
+
+def test_artifact_scope_metadata_known_kind() -> None:
+    meta = artifact_scope_metadata("summary")
+    assert meta["scope"] == "sample"
+    assert meta["domain"] == "reverse_solving"
+    assert meta["mainline"] == "reverse_solving"
+
+
+def test_artifact_scope_metadata_unknown_kind_returns_empty() -> None:
+    meta = artifact_scope_metadata("not_a_real_kind")
+    assert meta == {"scope": "", "domain": "", "mainline": ""}
+
+
+def test_build_artifact_index_emits_scope_metadata_and_coverage(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    reports_dir.mkdir()
+    index = build_artifact_index(reports_dir=reports_dir, sample="samplereverse")
+    assert "scope_metadata" in index
+    assert "scope_coverage" in index
+    # Every known artifact kind should get a scope_metadata entry
+    assert len(index["scope_metadata"]) == len(index["latest_artifacts_v2"])
+    # Coverage summary should be present and non-blocking
+    coverage = index["scope_coverage"]
+    assert coverage["phase"] == "A"
+    assert coverage["hard_failure"] is False
+    assert coverage["legacy_compatible"] is True
+    assert coverage["total_artifacts"] == len(index["latest_artifacts_v2"])
+
+
+def test_build_artifact_index_scope_metadata_preserves_freshness(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    reports_dir.mkdir()
+    index = build_artifact_index(reports_dir=reports_dir, sample="samplereverse")
+    summary_meta = index["scope_metadata"]["summary"]
+    assert summary_meta["scope"] == "sample"
+    assert summary_meta["domain"] == "reverse_solving"
+    assert summary_meta["freshness"] == "missing"  # no reports dir contents
+
+
+def test_classify_state_file_scope_global_governance_file() -> None:
+    meta = classify_state_file_scope("project_state/decision_packet.md")
+    assert meta["scope"] == "global"
+    assert meta["domain"] == "project_governance"
+    assert meta["role"] == "current"
+    assert meta["mainline"] == "project_governance"
+    assert meta["freshness"] == "current"
+
+
+def test_classify_state_file_scope_sample_file() -> None:
+    meta = classify_state_file_scope("project_state/artifact_index.json")
+    assert meta["scope"] == "sample"
+    assert meta["domain"] == "reverse_solving"
+    assert meta["role"] == "historical_nonblocking"
+
+
+def test_classify_state_file_scope_gates_prefix() -> None:
+    meta = classify_state_file_scope("project_state/gates/command_plan.json")
+    assert meta["scope"] == "global"
+    assert meta["domain"] == "project_governance"
+    assert meta["role"] == "generated_or_updated"
+
+
+def test_classify_state_file_scope_rounds_prefix() -> None:
+    meta = classify_state_file_scope("project_state/rounds/round_x/round_manifest.json")
+    assert meta["scope"] == "global"
+    assert meta["role"] == "archived"
+    assert meta["freshness"] == "archived"
+
+
+def test_classify_state_file_scope_unknown_path_returns_empty() -> None:
+    meta = classify_state_file_scope("project_state/some_unknown_file.xyz")
+    assert meta == {"scope": "", "domain": "", "role": "", "mainline": "", "freshness": ""}
+
+
+def test_build_state_file_scope_coverage_is_non_blocking() -> None:
+    paths = [
+        "project_state/decision_packet.md",
+        "project_state/gates/command_plan.json",
+        "project_state/unknown_file.xyz",
+    ]
+    coverage = build_state_file_scope_coverage(paths)
+    assert coverage["total_state_files"] == 3
+    assert coverage["scoped_state_files"] == 2
+    assert coverage["legacy_state_files_without_scope"] == 1
+    assert coverage["hard_failure"] is False
+    assert coverage["legacy_compatible"] is True
+    assert coverage["coverage_pct"] == round(2 / 3 * 100, 2)
+

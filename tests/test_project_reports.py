@@ -19,6 +19,7 @@ from reverse_agent.project_gate import (
     _generate_user_solve_session_bundle_required_audit,
     _required_audit_alignment_failures,
     _required_audit_coverage_check,
+    _scoped_metadata_coverage_check,
     command_plan,
 )
 
@@ -1015,3 +1016,132 @@ def test_ci_observation_bridge_required_audit_generator_is_substantive() -> None
     assert "project_state/gates/ci_artifact_manifest_result.json" in audit
     assert "project_state/gates/ci_audit_handoff_bundle.json" in audit
     assert result["status"] == "PASS"
+
+
+# ---------------------------------------------------------------------------
+# Phase A scoped state metadata coverage check tests.
+# ---------------------------------------------------------------------------
+
+
+def test_scoped_metadata_coverage_check_passes_when_foundation_present(tmp_path: Path) -> None:
+    """When state_manifest has a scoped_metadata section, the check must PASS
+    and surface coverage as non-blocking warnings (Phase A policy)."""
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "gates").mkdir()
+    # state_manifest with scoped_metadata section
+    (state_dir / "state_manifest.json").write_text(
+        json.dumps(
+            {
+                "scoped_metadata": {
+                    "phase": "A",
+                    "state_file_scope_coverage": {
+                        "total_state_files": 4,
+                        "scoped_state_files": 3,
+                        "legacy_state_files_without_scope": 1,
+                        "coverage_pct": 75.0,
+                        "hard_failure": False,
+                        "legacy_compatible": True,
+                    },
+                    "artifact_index_scope_coverage": {
+                        "total_artifacts": 50,
+                        "scoped_artifacts": 50,
+                        "legacy_artifacts_without_scope": 0,
+                        "coverage_pct": 100.0,
+                        "hard_failure": False,
+                    },
+                    "negative_results_scope_coverage": {
+                        "total_records": 7,
+                        "scoped_records": 7,
+                        "legacy_records_without_scope": 0,
+                        "coverage_pct": 100.0,
+                        "hard_failure": False,
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    # artifact_index with scope_coverage section
+    (state_dir / "artifact_index.json").write_text(
+        json.dumps({"scope_coverage": {"total_artifacts": 50, "coverage_pct": 100.0}}),
+        encoding="utf-8",
+    )
+
+    check = _scoped_metadata_coverage_check(state_dir)
+    assert check["name"] == "scoped_metadata_coverage"
+    assert check["status"] == "PASS"
+    assert check["phase"] == "A"
+    assert check["legacy_compatible"] is True
+    assert "state_files coverage=75.0%" in check["detail"]
+    assert "artifact_index coverage=100.0%" in check["detail"]
+    # Legacy state file surfaces as a non-blocking warning, not a failure
+    assert any("state files lack scope metadata" in w for w in check["warnings"])
+
+
+def test_scoped_metadata_coverage_check_warns_when_foundation_absent(tmp_path: Path) -> None:
+    """When both state_manifest.scoped_metadata and artifact_index.scope_coverage
+    are absent, the check must WARN (not FAIL) — Phase A policy treats an absent
+    foundation on legacy/pre-Phase-A state as non-blocking. A hard FAIL is
+    reserved for future Phase F hardening and is not enabled in Phase A."""
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "state_manifest.json").write_text("{}", encoding="utf-8")
+    (state_dir / "artifact_index.json").write_text("{}", encoding="utf-8")
+
+    check = _scoped_metadata_coverage_check(state_dir)
+    assert check["name"] == "scoped_metadata_coverage"
+    assert check["status"] == "WARN"
+    assert "Phase A scoped metadata foundation not yet surfaced" in check["detail"]
+    assert check["phase"] == "A"
+    assert check["legacy_compatible"] is True
+    assert check["hard_failure"] is False
+    assert any("foundation absent" in w for w in check["warnings"])
+
+
+def test_scoped_metadata_coverage_check_legacy_entries_do_not_fail(tmp_path: Path) -> None:
+    """Legacy entries without scope metadata produce WARN, never FAIL, as long
+    as the Phase A foundation section is present."""
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "gates").mkdir()
+    (state_dir / "state_manifest.json").write_text(
+        json.dumps(
+            {
+                "scoped_metadata": {
+                    "phase": "A",
+                    "state_file_scope_coverage": {
+                        "total_state_files": 3,
+                        "scoped_state_files": 1,
+                        "legacy_state_files_without_scope": 2,
+                        "coverage_pct": 33.33,
+                        "hard_failure": False,
+                        "legacy_compatible": True,
+                    },
+                    "artifact_index_scope_coverage": {
+                        "total_artifacts": 10,
+                        "scoped_artifacts": 5,
+                        "legacy_artifacts_without_scope": 5,
+                        "coverage_pct": 50.0,
+                        "hard_failure": False,
+                    },
+                    "negative_results_scope_coverage": {
+                        "total_records": 4,
+                        "scoped_records": 2,
+                        "legacy_records_without_scope": 2,
+                        "coverage_pct": 50.0,
+                        "hard_failure": False,
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    (state_dir / "artifact_index.json").write_text("{}", encoding="utf-8")
+
+    check = _scoped_metadata_coverage_check(state_dir)
+    # Foundation present → PASS even with many legacy gaps
+    assert check["status"] == "PASS"
+    assert any("state files lack scope metadata" in w for w in check["warnings"])
+    assert any("artifact kinds lack scope metadata" in w for w in check["warnings"])
+    assert any("negative results lack scope metadata" in w for w in check["warnings"])

@@ -8,7 +8,7 @@ import subprocess
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .function_semantics import FUNCTION_SEMANTIC_AUDIT_FILE_NAME
 from .sidecar_health import classify_observation_delivery
@@ -3561,6 +3561,15 @@ def build_artifact_index(
     generated_at = _now_iso()
     missing: list[str] = []
     if not reports_dir.exists():
+        empty_v2 = {
+            key: _artifact_metadata_entry(
+                kind=key,
+                path=None,
+                reports_dir=reports_dir,
+                latest_run=None,
+            )
+            for key in LATEST_ARTIFACT_KEYS
+        }
         return {
             "sample": sample,
             "reports_dir": _path_for_json(reports_dir),
@@ -3568,15 +3577,9 @@ def build_artifact_index(
             "latest_summary": None,
             "latest_case_results": [],
             "latest_artifacts": {key: None for key in LATEST_ARTIFACT_KEYS},
-            "latest_artifacts_v2": {
-                key: _artifact_metadata_entry(
-                    kind=key,
-                    path=None,
-                    reports_dir=reports_dir,
-                    latest_run=None,
-                )
-                for key in LATEST_ARTIFACT_KEYS
-            },
+            "latest_artifacts_v2": empty_v2,
+            "scope_metadata": build_artifact_index_scope_metadata(empty_v2),
+            "scope_coverage": build_artifact_index_scope_coverage(empty_v2),
             "recent_artifacts": [],
             "missing": ["reports_dir"],
             "generated_at": generated_at,
@@ -3655,6 +3658,13 @@ def build_artifact_index(
         missing.append("runtime_validation")
 
     recent_artifacts.sort(key=lambda item: str(item["modified_at"]), reverse=True)
+    # Phase A: emit a backward-compatible scope_metadata section that maps each
+    # artifact kind to best-effort scope/domain/mainline/freshness metadata.
+    # This does not move, delete, or split any artifact files; it only adds
+    # classification metadata that downstream readers can use without breaking
+    # legacy consumers of latest_artifacts/latest_artifacts_v2.
+    scope_metadata = build_artifact_index_scope_metadata(latest_artifacts_v2)
+    scope_coverage = build_artifact_index_scope_coverage(latest_artifacts_v2)
     return {
         "sample": sample,
         "reports_dir": _path_for_json(reports_dir),
@@ -3663,6 +3673,8 @@ def build_artifact_index(
         "latest_case_results": [_path_for_json(path) for path in latest_case_results],
         "latest_artifacts": latest_artifacts,
         "latest_artifacts_v2": latest_artifacts_v2,
+        "scope_metadata": scope_metadata,
+        "scope_coverage": scope_coverage,
         "recent_artifacts": recent_artifacts[: max(0, max_artifacts)],
         "missing": sorted(set(missing)),
         "generated_at": generated_at,
@@ -4980,6 +4992,465 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     }
 
 
+# ---------------------------------------------------------------------------
+# Phase A scoped metadata foundations for negative_results, artifact_index,
+# and state_manifest. These helpers add backward-compatible scope/domain/
+# mainline/sample_id/freshness metadata without moving, deleting, or
+# splitting any state files. Missing metadata on legacy entries is a
+# coverage warning, not a hard failure (see decision_packet Phase A).
+# ---------------------------------------------------------------------------
+
+NEGATIVE_RESULT_SCOPE_GLOBAL_POLICY = "global_policy"
+NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING = "reverse_solving"
+NEGATIVE_RESULT_DOMAIN_GLOBAL = "global"
+NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING = "reverse_solving"
+
+# (substring_match, scope, domain) — first match wins. Match is case-insensitive
+# against the entry ``direction`` text. Entries that do not match any classifier
+# are left with scope/domain unset and surfaced as legacy coverage warnings.
+_NEGATIVE_RESULT_SCOPE_CLASSIFIERS: tuple[tuple[str, str, str], ...] = (
+    ("solve_reports directory", NEGATIVE_RESULT_SCOPE_GLOBAL_POLICY, NEGATIVE_RESULT_DOMAIN_GLOBAL),
+    ("commit full solve_reports", NEGATIVE_RESULT_SCOPE_GLOBAL_POLICY, NEGATIVE_RESULT_DOMAIN_GLOBAL),
+    ("sample_solver blind search", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("guided_pool beam", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("compare_semantics_agree", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("exact2 basin", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("prefix8", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("transform trace consistency", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("dynamic compare-path probe", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("pre-rc4", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("material probe", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+    ("memory-scan", NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING, NEGATIVE_RESULT_DOMAIN_REVERSE_SOLVING),
+)
+
+
+def classify_negative_result_scope(
+    entry: Mapping[str, Any] | dict[str, Any],
+    *,
+    sample_id: str = "samplereverse",
+) -> dict[str, Any]:
+    """Best-effort scope/domain/sample_id classification for a negative result entry.
+
+    Returns a dict with ``scope``, ``domain``, ``mainline``, ``sample_id`` and
+    ``replacement_direction`` keys. ``scope``/``domain`` may be empty strings when
+    the entry is not classifiable, which keeps legacy list-style compatibility
+    while allowing downstream readers to surface coverage warnings.
+    """
+    direction = str(entry.get("direction") or "")
+    lowered = direction.lower()
+    scope = ""
+    domain = ""
+    for needle, matched_scope, matched_domain in _NEGATIVE_RESULT_SCOPE_CLASSIFIERS:
+        if needle in lowered:
+            scope = matched_scope
+            domain = matched_domain
+            break
+    sample_value = str(entry.get("sample_id") or "")
+    if not sample_value:
+        sample_value = sample_id if scope == NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING else ""
+    severity = str(entry.get("severity") or "")
+    override_allowed = entry.get("override_allowed")
+    override_allowed = bool(override_allowed) if isinstance(override_allowed, bool) else False
+    replacement_direction = ""
+    if scope == NEGATIVE_RESULT_SCOPE_GLOBAL_POLICY:
+        replacement_direction = "preserve as global policy restriction; no sample-specific retry"
+    elif scope == NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING:
+        replacement_direction = "request a different bounded evidence source before retrying"
+    return {
+        "scope": scope,
+        "domain": domain,
+        "mainline": "reverse_solving" if scope == NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING else "project_governance",
+        "sample_id": sample_value,
+        "severity": severity,
+        "override_allowed": override_allowed,
+        "replacement_direction": replacement_direction,
+    }
+
+
+def upgrade_negative_results_scope(
+    records: list[dict[str, Any]] | None,
+    *,
+    sample_id: str = "samplereverse",
+) -> list[dict[str, Any]]:
+    """Return a new list of negative result records with Phase A scope metadata.
+
+    Existing fields are preserved; scope/domain/sample_id/mainline/replacement_direction
+    are added when classifiable. Records that cannot be classified keep their
+    original shape and are surfaced as legacy coverage warnings.
+    """
+    if not records:
+        return [] if records is not None else []
+    upgraded: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        enriched = dict(record)
+        scope_meta = classify_negative_result_scope(record, sample_id=sample_id)
+        for key, value in scope_meta.items():
+            if key in ("severity", "override_allowed"):
+                # Preserve existing explicit values; only fill when missing.
+                if key not in enriched or enriched.get(key) in (None, ""):
+                    enriched[key] = value
+                continue
+            enriched.setdefault(key, value)
+        upgraded.append(enriched)
+    return upgraded
+
+
+def build_negative_results_scope_coverage(
+    records: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """Summarize Phase A scope metadata coverage for negative_results.
+
+    Phase A treats missing scope metadata on legacy entries as a non-blocking
+    warning; only ``hard_failure`` is set when no records carry scope metadata
+    at all (which would indicate the upgrade helper was never applied).
+    """
+    records = records or []
+    total = len(records)
+    scoped = sum(1 for r in records if isinstance(r, dict) and r.get("scope"))
+    global_count = sum(
+        1
+        for r in records
+        if isinstance(r, dict) and r.get("scope") == NEGATIVE_RESULT_SCOPE_GLOBAL_POLICY
+    )
+    reverse_count = sum(
+        1
+        for r in records
+        if isinstance(r, dict) and r.get("scope") == NEGATIVE_RESULT_SCOPE_REVERSE_SOLVING
+    )
+    legacy = total - scoped
+    coverage_pct = round((scoped / total) * 100, 2) if total else 0.0
+    return {
+        "total_records": total,
+        "scoped_records": scoped,
+        "legacy_records_without_scope": legacy,
+        "global_policy_records": global_count,
+        "reverse_solving_records": reverse_count,
+        "coverage_pct": coverage_pct,
+        "phase": "A",
+        "hard_failure": False,
+        "legacy_compatible": True,
+    }
+
+
+# Artifact index Phase A scope metadata. Maps artifact ``kind`` to a
+# best-effort (scope, domain, mainline) tuple. Artifacts not present in this
+# mapping are left unclassified and surface as legacy coverage warnings.
+_ARTIFACT_SCOPE_DOMAINS: dict[str, tuple[str, str, str]] = {
+    "summary": ("sample", "reverse_solving", "reverse_solving"),
+    "run_manifest": ("sample", "reverse_solving", "reverse_solving"),
+    "frontier_summary": ("sample", "reverse_solving", "reverse_solving"),
+    "strata_summary": ("sample", "reverse_solving", "reverse_solving"),
+    "case_results": ("sample", "reverse_solving", "reverse_solving"),
+    "checkpoint": ("sample", "reverse_solving", "reverse_solving"),
+    "guided_pool_result": ("sample", "reverse_solving", "reverse_solving"),
+    "guided_pool_validation": ("sample", "reverse_solving", "reverse_solving"),
+    "h1_h3_boundary_validation": ("sample", "reverse_solving", "reverse_solving"),
+    "exact2_basin_value_pool_result": ("sample", "reverse_solving", "reverse_solving"),
+    "exact2_basin_value_pool_validation": ("sample", "reverse_solving", "reverse_solving"),
+    "smt_result": ("sample", "reverse_solving", "reverse_solving"),
+    "smt_validation": ("sample", "reverse_solving", "reverse_solving"),
+    "bridge_search_result": ("sample", "reverse_solving", "reverse_solving"),
+    "bridge_validation": ("sample", "reverse_solving", "reverse_solving"),
+    "pairscan_summary": ("sample", "reverse_solving", "reverse_solving"),
+    "profile_transform_hypothesis_matrix": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_aware_result": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_probe_log": ("sample", "reverse_solving", "reverse_solving"),
+    "dynamic_compare_path_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "pre_rc4_material_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "base64_rc4_breakpoint_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "base64_rc4_static_point_discovery": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_stack_pivot_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_slice_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_return_site_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_producer_trace_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_producer_material_confirmation": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_pre_compare_handoff_target_probe": ("sample", "reverse_solving", "reverse_solving"),
+    "material_hook_runtime_validation": ("sample", "reverse_solving", "reverse_solving"),
+    "transform_trace_consistency": ("sample", "reverse_solving", "reverse_solving"),
+    "function_semantic_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_lhs_producer_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_lhs_upstream_writer_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_lhs_slot_writer_source_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_lhs_slot_writer_predecessor_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_callsite_reanchor_and_lhs_provenance_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_real_lhs_provenance_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_esi_source_window_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_hook_path_reachability_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_exit_classifier_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_path_divergence_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_edge_operand_provenance_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_branch_operand_runtime_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_hook_surface_repair_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_post_entry_step_runtime_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "compare_handoff_narrower_post_entry_breakpoint_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "post_handoff_branch_outcome_audit": ("sample", "reverse_solving", "reverse_solving"),
+    "post_handoff_exception_unwind_audit": ("sample", "reverse_solving", "reverse_solving"),
+    # local_reverse_* sample-scoped triage artifacts (best-effort classification)
+    "local_reverse_single_sample_static_triage": ("sample", "reverse_solving", "reverse_solving"),
+    "transform_material_static_extract": ("sample", "reverse_solving", "reverse_solving"),
+    "transform_material_evidence": ("sample", "reverse_solving", "reverse_solving"),
+    "transform_material_dispatch_plan": ("sample", "reverse_solving", "reverse_solving"),
+    "transform_material_provenance_report": ("sample", "reverse_solving", "reverse_solving"),
+    "expected_ciphertext_evidence": ("sample", "reverse_solving", "reverse_solving"),
+    "affine_inverse_handoff_current": ("sample", "reverse_solving", "reverse_solving"),
+    "solve_blocker": ("sample", "reverse_solving", "reverse_solving"),
+    "solve_provenance_report": ("sample", "reverse_solving", "reverse_solving"),
+}
+
+
+def artifact_scope_metadata(kind: str) -> dict[str, str]:
+    """Return Phase A scope metadata for an artifact ``kind``.
+
+    Unknown kinds return empty strings so legacy consumers are unaffected.
+    """
+    kind = str(kind or "")
+    matched = _ARTIFACT_SCOPE_DOMAINS.get(kind)
+    if not matched:
+        return {"scope": "", "domain": "", "mainline": ""}
+    scope, domain, mainline = matched
+    return {"scope": scope, "domain": domain, "mainline": mainline}
+
+
+def build_artifact_index_scope_coverage(
+    latest_artifacts_v2: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Summarize Phase A scope metadata coverage for artifact_index entries."""
+    entries = latest_artifacts_v2 or {}
+    if not isinstance(entries, Mapping):
+        entries = {}
+    total = len(entries)
+    scoped = 0
+    legacy = 0
+    by_domain: dict[str, int] = {}
+    for kind, entry in entries.items():
+        if not isinstance(entry, Mapping):
+            continue
+        scope_meta = artifact_scope_metadata(str(kind))
+        if scope_meta.get("scope"):
+            scoped += 1
+            domain = scope_meta["domain"] or "unclassified"
+            by_domain[domain] = by_domain.get(domain, 0) + 1
+        else:
+            legacy += 1
+    coverage_pct = round((scoped / total) * 100, 2) if total else 0.0
+    return {
+        "total_artifacts": total,
+        "scoped_artifacts": scoped,
+        "legacy_artifacts_without_scope": legacy,
+        "by_domain": dict(sorted(by_domain.items())),
+        "coverage_pct": coverage_pct,
+        "phase": "A",
+        "hard_failure": False,
+        "legacy_compatible": True,
+    }
+
+
+def build_artifact_index_scope_metadata(
+    latest_artifacts_v2: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Build the ``scope_metadata`` section emitted by ``build_artifact_index``.
+
+    Each key is an artifact kind; each value carries the Phase A scope/domain/
+    mainline/freshness metadata plus optional ``producer`` and ``consumed_by``
+    when safe to infer. Bulky artifact contents are never stored in the index.
+    """
+    entries = latest_artifacts_v2 or {}
+    if not isinstance(entries, Mapping):
+        entries = {}
+    scope_metadata: dict[str, Any] = {}
+    for kind, entry in entries.items():
+        if not isinstance(entry, Mapping):
+            continue
+        scope_meta = artifact_scope_metadata(str(kind))
+        freshness = str(entry.get("freshness") or "unknown")
+        record: dict[str, Any] = {
+            "scope": scope_meta.get("scope") or "",
+            "domain": scope_meta.get("domain") or "",
+            "mainline": scope_meta.get("mainline") or "",
+            "freshness": freshness,
+            "producer": "harness" if scope_meta.get("scope") == "sample" else "",
+            "consumed_by": [] if scope_meta.get("scope") == "sample" else [],
+        }
+        scope_metadata[str(kind)] = record
+    return scope_metadata
+
+
+# State file Phase A scope metadata. Maps a relative ``project_state/`` path
+# (or path prefix) to (scope, domain, role, mainline, freshness) metadata used
+# by state_manifest to classify current top-level state files.
+_STATE_FILE_SCOPE_CLASSIFICATIONS: dict[str, dict[str, str]] = {
+    "decision_packet.md": {
+        "scope": "global",
+        "domain": "project_governance",
+        "role": "current",
+        "mainline": "project_governance",
+        "freshness": "current",
+    },
+    "codex_execution_report.md": {
+        "scope": "global",
+        "domain": "project_governance",
+        "role": "current",
+        "mainline": "project_governance",
+        "freshness": "current",
+    },
+    "execution_report.md": {
+        "scope": "global",
+        "domain": "project_governance",
+        "role": "current",
+        "mainline": "project_governance",
+        "freshness": "current",
+    },
+    "pytest_result.txt": {
+        "scope": "global",
+        "domain": "project_governance",
+        "role": "current",
+        "mainline": "project_governance",
+        "freshness": "current",
+    },
+    "state_manifest.json": {
+        "scope": "global",
+        "domain": "project_governance",
+        "role": "generated_or_updated",
+        "mainline": "project_governance",
+        "freshness": "current",
+    },
+    "artifact_index.json": {
+        "scope": "sample",
+        "domain": "reverse_solving",
+        "role": "historical_nonblocking",
+        "mainline": "reverse_solving",
+        "freshness": "historical",
+    },
+    "negative_results.json": {
+        "scope": "mixed",
+        "domain": "reverse_solving",
+        "role": "historical_nonblocking",
+        "mainline": "reverse_solving",
+        "freshness": "historical",
+    },
+    "current_state.json": {
+        "scope": "sample",
+        "domain": "reverse_solving",
+        "role": "historical_nonblocking",
+        "mainline": "reverse_solving",
+        "freshness": "historical",
+    },
+    "task_packet.json": {
+        "scope": "sample",
+        "domain": "reverse_solving",
+        "role": "historical_nonblocking",
+        "mainline": "reverse_solving",
+        "freshness": "historical",
+    },
+    "retention_policy.json": {
+        "scope": "global",
+        "domain": "project_governance",
+        "role": "generated_or_updated",
+        "mainline": "project_governance",
+        "freshness": "current",
+    },
+    "state_lifecycle_registry.json": {
+        "scope": "global",
+        "domain": "project_governance",
+        "role": "generated_or_updated",
+        "mainline": "project_governance",
+        "freshness": "current",
+    },
+}
+
+
+def classify_state_file_scope(rel_path: str) -> dict[str, str]:
+    """Best-effort Phase A scope classification for a state file path.
+
+    Returns ``scope``/``domain``/``role``/``mainline``/``freshness`` keys. Paths
+    that are not classifiable return empty strings, which keeps legacy
+    consumers working and surfaces a non-blocking coverage warning.
+    """
+    key = str(rel_path or "").replace("\\", "/")
+    # strip leading project_state/ prefix for matching
+    if key.startswith("project_state/"):
+        key = key[len("project_state/"):]
+    matched = _STATE_FILE_SCOPE_CLASSIFICATIONS.get(key)
+    if matched:
+        return dict(matched)
+    # prefix-based classification for gates/*, context/*, rounds/*, roadmap/*
+    if key.startswith("gates/"):
+        return {
+            "scope": "global",
+            "domain": "project_governance",
+            "role": "generated_or_updated",
+            "mainline": "project_governance",
+            "freshness": "current",
+        }
+    if key.startswith("context/"):
+        return {
+            "scope": "global",
+            "domain": "project_governance",
+            "role": "generated_or_updated",
+            "mainline": "project_governance",
+            "freshness": "current",
+        }
+    if key.startswith("rounds/"):
+        return {
+            "scope": "global",
+            "domain": "project_governance",
+            "role": "archived",
+            "mainline": "project_governance",
+            "freshness": "archived",
+        }
+    if key.startswith("roadmap/"):
+        return {
+            "scope": "global",
+            "domain": "project_governance",
+            "role": "generated_or_updated",
+            "mainline": "project_governance",
+            "freshness": "current",
+        }
+    if key.startswith("jobs/"):
+        return {
+            "scope": "global",
+            "domain": "project_governance",
+            "role": "generated_or_updated",
+            "mainline": "project_governance",
+            "freshness": "current",
+        }
+    return {"scope": "", "domain": "", "role": "", "mainline": "", "freshness": ""}
+
+
+def build_state_file_scope_coverage(
+    rel_paths: list[str] | None,
+) -> dict[str, Any]:
+    """Summarize Phase A scope metadata coverage for a set of state files."""
+    paths = rel_paths or []
+    total = len(paths)
+    scoped = 0
+    legacy = 0
+    by_domain: dict[str, int] = {}
+    for rel in paths:
+        meta = classify_state_file_scope(str(rel))
+        if meta.get("scope"):
+            scoped += 1
+            domain = meta.get("domain") or "unclassified"
+            by_domain[domain] = by_domain.get(domain, 0) + 1
+        else:
+            legacy += 1
+    coverage_pct = round((scoped / total) * 100, 2) if total else 0.0
+    return {
+        "total_state_files": total,
+        "scoped_state_files": scoped,
+        "legacy_state_files_without_scope": legacy,
+        "by_domain": dict(sorted(by_domain.items())),
+        "coverage_pct": coverage_pct,
+        "phase": "A",
+        "hard_failure": False,
+        "legacy_compatible": True,
+    }
+
+
 def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     results = [
         {
@@ -5723,7 +6194,10 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "override_reason_required": True,
             }
         )
-    return results
+    # Phase A: attach best-effort scope/domain/sample_id/mainline/replacement_direction
+    # metadata to each record. Legacy records that cannot be classified keep
+    # their original shape and are surfaced as non-blocking coverage warnings.
+    return upgrade_negative_results_scope(results)
 
 
 def _case_results_have_errors(paths: list[str]) -> bool:

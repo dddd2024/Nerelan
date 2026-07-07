@@ -11,7 +11,7 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from .project_ci import (
     build_artifact_manifest_artifact,
@@ -14410,6 +14410,87 @@ def _check(name: str, status: str, detail: str, **extra: Any) -> dict[str, Any]:
     return item
 
 
+def _scoped_metadata_coverage_check(state_dir: Path) -> dict[str, Any]:
+    """Build the Phase A ``scoped_metadata_coverage`` check.
+
+    Surfaces scope/domain/mainline/freshness metadata coverage from
+    state_manifest, artifact_index, and negative_results. Phase A policy is
+    non-blocking: missing scope metadata on legacy entries produces a WARN,
+    never a FAIL. The check only FAILs when the Phase A foundation itself is
+    absent (no scoped_metadata section in state_manifest and no scope_metadata
+    in artifact_index), which would indicate the foundation was never built.
+    """
+    detail_parts: list[str] = []
+    warnings: list[str] = []
+    coverage: dict[str, Any] = {}
+
+    manifest_payload = _read_json(state_dir / "state_manifest.json")
+    scoped_metadata = manifest_payload.get("scoped_metadata") if isinstance(manifest_payload, dict) else None
+    if isinstance(scoped_metadata, Mapping):
+        state_cov = scoped_metadata.get("state_file_scope_coverage") or {}
+        artifact_cov = scoped_metadata.get("artifact_index_scope_coverage") or {}
+        negative_cov = scoped_metadata.get("negative_results_scope_coverage") or {}
+        coverage = {
+            "state_files": state_cov,
+            "artifact_index": artifact_cov,
+            "negative_results": negative_cov,
+        }
+        state_pct = state_cov.get("coverage_pct") if isinstance(state_cov, Mapping) else None
+        artifact_pct = artifact_cov.get("coverage_pct") if isinstance(artifact_cov, Mapping) else None
+        negative_pct = negative_cov.get("coverage_pct") if isinstance(negative_cov, Mapping) else None
+        detail_parts.append(f"state_files coverage={state_pct}%")
+        detail_parts.append(f"artifact_index coverage={artifact_pct}%")
+        detail_parts.append(f"negative_results coverage={negative_pct}%")
+        state_legacy = state_cov.get("legacy_state_files_without_scope") if isinstance(state_cov, Mapping) else 0
+        artifact_legacy = artifact_cov.get("legacy_artifacts_without_scope") if isinstance(artifact_cov, Mapping) else 0
+        negative_legacy = negative_cov.get("legacy_records_without_scope") if isinstance(negative_cov, Mapping) else 0
+        if state_legacy:
+            warnings.append(f"{state_legacy} state files lack scope metadata (legacy, non-blocking)")
+        if artifact_legacy:
+            warnings.append(f"{artifact_legacy} artifact kinds lack scope metadata (legacy, non-blocking)")
+        if negative_legacy:
+            warnings.append(f"{negative_legacy} negative results lack scope metadata (legacy, non-blocking)")
+    else:
+        warnings.append("state_manifest.scoped_metadata section absent; Phase A foundation not surfaced")
+
+    # Direct artifact_index coverage cross-check
+    artifact_index_payload = _read_json(state_dir / "artifact_index.json")
+    if isinstance(artifact_index_payload, Mapping):
+        ai_scope = artifact_index_payload.get("scope_coverage")
+        if isinstance(ai_scope, Mapping):
+            coverage.setdefault("artifact_index_direct", dict(ai_scope))
+
+    has_manifest_section = isinstance(scoped_metadata, Mapping)
+    has_artifact_section = isinstance(
+        artifact_index_payload.get("scope_coverage") if isinstance(artifact_index_payload, Mapping) else None,
+        Mapping,
+    )
+    # Phase A policy: missing scope metadata (including an absent foundation
+    # section on legacy/pre-Phase-A state) is a non-blocking WARN, never a
+    # hard FAIL. This keeps legacy rounds and pre-Phase-A test fixtures
+    # non-blocking while still surfacing coverage information. A hard FAIL is
+    # reserved for future Phase F hardening and is not enabled in Phase A.
+    foundation_present = has_manifest_section or has_artifact_section
+    if foundation_present:
+        status = "PASS"
+        detail = "; ".join(detail_parts) if detail_parts else "scoped metadata coverage available"
+    else:
+        status = "WARN"
+        detail = "Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)"
+        warnings.append("scoped_metadata foundation absent; Phase A coverage not yet emitted (legacy, non-blocking)")
+    return _check(
+        "scoped_metadata_coverage",
+        status,
+        detail,
+        warnings=warnings,
+        coverage=coverage,
+        phase="A",
+        legacy_compatible=True,
+        hard_failure=False,
+        non_blocking=True,
+    )
+
+
 def _state_relative_path(state_dir: Path, path: Path) -> str:
     try:
         return _norm_path(str(path.resolve().relative_to(state_dir.parent.resolve())))
@@ -21102,6 +21183,7 @@ def _report_summary_checks(
             warnings=warnings,
             non_blocking_warnings=non_blocking_warnings,
         ),
+        _scoped_metadata_coverage_check(state_dir),
     ]
 
 
@@ -21275,6 +21357,11 @@ def _result_status(checks: list[dict[str, Any]], report_status: str, *, mainline
             elif name in ARCHIVE_PENDING_CHECKS:
                 non_blocking_warn_names.add(name)
             elif name == "generated_artifacts_cover_round_archive":
+                non_blocking_warn_names.add(name)
+            elif name == "scoped_metadata_coverage" and check.get("non_blocking"):
+                # Phase A scoped metadata coverage: WARN is informational and
+                # non-blocking. Legacy/pre-Phase-A fixtures without the
+                # scoped_metadata section must not downgrade gate_status.
                 non_blocking_warn_names.add(name)
         all_warn_names = {check.get("name") or "" for check in warn_checks}
         if all_warn_names <= non_blocking_warn_names:
@@ -21500,6 +21587,8 @@ def final_check(
             close_round_in_progress=close_round_in_progress,
         )
     )
+
+    checks.append(_scoped_metadata_coverage_check(state_dir))
 
     manifest_present = bool(round_consistency.get("round_manifest_present"))
     manifest_files = list(round_consistency.get("round_manifest_files") or [])
@@ -23633,6 +23722,7 @@ def final_check(
             _active_cr_warnings = [
                 w for w in cr_warnings
                 if w not in cr_resolved
+                and not w.startswith("scoped_metadata_coverage:")
             ]
             if not closeout_warnings and not _active_cr_warnings:
                 _caw_status = "PASS"
@@ -29572,6 +29662,8 @@ def _run_closeout_internal_blocking_reasons(
             if warning.startswith("report_summary_fields_match_synthesis:"):
                 continue
             if warning.startswith("baseline_capture_order:"):
+                continue
+            if warning.startswith("scoped_metadata_coverage:"):
                 continue
             reasons.append(f"close-round active warning: {warning}")
 

@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .project_state import (
+    build_negative_results_scope_coverage,
+    build_state_file_scope_coverage,
+    classify_state_file_scope,
     parse_pytest_result_header,
     read_codex_report_summary,
     read_decision_contract,
@@ -76,6 +79,71 @@ def _artifact_freshness_summary(artifact_index: Mapping[str, Any]) -> dict[str, 
         "counts": dict(sorted(counts.items())),
         "missing_sample_artifacts": list(missing or []) if isinstance(missing, list) else [],
         "missing_sample_artifacts_blocking_for_current_round": False,
+    }
+
+
+def _build_state_manifest_scoped_metadata(
+    state_dir: Path,
+    *,
+    current_refs: Mapping[str, Mapping[str, Any]],
+    generated_refs: Mapping[str, Mapping[str, Any]],
+    historical_refs: Mapping[str, Mapping[str, Any]],
+    archived_refs: Mapping[str, Mapping[str, Any]],
+    artifact_index: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build the Phase A ``scoped_metadata`` section for the state manifest.
+
+    Classifies current top-level state files with role/scope/domain/mainline/
+    freshness metadata and surfaces a non-blocking coverage summary. Legacy
+    entries without scope metadata are preserved and reported as warnings,
+    never as hard failures (Phase A policy).
+    """
+    file_scope: dict[str, dict[str, str]] = {}
+    rel_paths: list[str] = []
+    for bucket in (current_refs, generated_refs, historical_refs, archived_refs):
+        if not isinstance(bucket, Mapping):
+            continue
+        for _key, ref in bucket.items():
+            if not isinstance(ref, Mapping):
+                continue
+            path = str(ref.get("path") or "")
+            if not path:
+                continue
+            rel_paths.append(path)
+            file_scope[path] = classify_state_file_scope(path)
+
+    state_file_coverage = build_state_file_scope_coverage(rel_paths)
+
+    # Surface artifact_index scope coverage when the index has been upgraded
+    # with the Phase A scope_metadata/scope_coverage sections.
+    artifact_scope_coverage: dict[str, Any] = {}
+    if isinstance(artifact_index, Mapping):
+        if isinstance(artifact_index.get("scope_coverage"), Mapping):
+            artifact_scope_coverage = dict(artifact_index["scope_coverage"])
+
+    # Surface negative_results scope coverage by reading the on-disk file.
+    negative_results_coverage: dict[str, Any] = {}
+    try:
+        nr_path = state_dir / "negative_results.json"
+        if nr_path.exists():
+            nr_payload = json.loads(nr_path.read_text(encoding="utf-8"))
+            if isinstance(nr_payload, list):
+                negative_results_coverage = build_negative_results_scope_coverage(nr_payload)
+    except (OSError, json.JSONDecodeError):
+        negative_results_coverage = {}
+
+    return {
+        "phase": "A",
+        "state_file_scope": file_scope,
+        "state_file_scope_coverage": state_file_coverage,
+        "artifact_index_scope_coverage": artifact_scope_coverage,
+        "negative_results_scope_coverage": negative_results_coverage,
+        "policy": {
+            "missing_scope_metadata_is_non_blocking": True,
+            "legacy_entries_preserved": True,
+            "no_files_moved_or_deleted": True,
+            "domain_migration_not_complete": True,
+        },
     }
 
 
@@ -332,6 +400,14 @@ def build_state_manifest(
             "state_manifest_indexes_current_state_only": True,
             "project_state_files_remain_audit_fact_sources": True,
         },
+        "scoped_metadata": _build_state_manifest_scoped_metadata(
+            state_dir_path,
+            current_refs=current_refs,
+            generated_refs=generated_refs,
+            historical_refs=historical_refs,
+            archived_refs=archived_refs,
+            artifact_index=artifact_index,
+        ),
     }
     if write_result:
         out_path = state_dir_path / "state_manifest.json"

@@ -3,19 +3,21 @@
   "artifact_name": "execution_report_auto_summary.json",
   "gate_name": "report-auto-summary",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-  "round_id": "round_20260706_required_audit_status_truth_rework_v1",
-  "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
-  "generated_at": "2026-07-06T13:59:16.999311Z",
+  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "generated_at": "2026-07-06T16:11:46.900189Z",
   "source": "synthesized_from_structured_evidence",
   "summary": {
     "schema_version": 1,
-    "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
-    "round_id": "round_20260706_required_audit_status_truth_rework_v1",
-    "based_on_decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-    "status": "SUCCESS",
-    "acceptance_recommendation": "ACCEPTED",
+    "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
+    "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+    "based_on_decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+    "status": "FAILED",
+    "acceptance_recommendation": "REWORK_REQUIRED",
     "files_changed": [
+      "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+      "docs/roadmap/reverse_agent_normal_pace_plan.md",
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/gates/audit_precheck_result.json",
@@ -41,26 +43,29 @@
       "project_state/gates/run_closeout_result.json",
       "project_state/gates/startup_snapshot.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json",
+      "project_state/roadmap/workstreams.json",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json",
+      "reverse_agent/project_gate.py",
       "reverse_agent/project_state.py",
+      "reverse_agent/project_state_manifest.py",
+      "tests/test_project_reports.py",
+      "tests/test_project_state.py",
       "tests/test_project_state_manifest.py"
     ],
     "tests_ran": [
       "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "python -m reverse_agent.project_gate prework-provenance --state-dir project_state",
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state_manifest.py -q",
-      "python -m pytest tests/test_post_final_evidence_sync.py tests/test_project_context_builder.py -q",
+      "python -m pytest tests/test_project_state.py tests/test_project_state_manifest.py tests/test_project_gate.py tests/test_project_reports.py -q",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_required_audit_status_truth_rework_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_scoped_state_metadata_foundation_big_step_v1"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -88,19 +93,16 @@
       "project_state/gates/run_closeout_result.json",
       "project_state/gates/startup_snapshot.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json"
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json"
     ],
     "referenced_artifacts": [
       "project_state/gates/policy_lint_result.json"
     ],
-    "required_closeout_artifacts": [],
-    "external_state_notices": [
-      "50 missing historical sample artifacts"
-    ]
+    "required_closeout_artifacts": []
   },
   "source_provenance": {
     "decision_meta": "project_state/decision_packet.md",
@@ -184,11 +186,11 @@
       "project_state/gates/user_solve_workbench_snapshot.json"
     ],
     "archive_paths": [
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json"
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+      "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json"
     ],
     "status_source": "final_gate_result.json",
     "final_gate_result": "project_state/gates/final_gate_result.json"

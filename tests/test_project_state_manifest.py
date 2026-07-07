@@ -115,6 +115,75 @@ def test_state_manifest_indexes_current_state_without_promoting_sample_gaps(tmp_
     assert (state_dir / "state_manifest.json").exists()
 
 
+def test_state_manifest_includes_phase_a_scoped_metadata_section(tmp_path: Path) -> None:
+    """Phase A: state_manifest must emit a scoped_metadata section classifying
+    current state files with scope/domain/mainline/role/freshness metadata,
+    treating legacy gaps as non-blocking warnings."""
+    state_dir = tmp_path / "project_state"
+    _write_state(state_dir)
+
+    manifest = build_state_manifest(state_dir=state_dir)
+
+    assert "scoped_metadata" in manifest
+    scoped = manifest["scoped_metadata"]
+    assert scoped["phase"] == "A"
+    # Policy flags preserve Phase A non-blocking behavior
+    assert scoped["policy"]["missing_scope_metadata_is_non_blocking"] is True
+    assert scoped["policy"]["legacy_entries_preserved"] is True
+    assert scoped["policy"]["no_files_moved_or_deleted"] is True
+    assert scoped["policy"]["domain_migration_not_complete"] is True
+    # State file scope classifications are present
+    assert "state_file_scope" in scoped
+    file_scope = scoped["state_file_scope"]
+    assert "project_state/decision_packet.md" in file_scope
+    assert file_scope["project_state/decision_packet.md"]["scope"] == "global"
+    assert file_scope["project_state/decision_packet.md"]["domain"] == "project_governance"
+    # Coverage summary is present and non-blocking
+    state_cov = scoped["state_file_scope_coverage"]
+    assert state_cov["phase"] == "A"
+    assert state_cov["hard_failure"] is False
+    assert state_cov["legacy_compatible"] is True
+    assert state_cov["total_state_files"] >= 1
+    assert state_cov["scoped_state_files"] >= 1
+    # negative_results scope coverage is surfaced (file exists with [])
+    neg_cov = scoped["negative_results_scope_coverage"]
+    assert neg_cov.get("phase") == "A"
+    assert neg_cov.get("hard_failure") is False
+
+
+def test_state_manifest_scoped_metadata_classifies_sample_and_global_files(tmp_path: Path) -> None:
+    """state_manifest scoped_metadata must distinguish global governance files
+    from sample-scoped reverse_solving files."""
+    state_dir = tmp_path / "project_state"
+    _write_state(state_dir)
+
+    manifest = build_state_manifest(state_dir=state_dir)
+    file_scope = manifest["scoped_metadata"]["state_file_scope"]
+
+    # Global governance file
+    assert file_scope["project_state/decision_packet.md"]["scope"] == "global"
+    assert file_scope["project_state/decision_packet.md"]["mainline"] == "project_governance"
+    # Sample-scoped reverse_solving file
+    assert file_scope["project_state/artifact_index.json"]["scope"] == "sample"
+    assert file_scope["project_state/artifact_index.json"]["domain"] == "reverse_solving"
+    assert file_scope["project_state/artifact_index.json"]["role"] == "historical_nonblocking"
+
+
+def test_state_manifest_scoped_metadata_legacy_gaps_do_not_hard_fail(tmp_path: Path) -> None:
+    """When some state files lack scope metadata (legacy), the scoped_metadata
+    coverage must remain non-blocking in Phase A."""
+    state_dir = tmp_path / "project_state"
+    _write_state(state_dir)
+
+    manifest = build_state_manifest(state_dir=state_dir)
+    state_cov = manifest["scoped_metadata"]["state_file_scope_coverage"]
+    # hard_failure must always be False in Phase A
+    assert state_cov["hard_failure"] is False
+    assert state_cov["legacy_compatible"] is True
+    # Legacy count may be > 0 but must not block
+    assert state_cov["legacy_state_files_without_scope"] >= 0
+
+
 def test_has_failed_command_block_detects_nonzero_exit() -> None:
     from reverse_agent.project_state import _has_failed_command_block
     body_with_failure = (

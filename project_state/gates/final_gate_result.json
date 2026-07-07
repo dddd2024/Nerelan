@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-  "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
-  "round_id": "round_20260706_required_audit_status_truth_rework_v1",
-  "generated_at": "2026-07-06T14:00:41.643080Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "generated_at": "2026-07-06T16:11:47.899575Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -48,23 +48,37 @@
       "name": "pytest_result_status_supports_accepted_report",
       "status": "PASS",
       "detail": "pytest_result_summary.status supports accepted report",
-      "report_status": "SUCCESS",
-      "acceptance_recommendation": "ACCEPTED",
+      "report_status": "FAILED",
+      "acceptance_recommendation": "REWORK_REQUIRED",
       "pytest_result_status": "PASSED",
-      "required": true
+      "required": false
     },
     {
       "name": "pytest_result_failed_command_blocks_absent",
       "status": "PASS",
-      "detail": "accepted pytest_result has no failed command blocks",
+      "detail": "report is not accepted; failed command block absence is not an acceptance precondition",
       "failed_command_blocks": [],
-      "required": true
+      "required": false
+    },
+    {
+      "name": "scoped_metadata_coverage",
+      "status": "WARN",
+      "detail": "Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
+      "warnings": [
+        "state_manifest.scoped_metadata section absent; Phase A foundation not surfaced",
+        "scoped_metadata foundation absent; Phase A coverage not yet emitted (legacy, non-blocking)"
+      ],
+      "coverage": {},
+      "phase": "A",
+      "legacy_compatible": true,
+      "hard_failure": false,
+      "non_blocking": true
     },
     {
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260706_required_audit_status_truth_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260706_scoped_state_metadata_foundation_big_step_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -98,6 +112,8 @@
       "baseline_available": true,
       "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
+        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+        "docs/roadmap/reverse_agent_normal_pace_plan.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
@@ -123,15 +139,22 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json",
+        "project_state/roadmap/workstreams.json",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
+        "reverse_agent/project_state_manifest.py",
+        "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ],
       "final_dirty_files": [
+        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+        "docs/roadmap/reverse_agent_normal_pace_plan.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
@@ -157,12 +180,17 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json",
+        "project_state/roadmap/workstreams.json",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
+        "reverse_agent/project_state_manifest.py",
+        "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ]
     },
@@ -178,6 +206,8 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
+        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+        "docs/roadmap/reverse_agent_normal_pace_plan.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
@@ -203,15 +233,22 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json",
+        "project_state/roadmap/workstreams.json",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
+        "reverse_agent/project_state_manifest.py",
+        "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ],
       "required_round_delta_files": [
+        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+        "docs/roadmap/reverse_agent_normal_pace_plan.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
@@ -237,12 +274,17 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json",
+        "project_state/roadmap/workstreams.json",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
+        "reverse_agent/project_state_manifest.py",
+        "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ],
       "inherited_dirty_files": []
@@ -252,7 +294,12 @@
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
+        "project_state/roadmap/workstreams.json",
+        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
+        "reverse_agent/project_state_manifest.py",
+        "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ],
       "claimed_source_test_paths": []
@@ -277,16 +324,23 @@
       "detail": "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
+        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
+        "reverse_agent/project_state_manifest.py",
+        "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ],
       "allowed_inherited_dirty_files": [
+        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+        "docs/roadmap/reverse_agent_normal_pace_plan.md",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state.py",
         "reverse_agent/project_state_manifest.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ],
       "generated_or_archive_baseline_dirty_files": [],
@@ -299,12 +353,15 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
+        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+        "docs/roadmap/reverse_agent_normal_pace_plan.md",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state.py",
         "reverse_agent/project_state_manifest.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ],
       "baseline_dirty_source_test_files": [],
@@ -596,17 +653,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-      "closeout_log_round_id": "round_20260706_required_audit_status_truth_rework_v1",
-      "expected_decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-      "expected_round_id": "round_20260706_required_audit_status_truth_rework_v1"
+      "closeout_log_decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+      "closeout_log_round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+      "expected_decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+      "expected_round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
-      "expected_report_id": "codex_report_20260706_required_audit_status_truth_rework_v1"
+      "execution_log_report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
+      "expected_report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -632,8 +689,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-      "command_plan_round_id": "round_20260706_required_audit_status_truth_rework_v1"
+      "command_plan_decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+      "command_plan_round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1"
     },
     {
       "name": "command_plan_execution_order_policy",
@@ -681,7 +738,7 @@
       "status": "PASS",
       "detail": "accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics",
       "errors": [],
-      "required": true
+      "required": false
     },
     {
       "name": "command_plan_generated_artifact_recorded",
@@ -720,6 +777,20 @@
       "detail": "report summary status fields are derived from final gate result",
       "warnings": [],
       "non_blocking_warnings": []
+    },
+    {
+      "name": "scoped_metadata_coverage",
+      "status": "WARN",
+      "detail": "Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
+      "warnings": [
+        "state_manifest.scoped_metadata section absent; Phase A foundation not surfaced",
+        "scoped_metadata foundation absent; Phase A coverage not yet emitted (legacy, non-blocking)"
+      ],
+      "coverage": {},
+      "phase": "A",
+      "legacy_compatible": true,
+      "hard_failure": false,
+      "non_blocking": true
     },
     {
       "name": "preflight_failure_handoff",
@@ -1094,11 +1165,11 @@
         "project_state/gates/run_closeout_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json"
       ],
       "historical_nonblocking_artifacts": [
         "project_state/gates/agent_runner_dry_run_result.json",
@@ -1182,11 +1253,11 @@
         "project_state/gates/user_solve_workbench_snapshot.json"
       ],
       "archived_artifacts": [
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260706_required_audit_status_truth_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/decision_packet.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/execution_report.md",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/pytest_result.txt",
+        "project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json"
       ]
     },
     {
@@ -1195,9 +1266,9 @@
       "detail": "audit readiness packet is current and evidence-only",
       "required": false,
       "errors": [],
-      "readiness_status": "READY",
-      "closeout_status": "PASSED",
-      "next_action": "no_action_required",
+      "readiness_status": "PENDING",
+      "closeout_status": "FAILED",
+      "next_action": "complete_closeout_and_rerun_final_check",
       "artifact": "project_state/gates/audit_readiness_packet.json"
     },
     {
@@ -1426,8 +1497,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-      "gate_profile_round_id": "round_20260706_required_audit_status_truth_rework_v1"
+      "gate_profile_decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+      "gate_profile_round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -1460,35 +1531,33 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 31 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 29 Required Audit items with substantive aligned answers",
       "required_audit_items": [
-        "Is `decision_meta` present, valid, `APPROVED`, and on legal mainline `engineering_branch`?",
+        "Is `decision_meta` present, valid, `APPROVED`, and on legal mainline `project_governance`?",
         "Does `skill_profiles` use only active skills from `.codex-skills/registry.json`?",
         "Does `codex_execution_report.md` match this decision ID and round ID?",
         "Does `execution_report.md` semantically match `codex_execution_report.md`?",
         "Does `pytest_result.txt` match this decision ID, round ID, and report ID?",
-        "Does `pytest_result.txt` status agree with command block exit codes and final-check/run-closeout evidence?",
         "Does `command_plan.json` carry current decision and round IDs?",
         "Does command-plan authorize every executed command?",
         "Were any omitted or unauthorized commands executed?",
         "Does execution-log record every command-plan required command?",
-        "Does execution-log provenance match live pytest_result, command_plan, and run_closeout evidence?",
-        "Does `prework_provenance_result.json` remain current and pass?",
-        "Does report-summary match the execution report status, files_changed, tests_ran, generated_artifacts, and required audit coverage?",
-        "Does Required Audit coverage pass without placeholder or question-misaligned answers?",
-        "Does status-policy reject accepted claims when final-check or run-closeout evidence is failed?",
-        "Does final-check pass before closeout?",
-        "Does close-round archive the current round if closeout is permitted?",
-        "Does final-check after closeout pass or is there no active post-close nested failure?",
-        "Does `run_closeout_result.json.closeout_status` pass if command-plan permits closeout?",
-        "Does the current round manifest exist and match the current report if closeout is permitted?",
-        "Does final gate contain no active blocking reasons?",
-        "Are all changed source/test files explicitly allowed by this decision?",
-        "Does the round avoid forbidden paths?",
-        "Did the implementation avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, sample solving, and external reverse tools?",
-        "Did this round preserve existing timestamp precision hardening and prework provenance behavior without reimplementing them unnecessarily?",
-        "Did this round reuse existing project_gate/report/final-check/closeout foundations instead of adding a parallel mechanism?",
-        "Does the final conclusion avoid claiming `ACCEPTED` or `ACCEPTED_WITH_LIMITATIONS` unless all hard gates and closeout support it?",
+        "Does report-summary match the execution report?",
+        "Does `final_gate_result.json` pass?",
+        "Does `run_closeout_result.json` pass if closeout is permitted?",
+        "Does `workstreams.json` preserve the policy that roadmap entries are not execution authority?",
+        "Does `workstreams.json` register `project_state_domain_taxonomy` without claiming full implementation completion?",
+        "Does the normal-pace roadmap document exist and avoid rushed MVP commitments?",
+        "Does the state taxonomy supplement document exist and distinguish Phase A from future migration phases?",
+        "Does `state_manifest.json` include or support role/scope/domain/mainline/freshness metadata for state files?",
+        "Does `artifact_index.json` include or support scope/domain/mainline/freshness metadata for artifact entries?",
+        "Does `negative_results.json` include or support global/domain scope metadata while preserving legacy compatibility?",
+        "Do tests cover legacy records without metadata and new scoped records with metadata?",
+        "Does final-check/report-summary surface scoped metadata coverage without hard-failing old records in this phase?",
+        "Did the implementation avoid modifying `current_state.json`, `task_packet.json`, `project_state/domains/*`, `.codex-skills/*`, `.github/workflows/*`, `frontend/*`, `solve_reports/*`, and database files?",
+        "Did the implementation avoid Web/frontend runtime, runner dispatch, workflow dispatch, model API invocation, database writes, cleanup apply, file deletion/move, sample solving, and external reverse tools?",
+        "Did this round reuse existing state_manifest/artifact_index/negative_results/project_gate/report mechanisms rather than creating parallel systems?",
+        "Does the final conclusion avoid claiming completion of future domain migration phases?",
         "`ACCEPTED`",
         "`ACCEPTED_WITH_LIMITATIONS`",
         "`REWORK_REQUIRED`",
@@ -1502,8 +1571,16 @@
       "name": "policy_impact_coverage",
       "status": "PASS",
       "detail": "policy impact coverage satisfied or no policy-sensitive changes",
-      "policy_sensitive_files": [],
-      "impacted_domains": [],
+      "policy_sensitive_files": [
+        "reverse_agent/project_gate.py"
+      ],
+      "impacted_domains": [
+        "command_plan",
+        "final_check",
+        "policy_lint",
+        "report_status_schema",
+        "report_summary"
+      ],
       "missing_report_topics": []
     },
     {
@@ -1513,27 +1590,28 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
-      "lint_errors": [],
-      "warnings": [],
-      "doctor_status": "PASS",
-      "report_status": "SUCCESS",
+      "status": "FAIL",
+      "detail": "status policy found blocking issues",
+      "lint_errors": [
+        "doctor status is FAIL"
+      ],
+      "warnings": [
+        "report_status is FAILED"
+      ],
+      "doctor_status": "FAIL",
+      "report_status": "FAILED",
       "canonical_status_source": "execution_report_summary",
-      "canonical_acceptance_recommendation": "ACCEPTED",
+      "canonical_acceptance_recommendation": "REWORK_REQUIRED",
       "status_source_reconciliations": [],
       "limitations": null,
       "artifact_freshness_policy": "claim_aware",
       "required_current_artifacts": [],
       "claimed_evidence_artifacts": [],
       "historical_or_backlog_artifacts": [
-        "50 missing, 0 stale historical sample artifacts (non-blocking)"
+        "50 missing, 0 stale artifacts"
       ],
       "historical_backlog": [
-        "50 missing, 0 stale historical sample artifacts (non-blocking)"
-      ],
-      "external_state_notices": [
-        "50 missing historical sample artifacts"
+        "50 missing, 0 stale artifacts"
       ]
     },
     {
@@ -1602,33 +1680,49 @@
     },
     {
       "name": "closeout_active_warnings_clean",
-      "status": "PASS",
-      "detail": "closeout result has no active warnings",
+      "status": "FAIL",
+      "detail": "close_round_result has active warnings despite final_check_after_archive PASSED; these should be normalized to resolved_pre_archive_warnings",
       "closeout_warnings": [],
-      "close_round_result_warnings": [],
+      "close_round_result_warnings": [
+        "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)"
+      ],
       "resolved_pre_archive_warnings": [
         "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
       ],
-      "active_close_round_result_warnings": [],
+      "active_close_round_result_warnings": [
+        "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)"
+      ],
       "final_check_after_archive_passed": true,
       "close_round_close_status": "CLOSED"
     },
     {
       "name": "closeout_nested_failures_absent",
-      "status": "PASS",
-      "detail": "run_closeout_result.json contains no active nested FAIL/FAILED states",
-      "nested_failures": []
+      "status": "FAIL",
+      "detail": "run_closeout_result.json contains active nested FAIL/FAILED states",
+      "nested_failures": [
+        {
+          "path": "run_closeout_result.closeout_status",
+          "status": "FAILED"
+        }
+      ]
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [],
-  "recommended_next_action": "no_action_required",
+  "blocking_reasons": [
+    "status_policy_valid: status policy found blocking issues",
+    "closeout_active_warnings_clean: close_round_result has active warnings despite final_check_after_archive PASSED; these should be normalized to resolved_pre_archive_warnings",
+    "closeout_nested_failures_absent: run_closeout_result.json contains active nested FAIL/FAILED states"
+  ],
+  "warnings": [
+    "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
+    "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
+    "decision_consumed_by_report": false,
     "archive_status": "archived",
-    "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED"
+    "report_status": "FAILED",
+    "report_acceptance_recommendation": "REWORK_REQUIRED"
   }
 }

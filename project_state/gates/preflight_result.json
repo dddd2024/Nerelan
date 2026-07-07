@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-  "round_id": "round_20260706_required_audit_status_truth_rework_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-07-06T13:50:19.095898Z",
+  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "mainline": "project_governance",
+  "generated_at": "2026-07-06T16:01:43.104582Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -47,7 +47,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is engineering_branch",
+      "detail": "mainline is project_governance",
       "allowed_mainlines": [
         "engineering_branch",
         "project_governance",
@@ -78,7 +78,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1"
+      "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -93,28 +93,34 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "ACCEPTED_WITH_LIMITATIONS",
-        "Avoid placeholder answers such as only naming the conclusion token.",
-        "Distinguish unit-test success from round acceptance success.",
-        "Do not claim core success while hard gate evidence says failed.",
-        "Do not weaken stale artifact or nested-failure detection.",
-        "Ensure generated reports answer every Required Audit item directly and substantively.",
-        "Ensure the final audit-conclusion options are handled as conclusion choices, not treated as malformed audit questions.",
-        "FAILED / REWORK_REQUIRED",
-        "Keep allowed-source handling for explicitly permitted source files.",
-        "Keep digest-backed post-final timestamp precision behavior intact.",
-        "Keep prework provenance current and passing.",
-        "Preserve backwards-compatible parsing of existing command blocks.",
-        "Run-closeout should fail truthfully if Required Audit or final-check fails.",
-        "Run-closeout should pass only after final-check and close-round conditions are satisfied.",
-        "Test Required Audit coverage for substantive aligned answers.",
-        "Test final successful closeout path if the implementation supports it within scope.",
-        "Test pytest_result summary downgrades when a required command exits outside expected codes.",
-        "Test report-summary detects and rejects report/final-gate status mismatches.",
-        "Test that reports with failed final-check/run-closeout cannot claim accepted status.",
-        "The status and acceptance recommendation must derive from current evidence, not optimistic prose.",
-        "pytest_result_summary.status",
-        "report_summary_synthesis.json"
+        "Add final-check or report-summary visibility for scope metadata coverage.",
+        "Add tests for current artifact metadata and legacy artifact compatibility.",
+        "Add/update final-check/report-summary tests for scoped metadata coverage warnings.",
+        "Add/update tests for artifact_index scoped entries or upgrade helpers.",
+        "Add/update tests for negative_results scoped entries and legacy list compatibility.",
+        "Add/update tests for state_manifest scoped entries.",
+        "Current top-level files should be classifiable, for example: global state summary, legacy sample state, gate artifact, roadmap registry, context packet, report artifact.",
+        "Do not require every historical artifact to be fully annotated immediately.",
+        "Do not split the file into domain files yet.",
+        "Do not store bulky artifact contents in the index.",
+        "Include phase list: Phase A metadata, Phase B domain skeleton, Phase C reverse_solving current_state copy, Phase D negative_results split, Phase E top-level current_state summary, Phase F final-check hardening.",
+        "It should not block legacy records unless new current-round records violate this decision's requirements.",
+        "Missing metadata on legacy entries should produce warnings/coverage information, not hard failure.",
+        "Preserve current list-style JSON compatibility.",
+        "Preserve old schema consumers.",
+        "ROADMAP_ACCEPTED",
+        "The docs must define normal phase order and state taxonomy migration phases.",
+        "The docs must state they are roadmap material, not execution authority.",
+        "The new check should report coverage status and warnings in Phase A.",
+        "authority_policy.decision_packet_is_execution_authority=true",
+        "authority_policy.roadmap_entries_are_not_execution_authority=true",
+        "commit full solve_reports directory",
+        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+        "docs/roadmap/reverse_agent_normal_pace_plan.md",
+        "project_state/roadmap/workstreams.json",
+        "project_state_domain_taxonomy",
+        "role",
+        "scope"
       ]
     },
     {
@@ -152,12 +158,15 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
+        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
+        "docs/roadmap/reverse_agent_normal_pace_plan.md",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_reports.py",
         "reverse_agent/project_state.py",
         "reverse_agent/project_state_manifest.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ],
       "baseline_source_test_dirty": []
@@ -175,7 +184,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "1a3f5a6e1b9e"
+    "head_commit": "87df3c51b0ea"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

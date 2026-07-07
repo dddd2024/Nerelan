@@ -3,14 +3,14 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_required_audit_status_truth_rework_v1",
-  "round_id": "round_20260706_required_audit_status_truth_rework_v1",
-  "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
-  "generated_at": "2026-07-06T13:59:17.224168Z",
+  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "generated_at": "2026-07-06T16:11:47.145864Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "report is current SUCCESS/ACCEPTED"
     },
     {
@@ -27,12 +27,12 @@
     },
     {
       "name": "final_check_passed",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "final-check is current and PASSED or only audit_precheck_valid remains pending"
     },
     {
       "name": "run_closeout_passed",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "run-closeout is current and PASSED"
     },
     {
@@ -42,7 +42,7 @@
     },
     {
       "name": "audit_readiness_ready",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "audit readiness is READY/ACCEPTED/no_action_required"
     },
     {
@@ -55,7 +55,7 @@
         "audit_inventory_status.current is not true"
       ],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260706_required_audit_status_truth_rework_v1",
+      "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,
@@ -81,6 +81,10 @@
   ],
   "audit_recommendation": "DO_NOT_ACCEPT",
   "blocking_reasons": [
+    "report_current_and_accepted: report is current SUCCESS/ACCEPTED",
+    "final_check_passed: final-check is current and PASSED or only audit_precheck_valid remains pending",
+    "run_closeout_passed: run-closeout is current and PASSED",
+    "audit_readiness_ready: audit readiness is READY/ACCEPTED/no_action_required",
     "current_handoff_packet_valid: current handoff packet is missing required current evidence or safety fields"
   ],
   "warnings": [],
