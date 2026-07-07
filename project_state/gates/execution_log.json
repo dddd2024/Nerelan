@@ -6,7 +6,7 @@
   "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
   "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
   "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "generated_at": "2026-07-06T16:11:33.672874Z",
+  "generated_at": "2026-07-07T08:32:51.536361Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
@@ -22,14 +22,14 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "44d214aa0014866796be2476270a0fec44b95cca4e182ecbcdc15f33a806012b",
+        "sha256": "865aaad8d0fd237c1062418593a3cf7ffb16cddbf60fe68b8b16903a1fb30958",
         "size_bytes": 13698,
         "command_block_count": 14
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "73f1b9bbcb8e131bf79a90e5da19624b75396eac64d55b4079c4a18ebf6e2bc5",
+        "sha256": "c67f209cfe8f8e9d83a83ce4e1a38957c87d55e2e0da5c4a9fe029d49043877b",
         "size_bytes": 6742,
         "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
         "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
@@ -39,8 +39,8 @@
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "5a1f068426436d11a9fd316de05fa01785c8e8308fc04248b9c7965519c00826",
-        "size_bytes": 36416,
+        "sha256": "b64fba435bd617886ca8d83584714f1a7287f4c14d418e94cd69f2929ef19651",
+        "size_bytes": 38501,
         "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
         "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
         "command_block_count": 13

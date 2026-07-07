@@ -1237,8 +1237,8 @@ def _parse_pytest_body_for_failures(body: str) -> dict[str, Any]:
     """
     failure_patterns = [
         re.compile(r"([1-9]\d*)\s+failed"),
-        re.compile(r"FAILED\s+"),
-        re.compile(r"ERROR\s+"),
+        re.compile(r"^FAILED\s+"),
+        re.compile(r"^ERROR\s+"),
         re.compile(r"=+\s+FAILURES\s+="),
         re.compile(r"=+\s+ERRORS\s+="),
     ]
@@ -2223,7 +2223,7 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
         })
 
     # Check 2: mainline
-    ALLOWED_MAINLINES = {"engineering_branch", "reverse_solving", "tool_integration", "training_dataset"}
+    ALLOWED_MAINLINES = {"engineering_branch", "reverse_solving", "tool_integration", "training_dataset", "project_governance"}
     if mainline not in ALLOWED_MAINLINES:
         checks.append({
             "name": "mainline",

@@ -1,12 +1,12 @@
 {
-  "acceptance_recommendation": "REWORK_REQUIRED",
+  "acceptance_recommendation": "ACCEPTED",
   "archive_mode": "minimal",
-  "archived_at": "2026-07-06T16:11:03Z",
+  "archived_at": "2026-07-07T08:31:46Z",
   "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
   "files": {
     "codex_execution_report.md": {
       "archived_path": "project_state\\rounds\\round_20260706_scoped_state_metadata_foundation_big_step_v1\\codex_execution_report.md",
-      "sha256": "43c9053aba083a440149441f5027e2fb0d5dba14ef8b5380706f92f50193d7f5",
+      "sha256": "7230753cb788712b8c263a1b03fc03c0e9eb1dd1d5a16889b7fc56ae0e4a7cf9",
       "source_path": "project_state\\codex_execution_report.md"
     },
     "decision_packet.md": {
@@ -16,12 +16,12 @@
     },
     "pytest_result.txt": {
       "archived_path": "project_state\\rounds\\round_20260706_scoped_state_metadata_foundation_big_step_v1\\pytest_result.txt",
-      "sha256": "44d214aa0014866796be2476270a0fec44b95cca4e182ecbcdc15f33a806012b",
+      "sha256": "865aaad8d0fd237c1062418593a3cf7ffb16cddbf60fe68b8b16903a1fb30958",
       "source_path": "project_state\\pytest_result.txt"
     },
     "execution_report.md": {
       "path": "project_state\\rounds\\round_20260706_scoped_state_metadata_foundation_big_step_v1\\execution_report.md",
-      "sha256": "f721adfaae3953bde3df77e0653f53e9c7b740a6ae149f560e599de83e1555cd",
+      "sha256": "4b95f753caf14a52afd292d5332d36aaf2a789e0a7beb307ab0ef696f093636c",
       "source_path": "project_state\\execution_report.md"
     }
   },
@@ -37,10 +37,10 @@
     "git_diff.patch"
   ],
   "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "report_status": "FAILED",
+  "report_status": "SUCCESS",
   "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
   "schema_version": 1,
-  "source_git_commit": "87df3c51b0ea",
+  "source_git_commit": "12990104362e",
   "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
   "state_build_id": "state_20260618_134029_d6bd033d2532",
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",

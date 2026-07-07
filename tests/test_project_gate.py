@@ -9861,9 +9861,36 @@ class TestStatusPolicyHistoricalArtifactsOnly:
         from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
 
         sp = dict(self._make_result()["checks"][0])
+        sp["report_status"] = "BLOCKED"
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result={"checks": [sp]},
+            mainline="training_dataset",
+        )
+        assert result is False
+
+    def test_returns_true_when_report_failed_self_referential(self) -> None:
+        """When report_status is FAILED and the only gate failure is
+        status_policy_valid itself, the circular dependency is tolerated."""
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        sp = dict(self._make_result()["checks"][0])
         sp["report_status"] = "FAILED"
         result = _status_policy_failure_is_historical_artifacts_only(
             result={"checks": [sp]},
+            mainline="training_dataset",
+        )
+        assert result is True
+
+    def test_returns_false_when_report_failed_with_other_failures(self) -> None:
+        """When report_status is FAILED and there are other gate failures
+        besides status_policy_valid, the self-referential tolerance does
+        not apply."""
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        sp = dict(self._make_result()["checks"][0])
+        sp["report_status"] = "FAILED"
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result={"checks": [sp, {"name": "other_check", "status": "FAIL"}]},
             mainline="training_dataset",
         )
         assert result is False

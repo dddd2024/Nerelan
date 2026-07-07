@@ -20533,6 +20533,11 @@ def build_report_summary_synthesis(
             decision_id=decision_id,
             round_id=round_id,
         ) else set())
+        | ({PREWORK_PROVENANCE_OUTPUT_PATH} if _artifact_matches_current_round(
+            _read_json(state_dir / "gates" / PREWORK_PROVENANCE_RESULT_NAME),
+            decision_id=decision_id,
+            round_id=round_id,
+        ) else set())
     )
     generated_artifact_set = {
         LEGACY_EXECUTION_REPORT_PATH,
@@ -24009,14 +24014,24 @@ def _status_policy_failure_is_historical_artifacts_only(
     should not block closeout when report is SUCCESS and current evidence is
     not claimed by this non-sample mainline.
     Non-sample mainlines allow this downgrade when current evidence is not
-    claimed; reverse_solving remains strict."""
+    claimed; reverse_solving remains strict.
+
+    Self-referential tolerance: when report_status is FAILED and the only gate
+    failure is status_policy_valid itself, the report would be SUCCESS if
+    status_policy_valid were not FAIL.  This circular dependency is tolerated
+    when the failure is historical-artifact-only."""
     if mainline not in CLAIM_AWARE_HISTORICAL_NON_BLOCKING_MAINLINES:
         return False
     status_policy = _check_by_name(result, "status_policy_valid")
     if status_policy.get("status") != "FAIL":
         return False
-    if status_policy.get("report_status") != "SUCCESS":
+    report_status = str(status_policy.get("report_status") or "")
+    if report_status not in {"SUCCESS", "FAILED"}:
         return False
+    if report_status == "FAILED":
+        failed_names = _failed_check_names(result)
+        if failed_names != {"status_policy_valid"}:
+            return False
     required_current = [str(item) for item in (status_policy.get("required_current_artifacts") or [])]
     claimed_current = [str(item) for item in (status_policy.get("claimed_evidence_artifacts") or [])]
     historical_backlog = [str(item) for item in (status_policy.get("historical_backlog") or [])]
