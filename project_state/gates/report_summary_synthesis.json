@@ -3,14 +3,14 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "FAILED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
   "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "generated_at": "2026-07-07T10:36:53.503358Z",
+  "generated_at": "2026-07-07T10:52:33.311692Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1",
-    "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
-    "based_on_decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+    "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+    "round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+    "based_on_decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
     "files_changed": [
       "docs/roadmap/next_step_after_scoped_metadata_foundation.md",
       "project_state/codex_execution_report.md",
@@ -19,13 +19,11 @@
       "project_state/gates/command_plan.json",
       "project_state/gates/execution_report_auto_summary.json",
       "project_state/gates/final_gate_result.json",
-      "project_state/gates/gate_profile_plan.json",
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/gates/startup_snapshot.json",
-      "project_state/pytest_result.txt"
+      "project_state/gates/startup_snapshot.json"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -160,15 +158,23 @@
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "python -m reverse_agent.project_gate final-check --state-dir project_state"
-    ],
-    "status": "FAILED",
-    "acceptance_recommendation": "REWORK_REQUIRED"
+    ]
   },
   "diffs": [
     {
-      "field": "status",
-      "expected": "FAILED",
-      "actual": "REWORK_REQUIRED"
+      "field": "report_id",
+      "expected": "codex_report_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+      "actual": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1"
+    },
+    {
+      "field": "round_id",
+      "expected": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+      "actual": "round_20260707_next_step_roadmap_registration_fast_fix_v1"
+    },
+    {
+      "field": "based_on_decision_id",
+      "expected": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+      "actual": "decision_20260707_next_step_roadmap_registration_fast_fix_v1"
     },
     {
       "field": "files_changed",
@@ -180,13 +186,11 @@
         "project_state/gates/command_plan.json",
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/pytest_result.txt"
+        "project_state/gates/startup_snapshot.json"
       ],
       "actual": [
         "project_state/codex_execution_report.md",
@@ -261,11 +265,13 @@
       ]
     }
   ],
-  "errors": [
-    "pytest_result_summary.status is FAILED, expected PASSED"
+  "errors": [],
+  "warnings": [
+    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
   ],
-  "warnings": [],
-  "non_blocking_warnings": [],
+  "non_blocking_warnings": [
+    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+  ],
   "sources": {
     "decision_meta": "project_state/decision_packet.md",
     "execution_report": "project_state/execution_report.md",

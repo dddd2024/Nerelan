@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T10:30:48.127452Z",
+  "generated_at": "2026-07-07T10:51:55.591382Z",
   "profile_meta": {
     "profile": "fast",
     "profile_reason": "artifact-only cleanup does not require close-round",
@@ -27,19 +27,9 @@
   },
   "omitted_commands": [
     {
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
-      "kind": "pytest",
-      "reason": "omitted by fast profile: pytest not in required_command_kinds"
-    },
-    {
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1",
-      "kind": "run-closeout",
-      "reason": "omitted by fast profile: run-closeout not in required_command_kinds"
-    },
-    {
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1",
+      "command": null,
       "kind": "close-round",
-      "reason": "omitted by fast profile: close-round not in required_command_kinds"
+      "reason": "omitted by fast profile: closeout not allowed"
     }
   ],
   "commands": [

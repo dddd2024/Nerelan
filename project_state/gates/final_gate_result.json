@@ -2,15 +2,15 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "generated_at": "2026-07-07T10:36:53.593065Z",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "generated_at": "2026-07-07T10:52:33.405556Z",
   "checks": [
     {
       "name": "decision_report_match",
-      "status": "PASS",
-      "detail": "decision/report ids and round_id match"
+      "status": "FAIL",
+      "detail": "decision/report id or round_id mismatch"
     },
     {
       "name": "execution_report_alias_present",
@@ -112,30 +112,22 @@
       "baseline_available": true,
       "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
-        "project_state/codex_execution_report.md",
-        "project_state/execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/pytest_result.txt"
+        "project_state/gates/startup_snapshot.json"
       ],
       "final_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/pytest_result.txt"
+        "project_state/gates/startup_snapshot.json"
       ]
     },
     {
@@ -150,30 +142,22 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/pytest_result.txt"
+        "project_state/gates/startup_snapshot.json"
       ],
       "required_round_delta_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/gate_profile_plan.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/pytest_result.txt"
+        "project_state/gates/startup_snapshot.json"
       ],
       "inherited_dirty_files": []
     },
@@ -479,7 +463,7 @@
       "status": "WARN",
       "detail": "execution_log.json has stale report_id but report status is REWORK_REQUIRED",
       "execution_log_report_id": "codex_report_20260707_next_step_roadmap_registration_v1",
-      "expected_report_id": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1"
+      "expected_report_id": "codex_report_20260707_next_step_roadmap_registration_fast_text_fix_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -502,11 +486,11 @@
     },
     {
       "name": "command_plan_ids_match",
-      "status": "PASS",
-      "detail": "command_plan ids and status match current decision/report",
+      "status": "FAIL",
+      "detail": "command_plan ids, round_id, or status do not match",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
-      "command_plan_round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1"
+      "command_plan_decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+      "command_plan_round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1"
     },
     {
       "name": "command_plan_execution_order_policy",
@@ -690,14 +674,22 @@
       "name": "report_summary_fields_match_synthesis",
       "status": "FAIL",
       "detail": "execution_report_summary differs from synthesized summary",
-      "errors": [
-        "pytest_result_summary.status is FAILED, expected PASSED"
-      ],
+      "errors": [],
       "diffs": [
         {
-          "field": "status",
-          "expected": "FAILED",
-          "actual": "REWORK_REQUIRED"
+          "field": "report_id",
+          "expected": "codex_report_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+          "actual": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1"
+        },
+        {
+          "field": "round_id",
+          "expected": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+          "actual": "round_20260707_next_step_roadmap_registration_fast_fix_v1"
+        },
+        {
+          "field": "based_on_decision_id",
+          "expected": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+          "actual": "decision_20260707_next_step_roadmap_registration_fast_fix_v1"
         },
         {
           "field": "files_changed",
@@ -709,13 +701,11 @@
             "project_state/gates/command_plan.json",
             "project_state/gates/execution_report_auto_summary.json",
             "project_state/gates/final_gate_result.json",
-            "project_state/gates/gate_profile_plan.json",
             "project_state/gates/preflight_result.json",
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
-            "project_state/gates/startup_snapshot.json",
-            "project_state/pytest_result.txt"
+            "project_state/gates/startup_snapshot.json"
           ],
           "actual": [
             "project_state/codex_execution_report.md",
@@ -795,8 +785,12 @@
       "name": "report_summary_status_source_available",
       "status": "PASS",
       "detail": "report summary status fields are derived from final gate result",
-      "warnings": [],
-      "non_blocking_warnings": []
+      "warnings": [
+        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+      ],
+      "non_blocking_warnings": [
+        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+      ]
     },
     {
       "name": "scoped_metadata_coverage",
@@ -822,8 +816,34 @@
     },
     {
       "name": "stale_artifact_ids",
-      "status": "PASS",
-      "detail": "gate artifacts carry current decision/round/report IDs"
+      "status": "FAIL",
+      "detail": "gate artifacts reference stale decision/round/report IDs from a different round",
+      "stale_artifacts": [
+        {
+          "artifact": "report_summary_synthesis.json",
+          "field": "report_id",
+          "expected": "codex_report_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+          "actual": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1"
+        },
+        {
+          "artifact": "final_gate_result.json",
+          "field": "decision_id",
+          "expected": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+          "actual": "decision_20260707_next_step_roadmap_registration_fast_fix_v1"
+        },
+        {
+          "artifact": "final_gate_result.json",
+          "field": "round_id",
+          "expected": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+          "actual": "round_20260707_next_step_roadmap_registration_fast_fix_v1"
+        },
+        {
+          "artifact": "final_gate_result.json",
+          "field": "report_id",
+          "expected": "codex_report_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+          "actual": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1"
+        }
+      ]
     },
     {
       "name": "report_body_consistency",
@@ -1417,8 +1437,8 @@
     },
     {
       "name": "gate_profile_plan_current",
-      "status": "PASS",
-      "detail": "gate_profile_plan.json carries current decision/round IDs",
+      "status": "FAIL",
+      "detail": "gate_profile_plan.json has stale decision_id or round_id",
       "gate_profile_decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
       "gate_profile_round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1"
     },
@@ -1439,7 +1459,7 @@
     {
       "name": "fast_profile_pytest_not_omitted_with_source_changes",
       "status": "PASS",
-      "detail": "fast profile pytest omission is consistent with scope"
+      "detail": "pytest is included in command plan"
     },
     {
       "name": "fast_profile_closeout_consistency",
@@ -1458,8 +1478,8 @@
     },
     {
       "name": "required_audit_coverage",
-      "status": "PASS",
-      "detail": "report covers all 25 Required Audit items with substantive aligned answers",
+      "status": "FAIL",
+      "detail": "report Required Audit section is missing 1 of 25 answers",
       "required_audit_items": [
         "Is `decision_meta` present, valid, `APPROVED`, and on legal mainline `project_governance`?",
         "Does `skill_profiles` use only active skills from `.codex-skills/registry.json`?",
@@ -1469,7 +1489,7 @@
         "Does `command_plan.json` carry the current decision and round IDs?",
         "Does command-plan authorize every executed command?",
         "Were any omitted or unauthorized commands executed?",
-        "Does command-plan omit `run-closeout` and `close-round` for this fast artifact-registration round?",
+        "Does command-plan omit closeout and close-round command kinds for this fast artifact-registration round?",
         "Does report-summary match the execution report?",
         "Does `final_gate_result.json` pass?",
         "Is closeout correctly not required and not executed?",
@@ -1487,9 +1507,10 @@
         "Does the report avoid claiming completion of Phase A.1, Phase B, Phase C, Phase D, Phase E, or Phase F?",
         "Does the final conclusion fit one of `ACCEPTED`, `ACCEPTED_WITH_LIMITATIONS`, `REWORK_REQUIRED`, or `BLOCKED`?"
       ],
-      "missing_answers": [],
-      "placeholder_answers": [],
-      "alignment_failures": []
+      "missing_answers": [
+        "Does command-plan omit closeout and close-round command kinds for this fast artifact-registration round?"
+      ],
+      "placeholder_answers": []
     },
     {
       "name": "policy_impact_coverage",
@@ -1510,6 +1531,8 @@
       "detail": "status policy found blocking issues",
       "lint_errors": [
         "codex_report_summary invalid: invalid status: REWORK_REQUIRED",
+        "based_on_decision_id does not match current decision_id",
+        "report round_id does not match current decision round_id",
         "doctor status is FAIL"
       ],
       "warnings": [
@@ -1559,17 +1582,17 @@
       "errors": [
         {
           "field": "provenance.decision_id",
-          "expected": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+          "expected": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
           "actual": "decision_20260707_next_step_roadmap_registration_v1"
         },
         {
           "field": "provenance.round_id",
-          "expected": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+          "expected": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
           "actual": "round_20260707_next_step_roadmap_registration_v1"
         },
         {
           "field": "provenance.report_id",
-          "expected": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1",
+          "expected": "codex_report_20260707_next_step_roadmap_registration_fast_text_fix_v1",
           "actual": "codex_report_20260707_next_step_roadmap_registration_v1"
         },
         {
@@ -1589,22 +1612,22 @@
         },
         {
           "field": "provenance.artifacts.command_plan.sha256",
-          "expected": "80bf8b35188679c6a9e2e20ff4184f25a5aaf4cf1c5e81b0fcb208b7f3bab783",
+          "expected": "d56ab5b5002caf1894605084016d5abe1e0f34b623c9fbf5fb0f26c3ca024f90",
           "actual": "73b0b393b1d499eb306fa6fe11c591d79cee3b62dbbdf0fda23032331d3b4cdf"
         },
         {
           "field": "provenance.artifacts.command_plan.size_bytes",
-          "expected": 6417,
+          "expected": 5757,
           "actual": 7018
         },
         {
           "field": "provenance.artifacts.command_plan.decision_id",
-          "expected": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+          "expected": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
           "actual": "decision_20260707_next_step_roadmap_registration_v1"
         },
         {
           "field": "provenance.artifacts.command_plan.round_id",
-          "expected": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+          "expected": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
           "actual": "round_20260707_next_step_roadmap_registration_v1"
         },
         {
@@ -1699,11 +1722,16 @@
     }
   ],
   "blocking_reasons": [
+    "decision_report_match: decision/report id or round_id mismatch",
+    "command_plan_ids_match: command_plan ids, round_id, or status do not match",
     "command_plan_json_stdout_full: command-plan --json recorded stdout is missing a full commands array",
     "command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout differs from live command_plan.json",
     "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
     "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
+    "stale_artifact_ids: gate artifacts reference stale decision/round/report IDs from a different round",
     "prework_provenance_gate_artifact: prework provenance artifact is invalid",
+    "gate_profile_plan_current: gate_profile_plan.json has stale decision_id or round_id",
+    "required_audit_coverage: report Required Audit section is missing 1 of 25 answers",
     "status_policy_valid: status policy found blocking issues",
     "execution_log_consistency: execution_log.json disagrees with pytest_result or command_plan",
     "execution_log_provenance_valid: execution_log.json hybrid provenance does not match live evidence",
