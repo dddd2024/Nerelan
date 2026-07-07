@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T08:32:51.143259Z",
+  "generated_at": "2026-07-07T09:29:28.813666Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -153,17 +153,16 @@
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "phase": "preflight",
+      "kind": "preflight",
       "required": true,
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+      "notes": "preflight expected to exit 0"
     },
     {
       "index": 11,
@@ -180,7 +179,7 @@
     },
     {
       "index": 12,
-      "command": "python -m pytest tests/test_project_state.py tests/test_project_state_manifest.py tests/test_project_gate.py tests/test_project_reports.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -207,7 +206,21 @@
     },
     {
       "index": 14,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_scoped_state_metadata_foundation_big_step_v1",
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,

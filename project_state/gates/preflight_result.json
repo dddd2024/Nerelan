@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T08:20:45.452882Z",
+  "generated_at": "2026-07-07T09:29:28.991168Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -77,7 +77,7 @@
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "decision_execution_state": "READY_FOR_EXECUTION",
       "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1"
     },
     {
@@ -93,34 +93,7 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "Add final-check or report-summary visibility for scope metadata coverage.",
-        "Add tests for current artifact metadata and legacy artifact compatibility.",
-        "Add/update final-check/report-summary tests for scoped metadata coverage warnings.",
-        "Add/update tests for artifact_index scoped entries or upgrade helpers.",
-        "Add/update tests for negative_results scoped entries and legacy list compatibility.",
-        "Add/update tests for state_manifest scoped entries.",
-        "Current top-level files should be classifiable, for example: global state summary, legacy sample state, gate artifact, roadmap registry, context packet, report artifact.",
-        "Do not require every historical artifact to be fully annotated immediately.",
-        "Do not split the file into domain files yet.",
-        "Do not store bulky artifact contents in the index.",
-        "Include phase list: Phase A metadata, Phase B domain skeleton, Phase C reverse_solving current_state copy, Phase D negative_results split, Phase E top-level current_state summary, Phase F final-check hardening.",
-        "It should not block legacy records unless new current-round records violate this decision's requirements.",
-        "Missing metadata on legacy entries should produce warnings/coverage information, not hard failure.",
-        "Preserve current list-style JSON compatibility.",
-        "Preserve old schema consumers.",
-        "ROADMAP_ACCEPTED",
-        "The docs must define normal phase order and state taxonomy migration phases.",
-        "The docs must state they are roadmap material, not execution authority.",
-        "The new check should report coverage status and warnings in Phase A.",
-        "authority_policy.decision_packet_is_execution_authority=true",
-        "authority_policy.roadmap_entries_are_not_execution_authority=true",
-        "commit full solve_reports directory",
-        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
-        "docs/roadmap/reverse_agent_normal_pace_plan.md",
-        "project_state/roadmap/workstreams.json",
-        "project_state_domain_taxonomy",
-        "role",
-        "scope"
+        "reverse_agent/project_state.py"
       ]
     },
     {
@@ -158,37 +131,38 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
-        "docs/roadmap/project_state_domain_taxonomy_supplement.md",
-        "docs/roadmap/reverse_agent_normal_pace_plan.md",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_reports.py",
-        "reverse_agent/project_state.py",
-        "reverse_agent/project_state_manifest.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_reports.py",
-        "tests/test_project_state.py",
-        "tests/test_project_state_manifest.py"
+        "docs/roadmap/next_step_after_scoped_metadata_foundation.md"
       ],
       "baseline_source_test_dirty": []
     },
     {
       "name": "decision_command_plan_conflict",
-      "status": "PASS",
-      "detail": "decision Tests/closeout expectations do not conflict with command-plan",
-      "conflicts": []
+      "status": "FAIL",
+      "detail": "decision Tests/closeout expectations conflict with command-plan; stop before implementation",
+      "conflicts": [
+        {
+          "kind": "closeout_forbidden",
+          "severity": "hard",
+          "command": null,
+          "command_kind": null,
+          "reason": "decision requires closeout (run-closeout/close-round in Tests, contract close_round_required=true, or rounds/ artifacts in scope) but gate profile has closeout_allowed=false"
+        }
+      ]
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "decision_command_plan_conflict: decision Tests/closeout expectations conflict with command-plan; stop before implementation"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "87df3c51b0ea"
+    "head_commit": "02c7e6e50894"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-    "decision_report_id_match": true,
+    "decision_execution_state": "READY_FOR_EXECUTION",
+    "decision_report_id_match": false,
     "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",

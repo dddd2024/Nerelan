@@ -3,13 +3,15 @@
   "artifact_name": "ci_observation_reconcile_result.json",
   "gate_name": "ci-observation-reconcile",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "generated_at": "2026-07-07T08:32:11.201564Z",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_v1",
+  "report_id": "codex_report_20260707_next_step_roadmap_registration_v1",
+  "generated_at": "2026-07-07T09:29:47.098766Z",
   "reconcile_status": "REWORK_REQUIRED",
   "final_consistency_status": "REWORK_REQUIRED",
-  "pending_diagnostic_sources": [],
+  "pending_diagnostic_sources": [
+    "execution_log"
+  ],
   "observation_state": "AWAITING_EXTERNAL_OBSERVATION",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -111,14 +113,18 @@
       "artifact": "project_state/gates/execution_log.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "PASSED",
+      "gate_status": "FAILED",
       "status": null,
       "close_round_status": null,
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [],
-      "warnings": []
+      "errors": [
+        "command_plan has 5 required command(s) not recorded in execution_log: python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q, python -m reverse_agent.project_gate command-plan --state-dir project_state, python -m reverse_agent.project_gate command-plan --state-dir project_state --json, python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed, python -m reverse_agent.project_gate report-summary --state-dir project_state"
+      ],
+      "warnings": [
+        "command_plan has 2 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate execution-log --state-dir project_state, python -m reverse_agent.project_gate final-check --state-dir project_state"
+      ]
     },
     "report_summary": {
       "artifact": "project_state/gates/report_summary_synthesis.json",
@@ -146,6 +152,7 @@
     "source artifacts are stale: ci_observation_schema, ci_observation_handoff, ci_run_evidence, local_ci_parity, ci_workflow_coverage, ci_workflow_readiness"
   ],
   "warnings": [
-    "external CI observation is still pending"
+    "external CI observation is still pending",
+    "execution_log is diagnostic and not yet converged"
   ]
 }

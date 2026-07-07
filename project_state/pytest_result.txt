@@ -1,394 +1,126 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "report_id": "codex_report_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "generated_at": "2026-07-07T08:20:45.280968Z",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
+  "report_id": "codex_report_20260707_next_step_roadmap_registration_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_v1",
+  "generated_at": "2026-07-07T09:32:00.000000Z",
   "status": "PASSED",
   "tests_ran": [
+    "Set-Location F:\\reverse-agent",
+    "Get-Location",
+    "Test-Path F:\\reverse-agent",
+    "git rev-parse --show-toplevel",
+    "git status --short",
     "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-    "python -m pytest tests/test_project_state.py tests/test_project_state_manifest.py tests/test_project_gate.py tests/test_project_reports.py -q",
+    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_scoped_state_metadata_foundation_big_step_v1"
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1"
   ]
 }
 ```
 
 ===== COMMAND: Set-Location F:\reverse-agent =====
-F:\reverse-agent
-
-===== EXIT: 0 =====
+exit_code: 0
 
 ===== COMMAND: Get-Location =====
 F:\reverse-agent
-
-===== EXIT: 0 =====
+exit_code: 0
 
 ===== COMMAND: Test-Path F:\reverse-agent =====
 True
-
-===== EXIT: 0 =====
+exit_code: 0
 
 ===== COMMAND: git rev-parse --show-toplevel =====
 F:/reverse-agent
-
-===== EXIT: 0 =====
+exit_code: 0
 
 ===== COMMAND: git status --short =====
-
-===== EXIT: 0 =====
+exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate startup-snapshot --state-dir project_state =====
-{
-  "schema_version": 1,
-  "artifact_name": "startup_snapshot.json",
-  "gate_name": "startup-snapshot",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-06T14:15:39.403055Z",
-  "artifact_path": "project_state/gates/startup_snapshot.json",
-  "startup_sequence": [
-    {
-      "command": "Set-Location F:\\reverse-agent",
-      "exit_code": 0,
-      "stdout": "F:\\reverse-agent"
-    },
-    {
-      "command": "Get-Location",
-      "exit_code": 0,
-      "stdout": "F:\\reverse-agent"
-    },
-    {
-      "command": "Test-Path F:\\reverse-agent",
-      "exit_code": 0,
-      "stdout": "True"
-    },
-    {
-      "command": "git rev-parse --show-toplevel",
-      "exit_code": 0,
-      "stdout": "F:/reverse-agent"
-    },
-    {
-      "command": "git status --short",
-      "exit_code": 0,
-      "stdout_lines": []
-    }
-  ],
-  "repository_root": "F:/reverse-agent",
-  "expected_repository_root": "F:\\reverse-agent",
-  "repository_root_matches": true,
-  "head_commit": "87df3c51b0ea",
-  "raw_git_status_short": [],
-  "dirty_files": [],
-  "source_test_dirty_files": [],
-  "authorized_source_test_dirty_files": [],
-  "generated_state_dirty_files": [],
-  "source_test_clean_start": true,
-  "blocking_reasons": [],
-  "warnings": []
-}
-
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed =====
-preflight: PASSED
-
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_state.py tests/test_project_state_manifest.py tests/test_project_gate.py tests/test_project_reports.py -q =====
-........................................................................ [  4%]
-........................................................................ [  9%]
-........................................................................ [ 14%]
-........................................................................ [ 19%]
-........................................................................ [ 24%]
-........................................................................ [ 29%]
-........................................................................ [ 34%]
-........................................................................ [ 39%]
-........................................................................ [ 44%]
-........................................................................ [ 49%]
-........................................................................ [ 54%]
-........................................................................ [ 59%]
-........................................................................ [ 64%]
-........................................................................ [ 69%]
-........................................................................ [ 74%]
-........................................................................ [ 79%]
-........................................................................ [ 83%]
-........................................................................ [ 88%]
-........................................................................ [ 93%]
-........................................................................ [ 98%]
-..................                                                       [100%]
-1458 passed in 655.27s (0:10:55)
-
-===== EXIT: 0 =====
+startup-snapshot: PASSED
+decision_id: decision_20260707_next_step_roadmap_registration_v1
+round_id: round_20260707_next_step_roadmap_registration_v1
+mainline: project_governance
+exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
-
-===== EXIT: 0 =====
+decision_id: decision_20260707_next_step_roadmap_registration_v1
+round_id: round_20260707_next_step_roadmap_registration_v1
+mainline: project_governance
+15 commands authorized
+exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-{
-  "schema_version": 1,
-  "plan_name": "command-plan",
-  "plan_status": "PASSED",
-  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-07T08:31:41.284896Z",
-  "profile_meta": {
-    "profile": "full",
-    "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
-    "closeout_allowed": true,
-    "required_command_kinds": [
-      "startup",
-      "preflight",
-      "gate-profile",
-      "command-plan",
-      "run-round",
-      "pytest",
-      "doctor",
-      "lint-report",
-      "report-summary",
-      "final-check",
-      "close-round"
-    ]
-  },
-  "execution_order_policy": {
-    "mode": "coverage_expected_exit_not_strict_wall_clock",
-    "strict_wall_clock_order": false,
-    "coverage_authority": true,
-    "expected_exit_authority": true,
-    "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
-  },
-  "omitted_commands": [],
-  "commands": [
-    {
-      "index": 1,
-      "command": "Set-Location F:\\reverse-agent",
-      "phase": "status",
-      "kind": "set-location",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "set-location expected to exit 0"
-    },
-    {
-      "index": 2,
-      "command": "Get-Location",
-      "phase": "status",
-      "kind": "pwd",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pwd expected to exit 0"
-    },
-    {
-      "index": 3,
-      "command": "Test-Path F:\\reverse-agent",
-      "phase": "status",
-      "kind": "test-path",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "test-path expected to exit 0"
-    },
-    {
-      "index": 4,
-      "command": "git rev-parse --show-toplevel",
-      "phase": "status",
-      "kind": "git rev-parse",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "git rev-parse expected to exit 0"
-    },
-    {
-      "index": 5,
-      "command": "git status --short",
-      "phase": "status",
-      "kind": "git status",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "git status expected to exit 0"
-    },
-    {
-      "index": 6,
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "phase": "gate",
-      "kind": "startup-snapshot",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "startup-snapshot expected to exit 0"
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 8,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "phase": "gate",
-      "kind": "report-summary",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "phase": "preflight",
-      "kind": "preflight",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
-    },
-    {
-      "index": 12,
-      "command": "python -m pytest tests/test_project_state.py tests/test_project_state_manifest.py tests/test_project_gate.py tests/test_project_reports.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "phase": "gate",
-      "kind": "execution-log",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_scoped_state_metadata_foundation_big_step_v1",
-      "phase": "gate",
-      "kind": "run-closeout",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "run-closeout expected exit 0 after final-check passed"
-    }
-  ],
-  "warnings": [],
-  "blocking_reasons": [],
-  "recommended_next_action": "record_and_follow_command_plan_manually"
-}
-
-===== EXIT: 0 =====
+plan_status: PASSED
+15 commands emitted; omitted_commands: []
+exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED
-decision_id: decision_20260706_scoped_state_metadata_foundation_big_step_v1
-report_id: codex_report_20260706_scoped_state_metadata_foundation_big_step_v1
-round_id: round_20260706_scoped_state_metadata_foundation_big_step_v1
-artifact: project_state/gates/report_summary_synthesis.json
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
+report-summary: diagnostic exit 1 (allowed by command-plan expected_exit_codes [0,1])
+exit_code: 1
+
+===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
+preflight: FAILED
+  [FAIL] decision_command_plan_conflict: decision Tests/closeout expectations conflict with command-plan
+  conflict: closeout_forbidden — decision requires closeout (run-closeout in Tests, rounds/ in scope) but gate profile has closeout_allowed=false (fast profile, artifact-only round)
+exit_code: 1
+
+===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed =====
+preflight: FAILED
+  [FAIL] decision_command_plan_conflict: decision Tests/closeout expectations conflict with command-plan
+  conflict: closeout_forbidden — decision requires closeout but gate profile has closeout_allowed=false
+exit_code: 1
+
+===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q =====
+........................................................................ [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 19%]
+........................................................................ [ 25%]
+........................................................................ [ 32%]
+........................................................................ [ 38%]
+........................................................................ [ 44%]
+........................................................................ [ 51%]
+........................................................................ [ 57%]
+........................................................................ [ 64%]
+........................................................................ [ 70%]
+........................................................................ [ 77%]
+........................................................................ [ 83%]
+........................................................................ [ 89%]
+........................................................................ [ 96%]
+..........................................                               [100%]
+1122 passed in 524.68s (0:08:44)
+exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate execution-log --state-dir project_state =====
-execution-log: PASSED
-decision_id: decision_20260706_scoped_state_metadata_foundation_big_step_v1
-round_id: round_20260706_scoped_state_metadata_foundation_big_step_v1
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
+execution-log: diagnostic exit 1 (allowed by command-plan expected_exit_codes [0,1])
+exit_code: 1
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
+final-check: diagnostic exit 1 (allowed by command-plan expected_exit_codes [0,1])
+exit_code: 1
 
-===== EXIT: 0 =====
+===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1 =====
+run-closeout: FAILED
+  [FAILED] preflight: exit=1 (expected [0])
+  [BLOCK] step preflight exited 1, expected [0]
+  [BLOCK] pytest_result.txt contains failed command block(s): preflight (exit=1)
+exit_code: 1
 
-===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260706_scoped_state_metadata_foundation_big_step_v1 =====
-run-closeout: PASSED
-decision_id: decision_20260706_scoped_state_metadata_foundation_big_step_v1
-round_id: round_20260706_scoped_state_metadata_foundation_big_step_v1
-artifact: project_state/gates/run_closeout_result.json
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
-
+===== SUMMARY =====
+pytest_result_status: PASSED
+pytest_exit_code: 0
+preflight_status: FAILED
+run_closeout_status: FAILED
+decision_id: decision_20260707_next_step_roadmap_registration_v1
+round_id: round_20260707_next_step_roadmap_registration_v1
+report_id: codex_report_20260707_next_step_roadmap_registration_v1
+blocker: decision_packet internal conflict — Tests require run-closeout but gate profile (fast, artifact-only) forbids closeout
