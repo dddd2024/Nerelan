@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,12 +13,16 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "follows_last_round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
-  "phase_label": "phase_2_51_next_step_roadmap_registration_v1",
-  "primary_goal": "Register and audit the already uploaded next-step roadmap document as project-governance roadmap material without implementing Phase A.1, Phase B, or any runtime capability.",
+  "follows_last_decision_id": "decision_20260707_next_step_roadmap_registration_v1",
+  "follows_last_round_id": "round_20260707_next_step_roadmap_registration_v1",
+  "supersedes_blocked_decision_id": "decision_20260707_next_step_roadmap_registration_v1",
+  "supersedes_blocked_round_id": "round_20260707_next_step_roadmap_registration_v1",
+  "previous_audit_outcome": "BLOCKED",
+  "phase_label": "phase_2_51_next_step_roadmap_registration_fast_fix_v1",
+  "primary_goal": "Register and audit the already uploaded next-step roadmap document as project-governance roadmap material using a fast artifact-registration profile that does not require closeout.",
   "command_plan_authority_required": true,
+  "closeout_required": false,
+  "closeout_allowed": false,
   "accepted_requires_next_step_doc_present": true,
   "accepted_requires_doc_marked_roadmap_not_execution_authority": true,
   "accepted_requires_no_phase_a1_implementation": true,
@@ -28,6 +32,7 @@
   "accepted_requires_no_runner_or_workflow_dispatch": true,
   "accepted_requires_no_sample_solving": true,
   "accepted_requires_no_local_git_commit_or_push": true,
+  "accepted_requires_no_closeout_for_fast_profile": true,
   "allowed_source_files": [],
   "allowed_test_files": [],
   "allowed_documentation_files": [
@@ -45,16 +50,11 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/prework_provenance_result.json",
     "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/execution_log.json",
     "project_state/gates/final_gate_result.json",
-    "project_state/gates/run_closeout_execution_log.json",
-    "project_state/gates/run_closeout_result.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/codex_report_auto_summary.json",
-    "project_state/gates/execution_report_auto_summary.json",
-    "project_state/rounds/round_20260707_next_step_roadmap_registration_v1/*"
+    "project_state/gates/execution_report_auto_summary.json"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
@@ -72,6 +72,7 @@
     "project_state/index.sqlite",
     "project_state/*.db",
     "project_state/domains/*",
+    "project_state/rounds/round_20260707_next_step_roadmap_registration_fast_fix_v1/*",
     "reverse_agent/*",
     "tests/*"
   ],
@@ -82,6 +83,8 @@
     "file_move",
     "archive_compaction_apply",
     "archive_apply",
+    "close_round",
+    "run_closeout",
     "real_tombstone_write",
     "real_deletion_manifest_write",
     "sqlite_database_creation",
@@ -116,7 +119,7 @@
 
 ## 1. Goal
 
-Register and audit **Next Step After Scoped Metadata Foundation** as roadmap material.
+Register and audit **Next Step After Scoped Metadata Foundation** as roadmap material using the safe fast-profile registration path.
 
 The target document is:
 
@@ -124,9 +127,15 @@ The target document is:
 docs/roadmap/next_step_after_scoped_metadata_foundation.md
 ```
 
-This round exists because the roadmap document was uploaded to GitHub through an explicit user request, but it has not yet been consumed by a normal `decision_packet.md` / `command_plan.json` / `execution_log.json` / `final-check` / `run-closeout` project-governance round.
+This decision replaces the blocked decision:
 
-This round must only verify and register the roadmap document as project-governance evidence. It must not implement Phase A.1, must not create Phase B domain skeletons, and must not open any reverse-solving, Web, database, runner, workflow, or external-tool capability.
+```text
+decision_20260707_next_step_roadmap_registration_v1
+```
+
+The blocked decision failed because it defined an artifact/documentation-only round, which correctly mapped to a fast profile with `closeout_allowed=false`, but it also required `run-closeout` and included `project_state/rounds/<round_id>/*` in generated artifacts. This fix applies Option A: keep the round artifact-registration-only and remove closeout requirements.
+
+This round must only verify and register the roadmap document as project-governance evidence. It must not implement Phase A.1, must not create Phase B domain skeletons, and must not open reverse-solving, Web, database, runner, workflow, model API, cleanup, deletion, or external-tool capability.
 
 Accepted target:
 
@@ -134,36 +143,40 @@ Accepted target:
 - the document clearly says it is roadmap material and not execution authority;
 - the document recommends Phase A.1 before Phase B without claiming either phase is implemented;
 - the document preserves the rule that only `project_state/decision_packet.md` is execution authority and only `project_state/gates/command_plan.json` is command authority;
+- gate-profile may classify this as `profile=fast` and `closeout_allowed=false`;
+- command-plan must not require `run-closeout` or `close-round` for this round;
+- no `project_state/rounds/<this_round_id>/*` archive is required or generated;
 - no source files, test files, `current_state.json`, `task_packet.json`, `project_state/domains/*`, database files, Web/frontend files, workflow files, solve reports, or training materials are modified;
 - no local executor commit, push, branch, PR, workflow dispatch, runner dispatch, sample solving, external reverse tool, database, cleanup apply, file move, or file deletion is performed;
-- pytest, report-summary, execution-log, final-check, and run-closeout pass under command-plan authority.
+- pytest, report-summary, and final-check pass under command-plan authority if command-plan emits those commands.
 
 ## 2. Current Evidence
 
 Current task authority is this `project_state/decision_packet.md`.
 
-The previous active decision was:
+The immediately preceding decision was:
 
 ```text
-decision_20260706_scoped_state_metadata_foundation_big_step_v1
+decision_20260707_next_step_roadmap_registration_v1
 ```
 
-The previous active round was:
+The immediately preceding round was:
+
+```text
+round_20260707_next_step_roadmap_registration_v1
+```
+
+That round is `BLOCKED`, not accepted. The blocker was decision-internal: artifact/documentation-only scope implied fast profile and no closeout, but the decision required closeout anyway. This new decision deliberately removes the closeout requirement.
+
+The last successfully closed governance round remains:
 
 ```text
 round_20260706_scoped_state_metadata_foundation_big_step_v1
 ```
 
-That round has current evidence of completion:
+That previous scoped metadata foundation round has evidence of completion in existing project_state artifacts, but it was externally audited as `ACCEPTED_WITH_LIMITATIONS` because Phase A source-level metadata support was accepted while full on-disk scoped metadata visibility and Phase B/C/D/E/F migration were not accepted as complete.
 
-- `project_state/codex_execution_report.md` reports `status=SUCCESS` and `acceptance_recommendation=ACCEPTED` for the previous scoped metadata foundation round;
-- `project_state/pytest_result.txt` reports `status=PASSED`;
-- `project_state/gates/final_gate_result.json` reports `gate_status=PASSED`;
-- `project_state/gates/run_closeout_result.json` reports `closeout_status=PASSED`.
-
-The external audit conclusion for the previous round was `ACCEPTED_WITH_LIMITATIONS`, because Phase A source-level scoped metadata support and tests were accepted, but full on-disk scoped metadata visibility in all current artifacts and the later Phase B/C/D/E/F migrations were not accepted as complete.
-
-The uploaded roadmap document records a safe next-step sequence after that limitation:
+The uploaded roadmap document records the safe next-step sequence after that limitation:
 
 ```text
 Phase A.1 — materialize scoped metadata visibility in on-disk governance artifacts.
@@ -196,14 +209,19 @@ Existing capabilities that must be reused, not duplicated:
 - negative_results;
 - context packet builder;
 - workstream registry;
-- execution-log synthesis;
 - report-summary synthesis;
 - final-check;
-- run-closeout and round archive;
 - policy-lint and prompt-consistency foundations;
 - User Solve Layer foundation;
 - CI/state-gate foundations;
 - job lifecycle foundation.
+
+Closeout policy for this round:
+
+- Closeout is intentionally not allowed.
+- This is a fast artifact-registration round.
+- The absence of `run-closeout` is expected and must not be treated as a failure if command-plan also omits closeout.
+- If command-plan emits `run-closeout` anyway, stop and report `REWORK_REQUIRED` because command-plan and this decision are no longer aligned.
 
 Tool and execution policy:
 
@@ -250,11 +268,15 @@ Do not modify `training_materials/local_reverse/*`.
 
 Do not create, update, or migrate any SQLite/database file.
 
+Do not create `project_state/rounds/round_20260707_next_step_roadmap_registration_fast_fix_v1/*`.
+
 Do not run Web/frontend runtime.
 
 Do not run sample solving, candidate search, runtime validation, binary parsing, unpacking, debugger, emulator, IDA, Ghidra, OllyDbg, radare2, MCP, or any external reverse-analysis tool.
 
 Do not perform cleanup apply, deletion, file move, archive compaction apply, tombstone write, or deletion manifest write.
+
+Do not run close-round or run-closeout.
 
 Do not run GitHub Actions dispatch or polling.
 
@@ -263,8 +285,6 @@ Do not dispatch local, remote, or automatic runners.
 Do not invoke any model API.
 
 Do not run `git commit`, `git push`, `git branch`, `git checkout -b`, `git merge`, `git rebase`, create a PR, or push from the local executor.
-
-Do not claim `ACCEPTED` if `pytest_result`, `report-summary`, `execution-log`, `final-check`, or `run-closeout` fails.
 
 Do not claim that Phase A.1, Phase B, Phase C, Phase D, Phase E, or Phase F is complete.
 
@@ -280,9 +300,7 @@ project_state/execution_report.md
 project_state/pytest_result.txt
 project_state/gates/command_plan.json
 project_state/gates/report_summary_synthesis.json
-project_state/gates/execution_log.json
 project_state/gates/final_gate_result.json
-project_state/gates/run_closeout_result.json
 docs/roadmap/next_step_after_scoped_metadata_foundation.md
 docs/roadmap/project_state_domain_taxonomy_supplement.md
 docs/roadmap/reverse_agent_normal_pace_plan.md
@@ -301,8 +319,9 @@ project_state/gates/startup_snapshot.json
 project_state/gates/gate_profile_plan.json
 project_state/gates/preflight_result.json
 project_state/gates/round_baseline.json
-project_state/gates/round_close_snapshot.json
 project_state/gates/round_delta_summary.json
+project_state/gates/execution_log.json
+project_state/gates/run_closeout_result.json
 project_state/rounds/round_20260706_scoped_state_metadata_foundation_big_step_v1/round_manifest.json
 ```
 
@@ -324,10 +343,10 @@ The execution report must answer all of the following:
 6. Does `command_plan.json` carry the current decision and round IDs?
 7. Does command-plan authorize every executed command?
 8. Were any omitted or unauthorized commands executed?
-9. Does `execution_log.json` record every command-plan required command?
+9. Does command-plan omit `run-closeout` and `close-round` for this fast artifact-registration round?
 10. Does report-summary match the execution report?
 11. Does `final_gate_result.json` pass?
-12. Does `run_closeout_result.json` pass?
+12. Is closeout correctly not required and not executed?
 13. Does `docs/roadmap/next_step_after_scoped_metadata_foundation.md` exist?
 14. Does that document explicitly state it is roadmap material and not execution authority?
 15. Does that document preserve `decision_packet.md` as execution authority and `command_plan.json` as command authority?
@@ -351,11 +370,11 @@ REWORK_REQUIRED
 BLOCKED
 ```
 
-Use `ACCEPTED` only if all required gates pass and the document is properly registered as roadmap material.
+Use `ACCEPTED` only if all command-plan-required gates pass, closeout remains omitted as intended, and the document is properly registered as roadmap material.
 
-Use `ACCEPTED_WITH_LIMITATIONS` only if the document exists and all hard gates pass, but there is a clearly documented non-blocking limitation, such as local working tree sync lag that does not affect the GitHub artifact.
+Use `ACCEPTED_WITH_LIMITATIONS` only if the document exists and all hard gates pass, but there is a clearly documented non-blocking limitation that does not contradict this fast-profile decision.
 
-Use `REWORK_REQUIRED` if any required gate fails, if report status is inconsistent, if an unauthorized command was executed, if the round implements Phase A.1 or Phase B, or if forbidden paths are modified.
+Use `REWORK_REQUIRED` if any required gate fails, if report status is inconsistent, if an unauthorized command was executed, if command-plan still requires closeout, if the round implements Phase A.1 or Phase B, or if forbidden paths are modified.
 
 Use `BLOCKED` if the local executor cannot see the uploaded document because the local workspace has not been synced to GitHub, or if command-plan/preflight cannot be generated.
 
@@ -383,17 +402,16 @@ project_state/gates/command_plan.json
 project_state/gates/preflight_result.json
 project_state/gates/prework_provenance_result.json
 project_state/gates/report_summary_synthesis.json
-project_state/gates/execution_log.json
 project_state/gates/final_gate_result.json
-project_state/gates/run_closeout_execution_log.json
-project_state/gates/run_closeout_result.json
 project_state/gates/round_baseline.json
-project_state/gates/round_close_snapshot.json
 project_state/gates/round_delta_summary.json
 project_state/gates/codex_report_auto_summary.json
 project_state/gates/execution_report_auto_summary.json
-project_state/rounds/round_20260707_next_step_roadmap_registration_v1/*
 ```
+
+`project_state/gates/execution_log.json` may be read if it already exists, but it is not required for this fast registration round unless command-plan emits an execution-log command.
+
+`project_state/gates/run_closeout_result.json` may be read as historical evidence from the blocked prior round, but it must not be regenerated in this round.
 
 No source files or test files may be modified.
 
@@ -401,15 +419,17 @@ No state migration may be performed.
 
 No domain directory may be created.
 
+No round archive may be created for this fast registration round.
+
 No local Git commit or push may be performed by the executor.
 
-This round should be small, auditable, and reversible. It should only close the governance gap created by the out-of-band user-requested roadmap upload.
+This round should be small and auditable. It should only close the governance gap created by the out-of-band user-requested roadmap upload.
 
 ## 7. Tests
 
 Run only commands authorized by `project_state/gates/command_plan.json`.
 
-Expected minimum validation:
+Expected fast-profile validation, if command-plan emits these commands:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -423,24 +443,26 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state --js
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
-python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1
 ```
 
-If command-plan requires broader tests, command-plan wins.
+Do not run:
 
-The executor must write:
+```powershell
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1
+```
+
+If command-plan differs from the expected list, command-plan wins. If command-plan requires closeout despite this decision, stop and report `REWORK_REQUIRED` rather than executing closeout.
+
+The executor must write, when command-plan and gates permit:
 
 ```text
 project_state/pytest_result.txt
 project_state/codex_execution_report.md
 project_state/execution_report.md
 project_state/gates/report_summary_synthesis.json
-project_state/gates/execution_log.json
 project_state/gates/final_gate_result.json
-project_state/gates/run_closeout_result.json
-project_state/rounds/round_20260707_next_step_roadmap_registration_v1/round_manifest.json
 ```
 
 `pytest_result.txt` must include the executed command transcript and a summary block with the current decision ID, round ID, report ID, and status.
@@ -457,23 +479,24 @@ Stop with `BLOCKED` if:
 - `docs/roadmap/next_step_after_scoped_metadata_foundation.md` is missing from the local working tree after sync;
 - command-plan cannot be generated;
 - preflight cannot be generated;
-- the work requires GitHub Actions dispatch, runner dispatch, Web runtime, database work, sample solving, external reverse tools, cleanup apply, file move, file deletion, or local Git commit/push.
+- the work requires GitHub Actions dispatch, runner dispatch, Web runtime, database work, sample solving, external reverse tools, cleanup apply, file move, file deletion, local Git commit/push, or closeout.
 
 Stop with `REWORK_REQUIRED` if:
 
 - report status and audit conclusion disagree;
-- `pytest_result.txt` is missing or failed;
+- `pytest_result.txt` is missing or failed for command-plan-required tests;
 - `report-summary` fails;
-- `execution-log` fails or omits required commands;
 - `final-check` fails;
-- `run-closeout` fails;
+- command-plan requires `run-closeout` or `close-round`;
+- run-closeout or close-round is executed;
 - an omitted or unauthorized command was executed;
 - source files or test files were modified;
 - `current_state.json` or `task_packet.json` was modified;
 - `negative_results.json` was split or migrated;
 - `project_state/domains/*` was created;
+- a round archive is created for this fast registration round;
 - the round implements Phase A.1 or Phase B instead of registering the roadmap;
 - local executor runs `git commit`, `git push`, branch creation, PR creation, merge, or rebase;
-- the report claims `ACCEPTED` without passing final-check and run-closeout.
+- the report claims `ACCEPTED` without passing command-plan-required final-check.
 
 The correct next decision after this registration round, if accepted, is still expected to be a separate Phase A.1 decision to materialize scoped metadata visibility in on-disk governance artifacts.
