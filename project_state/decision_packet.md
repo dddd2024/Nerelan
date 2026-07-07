@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_text_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_text_fix_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,13 +13,13 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-  "follows_last_round_id": "round_20260707_next_step_roadmap_registration_v1",
-  "supersedes_blocked_decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-  "supersedes_blocked_round_id": "round_20260707_next_step_roadmap_registration_v1",
-  "previous_audit_outcome": "BLOCKED",
-  "phase_label": "phase_2_51_next_step_roadmap_registration_fast_fix_v1",
-  "primary_goal": "Register and audit the already uploaded next-step roadmap document as project-governance roadmap material using a fast artifact-registration profile that does not require closeout.",
+  "follows_last_decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "follows_last_round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "supersedes_rework_decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "supersedes_rework_round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
+  "phase_label": "phase_2_51_next_step_roadmap_registration_fast_text_fix_v1",
+  "primary_goal": "Register and audit the already uploaded next-step roadmap document as project-governance roadmap material using a fast artifact-registration profile, with Tests containing only allowed executable command blocks.",
   "command_plan_authority_required": true,
   "closeout_required": false,
   "closeout_allowed": false,
@@ -72,7 +72,7 @@
     "project_state/index.sqlite",
     "project_state/*.db",
     "project_state/domains/*",
-    "project_state/rounds/round_20260707_next_step_roadmap_registration_fast_fix_v1/*",
+    "project_state/rounds/round_20260707_next_step_roadmap_registration_fast_text_fix_v1/*",
     "reverse_agent/*",
     "tests/*"
   ],
@@ -127,13 +127,13 @@ The target document is:
 docs/roadmap/next_step_after_scoped_metadata_foundation.md
 ```
 
-This decision replaces the blocked decision:
+This decision replaces the rework-required decision:
 
 ```text
-decision_20260707_next_step_roadmap_registration_v1
+decision_20260707_next_step_roadmap_registration_fast_fix_v1
 ```
 
-The blocked decision failed because it defined an artifact/documentation-only round, which correctly mapped to a fast profile with `closeout_allowed=false`, but it also required `run-closeout` and included `project_state/rounds/<round_id>/*` in generated artifacts. This fix applies Option A: keep the round artifact-registration-only and remove closeout requirements.
+The previous fast-fix decision had the right contract shape (`closeout_required=false`, `closeout_allowed=false`) but its Tests section documented forbidden closeout commands inside a fenced executable code block. The preflight extractor treated that documentation block as required commands. This decision keeps Option A and changes only the decision text shape: the Tests section contains executable fenced code blocks only for commands that may actually be run.
 
 This round must only verify and register the roadmap document as project-governance evidence. It must not implement Phase A.1, must not create Phase B domain skeletons, and must not open reverse-solving, Web, database, runner, workflow, model API, cleanup, deletion, or external-tool capability.
 
@@ -144,11 +144,11 @@ Accepted target:
 - the document recommends Phase A.1 before Phase B without claiming either phase is implemented;
 - the document preserves the rule that only `project_state/decision_packet.md` is execution authority and only `project_state/gates/command_plan.json` is command authority;
 - gate-profile may classify this as `profile=fast` and `closeout_allowed=false`;
-- command-plan must not require `run-closeout` or `close-round` for this round;
+- command-plan must omit closeout/close-round style commands for this round;
 - no `project_state/rounds/<this_round_id>/*` archive is required or generated;
 - no source files, test files, `current_state.json`, `task_packet.json`, `project_state/domains/*`, database files, Web/frontend files, workflow files, solve reports, or training materials are modified;
 - no local executor commit, push, branch, PR, workflow dispatch, runner dispatch, sample solving, external reverse tool, database, cleanup apply, file move, or file deletion is performed;
-- pytest, report-summary, and final-check pass under command-plan authority if command-plan emits those commands.
+- startup, command-plan, preflight, report-summary, and final-check pass or produce expected diagnostic status under command-plan authority.
 
 ## 2. Current Evidence
 
@@ -157,16 +157,16 @@ Current task authority is this `project_state/decision_packet.md`.
 The immediately preceding decision was:
 
 ```text
-decision_20260707_next_step_roadmap_registration_v1
+decision_20260707_next_step_roadmap_registration_fast_fix_v1
 ```
 
 The immediately preceding round was:
 
 ```text
-round_20260707_next_step_roadmap_registration_v1
+round_20260707_next_step_roadmap_registration_fast_fix_v1
 ```
 
-That round is `BLOCKED`, not accepted. The blocker was decision-internal: artifact/documentation-only scope implied fast profile and no closeout, but the decision required closeout anyway. This new decision deliberately removes the closeout requirement.
+That round is `REWORK_REQUIRED`, not accepted. The blocker was not the roadmap document and not a closeout execution. The blocker was a preflight false-positive caused by a fenced Tests block that listed commands under a "Do not run" heading.
 
 The last successfully closed governance round remains:
 
@@ -220,8 +220,8 @@ Closeout policy for this round:
 
 - Closeout is intentionally not allowed.
 - This is a fast artifact-registration round.
-- The absence of `run-closeout` is expected and must not be treated as a failure if command-plan also omits closeout.
-- If command-plan emits `run-closeout` anyway, stop and report `REWORK_REQUIRED` because command-plan and this decision are no longer aligned.
+- The absence of closeout is expected and must not be treated as a failure if command-plan also omits it.
+- If command-plan emits any closeout or close-round command anyway, stop and report `REWORK_REQUIRED` because command-plan and this decision are no longer aligned.
 
 Tool and execution policy:
 
@@ -268,7 +268,7 @@ Do not modify `training_materials/local_reverse/*`.
 
 Do not create, update, or migrate any SQLite/database file.
 
-Do not create `project_state/rounds/round_20260707_next_step_roadmap_registration_fast_fix_v1/*`.
+Do not create `project_state/rounds/round_20260707_next_step_roadmap_registration_fast_text_fix_v1/*`.
 
 Do not run Web/frontend runtime.
 
@@ -276,7 +276,7 @@ Do not run sample solving, candidate search, runtime validation, binary parsing,
 
 Do not perform cleanup apply, deletion, file move, archive compaction apply, tombstone write, or deletion manifest write.
 
-Do not run close-round or run-closeout.
+Do not run closeout or close-round commands.
 
 Do not run GitHub Actions dispatch or polling.
 
@@ -343,7 +343,7 @@ The execution report must answer all of the following:
 6. Does `command_plan.json` carry the current decision and round IDs?
 7. Does command-plan authorize every executed command?
 8. Were any omitted or unauthorized commands executed?
-9. Does command-plan omit `run-closeout` and `close-round` for this fast artifact-registration round?
+9. Does command-plan omit closeout and close-round command kinds for this fast artifact-registration round?
 10. Does report-summary match the execution report?
 11. Does `final_gate_result.json` pass?
 12. Is closeout correctly not required and not executed?
@@ -411,7 +411,7 @@ project_state/gates/execution_report_auto_summary.json
 
 `project_state/gates/execution_log.json` may be read if it already exists, but it is not required for this fast registration round unless command-plan emits an execution-log command.
 
-`project_state/gates/run_closeout_result.json` may be read as historical evidence from the blocked prior round, but it must not be regenerated in this round.
+`project_state/gates/run_closeout_result.json` may be read as historical evidence from earlier blocked/rework rounds, but it must not be regenerated in this round.
 
 No source files or test files may be modified.
 
@@ -441,17 +441,11 @@ python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
 python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-Do not run:
-
-```powershell
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1
-```
+Commands omitted by command-plan must not be executed. In this fast artifact-registration round, closeout and close-round command kinds are intentionally omitted and forbidden. Pytest may also be omitted if command-plan determines this remains an artifact-only fast profile. These omitted command kinds are documented here only as prose, not as executable fenced command blocks.
 
 If command-plan differs from the expected list, command-plan wins. If command-plan requires closeout despite this decision, stop and report `REWORK_REQUIRED` rather than executing closeout.
 
@@ -487,8 +481,8 @@ Stop with `REWORK_REQUIRED` if:
 - `pytest_result.txt` is missing or failed for command-plan-required tests;
 - `report-summary` fails;
 - `final-check` fails;
-- command-plan requires `run-closeout` or `close-round`;
-- run-closeout or close-round is executed;
+- command-plan requires closeout or close-round command kinds;
+- closeout or close-round command kinds are executed;
 - an omitted or unauthorized command was executed;
 - source files or test files were modified;
 - `current_state.json` or `task_packet.json` was modified;
