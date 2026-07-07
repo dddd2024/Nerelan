@@ -1,61 +1,135 @@
+```json codex_report_summary
+{
+  "schema_version": 1,
+  "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "based_on_decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "status": "REWORK_REQUIRED",
+  "acceptance_recommendation": "REWORK_REQUIRED",
+  "profile": "fast",
+  "closeout_required": false,
+  "closeout_executed": false,
+  "files_changed": [
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/pytest_result.txt",
+    "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/final_gate_result.json",
+    "project_state/gates/round_baseline.json",
+    "project_state/gates/round_delta_summary.json"
+  ],
+  "generated_artifacts": [
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/pytest_result.txt",
+    "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/final_gate_result.json",
+    "project_state/gates/round_baseline.json",
+    "project_state/gates/round_delta_summary.json"
+  ],
+  "referenced_artifacts": [
+    "docs/roadmap/next_step_after_scoped_metadata_foundation.md",
+    "project_state/decision_packet.md",
+    ".codex-skills/registry.json"
+  ],
+  "tests_ran": [
+    "Set-Location F:\\reverse-agent",
+    "Get-Location",
+    "Test-Path F:\\reverse-agent",
+    "git rev-parse --show-toplevel",
+    "git status --short",
+    "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state"
+  ],
+  "omitted_commands": [
+    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q (fast profile: pytest not in required_command_kinds)",
+    "python -m reverse_agent.project_gate run-closeout ... (fast profile + forbidden_capability this round)",
+    "python -m reverse_agent.project_gate close-round ... (fast profile + forbidden_capability this round)"
+  ],
+  "gate_results": {
+    "startup_snapshot": "PASSED",
+    "command_plan": "PASSED (12 commands, omitted_commands=[pytest, run-closeout, close-round])",
+    "gate_profile": "PASSED (profile=fast, closeout_allowed=false)",
+    "preflight": "FAILED (decision_command_plan_conflict: preflight parses Tests 'Do not run' block as required)",
+    "report_summary": "FAILED (diagnostic, exit 1)",
+    "final_check": "FAILED (diagnostic, exit 1)",
+    "pytest": "OMITTED by fast profile (not executed per instruction #9)",
+    "run_closeout": "OMITTED (forbidden this round)",
+    "close_round": "OMITTED (forbidden this round)"
+  }
+}
+```
+
 # EXECUTION_REPORT
 
 > Neutral alias of `project_state/codex_execution_report.md`. Semantically identical content; this file exists so downstream gates that reference `execution_report.md` and `codex_execution_report.md` together see parity.
 
 ## Status
 
-BLOCKED
+REWORK_REQUIRED
 
 ## Acceptance Recommendation
 
-BLOCKED
+REWORK_REQUIRED
 
 ## Decision / Round
 
-- decision_id: `decision_20260707_next_step_roadmap_registration_v1`
-- round_id: `round_20260707_next_step_roadmap_registration_v1`
-- report_id: `codex_report_20260707_next_step_roadmap_registration_v1`
+- decision_id: `decision_20260707_next_step_roadmap_registration_fast_fix_v1`
+- round_id: `round_20260707_next_step_roadmap_registration_fast_fix_v1`
+- report_id: `codex_report_20260707_next_step_roadmap_registration_fast_fix_v1`
 - mainline: `project_governance`
 - skill_profile: `reverse-agent-iteration@v2` (active in `.codex-skills/registry.json`)
 - decision_meta.status: `APPROVED`
+- profile: `fast` (closeout_allowed=false, closeout_required=false)
 
 ## Goal
 
-Register and audit `docs/roadmap/next_step_after_scoped_metadata_foundation.md` as project-governance roadmap material without implementing Phase A.1, Phase B, or any runtime capability.
+Register and audit `docs/roadmap/next_step_after_scoped_metadata_foundation.md` as project-governance roadmap material using a fast artifact-registration profile that does not require closeout.
 
 ## Blocker
 
-The decision_packet contains an internal structural conflict that prevents the round from closing:
+The decision_packet is well-formed and internally consistent at the contract level (`closeout_required: false`, `closeout_allowed: false`, `run_closeout`/`close_round` in `forbidden_capabilities_this_round`, `project_state/rounds/<this_round>/*` in `forbidden_mutated_paths`). The `gate-profile` correctly derives `profile=fast` and `closeout_allowed=false`. The `command-plan` correctly omits `pytest`, `run-closeout`, and `close-round`.
 
-1. **Decision scope is artifact/documentation-only** (`allowed_source_files: []`, `allowed_test_files: []`). The `gate-profile` gate correctly classifies this round as `profile=fast` with `closeout_allowed=false`.
+However, **preflight** still hard-fails on `decision_command_plan_conflict` with three conflicts:
 
-2. **Decision Tests section and contract require closeout**: Tests lists `run-closeout`, and `allowed_generated_or_updated_artifacts` includes `project_state/rounds/round_20260707_next_step_roadmap_registration_v1/*`.
+1. `omitted_command` (run-closeout): "decision Tests require command kind 'run-closeout' but fast profile omits it"
+2. `omitted_command` (close-round): same
+3. `closeout_forbidden`: "decision requires closeout ... but gate profile has closeout_allowed=false"
 
-3. **preflight** hard-fails on `decision_command_plan_conflict` (kind=`closeout_forbidden`, severity=`hard`).
+**Root cause**: The preflight conflict detector in `reverse_agent/project_gate.py` extracts ALL bash/powershell code blocks from the decision's `## 7. Tests` section without distinguishing "expected commands" blocks from "Do not run" blocks. The decision's Tests section explicitly lists `run-closeout` and `close-round` under a "Do not run:" heading (lines 451-454) to document that they are forbidden. The extractor treats these forbidden commands as required commands, triggering the false conflict.
 
-4. **run-closeout** re-runs preflight internally and BLOCKS at the preflight step (exit 1, expected [0]).
-
-The local executor cannot repair this because `decision_packet.md` is not in `allowed_documentation_files` and `reverse_agent/*` is in `forbidden_mutated_paths`.
+This is a **preflight bug**, not a decision_packet inconsistency. The local executor cannot fix this because `reverse_agent/*` is in `forbidden_mutated_paths`.
 
 ## Gate Results
 
 | Gate | Status |
 |---|---|
 | startup-snapshot | PASSED |
-| command-plan | PASSED (15 commands, omitted_commands=[]) |
+| command-plan | PASSED (12 commands, omitted_commands=[pytest, run-closeout, close-round]) |
 | gate-profile | PASSED (profile=fast, closeout_allowed=false) |
-| preflight | FAILED (decision_command_plan_conflict: closeout_forbidden) |
-| pytest | PASSED (1122 passed in 524.68s, exit 0) |
+| preflight | FAILED (decision_command_plan_conflict: preflight parses Tests "Do not run" block as required) |
 | report-summary | FAILED (diagnostic, exit 1) |
-| execution-log | FAILED (diagnostic, exit 1) |
 | final-check | FAILED (diagnostic, exit 1) |
-| run-closeout | FAILED (preflight step exit 1) |
+| pytest | OMITTED by fast profile (not executed per instruction #9) |
+| run-closeout | OMITTED (forbidden this round) |
+| close-round | OMITTED (forbidden this round) |
 
 ## pytest
 
-- Command: `python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q`
-- Result: 1122 passed in 524.68s (0:08:44)
-- Exit code: 0
+pytest was omitted by the fast profile (not in required_command_kinds). Per instruction #9, omitted_commands must not be executed. No pytest evidence is available for this round.
 
 ## Files Changed (this round, generated artifacts only)
 
@@ -67,11 +141,11 @@ The local executor cannot repair this because `decision_packet.md` is not in `al
 - project_state/gates/command_plan.json
 - project_state/gates/preflight_result.json
 - project_state/gates/report_summary_synthesis.json
-- project_state/gates/execution_log.json
 - project_state/gates/final_gate_result.json
-- project_state/gates/run_closeout_result.json
+- project_state/gates/round_baseline.json
+- project_state/gates/round_delta_summary.json
 
-No source files, test files, `current_state.json`, `task_packet.json`, `negative_results.json`, `.codex-skills/*`, `.github/workflows/*`, `frontend/*`, `solve_reports/*`, `training_materials/*`, or `project_state/domains/*` were modified.
+No source files, test files, `current_state.json`, `task_packet.json`, `negative_results.json`, `.codex-skills/*`, `.github/workflows/*`, `frontend/*`, `solve_reports/*`, `training_materials/*`, `project_state/domains/*`, or `project_state/rounds/round_20260707_next_step_roadmap_registration_fast_fix_v1/*` were modified.
 
 ## Required Audit (summary)
 
@@ -82,11 +156,11 @@ No source files, test files, `current_state.json`, `task_packet.json`, `negative
 5. pytest_result.txt matches decision/round/report IDs — Yes
 6. command_plan.json carries current IDs — Yes
 7. command-plan authorizes every executed command — Yes
-8. No omitted/unauthorized commands executed — Yes
-9. execution_log.json records every required command — Partially (round BLOCKED before closeout)
-10. report-summary matches execution report — No (FAILED, consistent with BLOCKED)
+8. No omitted/unauthorized commands executed — Yes (pytest, run-closeout, close-round all omitted)
+9. command-plan omits run-closeout and close-round for this fast round — Yes
+10. report-summary matches execution report — No (FAILED, symptom of REWORK_REQUIRED)
 11. final_gate_result.json passes — No (FAILED)
-12. run_closeout_result.json passes — No (FAILED)
+12. Is closeout correctly not required and not executed — Yes
 13. docs/roadmap/next_step_after_scoped_metadata_foundation.md exists — Yes
 14. Document states it is roadmap material, not execution authority — Yes
 15. Document preserves decision_packet.md / command_plan.json as authorities — Yes
@@ -99,23 +173,21 @@ No source files, test files, `current_state.json`, `task_packet.json`, `negative
 22. Round avoids Web/runner/workflow/model API/database/cleanup/sampling/external tools — Yes
 23. Round avoids local git commit/push/branch/PR/merge/rebase — Yes
 24. Report avoids claiming Phase A.1/B/C/D/E/F completion — Yes
-25. Conclusion fits ACCEPTED/ACCEPTED_WITH_LIMITATIONS/REWORK_REQUIRED/BLOCKED — Yes (BLOCKED)
+25. Conclusion fits ACCEPTED/ACCEPTED_WITH_LIMITATIONS/REWORK_REQUIRED/BLOCKED — Yes (REWORK_REQUIRED)
 
 ## Remaining Limitations
 
-1. Roadmap document is present and audit-verified but cannot be registered as a closed governance round due to the closeout conflict.
-2. final-check and run-closeout FAIL because preflight FAILS on closeout_forbidden.
-3. The previous round (round_20260706_scoped_state_metadata_foundation_big_step_v1) remains the last successfully closed round.
-4. Phase A.1 is not implemented (correctly, per this round's Do Not Do).
+1. preflight bug: Tests "Do not run" ```powershell block is parsed as required commands, causing false decision_command_plan_conflict.
+2. final-check FAILED due to preflight failure and stale artifacts from the blocked prior round.
+3. pytest was omitted by fast profile (no pytest evidence this round).
+4. No round archive created (correct for fast profile).
+5. Phase A.1 not implemented (correctly, per Do Not Do).
 
 ## Next Step Recommendation
 
-The decision_packet must be re-issued with one of:
-
-- **Option A (recommended):** Remove `run-closeout` from Tests and remove `project_state/rounds/round_20260707_next_step_roadmap_registration_v1/*` from `allowed_generated_or_updated_artifacts` (pure artifact-registration round, consistent with `profile=fast`, `closeout_allowed=false`).
-- **Option B:** Add a real source change to `allowed_source_files` so `gate-profile` derives `profile=full` and `closeout_allowed=true`.
-- **Option C:** Adjust the gate-profile classifier so artifact-only governance rounds with `rounds/` in scope still allow closeout (requires modifying `reverse_agent/*`).
+- **Option A (preferred, no source change):** Re-issue the decision_packet with the Tests "Do not run" section reformatted to use prose or a non-fenced list instead of a ```powershell code block.
+- **Option B (source fix, requires separate authorized round):** Fix `_extract_bash_commands` / `_decision_command_plan_conflict_check` in `reverse_agent/project_gate.py` to skip command blocks under a "Do not run" heading.
 
 ## Conclusion
 
-`BLOCKED`
+`REWORK_REQUIRED`

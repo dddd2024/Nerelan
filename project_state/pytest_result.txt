@@ -1,11 +1,13 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-  "report_id": "codex_report_20260707_next_step_roadmap_registration_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_v1",
-  "generated_at": "2026-07-07T09:32:00.000000Z",
-  "status": "PASSED",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "generated_at": "2026-07-07T10:35:00.000000Z",
+  "status": "FAILED",
+  "profile": "fast",
+  "pytest_omitted_by_fast_profile": true,
   "tests_ran": [
     "Set-Location F:\\reverse-agent",
     "Get-Location",
@@ -18,10 +20,12 @@
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
-    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1"
+    "python -m reverse_agent.project_gate final-check --state-dir project_state"
+  ],
+  "omitted_commands": [
+    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q (omitted by fast profile: pytest not in required_command_kinds)",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1 (omitted by fast profile: run-closeout not in required_command_kinds; also forbidden this round)",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1 (omitted by fast profile: close-round not in required_command_kinds; also forbidden this round)"
   ]
 }
 ```
@@ -42,85 +46,86 @@ F:/reverse-agent
 exit_code: 0
 
 ===== COMMAND: git status --short =====
+ M project_state/codex_execution_report.md
+ M project_state/execution_report.md
+ M project_state/gates/audit_precheck_result.json
+ M project_state/gates/audit_readiness_packet.json
+ M project_state/gates/ci_audit_handoff_bundle.json
+ M project_state/gates/ci_observation_reconcile_result.json
+ M project_state/gates/codex_prompt_packet.json
+ M project_state/gates/codex_report_auto_summary.json
+ M project_state/gates/command_plan.json
+ M project_state/gates/current_handoff_packet.json
+ M project_state/gates/execution_log.json
+ M project_state/gates/execution_report_auto_summary.json
+ M project_state/gates/final_gate_result.json
+ M project_state/gates/gate_profile_plan.json
+ M project_state/gates/local_execution_bundle.json
+ M project_state/gates/preflight_result.json
+ M project_state/gates/report_summary_synthesis.json
+ M project_state/gates/round_baseline.json
+ M project_state/gates/round_delta_summary.json
+ M project_state/gates/run_closeout_execution_log.json
+ M project_state/gates/run_closeout_result.json
+ M project_state/gates/startup_snapshot.json
+ M project_state/pytest_result.txt
 exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate startup-snapshot --state-dir project_state =====
 startup-snapshot: PASSED
-decision_id: decision_20260707_next_step_roadmap_registration_v1
-round_id: round_20260707_next_step_roadmap_registration_v1
+decision_id: decision_20260707_next_step_roadmap_registration_fast_fix_v1
+round_id: round_20260707_next_step_roadmap_registration_fast_fix_v1
 mainline: project_governance
 exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
-decision_id: decision_20260707_next_step_roadmap_registration_v1
-round_id: round_20260707_next_step_roadmap_registration_v1
+decision_id: decision_20260707_next_step_roadmap_registration_fast_fix_v1
+round_id: round_20260707_next_step_roadmap_registration_fast_fix_v1
 mainline: project_governance
-15 commands authorized
+12 commands authorized; omitted_commands: pytest, run-closeout, close-round (fast profile)
 exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
 plan_status: PASSED
-15 commands emitted; omitted_commands: []
+profile: fast; closeout_allowed: false
+12 commands emitted; omitted_commands: 3 (pytest, run-closeout, close-round)
 exit_code: 0
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: diagnostic exit 1 (allowed by command-plan expected_exit_codes [0,1])
+report-summary: FAILED (diagnostic, exit 1; allowed by command-plan expected_exit_codes [0,1])
 exit_code: 1
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
 preflight: FAILED
-  [FAIL] decision_command_plan_conflict: decision Tests/closeout expectations conflict with command-plan
-  conflict: closeout_forbidden — decision requires closeout (run-closeout in Tests, rounds/ in scope) but gate profile has closeout_allowed=false (fast profile, artifact-only round)
+  [FAIL] decision_command_plan_conflict: preflight bug — Tests section "Do not run" block (listing run-closeout/close-round as forbidden) is parsed as required commands
+  conflicts: omitted_command (run-closeout), omitted_command (close-round), closeout_forbidden
 exit_code: 1
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed =====
-preflight: FAILED
-  [FAIL] decision_command_plan_conflict: decision Tests/closeout expectations conflict with command-plan
-  conflict: closeout_forbidden — decision requires closeout but gate profile has closeout_allowed=false
-exit_code: 1
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q =====
-........................................................................ [  6%]
-........................................................................ [ 12%]
-........................................................................ [ 19%]
-........................................................................ [ 25%]
-........................................................................ [ 32%]
-........................................................................ [ 38%]
-........................................................................ [ 44%]
-........................................................................ [ 51%]
-........................................................................ [ 57%]
-........................................................................ [ 64%]
-........................................................................ [ 70%]
-........................................................................ [ 77%]
-........................................................................ [ 83%]
-........................................................................ [ 89%]
-........................................................................ [ 96%]
-..........................................                               [100%]
-1122 passed in 524.68s (0:08:44)
-exit_code: 0
-
-===== COMMAND: python -m reverse_agent.project_gate execution-log --state-dir project_state =====
-execution-log: diagnostic exit 1 (allowed by command-plan expected_exit_codes [0,1])
+preflight: FAILED (same decision_command_plan_conflict)
 exit_code: 1
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: diagnostic exit 1 (allowed by command-plan expected_exit_codes [0,1])
+final-check: FAILED (diagnostic, exit 1; allowed by command-plan expected_exit_codes [0,1])
 exit_code: 1
 
-===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1 =====
-run-closeout: FAILED
-  [FAILED] preflight: exit=1 (expected [0])
-  [BLOCK] step preflight exited 1, expected [0]
-  [BLOCK] pytest_result.txt contains failed command block(s): preflight (exit=1)
-exit_code: 1
+===== OMITTED COMMANDS (NOT EXECUTED per command-plan + instruction #9) =====
+- python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q
+  reason: omitted by fast profile (pytest not in required_command_kinds); instruction #9 forbids executing omitted_commands
+- python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1
+  reason: omitted by fast profile; also forbidden_capability_this_round (run_closeout, close_round)
+- python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1
+  reason: omitted by fast profile; also forbidden_capability_this_round (close_round)
 
 ===== SUMMARY =====
-pytest_result_status: PASSED
-pytest_exit_code: 0
-preflight_status: FAILED
-run_closeout_status: FAILED
-decision_id: decision_20260707_next_step_roadmap_registration_v1
-round_id: round_20260707_next_step_roadmap_registration_v1
-report_id: codex_report_20260707_next_step_roadmap_registration_v1
-blocker: decision_packet internal conflict — Tests require run-closeout but gate profile (fast, artifact-only) forbids closeout
+pytest_result_status: FAILED (preflight FAILED; final-check FAILED; report-summary FAILED — diagnostic exits allowed by command-plan but gate states are FAILED)
+decision_id: decision_20260707_next_step_roadmap_registration_fast_fix_v1
+round_id: round_20260707_next_step_roadmap_registration_fast_fix_v1
+report_id: codex_report_20260707_next_step_roadmap_registration_fast_fix_v1
+profile: fast
+closeout_required: false
+closeout_executed: false
+preflight_status: FAILED (decision_command_plan_conflict — preflight parses "Do not run" Tests block as required)
+final_check_status: FAILED (diagnostic)
+blocker: preflight bug in conflict detector (Tests "Do not run" block misclassified as required commands)

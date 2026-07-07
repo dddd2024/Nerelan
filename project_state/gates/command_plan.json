@@ -2,26 +2,20 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T09:29:28.813666Z",
+  "generated_at": "2026-07-07T10:30:48.127452Z",
   "profile_meta": {
-    "profile": "full",
-    "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
-    "closeout_allowed": true,
+    "profile": "fast",
+    "profile_reason": "artifact-only cleanup does not require close-round",
+    "closeout_allowed": false,
     "required_command_kinds": [
       "startup",
       "preflight",
-      "gate-profile",
       "command-plan",
-      "run-round",
-      "pytest",
-      "doctor",
-      "lint-report",
       "report-summary",
-      "final-check",
-      "close-round"
+      "final-check"
     ]
   },
   "execution_order_policy": {
@@ -31,7 +25,23 @@
     "expected_exit_authority": true,
     "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
   },
-  "omitted_commands": [],
+  "omitted_commands": [
+    {
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
+      "kind": "pytest",
+      "reason": "omitted by fast profile: pytest not in required_command_kinds"
+    },
+    {
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1",
+      "kind": "run-closeout",
+      "reason": "omitted by fast profile: run-closeout not in required_command_kinds"
+    },
+    {
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_fast_fix_v1",
+      "kind": "close-round",
+      "reason": "omitted by fast profile: close-round not in required_command_kinds"
+    }
+  ],
   "commands": [
     {
       "index": 1,
@@ -179,33 +189,6 @@
     },
     {
       "index": 12,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "phase": "gate",
-      "kind": "execution-log",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 14,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -217,19 +200,6 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1",
-      "phase": "gate",
-      "kind": "run-closeout",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "run-closeout expected exit 0 after final-check passed"
     }
   ],
   "warnings": [],

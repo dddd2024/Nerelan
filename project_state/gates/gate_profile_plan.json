@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_v1",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_fix_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T09:31:28.538705Z",
+  "generated_at": "2026-07-07T10:31:17.837571Z",
   "profile": "fast",
   "profile_reason": "artifact-only cleanup does not require close-round",
   "risk_reasons": [],
@@ -18,7 +18,7 @@
     "final-check"
   ],
   "reasons": [
-    "decision scope is artifact-only with generated/project-state deliverables: 19 artifact path(s)"
+    "decision scope is artifact-only with generated/project-state deliverables: 14 artifact path(s)"
   ],
   "suggested_commands": [
     {
