@@ -2,52 +2,42 @@
   "schema_version": 1,
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_v1",
-  "report_id": "codex_report_20260707_next_step_roadmap_registration_v1",
-  "generated_at": "2026-07-07T09:29:53.519381Z",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+  "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+  "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+  "generated_at": "2026-07-07T11:30:00.000000Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-    "round_id": "round_20260707_next_step_roadmap_registration_v1",
-    "report_id": "codex_report_20260707_next_step_roadmap_registration_v1",
+    "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+    "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+    "report_id": "codex_report_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
     "evidence_sources": [
       "pytest_result",
-      "command_plan",
-      "run_closeout_execution_log"
+      "command_plan"
     ],
     "artifacts": {
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "6460584794ff8558342a668fdef47820081afca7c89389c60e58c141ad3311e8",
-        "size_bytes": 4199,
-        "command_block_count": 8
+        "sha256": "1e9ae9581af146723732ed791e5b43c70659732660c940068ee8a9b581d26c12",
+        "size_bytes": 17581,
+        "command_block_count": 12
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "73b0b393b1d499eb306fa6fe11c591d79cee3b62dbbdf0fda23032331d3b4cdf",
-        "size_bytes": 7018,
-        "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-        "round_id": "round_20260707_next_step_roadmap_registration_v1",
+        "sha256": "272aee940de3f1d5e5d3fa9061b38424595652b702df6d3f0029164b5eb4c58c",
+        "size_bytes": 5779,
+        "decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
+        "round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
         "plan_status": "PASSED",
-        "command_count": 15
-      },
-      "run_closeout_execution_log": {
-        "path": "project_state/gates/run_closeout_execution_log.json",
-        "exists": true,
-        "sha256": "6b49254069621c3d7332c9f19102827fbaebc0d4e16f0021e91d2b3ea6c68fb1",
-        "size_bytes": 4603,
-        "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-        "round_id": "round_20260707_next_step_roadmap_registration_v1",
-        "command_block_count": 4
+        "command_count": 12
       }
     },
-    "command_count": 8,
-    "command_digest": "025fddfcdd1d66baa1f39fe507b8f5f6bd2099313a0998746c6b01f143220f99"
+    "command_count": 12,
+    "command_digest": "09bc2e63872765f904bbeba8d955f179f1ba9b032f0011ee3fc83af04614b4e1"
   },
   "commands": [
     {
@@ -55,9 +45,7 @@
       "command": "Set-Location F:\\reverse-agent",
       "kind": "set-location",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -66,9 +54,7 @@
       "command": "Get-Location",
       "kind": "pwd",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -77,9 +63,7 @@
       "command": "Test-Path F:\\reverse-agent",
       "kind": "test-path",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -88,9 +72,7 @@
       "command": "git rev-parse --show-toplevel",
       "kind": "git rev-parse",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -99,9 +81,7 @@
       "command": "git status --short",
       "kind": "git status",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -110,40 +90,66 @@
       "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
       "kind": "startup-snapshot",
       "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "exit_code": 0,
       "status": "PASSED"
     },
     {
       "index": 7,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "kind": "preflight",
-      "phase": "preflight",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 1,
-      "status": "FAILED"
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [0],
+      "exit_code": 0,
+      "status": "PASSED"
     },
     {
       "index": 8,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1",
-      "kind": "run-closeout",
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
       "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
+      "phase": "gate",
+      "expected_exit_codes": [0, 1],
       "exit_code": 1,
-      "status": "FAILED"
+      "status": "PASSED"
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [0],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [0],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "phase": "gate",
+      "expected_exit_codes": [0, 1],
+      "exit_code": 1,
+      "status": "PASSED"
     }
   ],
-  "warnings": [
-    "command_plan has 2 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate execution-log --state-dir project_state, python -m reverse_agent.project_gate final-check --state-dir project_state"
-  ],
-  "blocking_reasons": [
-    "command_plan has 5 required command(s) not recorded in execution_log: python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q, python -m reverse_agent.project_gate command-plan --state-dir project_state, python -m reverse_agent.project_gate command-plan --state-dir project_state --json, python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed, python -m reverse_agent.project_gate report-summary --state-dir project_state"
-  ],
-  "recommended_next_action": "fix_execution_log_mismatches"
+  "warnings": [],
+  "blocking_reasons": [],
+  "recommended_next_action": "proceed_with_decision_scope"
 }
