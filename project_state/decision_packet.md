@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
-  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,35 +13,25 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "follows_last_round_id": "round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1",
-  "previous_audit_doc": "docs/audits/20260707_fast_close_round_key_fix_audit.md",
+  "follows_last_decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
+  "follows_last_round_id": "round_20260707_fast_profile_report_truth_rework_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "primary_goal": "Repair the status-truthfulness mismatch so report-summary, final-check, execution reports, pytest_result, and execution_log agree on one truthful state.",
-  "command_plan_authority_required": true,
+  "required_profile": "standard_or_full",
   "closeout_required": true,
   "close_round_required": true,
   "closeout_allowed": true,
+  "pytest_required": true,
+  "command_plan_must_not_omit_pytest": true,
+  "command_plan_must_not_omit_close_round": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_control_plane.py",
     "reverse_agent/project_reports.py",
-    "reverse_agent/project_state.py",
-    "reverse_agent/project_state_manifest.py"
+    "reverse_agent/project_control_plane.py"
   ],
   "allowed_test_files": [
     "tests/test_project_gate.py",
     "tests/test_project_reports.py",
-    "tests/test_project_control_plane.py",
-    "tests/test_project_state.py",
-    "tests/test_project_state_manifest.py"
-  ],
-  "allowed_generated_artifacts": [
-    "project_state/codex_execution_report.md",
-    "project_state/execution_report.md",
-    "project_state/pytest_result.txt",
-    "project_state/gates/*.json",
-    "project_state/rounds/round_20260707_fast_profile_report_truth_rework_v1/*"
+    "tests/test_project_control_plane.py"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
@@ -67,88 +57,93 @@
 
 ## 1. Goal
 
-Repair the project-governance status mismatch left by the previous fast roadmap-registration round.
+Fix the profile/contract mismatch that caused the previous rework round to fail.
 
-Previous round:
-
-```text
-decision_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1
-round_20260707_next_step_roadmap_registration_fast_close_round_key_fix_v1
-```
-
-Current problem:
+Previous failed round:
 
 ```text
-execution reports claim ACCEPTED_WITH_LIMITATIONS;
-report-summary synthesizes FAILED / REWORK_REQUIRED;
-final-check is FAILED with blocking reasons;
-pytest_result only proves command exit-code coverage, not final acceptance.
+decision_20260707_fast_profile_report_truth_rework_v1
+round_20260707_fast_profile_report_truth_rework_v1
 ```
 
-This decision authorizes a bounded rework so the current reports, report-summary, final-check, pytest_result, execution_log, and round archive agree on a truthful state.
+Observed failure:
+
+```text
+The decision authorized source-level gate repair and expected pytest/closeout behavior,
+but command-plan still generated a fast profile,
+omitted pytest,
+omitted close-round,
+and final-check failed because source code changed under fast profile.
+```
+
+This round must align the decision contract, implementation scope parser, command-plan profile selection, pytest requirement, report-summary, final-check, and closeout behavior.
 
 Accepted target:
 
 ```text
+command-plan uses a standard/full profile for source-level governance repair;
+pytest is not omitted;
+close-round is not omitted if closeout is required;
+preflight passes before implementation;
+pytest passes;
 report-summary passes;
 final-check passes;
-execution_report.md and codex_execution_report.md match;
-pytest_result and execution_log match command-plan;
-closeout / close-round run only if command-plan authorizes them;
-no report claims acceptance while final-check has blocking reasons.
+run-closeout and close-round complete if command-plan requires them;
+reports do not claim acceptance unless gates support it.
 ```
 
 ## 2. Current Evidence
 
-Current task authority is this `project_state/decision_packet.md`. The previously uploaded audit and roadmap files are reference material only, not execution authority:
+Current authority is this `project_state/decision_packet.md`.
+
+The previous round honestly ended as `FAILED / REWORK_REQUIRED`, not false accepted. That part is acceptable.
+
+Remaining current blockers from the previous round:
 
 ```text
-docs/audits/20260707_fast_close_round_key_fix_audit.md
-docs/roadmap/next_step_after_fast_close_round_key_fix_audit.md
+preflight_result.json: FAILED
+pytest_result.txt: FAILED
+final_gate_result.json: FAILED
+blocking reasons: pytest_result_exit_codes_match_command_plan, fast_profile_scope_valid, fast_profile_pytest_not_omitted_with_source_changes, status_policy_valid
 ```
 
-`task_packet.json` remains advisory/background only. It still reflects reverse-solving sample state and must not control this project-governance round.
-
-`current_state.json` still contains reverse-solving sample state. It must not be converted into a global summary in this round.
-
-Known current failure:
+Root cause:
 
 ```text
-project_state/gates/report_summary_synthesis.json: FAILED / REWORK_REQUIRED
-project_state/gates/final_gate_result.json: FAILED
-project_state/codex_execution_report.md: ACCEPTED_WITH_LIMITATIONS
-project_state/execution_report.md: ACCEPTED_WITH_LIMITATIONS
+The decision and implementation intent were source-level repair,
+but command-plan selected fast profile and omitted pytest/close-round.
 ```
 
-Existing capabilities that must be reused, not duplicated:
+`task_packet.json` and `current_state.json` are reverse-solving background state only. They do not control this round.
+
+Existing capabilities to reuse:
 
 ```text
-decision-packet authority;
-command-plan authority;
-project_gate;
-report-summary;
-final-check;
-run-closeout / close-round;
-execution_log;
-pytest_result;
-codex/execution report parity;
-state_manifest and artifact_index foundations;
-workstream registry and context packet foundations.
+decision-packet authority
+command-plan authority
+project_gate
+preflight
+report-summary
+final-check
+pytest_result
+execution_log
+run-closeout / close-round
+codex/execution report parity
 ```
 
-This round must not proceed to Phase A.1, Phase B, User Solve, Web, tool integration, training dataset, database, or runner automation.
+Do not duplicate those systems. Only repair the mismatch that made them disagree.
 
 ## 3. Do Not Do
 
-Do not implement Phase A.1.
+Do not implement Phase A.1 scoped metadata visibility refresh.
 
 Do not create `project_state/domains/*`.
 
-Do not modify `current_state.json`, `task_packet.json`, `negative_results.json`, `artifact_index.json`, `state_manifest.json`, `.codex-skills/*`, `.github/workflows/*`, `frontend/*`, `solve_reports/*`, or database files.
+Do not modify `current_state.json`, `task_packet.json`, `negative_results.json`, `artifact_index.json`, `state_manifest.json`, `.codex-skills/*`, `.github/workflows/*`, `frontend/*`, `solve_reports/*`, `training_materials/local_reverse/*`, or database files.
 
-Do not perform sample solving, external tool invocation, Web runtime, workflow dispatch, runner dispatch, cleanup apply, deletion, file move, database migration, local commit, local push, branch creation, PR creation, merge, or rebase.
+Do not perform sample solving, external reverse-tool invocation, Web runtime, workflow dispatch, runner dispatch, cleanup apply, deletion, file move, database migration, local commit, local push, branch creation, PR creation, merge, or rebase.
 
-Do not claim `ACCEPTED` or `ACCEPTED_WITH_LIMITATIONS` if final-check still has blocking reasons.
+Do not claim `ACCEPTED` or `ACCEPTED_WITH_LIMITATIONS` unless preflight, pytest, report-summary, final-check, and required closeout/close-round evidence support it.
 
 ## 4. Files To Inspect
 
@@ -161,22 +156,36 @@ project_state/codex_execution_report.md
 project_state/execution_report.md
 project_state/pytest_result.txt
 project_state/gates/command_plan.json
-project_state/gates/execution_log.json
 project_state/gates/preflight_result.json
 project_state/gates/report_summary_synthesis.json
 project_state/gates/final_gate_result.json
+project_state/gates/execution_log.json
 project_state/gates/run_closeout_result.json
 project_state/gates/run_closeout_execution_log.json
+project_state/gates/gate_profile_plan.json
+project_state/gates/round_delta_summary.json
 project_state/current_state.json
 project_state/task_packet.json
 project_state/artifact_index.json
 project_state/negative_results.json
 project_state/state_manifest.json
-docs/audits/20260707_fast_close_round_key_fix_audit.md
-docs/roadmap/next_step_after_fast_close_round_key_fix_audit.md
 ```
 
-Allowed source/test inspection and modification is limited to the files listed in `decision_contract.allowed_source_files` and `decision_contract.allowed_test_files`.
+Allowed source files:
+
+```text
+reverse_agent/project_gate.py
+reverse_agent/project_reports.py
+reverse_agent/project_control_plane.py
+```
+
+Allowed test files:
+
+```text
+tests/test_project_gate.py
+tests/test_project_reports.py
+tests/test_project_control_plane.py
+```
 
 Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -185,23 +194,25 @@ Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 The execution report must answer:
 
 1. Is `decision_meta` valid, APPROVED, and on `project_governance`?
-2. Is `reverse-agent-iteration@v2` active in the registry?
-3. Does the report match this decision ID and round ID?
-4. Does the report acknowledge the previous decision was already consumed/submitted?
-5. Does command-plan carry this decision ID and round ID?
-6. Were all executed commands authorized by command-plan?
-7. Were any omitted commands executed?
-8. Did source/test changes stay within the allowed lists?
-9. Were forbidden state files left unchanged?
-10. Does report-summary match the execution report?
-11. Does final-check pass if the report claims acceptance?
-12. If final-check fails, does the report honestly say REWORK_REQUIRED?
-13. Does pytest_result match this decision, round, report, and transcript?
-14. Does execution_log cover required command-plan commands?
-15. If closeout/close-round ran, were they command-plan-authorized and archived consistently?
-16. Did the round avoid Phase A.1, domains, sample solving, Web, database, runner, workflow, cleanup, and external tool work?
+2. Is `reverse-agent-iteration@v2` active?
+3. Does command-plan carry this decision ID and round ID?
+4. Does command-plan select a standard/full profile rather than fast profile when source-level repair is authorized?
+5. Does command-plan include pytest instead of listing pytest in omitted_commands?
+6. Does command-plan include run-closeout/close-round if closeout is required?
+7. Does preflight pass before implementation?
+8. Were all executed commands authorized by command-plan?
+9. Were any omitted commands executed?
+10. Did source/test changes stay within allowed files?
+11. Were forbidden state files left unchanged?
+12. Did pytest run and pass?
+13. Does report-summary match the execution report?
+14. Does final-check pass if the report claims acceptance?
+15. If final-check fails, does the report honestly say REWORK_REQUIRED?
+16. Were run-closeout and close-round executed only if command-plan authorized them?
+17. If close-round ran, was the round archived consistently?
+18. Did the round avoid Phase A.1, domains, sample solving, Web, database, runner, workflow, cleanup, and external tool work?
 
-Audit conclusion must be exactly one of:
+Final conclusion must be exactly one of:
 
 ```text
 ACCEPTED
@@ -210,30 +221,38 @@ REWORK_REQUIRED
 BLOCKED
 ```
 
-Use `REWORK_REQUIRED` if report-summary or final-check still fails, if status fields disagree, or if forbidden files/capabilities are touched.
-
 ## 6. Implementation Scope
 
-This is a bounded status-truthfulness repair.
+This is a bounded project-governance rework.
 
-Allowed work:
-
-```text
-1. Diagnose report-summary/final-check/report mismatch.
-2. Fix minimal gate/report/status handling if needed, only in allowed source files.
-3. Add/update focused tests only in allowed test files.
-4. Regenerate pytest_result, execution reports, report-summary, final-check, execution_log, and closeout artifacts under command-plan authority.
-5. Archive this new round only if command-plan authorizes closeout/close-round.
-```
-
-The key invariant:
+Allowed paths are exactly:
 
 ```text
-pytest_result PASSED is not enough for accepted status;
-accepted reports require report-summary and final-check support.
+reverse_agent/project_gate.py
+reverse_agent/project_reports.py
+reverse_agent/project_control_plane.py
+tests/test_project_gate.py
+tests/test_project_reports.py
+tests/test_project_control_plane.py
+project_state/codex_execution_report.md
+project_state/execution_report.md
+project_state/pytest_result.txt
+project_state/gates/*.json
+project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/*
 ```
 
-If a stale closeout artifact from the previous fast round is involved, the fix must ensure stale previous-round closeout failures are not treated as current blockers unless the current decision and round require them.
+Required work:
+
+```text
+1. Make Implementation Scope parseable by existing preflight rules.
+2. Ensure command-plan does not choose fast profile when this decision allows source-level repair.
+3. Ensure pytest is required when source files are in round delta.
+4. Ensure closeout/close-round requirements are consistent with command-plan.
+5. Preserve the rule that pytest_result alone cannot imply acceptance.
+6. Regenerate reports and gate artifacts after the fix.
+```
+
+This round may adjust command-plan/profile-selection logic only as needed to align source-level repair with standard/full validation.
 
 ## 7. Tests
 
@@ -242,35 +261,40 @@ Run only commands authorized by `project_state/gates/command_plan.json`.
 Expected command categories:
 
 ```text
-startup status commands;
-command-plan;
-preflight;
-focused pytest for project gate/report/control-plane/state behavior;
-report-summary;
-final-check;
-run-closeout / close-round if command-plan requires them.
+startup status commands
+startup-snapshot
+command-plan
+preflight
+pytest for project_gate/project_reports/project_control_plane
+report-summary
+final-check
+run-closeout
+close-round
 ```
 
-If command-plan differs from this expectation, command-plan wins.
+If command-plan still omits pytest while source files are changed, stop and report `REWORK_REQUIRED`.
 
-Commands omitted by command-plan must not be executed.
+If command-plan still selects fast profile for this source-level repair decision, stop and report `REWORK_REQUIRED`.
 
-`pytest_result.txt` must contain the command transcript and current decision/round/report IDs.
+`pytest_result.txt` must contain current decision ID, round ID, report ID, and command transcript.
 
-`codex_execution_report.md` and `execution_report.md` must not claim acceptance unless report-summary and final-check support it.
+Reports must not claim acceptance unless preflight, pytest, report-summary, final-check, and required closeout/close-round all support it.
 
 ## 8. Stop Conditions
 
-Stop with `BLOCKED` if required authority files cannot be read, the registry does not mark the skill active, or command-plan/preflight cannot be generated.
+Stop with `BLOCKED` if required authority files cannot be read, the active skill is missing, or command-plan cannot be generated.
 
 Stop with `REWORK_REQUIRED` if:
 
 ```text
+command-plan selects fast profile;
+command-plan omits pytest while source repair is authorized;
+command-plan omits close-round while closeout is required;
+preflight fails;
+pytest fails or is omitted;
 report-summary fails;
 final-check fails;
-report status and gate truth disagree;
-pytest_result is missing or mismatched;
-execution_log is missing or mismatched;
+execution_log or pytest_result is missing or mismatched;
 source/test changes exceed allowed files;
 forbidden state files are modified;
 an omitted or unauthorized command is executed;
@@ -278,4 +302,4 @@ the work requires Phase A.1, domains, sample solving, Web, database, runner, wor
 local executor runs commit, push, branch creation, PR creation, merge, or rebase.
 ```
 
-If this rework is accepted, the next separate decision may return to Phase A.1 scoped metadata visibility refresh. Do not start Phase A.1 here.
+After this round is accepted, a separate later decision may return to Phase A.1 scoped metadata visibility refresh. Do not start Phase A.1 here.
