@@ -4741,7 +4741,7 @@ def test_command_plan_extracts_chinese_natural_language_gate_checklist(tmp_path:
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
         "python -m reverse_agent.project_state doctor --state-dir project_state",
-        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
         "python -m reverse_agent.project_state lint-report --state-dir project_state",
         "python -m reverse_agent.project_gate report-summary --state-dir project_state",
         "python -m reverse_agent.project_gate final-check --state-dir project_state",

@@ -1,0 +1,48 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-07-08T10:33:11Z",
+  "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1\\codex_execution_report.md",
+      "sha256": "ec9d7d9115cffec98d9c3317c3b28204eb24e3adf41f743194c24fbd3fbe2582",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1\\decision_packet.md",
+      "sha256": "3ebf596bf4c7cfa02549454ea717242b919d0736958ad9c27bf21df45aeb2293",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1\\pytest_result.txt",
+      "sha256": "b53e19e6f2fd90d44de6176578347a4a28df2d215e6f3880b1ce9544ebbd02a5",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1\\execution_report.md",
+      "sha256": "8f0d1d506786aba82023ecdba7c78cf405452617ba1f5386b676fa898dd9bf93",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "project_governance",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+  "schema_version": 1,
+  "source_git_commit": "3ad505ad5575",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

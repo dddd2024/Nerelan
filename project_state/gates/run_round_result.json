@@ -4,36 +4,39 @@
   "gate_name": "run-round",
   "gate_status": "PASSED",
   "run_status": "PASSED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+  "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-08T05:55:33.500897Z",
+  "generated_at": "2026-07-08T09:05:55.793973Z",
   "mode": "dry-run",
   "phases": [
-    "gate"
+    "gate",
+    "test"
   ],
   "authorized_commands": [
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1 --dry-run",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1 --dry-run",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json"
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
   ],
   "omitted_commands": [],
   "would_run_commands": [
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json"
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
   ],
-  "command_count": 7,
+  "command_count": 8,
   "commands": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1 --dry-run",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -74,7 +77,7 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -87,7 +90,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,
@@ -123,6 +126,19 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 8,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
     }
   ],
   "executed_commands": [],

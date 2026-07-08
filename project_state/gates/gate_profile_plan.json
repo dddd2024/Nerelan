@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+  "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-08T07:51:52.691282Z",
+  "generated_at": "2026-07-08T10:33:05.173465Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [

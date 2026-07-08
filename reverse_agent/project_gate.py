@@ -926,7 +926,9 @@ NATURAL_LANGUAGE_COMMANDS = {
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     ],
     "doctor": ["python -m reverse_agent.project_state doctor --state-dir project_state"],
-    "pytest": ["python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"],
+    "pytest": [
+        "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
+    ],
     "lint-report": ["python -m reverse_agent.project_state lint-report --state-dir project_state"],
     "report-summary": ["python -m reverse_agent.project_gate report-summary --state-dir project_state"],
     "governance-fix": ["python -m reverse_agent.project_gate governance-fix --state-dir project_state"],
@@ -29941,7 +29943,7 @@ def _select_closeout_pytest_command(plan_result: dict[str, Any]) -> str:
             # dots and no spaces, e.g. "pytest_result_summary.status").
             if command and " " in command:
                 return command
-    return "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+    return "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
 
 
 def _build_closeout_steps(
@@ -31223,8 +31225,18 @@ def _refresh_codex_report_for_closeout(
         and not run_closeout_payload.get("blocking_reasons")
         and _close_round_result_is_closed_without_blockers(run_closeout_payload)
     ):
-        status = "SUCCESS"
-        acceptance = "ACCEPTED"
+        # Only promote to full SUCCESS/ACCEPTED when the final_gate_result
+        # is not WARN.  A WARN gate with non-blocking limitations must keep
+        # ACCEPTED_WITH_LIMITATIONS so the report status matches the gate
+        # status_summary rather than wrapping WARN into ACCEPTED.
+        final_gate_status_val = (
+            str(final_gate_payload.get("gate_status") or "")
+            if final_gate_matches and isinstance(final_gate_payload, dict)
+            else ""
+        )
+        if final_gate_status_val != "WARN":
+            status = "SUCCESS"
+            acceptance = "ACCEPTED"
 
     limitations, external_state_notices = _limited_acceptance_details_from_gate_payload(
         final_gate_payload if final_gate_matches else None
@@ -31414,8 +31426,11 @@ def _refresh_codex_report_for_closeout(
             elif (
                 not existing_placeholders
                 and existing_covers_current_questions
-                and not existing_alignment_failures
             ):
+                # Preserve existing non-placeholder answers even when they have
+                # alignment failures.  The required_audit_coverage check will
+                # still report alignment failures, but overwriting non-placeholder
+                # answers with the scaffold would be worse (all placeholders).
                 audit_section_to_use = "## Required Audit\n\n" + existing_audit_section
 
     # Feature C: Do not promote the report to SUCCESS while placeholder

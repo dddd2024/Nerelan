@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
-  "report_id": "codex_report_20260708_state_domain_taxonomy_foundation_v1",
+  "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+  "report_id": "codex_report_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-08T07:52:45.315060Z",
+  "generated_at": "2026-07-08T10:33:54.693544Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
-    "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+    "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+    "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,11 +43,11 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/project_state_manifest.py",
-      "reverse_agent/project_context.py",
       "reverse_agent/project_gate.py",
       "reverse_agent/project_reports.py",
-      "reverse_agent/project_control_plane.py"
+      "reverse_agent/project_control_plane.py",
+      "reverse_agent/project_state_manifest.py",
+      "reverse_agent/project_context.py"
     ],
     "generated_or_updated_artifacts": []
   },
@@ -61,16 +61,18 @@
       "training_materials/local_reverse/*",
       "project_state/current_state.json",
       "project_state/task_packet.json",
-      "project_state/domains/*/current_state.json",
-      "project_state/domains/*/negative_results.json",
-      "project_state/domains/*/solve_tasks/*",
-      "project_state/domains/*/reports/*",
-      "project_state/domains/*/traces/*",
+      "project_state/artifact_index.json",
+      "project_state/negative_results.json",
+      "project_state/state_manifest.json",
+      "project_state/context/*",
+      "project_state/roadmap/workstreams.json",
+      "project_state/domains/*",
       "project_state/archives/*",
       "project_state/deletions/*",
       "project_state/blob_store/*",
       "project_state/*.db",
-      "project_state/index.sqlite"
+      "project_state/index.sqlite",
+      "docs/roadmap/*"
     ],
     "no_runner_or_dispatcher": true,
     "remote_mutation_allowed": false
@@ -78,7 +80,7 @@
   "required_commands_summary": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "required": true
@@ -99,14 +101,14 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "required": true
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "required": true
@@ -124,11 +126,20 @@
       "kind": "command-plan",
       "phase": "gate",
       "required": true
+    },
+    {
+      "index": 8,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "required": true
     }
   ],
   "required_tests": {
-    "pytest_commands": [],
-    "includes_project_reports": false
+    "pytest_commands": [
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
+    ],
+    "includes_project_reports": true
   },
   "required_artifacts": [
     "project_state/gates/current_handoff_packet.json",
@@ -147,11 +158,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
-    "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+    "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+    "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "03e546ccf56b092923102f94d2d5713461e4db785e5706a14e56d3a819289056"
+    "sha256": "635c154ee9574ad7a17395f20f2d627f335e06a285ff6de5174114691462b423"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -175,8 +186,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
-    "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+    "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+    "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -184,7 +195,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260708_state_domain_taxonomy_foundation_v1"
+    "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,
