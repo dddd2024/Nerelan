@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "report_id": "codex_report_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "generated_at": "2026-07-08T10:33:35.420090Z",
+  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "generated_at": "2026-07-08T12:35:42.721785Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -132,9 +132,7 @@
       "acceptance_recommendation": null,
       "recommendation": null,
       "errors": [],
-      "warnings": [
-        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
-      ]
+      "warnings": []
     },
     "execution_log": {
       "artifact": "project_state/gates/execution_log.json",
@@ -153,11 +151,11 @@
       "artifact": "project_state/gates/final_gate_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "WARN",
+      "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
-      "report_status": "PARTIAL",
-      "acceptance_recommendation": "NEEDS_REVIEW",
+      "report_status": "SUCCESS",
+      "acceptance_recommendation": "ACCEPTED",
       "recommendation": null,
       "errors": [],
       "warnings": [
@@ -191,7 +189,7 @@
     "pending_diagnostic_sources": []
   },
   "post_closeout_status": {
-    "final_check_gate_status": "WARN",
+    "final_check_gate_status": "PASSED",
     "run_closeout_status": "PASSED",
     "close_round_status": "CLOSED",
     "execution_log_gate_status": "PASSED",

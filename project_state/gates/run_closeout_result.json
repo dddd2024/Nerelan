@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "generated_at": "2026-07-08T10:33:16.142615Z",
+  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "generated_at": "2026-07-08T12:35:22.330728Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -68,7 +68,7 @@
     },
     {
       "name": "execute-decision",
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1 --dry-run",
       "kind": "execute-decision",
       "expected_exit_codes": [
         0
@@ -111,7 +111,7 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
@@ -136,13 +136,13 @@
     "schema_version": 1,
     "gate_name": "close-round",
     "close_status": "CLOSED",
-    "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-    "report_id": "codex_report_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-    "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-    "decision_round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-    "report_round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-    "report_status": "PARTIAL",
-    "generated_at": "2026-07-08T10:33:14.340079Z",
+    "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+    "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
+    "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+    "decision_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+    "report_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+    "report_status": "SUCCESS",
+    "generated_at": "2026-07-08T12:35:20.322245Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -169,15 +169,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-        "decision_round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-        "report_round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1"
+        "requested_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+        "decision_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+        "report_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1"
+        "report_based_on_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1"
       },
       {
         "name": "pytest_result_match",
@@ -203,8 +203,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-        "command_plan_round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1"
+        "command_plan_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+        "command_plan_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1"
       },
       {
         "name": "command_plan_execution_order_policy",
@@ -409,7 +409,7 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/round_manifest.json",
+          "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
           "reverse_agent/project_gate.py",
           "tests/test_project_gate.py"
         ],
@@ -445,11 +445,9 @@
         "detail": "baseline source/test dirty files are absent or explicitly allowed",
         "source_test_baseline_dirty": [],
         "allowed_inherited_dirty_files": [
-          "reverse_agent/project_context.py",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_reports.py",
-          "reverse_agent/project_state_manifest.py"
+          "reverse_agent/project_reports.py"
         ],
         "generated_or_archive_baseline_dirty_files": []
       },
@@ -459,11 +457,9 @@
         "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
         "suspected_late_baseline_files": [],
         "allowed_inherited_dirty_files": [
-          "reverse_agent/project_context.py",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_reports.py",
-          "reverse_agent/project_state_manifest.py"
+          "reverse_agent/project_reports.py"
         ],
         "baseline_dirty_source_test_files": [],
         "files_changed_overlap": [],
@@ -619,11 +615,11 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/startup_snapshot.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/round_manifest.json",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
               "reverse_agent/project_gate.py",
               "tests/test_project_gate.py"
             ],
@@ -687,11 +683,11 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/startup_snapshot.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/round_manifest.json"
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json"
             ],
             "actual": [
               "project_state/codex_execution_report.md",
@@ -759,8 +755,8 @@
           "context_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
           "context_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
           "context_mainline": "engineering_branch",
-          "current_decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-          "current_round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+          "current_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+          "current_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
           "current_mainline": "project_governance",
           "field_domains": {
             "allowed_capability_profile": "",
@@ -798,14 +794,14 @@
               "field": "decision_id",
               "domain": "project_governance",
               "observed_value": "decision_20260706_prework_provenance_closeout_rework_v1",
-              "expected_value": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+              "expected_value": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
               "reason": "context packet decision_id does not match current decision"
             },
             {
               "field": "round_id",
               "domain": "project_governance",
               "observed_value": "round_20260706_prework_provenance_closeout_rework_v1",
-              "expected_value": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+              "expected_value": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
               "reason": "context packet round_id does not match current round"
             },
             {
@@ -847,7 +843,7 @@
         "status": "WARN",
         "detail": "generated_artifacts omits round archive files",
         "missing_artifacts": [
-          "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/round_manifest.json"
+          "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json"
         ]
       },
       {
@@ -1051,8 +1047,8 @@
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-        "manifest": "project_state\\rounds\\round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260708_state_domain_taxonomy_final_status_rework_v1",
+        "manifest": "project_state\\rounds\\round_20260708_state_domain_taxonomy_final_status_rework_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
@@ -1062,14 +1058,14 @@
       {
         "name": "final_check_after_archive",
         "status": "PASSED",
-        "gate_status": "WARN",
+        "gate_status": "PASSED",
         "unexpected_failures": [],
         "artifact": "project_state/gates/final_gate_result.json"
       }
     ],
     "archive": {
       "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/round_manifest.json",
+      "round_manifest_path": "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",
@@ -1110,10 +1106,10 @@
     ],
     "recommended_next_action": "no_action_required",
     "status_summary": {
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
       "archive_status": "archived",
-      "report_status": "PARTIAL",
-      "report_acceptance_recommendation": "NEEDS_REVIEW"
+      "report_status": "SUCCESS",
+      "report_acceptance_recommendation": "ACCEPTED"
     }
   },
   "blocking_reasons": [],

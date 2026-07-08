@@ -15882,6 +15882,8 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
             "startup_baseline_consistency",
             "final_check_stdout_matches_gate_status",
             "generated_artifacts_cover_round_archive",
+            "scoped_metadata_coverage",
+            "context_domain_awareness",
         }
         status_policy_has_limitations = any(
             isinstance(check, dict)
@@ -21445,6 +21447,11 @@ def _result_status(checks: list[dict[str, Any]], report_status: str, *, mainline
                 # Phase A scoped metadata coverage: WARN is informational and
                 # non-blocking. Legacy/pre-Phase-A fixtures without the
                 # scoped_metadata section must not downgrade gate_status.
+                non_blocking_warn_names.add(name)
+            elif name == "context_domain_awareness" and check.get("non_blocking"):
+                # Phase A context domain awareness: WARN is advisory only
+                # (stale domain facts from prior context packets). Non-blocking
+                # and legacy-compatible; must not downgrade gate_status.
                 non_blocking_warn_names.add(name)
         all_warn_names = {check.get("name") or "" for check in warn_checks}
         if all_warn_names <= non_blocking_warn_names:
@@ -29465,11 +29472,18 @@ def run_round(
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
     mode = "dry-run" if dry_run else "execute"
+    # Dry-run mode is plan-validation only; it should tolerate decisions that
+    # have already been consumed by a report (e.g. when regenerating gate
+    # artifacts for an already-reported round).  Blocking dry-run on a consumed
+    # decision creates a chicken-and-egg where execute-decision --dry-run cannot
+    # pass until close-round writes a round_manifest, but close-round cannot run
+    # until execute-decision passes.  Execute mode already allowed consumed
+    # decisions; extend the same tolerance to dry-run for plan re-validation.
     preflight_result = preflight(
         state_dir=state_dir,
         repo_root=repo_root,
         write_result=write_result,
-        allow_consumed=not dry_run if allow_consumed_preflight is None else allow_consumed_preflight,
+        allow_consumed=True if allow_consumed_preflight is None else allow_consumed_preflight,
     )
     plan_result = command_plan(
         state_dir=state_dir,

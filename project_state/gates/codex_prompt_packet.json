@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "report_id": "codex_report_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
+  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-08T10:33:54.695275Z",
+  "generated_at": "2026-07-08T12:35:55.319610Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-      "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-      "sha256": "1040199d34785de57ce1f0e9254aa0dbc6fc8965d018978b069c4bcc3d5229de"
+      "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+      "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+      "sha256": "75d9ba9cc4a303ed6345ab6136245dc37a878873cb3cd0eab55564de7106d338"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-      "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-      "sha256": "635c154ee9574ad7a17395f20f2d627f335e06a285ff6de5174114691462b423"
+      "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+      "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+      "sha256": "24046497118e65c9723d429f0b56391da5cf9af525eb7a547a8097291b849667"
     }
   },
   "prompt_sections": {

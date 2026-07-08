@@ -3,10 +3,10 @@
   "artifact_name": "ci_observation_reconcile_result.json",
   "gate_name": "ci-observation-reconcile",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "report_id": "codex_report_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "generated_at": "2026-07-08T10:33:35.415745Z",
+  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "generated_at": "2026-07-08T12:35:42.718667Z",
   "reconcile_status": "REWORK_REQUIRED",
   "final_consistency_status": "REWORK_REQUIRED",
   "pending_diagnostic_sources": [],
@@ -131,9 +131,7 @@
       "acceptance_recommendation": null,
       "recommendation": null,
       "errors": [],
-      "warnings": [
-        "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
-      ]
+      "warnings": []
     }
   },
   "evidence_only": true,

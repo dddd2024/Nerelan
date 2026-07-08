@@ -4471,6 +4471,36 @@ class TestResultStatusWithLimitations:
         ]
         assert _result_status(checks, "SUCCESS") == "WARN"
 
+    def test_context_domain_awareness_non_blocking_returns_passed(self) -> None:
+        """context_domain_awareness WARN with non_blocking=True is non-blocking
+        for project_governance mainline with historical-only external notices."""
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "external_state_notices": ["historical sample artifacts missing; non-blocking"]},
+            {"name": "scoped_metadata_coverage", "status": "WARN", "non_blocking": True},
+            {"name": "context_domain_awareness", "status": "WARN", "non_blocking": True},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="project_governance") == "PASSED"
+
+    def test_context_domain_awareness_blocking_returns_warn(self) -> None:
+        """context_domain_awareness WARN without non_blocking flag is still blocking."""
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "external_state_notices": ["historical sample artifacts missing; non-blocking"]},
+            {"name": "context_domain_awareness", "status": "WARN"},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="project_governance") == "WARN"
+
+    def test_context_domain_awareness_with_partial_report_returns_passed(self) -> None:
+        """When all WARNs are non-blocking (context_domain_awareness,
+        scoped_metadata_coverage, status_policy_valid with historical notices),
+        _result_status returns PASSED even with PARTIAL report status,
+        breaking the self-referential cycle."""
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "external_state_notices": ["50 missing historical sample artifacts"]},
+            {"name": "scoped_metadata_coverage", "status": "WARN", "non_blocking": True},
+            {"name": "context_domain_awareness", "status": "WARN", "non_blocking": True},
+        ]
+        assert _result_status(checks, "PARTIAL", mainline="project_governance") == "PASSED"
+
 
 class TestFinalCheckWithHistoricalLimitations:
     """Verify final_check produces PASSED for engineering_branch when only historical artifacts are missing."""
@@ -8085,6 +8115,37 @@ class TestReverseSolvingBlockerOnlyGatePolicy:
         result = _report_status_from_gate_payload(payload, mainline="reverse_solving")
         # Should fall through to _report_status_from_gate("WARN") = ("PARTIAL", "NEEDS_REVIEW")
         assert result == ("PARTIAL", "NEEDS_REVIEW")
+
+    def test_report_status_from_gate_payload_warn_with_non_blocking_returns_accepted(self) -> None:
+        """When gate_status is WARN but all WARN checks are non-blocking
+        (status_policy_valid with historical notices, scoped_metadata_coverage,
+        context_domain_awareness), returns SUCCESS/ACCEPTED for project_governance."""
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "PARTIAL",
+                "report_acceptance_recommendation": "NEEDS_REVIEW",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "WARN",
+                    "external_state_notices": ["historical sample artifacts missing; non-blocking for current non-sample evidence policy"],
+                },
+                {
+                    "name": "scoped_metadata_coverage",
+                    "status": "WARN",
+                    "non_blocking": True,
+                },
+                {
+                    "name": "context_domain_awareness",
+                    "status": "WARN",
+                    "non_blocking": True,
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="project_governance")
+        assert result == ("SUCCESS", "ACCEPTED")
 
     def test_artifact_status_policy_downgrades_for_blocker_only(self) -> None:
         """_artifact_status_policy allows downgrade for reverse_solving blocker-only."""
@@ -24237,8 +24298,15 @@ class TestExecuteDecision:
         assert result["run_status"] == "PASSED"
         assert not any("decision already appears consumed" in reason for reason in result["blocking_reasons"])
 
-    def test_execute_decision_dry_run_blocks_current_report_retry(self, tmp_path):
-        """Plan-validation mode remains strict for already-consumed decisions."""
+    def test_execute_decision_dry_run_allows_consumed_report_retry(self, tmp_path):
+        """Plan-validation mode tolerates already-consumed decisions for re-validation.
+
+        Dry-run is plan-validation only; blocking on a consumed decision creates a
+        chicken-and-egg where execute-decision --dry-run cannot pass until
+        close-round writes a round_manifest, but close-round cannot run until
+        execute-decision passes.  The default now allows consumed decisions so
+        gate artifacts can be regenerated for an already-reported round.
+        """
         state_dir = _make_command_plan_state(
             tmp_path,
             tests_block="python -m pytest tests/test_project_gate.py -q",
@@ -24255,8 +24323,8 @@ class TestExecuteDecision:
         result = execute_decision(state_dir=state_dir, dry_run=True, repo_root=tmp_path, write_result=False)
 
         assert result["mode"] == "plan-validation"
-        assert result["run_status"] == "FAILED"
-        assert any("decision already appears consumed" in reason for reason in result["blocking_reasons"])
+        assert result["run_status"] == "PASSED"
+        assert not any("decision already appears consumed" in reason for reason in result["blocking_reasons"])
 
     def test_execute_decision_plan_validation_can_allow_closeout_consumed_retry(self, tmp_path):
         """Closeout-owned plan validation may allow consumed current-report retries."""
