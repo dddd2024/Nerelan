@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-  "round_id": "round_20260708_user_solve_contract_foundation_v1",
-  "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
-  "generated_at": "2026-07-08T15:34:38.662179Z",
+  "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+  "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+  "report_id": "codex_report_20260708_user_solve_contract_test_coverage_rework_v1",
+  "generated_at": "2026-07-08T16:27:45.263656Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-    "round_id": "round_20260708_user_solve_contract_foundation_v1",
-    "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
+    "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+    "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+    "report_id": "codex_report_20260708_user_solve_contract_test_coverage_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "8bc4cfbaa6df75febb4ed00ad2ce65a53ba2bbd4bfbd64063295cb2d25173c24",
-        "size_bytes": 15501,
+        "sha256": "2a4036e57d643628a918da9a429422065ac051ce120f93ba418110c2a623cea9",
+        "size_bytes": 16155,
         "command_block_count": 13
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "3496e9d527505f4f1ec07ea5c094fa81f9c34afa9b9344bcf673270178b0d418",
-        "size_bytes": 4936,
-        "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-        "round_id": "round_20260708_user_solve_contract_foundation_v1",
+        "sha256": "5b673561cf33351e8dda1c45c710c59dcbde3aee14ee37f92d80ecaa4ae714bf",
+        "size_bytes": 5124,
+        "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+        "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
         "plan_status": "PASSED",
         "command_count": 8
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "e6513a15142f183f67cdc7cf716eb0df074bfac36affc1154a86427a6fb359ce",
-        "size_bytes": 42919,
-        "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-        "round_id": "round_20260708_user_solve_contract_foundation_v1",
+        "sha256": "c6c1e35ddd1306e2dca88f31f88cd17c97a1157ba34e00b15abda567d2f5ecbc",
+        "size_bytes": 40531,
+        "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+        "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
         "command_block_count": 13
       }
     },
     "command_count": 13,
-    "command_digest": "c582c2f78804a37022e61471bc275201f09599cdae6c46122f23609e7d74c130"
+    "command_digest": "163c9c4769acbe9feed4f525bb75ed1a59ab1d0110f951e1aac5acb83a365222"
   },
   "commands": [
     {
@@ -97,7 +97,7 @@
     },
     {
       "index": 6,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -130,7 +130,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -165,7 +165,7 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -176,7 +176,7 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

@@ -19140,6 +19140,97 @@ def test_final_check_required_audit_coverage_in_gate(tmp_path: Path) -> None:
     assert audit_check["status"] == "FAIL"
 
 
+def test_final_check_changed_tests_covered_by_pytest_fails_when_omitted(tmp_path: Path) -> None:
+    """final-check FAILs when allowed test files are not in pytest_result."""
+    state_dir = _make_gate_state(
+        tmp_path,
+        decision_id="decision_coverage_test",
+        round_id="round_coverage_test",
+    )
+    # Add decision_contract with allowed_test_files including User Solve tests.
+    decision_path = state_dir / "decision_packet.md"
+    decision_text = decision_path.read_text(encoding="utf-8")
+    contract = {
+        "allowed_test_files": [
+            "tests/test_user_solve_contract.py",
+            "tests/test_project_gate.py",
+        ],
+        "closeout_required": True,
+        "closeout_allowed": True,
+    }
+    decision_path.write_text(
+        decision_text
+        + "\n```json decision_contract\n"
+        + json.dumps(contract, indent=2)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    # Create the test files on disk.
+    for test_file in ["tests/test_user_solve_contract.py", "tests/test_project_gate.py"]:
+        test_path = tmp_path / test_file
+        test_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path.write_text("def test_placeholder():\n    pass\n", encoding="utf-8")
+    # Write a pytest_result that does NOT include test_user_solve_contract.py.
+    _write_pytest(
+        state_dir,
+        decision_id="decision_coverage_test",
+        report_id="report_coverage_test",
+        round_id="round_coverage_test",
+        tests_ran=["python -m pytest tests/test_project_gate.py -q"],
+        body="===== COMMAND: python -m pytest tests/test_project_gate.py -q =====\n1 passed\n===== EXIT: 0 =====\n",
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    check = _check(result, "changed_tests_covered_by_pytest")
+    assert check is not None
+    assert check["status"] == "FAIL"
+    assert "tests/test_user_solve_contract.py" in check.get("missing_test_files", [])
+
+
+def test_final_check_changed_tests_covered_by_pytest_passes_when_covered(tmp_path: Path) -> None:
+    """final-check PASSes when all allowed test files are in pytest_result."""
+    state_dir = _make_gate_state(
+        tmp_path,
+        decision_id="decision_coverage_pass",
+        round_id="round_coverage_pass",
+    )
+    decision_path = state_dir / "decision_packet.md"
+    decision_text = decision_path.read_text(encoding="utf-8")
+    contract = {
+        "allowed_test_files": [
+            "tests/test_user_solve_contract.py",
+            "tests/test_project_gate.py",
+        ],
+        "closeout_required": True,
+        "closeout_allowed": True,
+    }
+    decision_path.write_text(
+        decision_text
+        + "\n```json decision_contract\n"
+        + json.dumps(contract, indent=2)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    for test_file in ["tests/test_user_solve_contract.py", "tests/test_project_gate.py"]:
+        test_path = tmp_path / test_file
+        test_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path.write_text("def test_placeholder():\n    pass\n", encoding="utf-8")
+    # Write a pytest_result that includes both test files.
+    _write_pytest(
+        state_dir,
+        decision_id="decision_coverage_pass",
+        report_id="report_coverage_pass",
+        round_id="round_coverage_pass",
+        tests_ran=["python -m pytest tests/test_user_solve_contract.py tests/test_project_gate.py -q"],
+        body="===== COMMAND: python -m pytest tests/test_user_solve_contract.py tests/test_project_gate.py -q =====\n2 passed\n===== EXIT: 0 =====\n",
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+    check = _check(result, "changed_tests_covered_by_pytest")
+    assert check is not None
+    assert check["status"] == "PASS"
+
+
 def test_final_check_required_audit_passes_with_substantive_answers(tmp_path: Path) -> None:
     """Feature B+C: final-check passes when report has substantive answers for all items."""
     from reverse_agent.project_gate import parse_required_audit_questions
@@ -29033,6 +29124,98 @@ def test_command_plan_adds_superset_pytest_for_local_ci_parity(tmp_path: Path) -
         "tests/test_project_ci.py -q"
     ) not in commands
     assert "python -m reverse_agent.project_gate execution-log --state-dir project_state" in commands
+
+
+def test_command_plan_injects_allowed_test_files_into_pytest(tmp_path: Path) -> None:
+    """command_plan expands pytest to include allowed_test_files from decision_contract."""
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_user_solve_test",
+        round_id="round_user_solve_test",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    # Create the User Solve test files on disk so they pass the existence check.
+    for test_file in [
+        "tests/test_user_solve_contract.py",
+        "tests/test_user_solve_state.py",
+        "tests/test_user_solve_errors.py",
+        "tests/test_user_solve_views.py",
+    ]:
+        test_path = tmp_path / test_file
+        test_path.parent.mkdir(parents=True, exist_ok=True)
+        test_path.write_text("def test_placeholder():\n    pass\n", encoding="utf-8")
+    contract = {
+        "allowed_source_files": [
+            "reverse_agent/user_solve_contract.py",
+            "reverse_agent/user_solve_state.py",
+            "reverse_agent/user_solve_errors.py",
+            "reverse_agent/user_solve_views.py",
+        ],
+        "allowed_test_files": [
+            "tests/test_user_solve_contract.py",
+            "tests/test_user_solve_state.py",
+            "tests/test_user_solve_errors.py",
+            "tests/test_user_solve_views.py",
+            "tests/test_project_gate.py",
+        ],
+        "closeout_required": True,
+        "closeout_allowed": True,
+    }
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\n```json decision_contract\n"
+        + json.dumps(contract, indent=2)
+        + "\n```\n\n"
+        + "## Tests\n\nThe pytest command should include User Solve tests.\n",
+        encoding="utf-8",
+    )
+
+    result = command_plan(state_dir=state_dir, write_result=False)
+    commands = [entry["command"] for entry in result["commands"]]
+
+    pytest_commands = [c for c in commands if "python -m pytest" in c]
+    assert pytest_commands, "expected at least one pytest command"
+    # The User Solve test files must be in at least one pytest command.
+    all_pytest_files: set[str] = set()
+    for cmd in pytest_commands:
+        for part in cmd.split():
+            norm = part.replace("\\", "/")
+            if norm.startswith("tests/") and norm.endswith(".py"):
+                all_pytest_files.add(norm)
+    assert "tests/test_user_solve_contract.py" in all_pytest_files
+    assert "tests/test_user_solve_state.py" in all_pytest_files
+    assert "tests/test_user_solve_errors.py" in all_pytest_files
+    assert "tests/test_user_solve_views.py" in all_pytest_files
+
+
+def test_command_plan_preserves_existing_pytest_when_no_allowed_test_files(tmp_path: Path) -> None:
+    """command_plan does not modify pytest when no allowed_test_files are declared."""
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_no_allowed_tests",
+        round_id="round_no_allowed_tests",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\n```json decision_contract\n"
+        + json.dumps({"closeout_required": True}, indent=2)
+        + "\n```\n\n"
+        + "## Tests\n\n```powershell\n"
+        + "python -m pytest tests/test_project_gate.py -q\n"
+        + "```\n",
+        encoding="utf-8",
+    )
+
+    result = command_plan(state_dir=state_dir, write_result=False)
+    commands = [entry["command"] for entry in result["commands"]]
+    pytest_commands = [c for c in commands if "python -m pytest" in c]
+    assert len(pytest_commands) == 1
+    assert "tests/test_project_gate.py" in pytest_commands[0]
+    # No User Solve tests should be injected.
+    assert "test_user_solve" not in pytest_commands[0]
 
 
 def test_local_ci_parity_detects_omitted_workflow_command(tmp_path: Path) -> None:

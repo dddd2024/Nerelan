@@ -5,10 +5,10 @@
   "gate_status": "PASSED",
   "run_status": "PASSED",
   "status": "PASSED",
-  "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-  "round_id": "round_20260708_user_solve_contract_foundation_v1",
+  "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+  "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-08T15:33:58.600086Z",
+  "generated_at": "2026-07-08T16:27:20.788721Z",
   "mode": "plan-validation",
   "contract_mode": "plan_validation_only",
   "entrypoint": "execute-decision",
@@ -16,16 +16,16 @@
   "command_source": "project_state/gates/command_plan.json",
   "command_plan": {
     "path": "project_state/gates/command_plan.json",
-    "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-    "round_id": "round_20260708_user_solve_contract_foundation_v1",
+    "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+    "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
     "plan_status": "PASSED",
-    "generated_at": "2026-07-08T15:33:56.974722Z",
+    "generated_at": "2026-07-08T16:27:19.944560Z",
     "command_count": 8
   },
   "commands": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1 --dry-run",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -66,7 +66,7 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -79,7 +79,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,
@@ -118,7 +118,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -131,19 +131,19 @@
     }
   ],
   "authorized_commands": [
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1 --dry-run",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
+    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q"
   ],
   "command_exit_codes": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -178,7 +178,7 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
@@ -189,7 +189,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -222,7 +222,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -235,7 +235,7 @@
   "exit_codes": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -270,7 +270,7 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
@@ -281,7 +281,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -314,7 +314,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -354,39 +354,39 @@
     "gate_name": "run-round",
     "gate_status": "PASSED",
     "run_status": "PASSED",
-    "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-    "round_id": "round_20260708_user_solve_contract_foundation_v1",
+    "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+    "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
     "mainline": "engineering_branch",
-    "generated_at": "2026-07-08T15:33:58.599358Z",
+    "generated_at": "2026-07-08T16:27:20.788566Z",
     "mode": "dry-run",
     "phases": [
       "gate",
       "test"
     ],
     "authorized_commands": [
-      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1 --dry-run",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q"
     ],
     "omitted_commands": [],
     "would_run_commands": [
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q"
     ],
     "command_count": 8,
     "commands": [
       {
         "index": 1,
-        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
+        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1 --dry-run",
         "phase": "gate",
         "kind": "execute-decision",
         "required": true,
@@ -427,31 +427,29 @@
       },
       {
         "index": 4,
-        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
         "phase": "gate",
         "kind": "run-closeout",
         "required": true,
         "expected_exit_codes": [
-          0,
-          1
+          0
         ],
         "conditional_closeout": false,
         "records_stdout_stderr": true,
-        "notes": "run-closeout diagnostic after final-check failed; exit 1 is expected"
+        "notes": "run-closeout expected exit 0 after final-check passed"
       },
       {
         "index": 5,
-        "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+        "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
         "phase": "gate",
         "kind": "close-round",
-        "required": false,
+        "required": true,
         "expected_exit_codes": [
-          0,
-          1
+          0
         ],
         "conditional_closeout": true,
         "records_stdout_stderr": true,
-        "notes": "close-round diagnostic after final-check failed; exit 1 is expected"
+        "notes": "close-round closeout expected exit 0 after final-check passed"
       },
       {
         "index": 6,
@@ -481,7 +479,7 @@
       },
       {
         "index": 8,
-        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q",
         "phase": "test",
         "kind": "pytest",
         "required": true,

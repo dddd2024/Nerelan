@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-  "round_id": "round_20260708_user_solve_contract_foundation_v1",
-  "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
-  "generated_at": "2026-07-08T15:34:31.548264Z",
+  "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+  "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+  "report_id": "codex_report_20260708_user_solve_contract_test_coverage_rework_v1",
+  "generated_at": "2026-07-08T16:27:40.723599Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {

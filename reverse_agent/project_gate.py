@@ -14952,6 +14952,87 @@ def _report_claims_accepted_success(report: dict[str, Any]) -> bool:
     }
 
 
+def _changed_tests_covered_by_pytest_check(
+    *,
+    state_dir: Path,
+    pytest_text: str,
+    decision_text: str,
+) -> dict[str, Any]:
+    """Check that changed test files are covered by pytest_result.
+
+    This check detects the case where newly changed test files (e.g.
+    ``tests/test_user_solve_*.py``) are present in the round delta or
+    declared in ``allowed_test_files`` but omitted from the pytest
+    command recorded in ``pytest_result.txt``.  This prevents a report
+    from claiming ACCEPTED while the newly added tests were never
+    executed.
+    """
+    # Collect test files referenced by pytest command blocks in pytest_result.
+    recorded_blocks = _parse_recorded_command_blocks(pytest_text)
+    pytest_test_files: set[str] = set()
+    for block in recorded_blocks.get("blocks", []):
+        if not isinstance(block, dict):
+            continue
+        command = str(block.get("command") or "")
+        if _command_kind(command) != "pytest":
+            continue
+        pytest_test_files |= _pytest_command_file_set(command)
+    # Also check the command_plan.json pytest commands.
+    command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    if command_plan_payload:
+        for item in command_plan_payload.get("commands") or []:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("kind") or "") != "pytest":
+                continue
+            command = str(item.get("command") or "")
+            pytest_test_files |= _pytest_command_file_set(command)
+    # Determine changed test files from decision_contract allowed_test_files
+    # that exist on disk.  These are the tests that the decision explicitly
+    # allows to be modified, so they must be executed if they exist.
+    contract = extract_markdown_json_block(decision_text, "decision_contract")
+    repo_root = _derive_repo_root(state_dir)
+    required_test_files: list[str] = []
+    if contract.get("found") and not contract.get("parse_error"):
+        for raw_path in (contract.get("allowed_test_files") or []):
+            norm = _norm_path(str(raw_path))
+            if not norm.startswith("tests/") or not norm.endswith(".py"):
+                continue
+            if (repo_root / norm).exists():
+                required_test_files.append(norm)
+    # Also check round_delta_summary for changed test files.
+    delta_payload = _read_json(state_dir / "gates" / ROUND_DELTA_SUMMARY_NAME)
+    if delta_payload:
+        dirty = _string_set(delta_payload.get("final_dirty_files")) | _string_set(
+            delta_payload.get("new_dirty_files_since_baseline")
+        )
+        for path in dirty:
+            norm = _norm_path(path)
+            if norm.startswith("tests/") and norm.endswith(".py"):
+                if (repo_root / norm).exists() and norm not in required_test_files:
+                    required_test_files.append(norm)
+    missing = sorted(
+        path for path in required_test_files
+        if path not in pytest_test_files
+    )
+    if not missing:
+        return _check(
+            "changed_tests_covered_by_pytest",
+            "PASS",
+            "all changed/allowed test files are covered by pytest_result",
+            required_test_files=sorted(required_test_files),
+            pytest_test_files=sorted(pytest_test_files),
+        )
+    return _check(
+        "changed_tests_covered_by_pytest",
+        "FAIL",
+        "changed test files are not covered by pytest_result",
+        missing_test_files=missing,
+        required_test_files=sorted(required_test_files),
+        pytest_test_files=sorted(pytest_test_files),
+    )
+
+
 def _pytest_report_status_convergence_checks(
     *,
     report: dict[str, Any],
@@ -21690,6 +21771,16 @@ def final_check(
             missing_report_tests=pytest_validation.get("missing_report_tests") or [],
         )
     )
+    # New check: changed test files must be covered by pytest_result.
+    # This catches the case where newly changed test files (e.g.
+    # tests/test_user_solve_*.py) are present in the round delta but
+    # omitted from the pytest command recorded in pytest_result.txt.
+    _changed_tests_check = _changed_tests_covered_by_pytest_check(
+        state_dir=state_dir,
+        pytest_text=pytest_text_for_validation,
+        decision_text=decision_text,
+    )
+    checks.append(_changed_tests_check)
     checks.extend(
         _pytest_report_status_convergence_checks(
             report=report,
@@ -26084,6 +26175,95 @@ def _inject_decision_preflight_workflow_pytest_command(extracted_commands: list[
     return commands
 
 
+def _inject_allowed_test_files_into_pytest(
+    extracted_commands: list[str],
+    decision_text: str,
+    repo_root: Path | None = None,
+) -> list[str]:
+    """Expand the pytest command to include allowed_test_files from decision_contract.
+
+    When the decision_contract declares ``allowed_test_files`` (or
+    ``allowed_docs`` with test-like paths), the command-plan pytest command
+    must include those test files so that newly changed tests are actually
+    executed.  This injector detects test files that are:
+      1. declared in ``allowed_test_files``
+      2. present on disk
+      3. not already referenced by any existing pytest command
+    and expands the first pytest command to include them.
+    """
+    contract = extract_markdown_json_block(decision_text, "decision_contract")
+    if not contract.get("found") or contract.get("parse_error"):
+        return extracted_commands
+    allowed_test_files = contract.get("allowed_test_files") or []
+    if not allowed_test_files:
+        return extracted_commands
+    root = Path(repo_root) if repo_root else Path.cwd()
+    # Collect all test files already referenced by existing pytest commands.
+    existing_pytest_files: set[str] = set()
+    for command in extracted_commands:
+        existing_pytest_files |= _pytest_command_file_set(command)
+    # Determine which allowed test files are missing and exist on disk.
+    missing_test_files: list[str] = []
+    for raw_path in allowed_test_files:
+        norm = _norm_path(str(raw_path))
+        if norm in existing_pytest_files:
+            continue
+        if not norm.startswith("tests/") or not norm.endswith(".py"):
+            continue
+        if (root / norm).exists():
+            missing_test_files.append(norm)
+    if not missing_test_files:
+        return extracted_commands
+    commands = list(extracted_commands)
+    # Find the first pytest command and expand it; if none exists, create one.
+    pytest_index = next(
+        (
+            index for index, command in enumerate(commands)
+            if _command_kind(command) == "pytest"
+        ),
+        None,
+    )
+    if pytest_index is None:
+        # No existing pytest command; create one with just the missing files.
+        new_command = (
+            "python -m pytest " + " ".join(sorted(missing_test_files)) + " -q"
+        )
+        insert_at = next(
+            (
+                index for index, existing in enumerate(commands)
+                if _command_kind(existing) in {"report-summary", "execution-log", "final-check", "run-closeout"}
+            ),
+            len(commands),
+        )
+        commands.insert(insert_at, new_command)
+        return commands
+    # Expand the existing pytest command to include missing test files.
+    original = commands[pytest_index]
+    # Parse the original command to preserve flags and file ordering.
+    parts = original.split()
+    # Identify the insertion point: after the last tests/*.py arg.
+    last_test_index = -1
+    for index, part in enumerate(parts):
+        norm = part.replace("\\", "/")
+        if norm.startswith("tests/") and norm.endswith(".py"):
+            last_test_index = index
+    if last_test_index == -1:
+        # No test files in the original; insert after "pytest" token.
+        pytest_token_index = next(
+            (index for index, part in enumerate(parts) if part == "pytest"),
+            0,
+        )
+        insert_at = pytest_token_index + 1
+    else:
+        insert_at = last_test_index + 1
+    # Insert missing test files in sorted order.
+    new_parts = list(parts)
+    for offset, test_file in enumerate(sorted(missing_test_files)):
+        new_parts.insert(insert_at + offset, test_file)
+    commands[pytest_index] = " ".join(new_parts)
+    return commands
+
+
 def _decision_requests_full_closeout_coverage(decision_text: str) -> bool:
     lowered = decision_text.lower()
     if (
@@ -26372,6 +26552,11 @@ def command_plan(
             extracted_commands,
             decision_text=decision_text,
             round_id=round_id,
+        )
+        extracted_commands = _inject_allowed_test_files_into_pytest(
+            extracted_commands,
+            decision_text=decision_text,
+            repo_root=_derive_repo_root(state_dir),
         )
         if extract_error and not extracted_commands:
             blocking_reasons.append(extract_error)
