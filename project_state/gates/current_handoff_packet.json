@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+  "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T16:01:58.328909Z",
+  "generated_at": "2026-07-08T04:41:40.389383Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -85,8 +85,8 @@
     "gate_artifacts": []
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "current_round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "current_decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "current_round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -101,11 +101,11 @@
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
     "gate_status": "PASSED",
-    "readiness_status": "PENDING",
-    "recommendation": "REWORK_REQUIRED",
-    "next_action": "complete_closeout_and_rerun_final_check",
-    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "readiness_status": "READY",
+    "recommendation": "ACCEPTED",
+    "next_action": "no_action_required",
+    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -113,7 +113,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1"
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

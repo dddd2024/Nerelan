@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+  "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T16:01:58.331823Z",
+  "generated_at": "2026-07-08T04:41:40.395148Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -102,7 +102,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "required": true
@@ -130,14 +130,14 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "required": true
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "required": true
@@ -166,11 +166,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "0e11c0fff90642b9768ebba10578778a9d0767ee2dfaf93172181c2b8e499544"
+    "sha256": "201a054bedaaf39ec0ef4eb8949320c2584b39e524a34474a0c2e40e79bee459"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -191,11 +191,11 @@
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
     "gate_status": "PASSED",
-    "readiness_status": "PENDING",
-    "recommendation": "REWORK_REQUIRED",
-    "next_action": "complete_closeout_and_rerun_final_check",
-    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "readiness_status": "READY",
+    "recommendation": "ACCEPTED",
+    "next_action": "no_action_required",
+    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -203,7 +203,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1"
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

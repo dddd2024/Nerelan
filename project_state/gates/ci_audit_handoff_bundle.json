@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
-  "generated_at": "2026-07-07T16:01:18.534609Z",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+  "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
+  "generated_at": "2026-07-08T04:41:19.217831Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -158,24 +158,12 @@
       "acceptance_recommendation": "REWORK_REQUIRED",
       "recommendation": null,
       "errors": [
-        "pytest_result_match: pytest_result does not match report",
-        "close_round_is_last_command_block: close-round is not the last command block; last block is: 'python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1'",
-        "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
-        "prework_provenance_gate_artifact: prework provenance artifact is invalid",
-        "required_audit_coverage: report has 18 of 18 Required Audit items with placeholder answers; substantive answers required regardless of report status",
-        "status_policy_valid: status policy found blocking issues",
-        "closeout_nested_failures_absent: run_closeout_result.json contains active nested FAIL/FAILED states"
+        "close_round_is_last_command_block: close-round is not the last command block; last block is: 'python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1'"
       ],
       "warnings": [
         "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
-        "round_manifest_present: round manifest is missing",
-        "archived_report_matches_live_report: archived report differs from live report",
-        "archived_execution_report_alias_matches_live_alias: archived execution_report.md differs from live execution_report.md",
-        "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
-        "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
-        "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
         "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
-        "closeout_active_warnings_clean: closeout result has active warnings"
+        "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
       ]
     },
     "run_closeout": {
@@ -183,24 +171,12 @@
       "exists": true,
       "current_round": true,
       "gate_status": null,
-      "status": "FAILED",
-      "close_round_status": "FAILED",
+      "status": "PASSED",
+      "close_round_status": "CLOSED",
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [
-        "step close-round exited 1, expected [0]: close_status=FAILED",
-        "executed step close-round failed: exit=1, expected=[0]",
-        "close-round close_status=FAILED",
-        "close-round report_status=FAILED",
-        "close-round blocking reason: final_check_before_archive: ['prework_provenance_gate_artifact', 'required_audit_coverage', 'status_policy_valid']",
-        "close-round action final_check_before_archive failed: status=FAILED, gate_status=FAILED",
-        "close-round nested failure: close_round_result.report_status=FAILED",
-        "close-round nested failure: close_round_result.actions[0].status=FAILED (final_check_before_archive)",
-        "close-round nested failure: close_round_result.actions[0].gate_status=FAILED (final_check_before_archive)",
-        "close-round nested failure: close_round_result.status_summary.report_status=FAILED",
-        "pytest_result.txt contains failed command block(s): python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 (exit=1)"
-      ],
+      "errors": [],
       "warnings": []
     }
   },
@@ -211,14 +187,13 @@
     "missing_sources": [],
     "external_observation_pending": true,
     "pending_diagnostic_sources": [
-      "final_check",
-      "run_closeout"
+      "final_check"
     ]
   },
   "post_closeout_status": {
     "final_check_gate_status": "FAILED",
-    "run_closeout_status": "FAILED",
-    "close_round_status": "FAILED",
+    "run_closeout_status": "PASSED",
+    "close_round_status": "CLOSED",
     "execution_log_gate_status": "PASSED",
     "report_summary_status": null
   },

@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
-  "generated_at": "2026-07-07T16:06:37.203758Z",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+  "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
+  "generated_at": "2026-07-08T05:04:16.869718Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-    "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+    "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "96dc1d6ab5cd8bb8037b810a6ffd19bc2a06938c2c84d63283592055989b4c81",
-        "size_bytes": 40204,
+        "sha256": "0377d4d1bd16fde3beb71923932a51ef3ab670edd13123a860eb378622fa306e",
+        "size_bytes": 16869,
         "command_block_count": 15
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "5f0048ba4d9594945792272372e38091b9afbf2fb6be406381ba07d0435d9b58",
-        "size_bytes": 5577,
-        "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-        "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+        "sha256": "a54b46552653912ce8e94b9b01600fcd5d1d1015692714732928d94e8b94b5ed",
+        "size_bytes": 5632,
+        "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+        "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
         "plan_status": "PASSED",
         "command_count": 10
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "1d70ca697a4255dc0efbdb56b717c687b75b3171e76143acc4295898e16ed4fb",
-        "size_bytes": 43792,
-        "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-        "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-        "command_block_count": 12
+        "sha256": "56361cd8829482529cb051e63cc7a242d8cf9ec99cb7fc6b57f05c6816fb0293",
+        "size_bytes": 43594,
+        "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+        "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+        "command_block_count": 13
       }
     },
     "command_count": 15,
-    "command_digest": "feb3d700c6b3f705471df717020c57062c5bcad9a924ab3e3f4c185c4c5df213"
+    "command_digest": "9bc39681da5a2ba5f4568753c9d72aa108aa7933e3af432ee3e5bfa719a78b1f"
   },
   "commands": [
     {
@@ -141,7 +141,7 @@
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -159,7 +159,7 @@
         0,
         1
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "status": "PASSED"
     },
     {
@@ -176,6 +176,17 @@
     },
     {
       "index": 13,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
+      "kind": "close-round",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 14,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -183,30 +194,19 @@
         0,
         1
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "status": "PASSED"
     },
     {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
-      "kind": "close-round",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 1,
-      "status": "FAILED"
-    },
-    {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 1,
-      "status": "FAILED"
+      "exit_code": 0,
+      "status": "PASSED"
     }
   ],
   "warnings": [],

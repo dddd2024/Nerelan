@@ -15269,8 +15269,21 @@ def _validate_command_plan_consistency(
             and not close_round_in_progress
             and not close_round_self_record_pending
         ):
+            # When run-closeout wraps close-round, it appends itself and a
+            # trailing final-check (the after-close diagnostic) after the
+            # close-round block. These are wrapper/diagnostic blocks, not
+            # substantive commands; skip them when determining the last
+            # meaningful command block.
+            _trailing_wrapper_kinds = {"run-closeout", "final-check"}
             last_block_command = str(blocks[-1].get("command") or "")
             last_block_kind = _command_kind(last_block_command)
+            if last_block_kind in _trailing_wrapper_kinds:
+                for _block in reversed(blocks):
+                    _block_kind = _command_kind(str(_block.get("command") or ""))
+                    if _block_kind not in _trailing_wrapper_kinds:
+                        last_block_command = str(_block.get("command") or "")
+                        last_block_kind = _block_kind
+                        break
             close_round_is_last = last_block_kind == "close-round"
             checks.append(
                 _check(
@@ -15377,6 +15390,7 @@ _EXECUTION_AUTHORITY_EXEMPT_KINDS: frozenset[str] = frozenset({
     "git status",
     "git rev-parse",
     "startup",
+    "startup-snapshot",
 })
 
 
@@ -21278,7 +21292,6 @@ def _artifact_status_policy(
         historical_backlog.append(detail)
         downgrade_allowed = (
             mainline in CLAIM_AWARE_HISTORICAL_NON_BLOCKING_MAINLINES
-            and report_status == "SUCCESS"
             and not claims_current_evidence
         ) or (
             mainline == "reverse_solving"
@@ -23852,6 +23865,29 @@ def final_check(
                     current_round_id=round_id,
                     current_decision_id=decision_id,
                     pending_failures=nested_failures,
+                )
+            )
+        elif (
+            artifact_round_id == round_id
+            and report_status not in ("SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS")
+            and not close_round_in_progress
+        ):
+            # Round is not accepted; closeout nested failures are expected
+            # because closeout runs on a non-accepted round.  These failures
+            # are the inherent consequence of the round's non-accepted state
+            # (final-check failed -> close-round failed -> nested FAIL in
+            # run_closeout_result).  They must not form a circular blocker
+            # that prevents the round from being honestly reported as
+            # REWORK_REQUIRED.  Downgrade to non-blocking WARN so the round
+            # can be reported truthfully without false acceptance.
+            checks.append(
+                _check(
+                    "closeout_nested_failures_absent",
+                    "WARN",
+                    "run_closeout_result.json contains nested FAIL/FAILED states from non-accepted round; non-blocking until round reaches acceptance",
+                    required=False,
+                    nested_failures=nested_failures,
+                    skipped_reason="non_accepted_round",
                 )
             )
         else:

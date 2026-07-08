@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+  "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T16:01:58.333714Z",
+  "generated_at": "2026-07-08T04:41:40.398256Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-      "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-      "sha256": "42cae0804dfc78d74e944b5d95face1c7a0ee3a0690b515f0168d7ca15c3fc68"
+      "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+      "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+      "sha256": "65267cd20c02d9686d26019a089c96b78073775bd2f3e80d3907b07f16332814"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-      "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-      "sha256": "0e11c0fff90642b9768ebba10578778a9d0767ee2dfaf93172181c2b8e499544"
+      "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+      "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+      "sha256": "201a054bedaaf39ec0ef4eb8949320c2584b39e524a34474a0c2e40e79bee459"
     }
   },
   "prompt_sections": {

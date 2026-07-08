@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T15:40:17.078768Z",
+  "generated_at": "2026-07-08T04:30:46.974759Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -78,7 +78,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1"
+      "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -151,7 +151,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "16883bb16e65"
+    "head_commit": "57fa9628e2ea"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

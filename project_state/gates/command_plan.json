@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T16:00:36.277312Z",
+  "generated_at": "2026-07-08T04:40:48.989177Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -87,7 +87,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -142,7 +142,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -155,7 +155,7 @@
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,

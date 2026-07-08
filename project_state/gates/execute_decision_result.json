@@ -5,10 +5,10 @@
   "gate_status": "PASSED",
   "run_status": "PASSED",
   "status": "PASSED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T16:00:38.480374Z",
+  "generated_at": "2026-07-08T04:40:49.917945Z",
   "mode": "plan-validation",
   "contract_mode": "plan_validation_only",
   "entrypoint": "execute-decision",
@@ -16,10 +16,10 @@
   "command_source": "project_state/gates/command_plan.json",
   "command_plan": {
     "path": "project_state/gates/command_plan.json",
-    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
     "plan_status": "PASSED",
-    "generated_at": "2026-07-07T16:00:36.277312Z",
+    "generated_at": "2026-07-08T04:40:48.989177Z",
     "command_count": 10
   },
   "commands": [
@@ -77,7 +77,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -132,7 +132,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -145,7 +145,7 @@
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,
@@ -162,12 +162,12 @@
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1"
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1"
   ],
   "command_exit_codes": [
     {
@@ -216,7 +216,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -263,7 +263,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
@@ -274,7 +274,7 @@
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -331,7 +331,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -378,7 +378,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
@@ -389,7 +389,7 @@
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -429,10 +429,10 @@
     "gate_name": "run-round",
     "gate_status": "PASSED",
     "run_status": "PASSED",
-    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
     "mainline": "project_governance",
-    "generated_at": "2026-07-07T16:00:38.479649Z",
+    "generated_at": "2026-07-08T04:40:49.917729Z",
     "mode": "dry-run",
     "phases": [
       "gate",
@@ -444,12 +444,12 @@
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1"
     ],
     "omitted_commands": [],
     "would_run_commands": [
@@ -460,7 +460,7 @@
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1"
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1"
     ],
     "command_count": 10,
     "commands": [
@@ -518,7 +518,7 @@
       },
       {
         "index": 5,
-        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
         "phase": "gate",
         "kind": "execute-decision",
         "required": true,
@@ -573,7 +573,7 @@
       },
       {
         "index": 9,
-        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
         "phase": "gate",
         "kind": "run-closeout",
         "required": true,
@@ -587,7 +587,7 @@
       },
       {
         "index": 10,
-        "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+        "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
         "phase": "gate",
         "kind": "close-round",
         "required": false,

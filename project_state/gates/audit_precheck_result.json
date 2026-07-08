@@ -3,23 +3,21 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
-  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
-  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
-  "generated_at": "2026-07-07T16:01:58.344606Z",
+  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
+  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
+  "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
+  "generated_at": "2026-07-08T04:41:40.410094Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "report is current SUCCESS/ACCEPTED"
     },
     {
       "name": "pytest_result_present_and_matching",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "pytest_result matches report",
-      "errors": [
-        "pytest_result header status is PASSED but 1 command block(s) have non-zero exit codes. Contradiction detected."
-      ]
+      "errors": []
     },
     {
       "name": "pytest_command_coverage",
@@ -34,17 +32,17 @@
     },
     {
       "name": "run_closeout_passed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "run-closeout is current and PASSED"
     },
     {
       "name": "close_round_closed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "close-round is CLOSED"
     },
     {
       "name": "audit_readiness_ready",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "audit readiness is READY/ACCEPTED/no_action_required"
     },
     {
@@ -58,7 +56,7 @@
         "audit_inventory_status.current is not true"
       ],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+      "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,
@@ -86,12 +84,7 @@
   ],
   "audit_recommendation": "DO_NOT_ACCEPT",
   "blocking_reasons": [
-    "report_current_and_accepted: report is current SUCCESS/ACCEPTED",
-    "pytest_result_present_and_matching: pytest_result matches report",
     "final_check_passed: final-check is current and PASSED or only audit_precheck_valid remains pending",
-    "run_closeout_passed: run-closeout is current and PASSED",
-    "close_round_closed: close-round is CLOSED",
-    "audit_readiness_ready: audit readiness is READY/ACCEPTED/no_action_required",
     "current_handoff_packet_valid: current handoff packet is missing required current evidence or safety fields",
     "local_execution_bundle_valid: local execution bundle is invalid"
   ],
