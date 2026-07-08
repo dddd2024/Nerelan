@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
-  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
-  "generated_at": "2026-07-08T04:40:59.534436Z",
+  "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+  "generated_at": "2026-07-08T07:52:03.463128Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -68,7 +68,7 @@
     },
     {
       "name": "execute-decision",
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1 --dry-run",
       "kind": "execute-decision",
       "expected_exit_codes": [
         0
@@ -111,7 +111,7 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_foundation_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
@@ -136,13 +136,13 @@
     "schema_version": 1,
     "gate_name": "close-round",
     "close_status": "CLOSED",
-    "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
-    "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
-    "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
-    "decision_round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
-    "report_round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
-    "report_status": "SUCCESS",
-    "generated_at": "2026-07-08T04:40:57.792457Z",
+    "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
+    "report_id": "codex_report_20260708_state_domain_taxonomy_foundation_v1",
+    "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+    "decision_round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+    "report_round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+    "report_status": "PARTIAL",
+    "generated_at": "2026-07-08T07:52:01.579459Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -169,15 +169,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
-        "decision_round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
-        "report_round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1"
+        "requested_round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+        "decision_round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+        "report_round_id": "round_20260708_state_domain_taxonomy_foundation_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1"
+        "report_based_on_decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1"
       },
       {
         "name": "pytest_result_match",
@@ -203,8 +203,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
-        "command_plan_round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1"
+        "command_plan_decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
+        "command_plan_round_id": "round_20260708_state_domain_taxonomy_foundation_v1"
       },
       {
         "name": "command_plan_execution_order_policy",
@@ -282,6 +282,15 @@
         "inherited_dirty_files": [],
         "new_dirty_files_since_baseline": [
           "project_state/codex_execution_report.md",
+          "project_state/domains/automation_runner/README.md",
+          "project_state/domains/engineering_branch/README.md",
+          "project_state/domains/evidence_replay/README.md",
+          "project_state/domains/project_governance/README.md",
+          "project_state/domains/reverse_solving/README.md",
+          "project_state/domains/tool_integration/README.md",
+          "project_state/domains/training_dataset/README.md",
+          "project_state/domains/user_solve_layer/README.md",
+          "project_state/domains/web_workbench/README.md",
           "project_state/execution_report.md",
           "project_state/gates/audit_precheck_result.json",
           "project_state/gates/audit_readiness_packet.json",
@@ -307,10 +316,22 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_gate.py"
+          "project_state/roadmap/workstreams.json",
+          "reverse_agent/project_context.py",
+          "reverse_agent/project_gate.py",
+          "tests/test_project_context.py"
         ],
         "final_dirty_files": [
           "project_state/codex_execution_report.md",
+          "project_state/domains/automation_runner/README.md",
+          "project_state/domains/engineering_branch/README.md",
+          "project_state/domains/evidence_replay/README.md",
+          "project_state/domains/project_governance/README.md",
+          "project_state/domains/reverse_solving/README.md",
+          "project_state/domains/tool_integration/README.md",
+          "project_state/domains/training_dataset/README.md",
+          "project_state/domains/user_solve_layer/README.md",
+          "project_state/domains/web_workbench/README.md",
           "project_state/execution_report.md",
           "project_state/gates/audit_precheck_result.json",
           "project_state/gates/audit_readiness_packet.json",
@@ -336,7 +357,10 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_gate.py"
+          "project_state/roadmap/workstreams.json",
+          "reverse_agent/project_context.py",
+          "reverse_agent/project_gate.py",
+          "tests/test_project_context.py"
         ]
       },
       {
@@ -352,6 +376,15 @@
         "missing_files": [],
         "git_changed_files": [
           "project_state/codex_execution_report.md",
+          "project_state/domains/automation_runner/README.md",
+          "project_state/domains/engineering_branch/README.md",
+          "project_state/domains/evidence_replay/README.md",
+          "project_state/domains/project_governance/README.md",
+          "project_state/domains/reverse_solving/README.md",
+          "project_state/domains/tool_integration/README.md",
+          "project_state/domains/training_dataset/README.md",
+          "project_state/domains/user_solve_layer/README.md",
+          "project_state/domains/web_workbench/README.md",
           "project_state/execution_report.md",
           "project_state/gates/audit_precheck_result.json",
           "project_state/gates/audit_readiness_packet.json",
@@ -377,10 +410,22 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "reverse_agent/project_gate.py"
+          "project_state/roadmap/workstreams.json",
+          "reverse_agent/project_context.py",
+          "reverse_agent/project_gate.py",
+          "tests/test_project_context.py"
         ],
         "required_round_delta_files": [
           "project_state/codex_execution_report.md",
+          "project_state/domains/automation_runner/README.md",
+          "project_state/domains/engineering_branch/README.md",
+          "project_state/domains/evidence_replay/README.md",
+          "project_state/domains/project_governance/README.md",
+          "project_state/domains/reverse_solving/README.md",
+          "project_state/domains/tool_integration/README.md",
+          "project_state/domains/training_dataset/README.md",
+          "project_state/domains/user_solve_layer/README.md",
+          "project_state/domains/web_workbench/README.md",
           "project_state/execution_report.md",
           "project_state/gates/audit_precheck_result.json",
           "project_state/gates/audit_readiness_packet.json",
@@ -406,8 +451,11 @@
           "project_state/gates/run_round_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/round_manifest.json",
-          "reverse_agent/project_gate.py"
+          "project_state/roadmap/workstreams.json",
+          "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/round_manifest.json",
+          "reverse_agent/project_context.py",
+          "reverse_agent/project_gate.py",
+          "tests/test_project_context.py"
         ],
         "inherited_dirty_files": []
       },
@@ -416,11 +464,12 @@
         "status": "PASS",
         "detail": "files_changed covers substantive source/test/artifact changes",
         "substantive_dirty_files": [
-          "reverse_agent/project_gate.py"
+          "project_state/roadmap/workstreams.json",
+          "reverse_agent/project_context.py",
+          "reverse_agent/project_gate.py",
+          "tests/test_project_context.py"
         ],
-        "claimed_source_test_paths": [
-          "reverse_agent/project_gate.py"
-        ]
+        "claimed_source_test_paths": []
       },
       {
         "name": "generated_artifacts_cover_round_delta",
@@ -442,9 +491,11 @@
         "detail": "baseline source/test dirty files are absent or explicitly allowed",
         "source_test_baseline_dirty": [],
         "allowed_inherited_dirty_files": [
+          "reverse_agent/project_context.py",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_reports.py"
+          "reverse_agent/project_reports.py",
+          "reverse_agent/project_state_manifest.py"
         ],
         "generated_or_archive_baseline_dirty_files": []
       },
@@ -454,9 +505,11 @@
         "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
         "suspected_late_baseline_files": [],
         "allowed_inherited_dirty_files": [
+          "reverse_agent/project_context.py",
           "reverse_agent/project_control_plane.py",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_reports.py"
+          "reverse_agent/project_reports.py",
+          "reverse_agent/project_state_manifest.py"
         ],
         "baseline_dirty_source_test_files": [],
         "files_changed_overlap": [],
@@ -467,10 +520,8 @@
       {
         "name": "report_prose_claims_covered_by_files_changed",
         "status": "PASS",
-        "detail": "report prose source/test claims are covered by files_changed",
-        "claimed_source_test_paths": [
-          "reverse_agent/project_gate.py"
-        ]
+        "detail": "report prose does not claim source/test changes beyond files_changed",
+        "claimed_source_test_paths": []
       },
       {
         "name": "tmp_paths_absent_from_dirty_state",
@@ -589,6 +640,15 @@
             "field": "files_changed",
             "expected": [
               "project_state/codex_execution_report.md",
+              "project_state/domains/automation_runner/README.md",
+              "project_state/domains/engineering_branch/README.md",
+              "project_state/domains/evidence_replay/README.md",
+              "project_state/domains/project_governance/README.md",
+              "project_state/domains/reverse_solving/README.md",
+              "project_state/domains/tool_integration/README.md",
+              "project_state/domains/training_dataset/README.md",
+              "project_state/domains/user_solve_layer/README.md",
+              "project_state/domains/web_workbench/README.md",
               "project_state/execution_report.md",
               "project_state/gates/audit_precheck_result.json",
               "project_state/gates/audit_readiness_packet.json",
@@ -614,15 +674,27 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/startup_snapshot.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/round_manifest.json",
-              "reverse_agent/project_gate.py"
+              "project_state/roadmap/workstreams.json",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/decision_packet.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/execution_report.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/pytest_result.txt",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/round_manifest.json",
+              "reverse_agent/project_context.py",
+              "reverse_agent/project_gate.py",
+              "tests/test_project_context.py"
             ],
             "actual": [
               "project_state/codex_execution_report.md",
+              "project_state/domains/automation_runner/README.md",
+              "project_state/domains/engineering_branch/README.md",
+              "project_state/domains/evidence_replay/README.md",
+              "project_state/domains/project_governance/README.md",
+              "project_state/domains/reverse_solving/README.md",
+              "project_state/domains/tool_integration/README.md",
+              "project_state/domains/training_dataset/README.md",
+              "project_state/domains/user_solve_layer/README.md",
+              "project_state/domains/web_workbench/README.md",
               "project_state/execution_report.md",
               "project_state/gates/audit_precheck_result.json",
               "project_state/gates/audit_readiness_packet.json",
@@ -648,7 +720,10 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/startup_snapshot.json",
               "project_state/pytest_result.txt",
-              "reverse_agent/project_gate.py"
+              "project_state/roadmap/workstreams.json",
+              "reverse_agent/project_context.py",
+              "reverse_agent/project_gate.py",
+              "tests/test_project_context.py"
             ]
           },
           {
@@ -680,11 +755,11 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/startup_snapshot.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/round_manifest.json"
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/decision_packet.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/execution_report.md",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/pytest_result.txt",
+              "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/round_manifest.json"
             ],
             "actual": [
               "project_state/codex_execution_report.md",
@@ -739,6 +814,97 @@
         "non_blocking": true
       },
       {
+        "name": "context_domain_awareness",
+        "status": "WARN",
+        "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
+        "warnings": [
+          "4 stale domain fact(s): ['decision_id', 'round_id', 'mainline', 'auditor_context.stale_context_detected'] (non-blocking)"
+        ],
+        "awareness": {
+          "schema_version": 1,
+          "phase": "A",
+          "context_packet_present": true,
+          "context_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+          "context_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+          "context_mainline": "engineering_branch",
+          "current_decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
+          "current_round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+          "current_mainline": "project_governance",
+          "field_domains": {
+            "allowed_capability_profile": "",
+            "allowed_source_files": "",
+            "artifact_kind": "",
+            "artifact_name": "",
+            "artifact_path": "",
+            "auditor_context": "",
+            "bounded": "",
+            "decision_id": "project_governance",
+            "do_not_assume": "",
+            "dynamic_state_caveats": "",
+            "existing_capabilities": "",
+            "external_analysis_tool_invocation": "",
+            "forbidden_capabilities": "",
+            "forbidden_mutated_paths": "",
+            "generated_at": "",
+            "mainline": "project_governance",
+            "model_api_invocation": "",
+            "negative_results_constraints": "reverse_solving",
+            "planner_context": "",
+            "report_id": "project_governance",
+            "round_id": "project_governance",
+            "runner_dispatch": "",
+            "schema_version": "",
+            "source_files": "project_governance",
+            "stop_conditions": ""
+          },
+          "represented_domains": [
+            "project_governance",
+            "reverse_solving"
+          ],
+          "stale_domain_facts": [
+            {
+              "field": "decision_id",
+              "domain": "project_governance",
+              "observed_value": "decision_20260706_prework_provenance_closeout_rework_v1",
+              "expected_value": "decision_20260708_state_domain_taxonomy_foundation_v1",
+              "reason": "context packet decision_id does not match current decision"
+            },
+            {
+              "field": "round_id",
+              "domain": "project_governance",
+              "observed_value": "round_20260706_prework_provenance_closeout_rework_v1",
+              "expected_value": "round_20260708_state_domain_taxonomy_foundation_v1",
+              "reason": "context packet round_id does not match current round"
+            },
+            {
+              "field": "mainline",
+              "domain": "project_governance",
+              "observed_value": "engineering_branch",
+              "expected_value": "project_governance",
+              "reason": "context packet mainline does not match current mainline"
+            },
+            {
+              "field": "auditor_context.stale_context_detected",
+              "domain": "project_governance",
+              "observed_value": "true",
+              "expected_value": "false",
+              "reason": "context packet itself reports stale context"
+            }
+          ],
+          "stale_fact_count": 4,
+          "policy": {
+            "stale_domain_facts_are_non_blocking": true,
+            "legacy_context_packets_remain_readable": true,
+            "no_context_files_moved_or_deleted": true,
+            "domain_awareness_is_advisory_only": true
+          }
+        },
+        "phase": "A",
+        "legacy_compatible": true,
+        "hard_failure": false,
+        "non_blocking": true
+      },
+      {
         "name": "preflight_failure_handoff",
         "status": "PASS",
         "detail": "preflight passed or warned; no handoff violation",
@@ -749,7 +915,7 @@
         "status": "WARN",
         "detail": "generated_artifacts omits round archive files",
         "missing_artifacts": [
-          "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/round_manifest.json"
+          "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/round_manifest.json"
         ]
       },
       {
@@ -953,8 +1119,8 @@
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260708_profile_contract_closeout_consistency_rework_v1",
-        "manifest": "project_state\\rounds\\round_20260708_profile_contract_closeout_consistency_rework_v1\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260708_state_domain_taxonomy_foundation_v1",
+        "manifest": "project_state\\rounds\\round_20260708_state_domain_taxonomy_foundation_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
@@ -964,14 +1130,14 @@
       {
         "name": "final_check_after_archive",
         "status": "PASSED",
-        "gate_status": "PASSED",
+        "gate_status": "WARN",
         "unexpected_failures": [],
         "artifact": "project_state/gates/final_gate_result.json"
       }
     ],
     "archive": {
       "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260708_profile_contract_closeout_consistency_rework_v1/round_manifest.json",
+      "round_manifest_path": "project_state/rounds/round_20260708_state_domain_taxonomy_foundation_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",
@@ -989,7 +1155,8 @@
     },
     "blocking_reasons": [],
     "warnings": [
-      "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)"
+      "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
+      "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=4"
     ],
     "resolved_pre_archive_warnings": [
       "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
@@ -1011,10 +1178,10 @@
     ],
     "recommended_next_action": "no_action_required",
     "status_summary": {
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
       "archive_status": "archived",
-      "report_status": "SUCCESS",
-      "report_acceptance_recommendation": "ACCEPTED"
+      "report_status": "PARTIAL",
+      "report_acceptance_recommendation": "NEEDS_REVIEW"
     }
   },
   "blocking_reasons": [],

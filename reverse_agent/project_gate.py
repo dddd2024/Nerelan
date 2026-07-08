@@ -14500,6 +14500,59 @@ def _scoped_metadata_coverage_check(state_dir: Path) -> dict[str, Any]:
     )
 
 
+def _context_domain_awareness_check(state_dir: Path) -> dict[str, Any]:
+    """Build the Phase A ``context_domain_awareness`` check.
+
+    Surfaces domain classification and stale-domain-fact detection for the
+    context packet. Phase A policy is non-blocking: stale domain facts
+    produce a WARN, never a FAIL. Missing context packets are also WARN
+    (legacy, non-blocking).
+    """
+    try:
+        from .project_context import build_context_domain_awareness
+    except ImportError:
+        return _check(
+            "context_domain_awareness",
+            "WARN",
+            "project_context module unavailable (legacy, non-blocking)",
+            warnings=["project_context module not importable"],
+            phase="A",
+            non_blocking=True,
+        )
+
+    awareness = build_context_domain_awareness(state_dir=state_dir)
+    warnings: list[str] = []
+    detail_parts: list[str] = []
+
+    if not awareness.get("context_packet_present"):
+        detail_parts.append("context packet absent; domain awareness skipped (legacy, non-blocking)")
+    else:
+        stale_count = int(awareness.get("stale_fact_count") or 0)
+        domains = awareness.get("represented_domains") or []
+        detail_parts.append(f"represented_domains={domains}")
+        detail_parts.append(f"stale_facts={stale_count}")
+        if stale_count:
+            stale_fields = [f["field"] for f in awareness.get("stale_domain_facts") or []]
+            warnings.append(
+                f"{stale_count} stale domain fact(s): {stale_fields} (non-blocking)"
+            )
+
+    detail = "; ".join(detail_parts) if detail_parts else "context domain awareness available"
+    status = "WARN" if warnings else "PASS"
+
+    return _check(
+        "context_domain_awareness",
+        status,
+        detail,
+        warnings=warnings,
+        awareness=awareness,
+        phase="A",
+        legacy_compatible=True,
+        hard_failure=False,
+        non_blocking=True,
+    )
+
+
 def _state_relative_path(state_dir: Path, path: Path) -> str:
     try:
         return _norm_path(str(path.resolve().relative_to(state_dir.parent.resolve())))
@@ -21212,6 +21265,7 @@ def _report_summary_checks(
             non_blocking_warnings=non_blocking_warnings,
         ),
         _scoped_metadata_coverage_check(state_dir),
+        _context_domain_awareness_check(state_dir),
     ]
 
 
@@ -21616,6 +21670,7 @@ def final_check(
     )
 
     checks.append(_scoped_metadata_coverage_check(state_dir))
+    checks.append(_context_domain_awareness_check(state_dir))
 
     manifest_present = bool(round_consistency.get("round_manifest_present"))
     manifest_files = list(round_consistency.get("round_manifest_files") or [])
@@ -23750,6 +23805,7 @@ def final_check(
                 w for w in cr_warnings
                 if w not in cr_resolved
                 and not w.startswith("scoped_metadata_coverage:")
+                and not w.startswith("context_domain_awareness:")
             ]
             if not closeout_warnings and not _active_cr_warnings:
                 _caw_status = "PASS"
@@ -29817,6 +29873,8 @@ def _run_closeout_internal_blocking_reasons(
             if warning.startswith("baseline_capture_order:"):
                 continue
             if warning.startswith("scoped_metadata_coverage:"):
+                continue
+            if warning.startswith("context_domain_awareness:"):
                 continue
             reasons.append(f"close-round active warning: {warning}")
 

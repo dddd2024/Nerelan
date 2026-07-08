@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
-  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
-  "report_id": "codex_report_20260708_profile_contract_closeout_consistency_rework_v1",
-  "generated_at": "2026-07-08T04:41:19.217831Z",
+  "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+  "report_id": "codex_report_20260708_state_domain_taxonomy_foundation_v1",
+  "generated_at": "2026-07-08T07:52:23.279757Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -151,18 +151,18 @@
       "artifact": "project_state/gates/final_gate_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "FAILED",
+      "gate_status": "WARN",
       "status": null,
       "close_round_status": null,
-      "report_status": "FAILED",
-      "acceptance_recommendation": "REWORK_REQUIRED",
+      "report_status": "PARTIAL",
+      "acceptance_recommendation": "NEEDS_REVIEW",
       "recommendation": null,
-      "errors": [
-        "close_round_is_last_command_block: close-round is not the last command block; last block is: 'python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_profile_contract_closeout_consistency_rework_v1'"
-      ],
+      "errors": [],
       "warnings": [
         "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
+        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
         "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
+        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
         "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
       ]
     },
@@ -186,12 +186,10 @@
     ],
     "missing_sources": [],
     "external_observation_pending": true,
-    "pending_diagnostic_sources": [
-      "final_check"
-    ]
+    "pending_diagnostic_sources": []
   },
   "post_closeout_status": {
-    "final_check_gate_status": "FAILED",
+    "final_check_gate_status": "WARN",
     "run_closeout_status": "PASSED",
     "close_round_status": "CLOSED",
     "execution_log_gate_status": "PASSED",

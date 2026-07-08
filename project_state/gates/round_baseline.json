@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260708_profile_contract_closeout_consistency_rework_v1",
-  "round_id": "round_20260708_profile_contract_closeout_consistency_rework_v1",
-  "head_commit": "57fa9628e2ea",
+  "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+  "head_commit": "140ce230a389",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
@@ -11,5 +11,5 @@
   "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-08T02:41:44.485357Z"
+  "generated_at": "2026-07-08T05:24:36.560864Z"
 }

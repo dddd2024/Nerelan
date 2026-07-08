@@ -7,8 +7,8 @@
     "only_current_decision_may_mark_active_round": true,
     "roadmap_entries_are_not_execution_authority": true
   },
-  "decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-  "generated_at": "2026-07-06T14:20:00Z",
+  "decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
+  "generated_at": "2026-07-08T05:30:00Z",
   "lifecycle_states": [
     "IDEA",
     "CANDIDATE",
@@ -21,7 +21,7 @@
     "REJECTED"
   ],
   "mainline": "project_governance",
-  "round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+  "round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
   "schema_version": 1,
   "workstreams": [
     {
@@ -47,8 +47,8 @@
       "workstream_id": "governance_operations_bundle"
     },
     {
-      "active_decision_id": "decision_20260706_scoped_state_metadata_foundation_big_step_v1",
-      "active_round_id": "round_20260706_scoped_state_metadata_foundation_big_step_v1",
+      "active_decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
+      "active_round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
       "baseline_round_id": "",
       "execution_authority": "project_state/decision_packet.md",
       "family": "project_governance",
@@ -64,10 +64,10 @@
         "DEFERRED",
         "REJECTED"
       ],
-      "notes": "Active foundation/registration round for Project State Domain Taxonomy. Phase A only: add backward-compatible scope/domain/mainline/role/freshness metadata to state_manifest, artifact_index, and negative_results; warn (not hard-fail) on legacy missing metadata. Future phases (B domain skeleton, C reverse_solving current_state copy, D negative_results split, E top-level current_state summary, F final-check hardening) are roadmap direction only and are not implemented this round. No files moved, deleted, or migrated; no project_state/domains/* created.",
+      "notes": "Active foundation round for Project State Domain Taxonomy. Phase A metadata (scope/domain/mainline/role/freshness on state_manifest, artifact_index, negative_results) is reused from prior rounds. This round adds Phase B domain skeleton README files under project_state/domains/*, context packet domain awareness via project_context.py, and final-check context_domain_awareness warnings. No files moved, deleted, or migrated; no current_state.json or task_packet.json modified.",
       "phases": [
-        {"id": "phase_a", "name": "metadata_foundation", "status": "ACTIVE_ROUND", "scope": "add scope/domain/mainline/role/freshness metadata; warn on legacy gaps"},
-        {"id": "phase_b", "name": "domain_skeleton", "status": "ROADMAP_ACCEPTED", "scope": "create project_state/domains/* skeleton without moving files"},
+        {"id": "phase_a", "name": "metadata_foundation", "status": "ACCEPTED", "scope": "add scope/domain/mainline/role/freshness metadata; warn on legacy gaps"},
+        {"id": "phase_b", "name": "domain_skeleton", "status": "ACTIVE_ROUND", "scope": "create project_state/domains/* skeleton README files without moving files"},
         {"id": "phase_c", "name": "reverse_solving_current_state_copy", "status": "ROADMAP_ACCEPTED", "scope": "copy reverse_solving current_state into domain scope"},
         {"id": "phase_d", "name": "negative_results_split", "status": "ROADMAP_ACCEPTED", "scope": "split negative_results into domain-specific files"},
         {"id": "phase_e", "name": "top_level_current_state_summary", "status": "ROADMAP_ACCEPTED", "scope": "turn top-level current_state.json into a global summary"},
