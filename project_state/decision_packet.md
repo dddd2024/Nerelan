@@ -1,21 +1,22 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+  "round_id": "round_20260708_user_solve_contract_foundation_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
-  "mainline": "project_governance",
+  "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "follows_last_round_id": "round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1",
-  "previous_audit_outcome": "REWORK_REQUIRED",
+  "follows_last_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "follows_last_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
+  "roadmap_basis": "docs/roadmap/evidence_centered_user_solve_execution_plan.md#Round-B-User-Solve-Contract-and-State-Machine",
   "required_profile": "standard_or_full",
   "closeout_required": true,
   "close_round_required": true,
@@ -28,30 +29,37 @@
   "command_plan_must_not_omit_final_check": true,
   "command_plan_must_not_omit_run_closeout": true,
   "command_plan_must_not_omit_close_round": true,
-  "final_check_must_pass_before_unqualified_acceptance": true,
-  "final_gate_status_summary_must_match_reports": true,
-  "run_closeout_close_round_status_must_match_reports": true,
-  "round_manifest_status_must_match_reports": true,
   "allowed_source_files": [
+    "reverse_agent/user_solve_contract.py",
+    "reverse_agent/user_solve_state.py",
+    "reverse_agent/user_solve_errors.py",
+    "reverse_agent/user_solve_views.py",
     "reverse_agent/project_gate.py",
     "reverse_agent/project_reports.py",
     "reverse_agent/project_control_plane.py"
   ],
   "allowed_test_files": [
+    "tests/test_user_solve_contract.py",
+    "tests/test_user_solve_state.py",
+    "tests/test_user_solve_errors.py",
+    "tests/test_user_solve_views.py",
     "tests/test_project_gate.py",
     "tests/test_project_reports.py",
     "tests/test_project_control_plane.py"
+  ],
+  "allowed_docs": [
+    "docs/user_solve_contract.md"
   ],
   "allowed_project_state_files": [
     "project_state/gates/*.json",
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
-    "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
-    "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt"
+    "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json",
+    "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+    "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+    "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
@@ -59,10 +67,6 @@
     "frontend/*",
     "solve_reports/*",
     "training_materials/local_reverse/*",
-    "reverse_agent/project_context.py",
-    "reverse_agent/project_state_manifest.py",
-    "tests/test_project_context.py",
-    "tests/test_project_state_manifest.py",
     "project_state/current_state.json",
     "project_state/task_packet.json",
     "project_state/artifact_index.json",
@@ -85,39 +89,28 @@
 
 ## 1. Goal
 
-Repair the remaining final-status mismatch from the previous closeout evidence rework round.
+Implement the next roadmap step: **User Solve Contract and State Machine foundation**.
 
-Previous round:
+This round must define the user-facing solve result contract without implementing solving, Web runtime, tool invocation, or sample execution.
 
-```text
-decision_id: decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1
-round_id: round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1
-audit_outcome: REWORK_REQUIRED
-```
+The purpose is to give later reverse_solving, Evidence Trace, Fast Static Solve, and Web Workbench rounds a stable payload to consume.
 
-The previous rework fixed the explicit pytest coverage issue:
+The minimum contract must cover:
 
 ```text
-1. command-plan now includes an explicit pytest command;
-2. pytest_result.txt now includes the explicit pytest command;
-3. pytest_result.txt records direct pytest output and 1167 passed;
-4. report-summary synthesis is current and PASSED.
+1. UserSolveTask;
+2. UserSolveResult;
+3. CandidateResult;
+4. ValidationStatus;
+5. user-facing solve status enum;
+6. state transition validator;
+7. failed / blocked reason model;
+8. internal evidence reference fields that do not expose raw governance files;
+9. JSON serialization / deserialization with stable schema_version;
+10. documentation explaining user-layer vs engineering-evidence-layer boundaries.
 ```
 
-The only remaining blocker is final status consistency:
-
-```text
-1. codex_execution_report.md claims SUCCESS / ACCEPTED;
-2. execution_report.md claims SUCCESS / ACCEPTED;
-3. round_manifest.json claims SUCCESS / ACCEPTED;
-4. final_gate_result.json still has gate_status = WARN;
-5. final_gate_result.json status_summary still says report_status = PARTIAL and report_acceptance_recommendation = NEEDS_REVIEW;
-6. run_closeout_result.json close_round_result still says report_status = PARTIAL.
-```
-
-This round must make the final status model truthful and consistent.
-
-Acceptance is valid only if all final status sources agree. If WARN / PARTIAL / NEEDS_REVIEW remains active, the reports must not claim unqualified SUCCESS / ACCEPTED.
+This is an engineering foundation round. It is not a reverse_solving round and must not generate flags, candidates from binaries, or run samples.
 
 ## 2. Current Evidence
 
@@ -132,89 +125,108 @@ project_state/decision_packet.md
 Current mainline:
 
 ```text
-project_governance
+engineering_branch
 ```
 
-Skill profile:
+Reason for `engineering_branch`:
 
 ```text
-reverse-agent-iteration@v2
+The project mainline registry does not currently require a separate user_solve_layer mainline. This round implements contract/schema/state-machine infrastructure only, so it belongs under engineering_branch. Future rounds may use this contract from reverse_solving or Web workbench, but those are not part of this round.
 ```
 
-Previous failed round to repair:
+Previous accepted baseline:
 
 ```text
-decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1
-round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1
+Decision: decision_20260708_state_domain_taxonomy_final_status_rework_v1
+Round: round_20260708_state_domain_taxonomy_final_status_rework_v1
+Audit outcome: ACCEPTED_WITH_LIMITATIONS
 ```
 
-Evidence already fixed in previous rework and should not be reopened unless needed for final status consistency:
+The previous round repaired final status consistency:
 
 ```text
-1. explicit pytest command exists in command-plan commands[];
-2. pytest_result.txt includes explicit pytest command;
-3. pytest_result.txt records direct pytest output and exit code 0;
-4. command-plan, pytest_result, and report tests cover the explicit pytest command;
-5. report-summary synthesis is current and PASSED.
+1. final_gate_result.json gate_status became PASSED;
+2. final_gate_result.status_summary became SUCCESS / ACCEPTED;
+3. run_closeout.close_round_result.report_status became SUCCESS;
+4. round_manifest matched SUCCESS / ACCEPTED;
+5. pytest_result recorded explicit pytest and 1171 passed.
 ```
 
-Remaining failure evidence:
+Remaining non-blocking background warnings from the previous round:
 
 ```text
-1. final_gate_result.json gate_status remains WARN;
-2. final_gate_result.json status_summary remains PARTIAL / NEEDS_REVIEW;
-3. run_closeout_result.json close_round_result.report_status remains PARTIAL;
-4. codex_execution_report.md and execution_report.md still claim SUCCESS / ACCEPTED;
-5. round_manifest.json still records SUCCESS / ACCEPTED;
-6. this violates the previous decision requirement that final_gate, run_closeout, reports, and round_manifest agree.
+1. scoped_metadata_coverage warnings are legacy/non-blocking;
+2. context_domain_awareness warnings show stale context packet facts but are advisory/non-blocking;
+3. historical sample artifacts are non-blocking for current non-sample evidence policy.
 ```
 
 Existing capabilities to reuse:
 
 ```text
-project_gate final-check
+decision-packet authority
+command-plan authority
+project_gate
+preflight
+gate-profile
+command-plan
+execution-log
+report-summary
+final-check
 run-closeout
 close-round
-report-summary
-execution-log
-execution_report / codex_execution_report parity
 round manifest archive
-status policy checks
-report status schema
-command-plan authority
 pytest_result parser
+report status consistency checks
+project_state domain taxonomy skeletons
+roadmap document for evidence-centered user solve foundation
 ```
 
-Do not create a new status system. Repair the existing final-check / run-closeout / close-round / report status path.
+Existing User Solve related evidence:
+
+```text
+Repository search currently finds the User Solve Contract names in the roadmap document, not as stable code modules. Historical user_solve_* gate artifacts exist but are not current authority for this round. If analogous code already exists locally, extend it rather than duplicating it.
+```
+
+This round must avoid repeating existing gate, report, command-plan, final-check, run-closeout, or project_state mechanisms.
 
 Artifact freshness policy:
 
 ```text
 1. All current-round gate artifacts must match this decision_id and round_id.
-2. Prior failed-round artifacts may be referenced only as failure evidence.
-3. Stale historical artifacts must not be used to justify current ACCEPTED.
-4. final_gate_result.status_summary is the canonical evidence for whether an unqualified ACCEPTED claim is supported.
+2. Historical user_solve_* artifacts are not current acceptance evidence.
+3. Historical sample artifacts are non-blocking unless explicitly claimed as current evidence.
+4. New User Solve contract artifacts must not claim runtime validation or actual solving.
 ```
-
-This round must not expand project_state domain taxonomy, User Solve, Web, tools, runner, database, cleanup, or sample solving.
 
 ## 3. Do Not Do
 
-Do not change domain taxonomy behavior.
+Do not solve samples.
 
-Do not add or edit domain README skeletons.
+Do not upload or execute binaries.
 
-Do not modify project_context or project_state_manifest unless the existing tests fail solely because of final status consistency. If that occurs, stop and report BLOCKED rather than silently broadening scope.
-
-Do not implement User Solve Layer.
-
-Do not implement Evidence Replay.
+Do not generate real candidate flags from samples.
 
 Do not implement Fast Static Solve.
 
-Do not implement Web Workbench.
+Do not implement Evidence Trace / Replay schema beyond simple internal evidence reference placeholders needed by the contract.
 
-Do not implement Tool Provider contracts.
+Do not implement Web Workbench or frontend.
+
+Do not implement tool provider integration.
+
+Do not invoke:
+
+```text
+IDA
+Ghidra
+OllyDbg
+x64dbg
+radare2
+MCP
+emulator
+debugger
+runtime probe
+```
 
 Do not create or modify:
 
@@ -245,96 +257,76 @@ project_state/index.sqlite
 docs/roadmap/*
 ```
 
-Do not perform:
+Do not add a database, queue, runner dispatcher, PR automation, cleanup-apply flow, archive compaction, or deletion flow.
+
+Do not claim:
 
 ```text
-sample solving
-candidate or flag generation
-runtime probing
-sample execution
-dynamic debugging
-IDA invocation
-Ghidra invocation
-OllyDbg invocation
-x64dbg invocation
-radare2 invocation
-MCP invocation
-Web runtime work
-database migration
-runner dispatch
-workflow dispatch
-cleanup apply
-deletion
-moving historical artifacts
-archive compaction
-local commit
-local push
-branch creation
-PR creation
-merge
-rebase
+candidate_found == verified
+static_verified == runtime_validated
+user-layer result == engineering-layer ACCEPTED
+roadmap entry == execution authority
 ```
-
-Do not claim unqualified `SUCCESS / ACCEPTED` if any current-round final status source still says:
-
-```text
-WARN
-PARTIAL
-NEEDS_REVIEW
-FAILED
-REWORK_REQUIRED
-```
-
-If final status warnings are deliberately accepted as non-blocking, the reports must use `ACCEPTED_WITH_LIMITATIONS` and list the warnings explicitly.
 
 ## 4. Files To Inspect
 
-Required authority files:
+Required authority and state files:
 
 ```text
 project_state/decision_packet.md
 .codex-skills/registry.json
 project_state/task_packet.json
 project_state/current_state.json
-```
-
-Required failed-round evidence:
-
-```text
+project_state/artifact_index.json
+project_state/negative_results.json
+project_state/state_manifest.json
 project_state/codex_execution_report.md
 project_state/execution_report.md
 project_state/pytest_result.txt
 project_state/gates/command_plan.json
-project_state/gates/report_summary_synthesis.json
-project_state/gates/execution_log.json
 project_state/gates/final_gate_result.json
 project_state/gates/run_closeout_result.json
-project_state/rounds/round_20260708_state_domain_taxonomy_closeout_evidence_rework_v1/round_manifest.json
+project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json
 ```
 
-Required source/test inspection candidates:
+Required roadmap/context inspection:
 
 ```text
+docs/roadmap/evidence_centered_user_solve_execution_plan.md
+```
+
+Search before implementation:
+
+```text
+reverse_agent/*user_solve*.py
+reverse_agent/*solve*contract*.py
+reverse_agent/*solve*state*.py
+tests/test_user_solve*.py
+docs/*user_solve*.md
+```
+
+Allowed source inspection candidates:
+
+```text
+reverse_agent/user_solve_contract.py
+reverse_agent/user_solve_state.py
+reverse_agent/user_solve_errors.py
+reverse_agent/user_solve_views.py
 reverse_agent/project_gate.py
 reverse_agent/project_reports.py
 reverse_agent/project_control_plane.py
+```
+
+Allowed test inspection candidates:
+
+```text
+tests/test_user_solve_contract.py
+tests/test_user_solve_state.py
+tests/test_user_solve_errors.py
+tests/test_user_solve_views.py
 tests/test_project_gate.py
 tests/test_project_reports.py
 tests/test_project_control_plane.py
-```
-
-Required current-round generated files after execution:
-
-```text
-project_state/gates/command_plan.json
-project_state/gates/report_summary_synthesis.json
-project_state/gates/execution_log.json
-project_state/gates/final_gate_result.json
-project_state/gates/run_closeout_result.json
-project_state/pytest_result.txt
-project_state/codex_execution_report.md
-project_state/execution_report.md
-project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json
 ```
 
 Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
@@ -346,34 +338,34 @@ The execution report for this round must answer all of the following:
 ```text
 1. Is decision_meta valid JSON and schema_version=1?
 2. Is status APPROVED?
-3. Is mainline project_governance?
+3. Is mainline engineering_branch?
 4. Is reverse-agent-iteration@v2 active?
 5. Is task_packet treated as advisory/background only?
-6. Was the previous failed round correctly identified as decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1?
-7. Does command-plan still include an explicit pytest command?
-8. Does pytest_result.txt still include direct pytest output, exit code 0, and test count?
-9. Does report-summary synthesis match execution_report and codex_execution_report?
-10. Does execution-log cover all executed commands?
-11. Does final_gate_result.json gate_status support the report status?
-12. Does final_gate_result.json status_summary support the report status and acceptance recommendation?
-13. Does run_closeout_result.json close_round_result.report_status match execution_report and codex_execution_report?
-14. Does round_manifest.json report_status match execution_report and codex_execution_report?
-15. If final_gate_result.json is WARN, do reports avoid unqualified SUCCESS / ACCEPTED?
-16. If status_summary is PARTIAL / NEEDS_REVIEW, do reports avoid unqualified SUCCESS / ACCEPTED?
-17. If close_round_result.report_status is PARTIAL, do reports avoid unqualified SUCCESS / ACCEPTED?
-18. If all reports claim SUCCESS / ACCEPTED, is final_gate_result.json free of active WARN/PARTIAL/NEEDS_REVIEW status?
-19. Are non-blocking historical warnings explicitly classified as historical/non-blocking?
-20. Are current active warnings either resolved or reflected as ACCEPTED_WITH_LIMITATIONS / REWORK_REQUIRED?
-21. Were current_state.json and task_packet.json left untouched?
-22. Were artifact_index.json, negative_results.json, state_manifest.json, context/*, roadmap/workstreams.json, and domains/* left untouched?
-23. Were User Solve, Evidence Replay, Web, tools, runner, database, cleanup, and sample solving avoided?
-24. Were all generated artifacts current for this decision_id and round_id?
-25. Are stale failed-round artifacts treated only as failure evidence, not current acceptance evidence?
-26. Do codex_execution_report.md and execution_report.md agree on report_id, decision_id, round_id, status, acceptance_recommendation, files_changed, tests_ran, and generated_artifacts?
-27. Does close-round generate the final-status rework round manifest?
-28. Does round_manifest status agree with live reports and final_gate status_summary?
-29. Does run-closeout avoid wrapping active WARN/PARTIAL/NEEDS_REVIEW into ACCEPTED?
-30. Is the final recommendation one of ACCEPTED, ACCEPTED_WITH_LIMITATIONS, REWORK_REQUIRED, or BLOCKED, and is it supported by evidence?
+6. Was the previous accepted baseline identified as decision_20260708_state_domain_taxonomy_final_status_rework_v1?
+7. Was the User Solve Contract roadmap basis inspected?
+8. Were existing user_solve / solve_contract / solve_state modules searched before adding new code?
+9. Did the round avoid duplicating existing User Solve functionality if found?
+10. Is UserSolveTask defined with schema_version and stable identity fields?
+11. Is UserSolveResult defined with status, validation_status, candidates, message, confidence, and evidence refs?
+12. Is CandidateResult defined without implying runtime validation?
+13. Is ValidationStatus defined so candidate_found, static_verified, and runtime_validated are distinct?
+14. Are failed and blocked reason codes explicit and serializable?
+15. Does the state transition validator reject illegal transitions?
+16. Does the state transition validator require evidence refs for verified/runtime_validated states?
+17. Does candidate_found allow validation_status=pending?
+18. Does runtime_validated require runtime validation evidence and not just static evidence?
+19. Does blocked carry a reason such as policy/tool/environment/sample_format/unsupported?
+20. Does the user-facing payload avoid exposing raw decision_packet, command-plan, negative_results, or internal gate file bodies?
+21. Are JSON serialization/deserialization tests deterministic?
+22. Are backward/forward compatibility rules documented for unknown optional fields?
+23. Did pytest run and pass with explicit command recorded in pytest_result.txt?
+24. Did command-plan include explicit pytest, report-summary, execution-log, final-check, run-closeout, and close-round?
+25. Were any omitted or unauthorized commands executed?
+26. Were project_state/current_state.json and task_packet.json left untouched?
+27. Were artifact_index, negative_results, state_manifest, context, roadmap, domains, frontend, workflows, solve_reports, and training materials left untouched?
+28. Did final-check pass or accurately reflect any limitations?
+29. Did run-closeout and close-round pass and generate a round_manifest for this round?
+30. Do execution_report.md and codex_execution_report.md agree on decision_id, round_id, status, acceptance_recommendation, tests_ran, and generated_artifacts?
 ```
 
 ## 6. Implementation Scope
@@ -381,18 +373,59 @@ The execution report for this round must answer all of the following:
 Allowed implementation tasks:
 
 ```text
-1. Fix final_gate_result.status_summary generation so it cannot remain PARTIAL / NEEDS_REVIEW while reports claim SUCCESS / ACCEPTED.
-2. Fix report status derivation so execution_report and codex_execution_report follow final_gate_result.status_summary.
-3. Fix run-closeout so close_round_result.report_status cannot remain PARTIAL while the live reports and round manifest claim SUCCESS.
-4. Fix close-round / round_manifest status derivation so round_manifest agrees with live reports and final_gate status_summary.
-5. If warnings are truly non-blocking, express that as ACCEPTED_WITH_LIMITATIONS or a clearly supported ACCEPTED only when final_gate status_summary explicitly supports it.
-6. Add tests for final_gate/report/run_closeout/round_manifest status consistency.
-7. Regenerate current-round gate artifacts, reports, pytest_result, and round_manifest for this decision_id and round_id.
+1. Add or extend User Solve contract data structures.
+2. Add or extend User Solve state enum and validation status enum.
+3. Add transition validation for user solve states.
+4. Add explicit error/reason codes for failed and blocked cases.
+5. Add JSON serialization/deserialization helpers.
+6. Add tests for valid payloads, invalid payloads, legal transitions, illegal transitions, evidence requirements, and blocked/failed reasons.
+7. Add a short docs/user_solve_contract.md explaining user-layer contract boundaries.
+8. Update gate/report code only if necessary to recognize generated artifacts or keep existing closeout/report consistency intact.
+```
+
+Required user-facing statuses:
+
+```text
+uploaded
+fast_analyzing
+candidate_found
+static_verified
+runtime_validation_pending
+runtime_validated
+failed
+blocked
+```
+
+Required validation statuses:
+
+```text
+pending
+candidate_only
+static_verified
+runtime_validated
+failed
+blocked
+unsupported
+```
+
+Required safety semantics:
+
+```text
+candidate_found != verified
+static_verified != runtime_validated
+runtime_validated requires runtime validation evidence
+failed requires a reason
+blocked requires a reason
+user-layer result does not equal engineering-layer ACCEPTED
 ```
 
 Allowed source files:
 
 ```text
+reverse_agent/user_solve_contract.py
+reverse_agent/user_solve_state.py
+reverse_agent/user_solve_errors.py
+reverse_agent/user_solve_views.py
 reverse_agent/project_gate.py
 reverse_agent/project_reports.py
 reverse_agent/project_control_plane.py
@@ -401,30 +434,40 @@ reverse_agent/project_control_plane.py
 Allowed test files:
 
 ```text
+tests/test_user_solve_contract.py
+tests/test_user_solve_state.py
+tests/test_user_solve_errors.py
+tests/test_user_solve_views.py
 tests/test_project_gate.py
 tests/test_project_reports.py
 tests/test_project_control_plane.py
 ```
 
-Do not modify project_context.py or project_state_manifest.py in this round.
+Allowed docs:
 
-Do not modify domain README files or roadmap files in this round.
+```text
+docs/user_solve_contract.md
+```
+
+If implementation requires solver code, sample harnesses, Web runtime, tool providers, database, runner dispatch, or roadmap mutation, stop and report BLOCKED.
 
 ## 7. Tests
 
-The exact command list must come from generated command-plan. It must still include explicit pytest.
+The exact command list must come from generated command-plan. It must include explicit pytest.
 
 Minimum pytest command:
 
 ```text
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py -q
+python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_user_solve_errors.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py -q
 ```
 
-If command-plan chooses the broader prior pytest command, that is allowed:
+If `user_solve_views.py` is implemented, include:
 
 ```text
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q
+tests/test_user_solve_views.py
 ```
+
+If command-plan chooses a broader command, that is allowed if it includes the new User Solve tests.
 
 Required gate sequence:
 
@@ -433,12 +476,12 @@ python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py -q
+python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_user_solve_errors.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1
 ```
 
 Required output files:
@@ -452,7 +495,7 @@ project_state/gates/report_summary_synthesis.json
 project_state/gates/execution_log.json
 project_state/gates/final_gate_result.json
 project_state/gates/run_closeout_result.json
-project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json
+project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json
 ```
 
 ## 8. Stop Conditions
@@ -464,34 +507,35 @@ Stop with `BLOCKED` if:
 2. .codex-skills/registry.json cannot be read.
 3. reverse-agent-iteration@v2 is not active.
 4. command-plan cannot be generated.
-5. final status consistency requires modifying forbidden paths.
-6. final status consistency requires User Solve, Web, tools, runner, database, cleanup, or sample execution.
+5. implementing the contract requires sample execution, solver implementation, Web runtime, external tool invocation, database, runner dispatch, cleanup, or roadmap mutation.
+6. an existing User Solve contract implementation is found but cannot be safely extended within allowed scope.
 ```
 
 Stop with `REWORK_REQUIRED` if:
 
 ```text
 1. pytest fails or is not recorded.
-2. command-plan omits explicit pytest.
-3. report-summary and reports disagree.
-4. final_gate_result.status_summary and reports disagree.
-5. run_closeout_result.close_round_result and reports disagree.
-6. round_manifest and reports disagree.
-7. final_gate_result remains WARN while reports claim unqualified SUCCESS / ACCEPTED.
-8. final_gate_result.status_summary remains PARTIAL / NEEDS_REVIEW while reports claim unqualified SUCCESS / ACCEPTED.
-9. run_closeout_result.close_round_result.report_status remains PARTIAL while reports claim unqualified SUCCESS / ACCEPTED.
-10. warnings are not resolved or explicitly reflected in ACCEPTED_WITH_LIMITATIONS / REWORK_REQUIRED.
-11. codex_execution_report.md and execution_report.md disagree.
-12. any forbidden path is modified.
-13. current_state.json or task_packet.json is modified.
-14. roadmap, context, state_manifest, artifact_index, negative_results, domains, docs, frontend, workflows, solve_reports, databases, or archives are modified.
-15. sample solving, runtime probing, debugger/tool/MCP invocation, Web work, runner dispatch, cleanup apply, deletion, commit/push/PR/merge/rebase is performed.
+2. command-plan omits explicit pytest or required closeout gates.
+3. UserSolveResult conflates candidate_found with verified.
+4. static_verified is treated as runtime_validated.
+5. runtime_validated can be produced without runtime evidence.
+6. failed or blocked can be produced without explicit reason.
+7. illegal state transitions are accepted.
+8. user-facing payload exposes raw governance files or internal gate bodies.
+9. final-check fails or reports unsupported acceptance status.
+10. run-closeout or close-round fails.
+11. round_manifest is missing.
+12. execution_report.md and codex_execution_report.md disagree.
+13. any forbidden path is modified.
+14. current_state.json or task_packet.json is modified.
+15. roadmap, context, state_manifest, artifact_index, negative_results, domains, docs/roadmap, frontend, workflows, solve_reports, databases, archives, or training materials are modified.
+16. sample solving, runtime probing, debugger/tool/MCP invocation, Web work, runner dispatch, cleanup apply, deletion, commit/push/PR/merge/rebase is performed.
 ```
 
 Acceptance target:
 
 ```text
-ACCEPTED only if final_gate_result, run_closeout_result, execution_report, codex_execution_report, report_summary_synthesis, pytest_result, command_plan, close-round, and round_manifest all agree for this decision_id and round_id.
-ACCEPTED_WITH_LIMITATIONS only if remaining warnings are explicitly non-blocking and all status sources agree on the limitations-aware recommendation.
+ACCEPTED if the User Solve contract and state machine are implemented, tested, documented, and all required gates agree for this decision_id and round_id.
+ACCEPTED_WITH_LIMITATIONS only if remaining warnings are explicitly non-blocking and do not affect contract semantics.
 Otherwise report REWORK_REQUIRED or BLOCKED.
 ```
