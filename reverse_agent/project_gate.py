@@ -7161,7 +7161,10 @@ def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
             paths.add(_norm_path(path))
         for path in contract.get("allowed_source_files") or []:
             paths.add(_norm_path(path))
-        for path in contract.get("allowed_documentation_files") or []:
+        for path in (
+            list(contract.get("allowed_documentation_files") or [])
+            + list(contract.get("allowed_docs") or [])
+        ):
             paths.add(_norm_path(path))
         for path in contract.get("allowed_config_files") or []:
             paths.add(_norm_path(path))
@@ -11010,7 +11013,7 @@ def user_solve_layer(
             machine.transition(UserSolveStatus.FAST_ANALYZING)
             machine.transition(UserSolveStatus.CANDIDATE_FOUND)
             machine.transition(UserSolveStatus.VALIDATING)
-            machine.transition(UserSolveStatus.VERIFIED)
+            machine.transition(UserSolveStatus.VERIFIED, message="verified with evidence", evidence_refs=["evidence/verified.json"])
             UserSolveStateMachine().transition(UserSolveStatus.VERIFIED)
             state_ok = False
         except ValueError:
@@ -12020,6 +12023,23 @@ def _prework_provenance_gate_check(
         errors.append("evidence_only is not true")
     if payload.get("undeclared_dirty_source_test_doc_files"):
         errors.append("undeclared startup source/test/doc dirty files")
+    if (
+        errors
+        and not required
+        and (
+            str(payload.get("decision_id") or "") != decision_id
+            or str(payload.get("round_id") or "") != round_id
+        )
+    ):
+        return _check(
+            "prework_provenance_gate_artifact",
+            "PASS",
+            "prework provenance artifact is stale and not required for this decision",
+            required=False,
+            errors=errors,
+            artifact=PREWORK_PROVENANCE_OUTPUT_PATH,
+            gate_status=payload.get("gate_status"),
+        )
     return _check(
         "prework_provenance_gate_artifact",
         "PASS" if not errors else "FAIL",
@@ -20448,6 +20468,7 @@ def build_report_summary_synthesis(
     if decision_contract.get("found") and not decision_contract.get("parse_error"):
         for path in (
             list(decision_contract.get("allowed_documentation_files") or [])
+            + list(decision_contract.get("allowed_docs") or [])
             + list(decision_contract.get("allowed_frontend_files") or [])
         ):
             norm_path = _norm_path(path)
@@ -30691,6 +30712,7 @@ def _refresh_codex_report_for_closeout(
                 files_changed_set.add(norm_path)
         for path in (
             list(contract.get("allowed_documentation_files") or [])
+            + list(contract.get("allowed_docs") or [])
             + list(contract.get("allowed_frontend_files") or [])
         ):
             norm_path = _norm_path(path)

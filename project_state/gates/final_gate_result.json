@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "generated_at": "2026-07-08T12:36:03.474367Z",
+  "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+  "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
+  "round_id": "round_20260708_user_solve_contract_foundation_v1",
+  "generated_at": "2026-07-08T15:34:46.429038Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -77,9 +77,9 @@
     {
       "name": "context_domain_awareness",
       "status": "WARN",
-      "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
+      "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=3",
       "warnings": [
-        "4 stale domain fact(s): ['decision_id', 'round_id', 'mainline', 'auditor_context.stale_context_detected'] (non-blocking)"
+        "3 stale domain fact(s): ['decision_id', 'round_id', 'auditor_context.stale_context_detected'] (non-blocking)"
       ],
       "awareness": {
         "schema_version": 1,
@@ -88,9 +88,9 @@
         "context_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
         "context_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
         "context_mainline": "engineering_branch",
-        "current_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-        "current_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-        "current_mainline": "project_governance",
+        "current_decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+        "current_round_id": "round_20260708_user_solve_contract_foundation_v1",
+        "current_mainline": "engineering_branch",
         "field_domains": {
           "allowed_capability_profile": "",
           "allowed_source_files": "",
@@ -127,22 +127,15 @@
             "field": "decision_id",
             "domain": "project_governance",
             "observed_value": "decision_20260706_prework_provenance_closeout_rework_v1",
-            "expected_value": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+            "expected_value": "decision_20260708_user_solve_contract_foundation_v1",
             "reason": "context packet decision_id does not match current decision"
           },
           {
             "field": "round_id",
             "domain": "project_governance",
             "observed_value": "round_20260706_prework_provenance_closeout_rework_v1",
-            "expected_value": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+            "expected_value": "round_20260708_user_solve_contract_foundation_v1",
             "reason": "context packet round_id does not match current round"
-          },
-          {
-            "field": "mainline",
-            "domain": "project_governance",
-            "observed_value": "engineering_branch",
-            "expected_value": "project_governance",
-            "reason": "context packet mainline does not match current mainline"
           },
           {
             "field": "auditor_context.stale_context_detected",
@@ -152,7 +145,7 @@
             "reason": "context packet itself reports stale context"
           }
         ],
-        "stale_fact_count": 4,
+        "stale_fact_count": 3,
         "policy": {
           "stale_domain_facts_are_non_blocking": true,
           "legacy_context_packets_remain_readable": true,
@@ -169,7 +162,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260708_state_domain_taxonomy_final_status_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260708_user_solve_contract_foundation_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -203,6 +196,7 @@
       "baseline_available": true,
       "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
+        "docs/user_solve_contract.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
@@ -220,7 +214,6 @@
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
@@ -230,15 +223,23 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/user_solve_contract.py",
+        "reverse_agent/user_solve_errors.py",
+        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_views.py",
+        "tests/test_user_solve_contract.py",
+        "tests/test_user_solve_errors.py",
+        "tests/test_user_solve_state.py",
+        "tests/test_user_solve_views.py"
       ],
       "final_dirty_files": [
+        "docs/user_solve_contract.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
@@ -256,7 +257,6 @@
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
@@ -266,13 +266,20 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/user_solve_contract.py",
+        "reverse_agent/user_solve_errors.py",
+        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_views.py",
+        "tests/test_user_solve_contract.py",
+        "tests/test_user_solve_errors.py",
+        "tests/test_user_solve_state.py",
+        "tests/test_user_solve_views.py"
       ]
     },
     {
@@ -287,6 +294,7 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
+        "docs/user_solve_contract.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
@@ -304,7 +312,6 @@
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
@@ -314,15 +321,23 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/user_solve_contract.py",
+        "reverse_agent/user_solve_errors.py",
+        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_views.py",
+        "tests/test_user_solve_contract.py",
+        "tests/test_user_solve_errors.py",
+        "tests/test_user_solve_state.py",
+        "tests/test_user_solve_views.py"
       ],
       "required_round_delta_files": [
+        "docs/user_solve_contract.md",
         "project_state/codex_execution_report.md",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
@@ -340,7 +355,6 @@
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
@@ -350,13 +364,20 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/user_solve_contract.py",
+        "reverse_agent/user_solve_errors.py",
+        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_views.py",
+        "tests/test_user_solve_contract.py",
+        "tests/test_user_solve_errors.py",
+        "tests/test_user_solve_state.py",
+        "tests/test_user_solve_views.py"
       ],
       "inherited_dirty_files": []
     },
@@ -366,7 +387,14 @@
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/user_solve_contract.py",
+        "reverse_agent/user_solve_errors.py",
+        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_views.py",
+        "tests/test_user_solve_contract.py",
+        "tests/test_user_solve_errors.py",
+        "tests/test_user_solve_state.py",
+        "tests/test_user_solve_views.py"
       ],
       "claimed_source_test_paths": []
     },
@@ -391,12 +419,24 @@
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/user_solve_contract.py",
+        "reverse_agent/user_solve_errors.py",
+        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_views.py",
+        "tests/test_user_solve_contract.py",
+        "tests/test_user_solve_errors.py",
+        "tests/test_user_solve_state.py",
+        "tests/test_user_solve_views.py"
       ],
       "allowed_inherited_dirty_files": [
+        "docs/user_solve_contract.md",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_reports.py"
+        "reverse_agent/project_reports.py",
+        "reverse_agent/user_solve_contract.py",
+        "reverse_agent/user_solve_errors.py",
+        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_views.py"
       ],
       "generated_or_archive_baseline_dirty_files": [],
       "close_worktree_clean": false,
@@ -408,9 +448,14 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
+        "docs/user_solve_contract.md",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_reports.py"
+        "reverse_agent/project_reports.py",
+        "reverse_agent/user_solve_contract.py",
+        "reverse_agent/user_solve_errors.py",
+        "reverse_agent/user_solve_state.py",
+        "reverse_agent/user_solve_views.py"
       ],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
@@ -450,7 +495,6 @@
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
@@ -667,6 +711,7 @@
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/post_final_evidence_sync_result.json",
         "project_state/gates/post_final_evidence_sync_snapshot.json",
+        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/project_governance_context_result.json",
         "project_state/gates/project_governance_context_snapshot.json",
         "project_state/gates/retention_policy_validation.json",
@@ -701,17 +746,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-      "closeout_log_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-      "expected_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-      "expected_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1"
+      "closeout_log_decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+      "closeout_log_round_id": "round_20260708_user_solve_contract_foundation_v1",
+      "expected_decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+      "expected_round_id": "round_20260708_user_solve_contract_foundation_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
-      "expected_report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1"
+      "execution_log_report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
+      "expected_report_id": "codex_report_20260708_user_solve_contract_foundation_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -736,8 +781,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-      "command_plan_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1"
+      "command_plan_decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+      "command_plan_round_id": "round_20260708_user_solve_contract_foundation_v1"
     },
     {
       "name": "command_plan_execution_order_policy",
@@ -797,7 +842,7 @@
       "name": "close_round_is_last_command_block",
       "status": "PASS",
       "detail": "close-round is the last command block in pytest_result",
-      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1",
+      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
       "last_kind": "close-round"
     },
     {
@@ -849,9 +894,9 @@
     {
       "name": "context_domain_awareness",
       "status": "WARN",
-      "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
+      "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=3",
       "warnings": [
-        "4 stale domain fact(s): ['decision_id', 'round_id', 'mainline', 'auditor_context.stale_context_detected'] (non-blocking)"
+        "3 stale domain fact(s): ['decision_id', 'round_id', 'auditor_context.stale_context_detected'] (non-blocking)"
       ],
       "awareness": {
         "schema_version": 1,
@@ -860,9 +905,9 @@
         "context_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
         "context_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
         "context_mainline": "engineering_branch",
-        "current_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-        "current_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-        "current_mainline": "project_governance",
+        "current_decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+        "current_round_id": "round_20260708_user_solve_contract_foundation_v1",
+        "current_mainline": "engineering_branch",
         "field_domains": {
           "allowed_capability_profile": "",
           "allowed_source_files": "",
@@ -899,22 +944,15 @@
             "field": "decision_id",
             "domain": "project_governance",
             "observed_value": "decision_20260706_prework_provenance_closeout_rework_v1",
-            "expected_value": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+            "expected_value": "decision_20260708_user_solve_contract_foundation_v1",
             "reason": "context packet decision_id does not match current decision"
           },
           {
             "field": "round_id",
             "domain": "project_governance",
             "observed_value": "round_20260706_prework_provenance_closeout_rework_v1",
-            "expected_value": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+            "expected_value": "round_20260708_user_solve_contract_foundation_v1",
             "reason": "context packet round_id does not match current round"
-          },
-          {
-            "field": "mainline",
-            "domain": "project_governance",
-            "observed_value": "engineering_branch",
-            "expected_value": "project_governance",
-            "reason": "context packet mainline does not match current mainline"
           },
           {
             "field": "auditor_context.stale_context_detected",
@@ -924,7 +962,7 @@
             "reason": "context packet itself reports stale context"
           }
         ],
-        "stale_fact_count": 4,
+        "stale_fact_count": 3,
         "policy": {
           "stale_domain_facts_are_non_blocking": true,
           "legacy_context_packets_remain_readable": true,
@@ -1302,7 +1340,6 @@
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/preflight_result.json",
-        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_close_snapshot.json",
@@ -1312,11 +1349,11 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json"
       ],
       "historical_nonblocking_artifacts": [
         "project_state/gates/agent_runner_dry_run_result.json",
@@ -1368,6 +1405,7 @@
         "project_state/gates/policy_lint_result.json",
         "project_state/gates/post_final_evidence_sync_result.json",
         "project_state/gates/post_final_evidence_sync_snapshot.json",
+        "project_state/gates/prework_provenance_result.json",
         "project_state/gates/project_governance_context_result.json",
         "project_state/gates/project_governance_context_snapshot.json",
         "project_state/gates/retention_policy_validation.json",
@@ -1398,11 +1436,11 @@
         "project_state/gates/user_solve_workbench_snapshot.json"
       ],
       "archived_artifacts": [
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+        "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json"
       ]
     },
     {
@@ -1514,10 +1552,14 @@
     {
       "name": "prework_provenance_gate_artifact",
       "status": "PASS",
-      "detail": "prework provenance artifact is current and blocks undeclared dirty startup state",
+      "detail": "prework provenance artifact is stale and not required for this decision",
       "required": false,
+      "errors": [
+        "decision_id mismatch",
+        "round_id mismatch",
+        "report_id mismatch"
+      ],
       "artifact": "project_state/gates/prework_provenance_result.json",
-      "errors": [],
       "gate_status": "PASSED"
     },
     {
@@ -1644,8 +1686,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-      "gate_profile_round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1"
+      "gate_profile_decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+      "gate_profile_round_id": "round_20260708_user_solve_contract_foundation_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -1682,34 +1724,34 @@
       "required_audit_items": [
         "Is decision_meta valid JSON and schema_version=1?",
         "Is status APPROVED?",
-        "Is mainline project_governance?",
+        "Is mainline engineering_branch?",
         "Is reverse-agent-iteration@v2 active?",
         "Is task_packet treated as advisory/background only?",
-        "Was the previous failed round correctly identified as decision_20260708_state_domain_taxonomy_closeout_evidence_rework_v1?",
-        "Does command-plan still include an explicit pytest command?",
-        "Does pytest_result.txt still include direct pytest output, exit code 0, and test count?",
-        "Does report-summary synthesis match execution_report and codex_execution_report?",
-        "Does execution-log cover all executed commands?",
-        "Does final_gate_result.json gate_status support the report status?",
-        "Does final_gate_result.json status_summary support the report status and acceptance recommendation?",
-        "Does run_closeout_result.json close_round_result.report_status match execution_report and codex_execution_report?",
-        "Does round_manifest.json report_status match execution_report and codex_execution_report?",
-        "If final_gate_result.json is WARN, do reports avoid unqualified SUCCESS / ACCEPTED?",
-        "If status_summary is PARTIAL / NEEDS_REVIEW, do reports avoid unqualified SUCCESS / ACCEPTED?",
-        "If close_round_result.report_status is PARTIAL, do reports avoid unqualified SUCCESS / ACCEPTED?",
-        "If all reports claim SUCCESS / ACCEPTED, is final_gate_result.json free of active WARN/PARTIAL/NEEDS_REVIEW status?",
-        "Are non-blocking historical warnings explicitly classified as historical/non-blocking?",
-        "Are current active warnings either resolved or reflected as ACCEPTED_WITH_LIMITATIONS / REWORK_REQUIRED?",
-        "Were current_state.json and task_packet.json left untouched?",
-        "Were artifact_index.json, negative_results.json, state_manifest.json, context/*, roadmap/workstreams.json, and domains/* left untouched?",
-        "Were User Solve, Evidence Replay, Web, tools, runner, database, cleanup, and sample solving avoided?",
-        "Were all generated artifacts current for this decision_id and round_id?",
-        "Are stale failed-round artifacts treated only as failure evidence, not current acceptance evidence?",
-        "Do codex_execution_report.md and execution_report.md agree on report_id, decision_id, round_id, status, acceptance_recommendation, files_changed, tests_ran, and generated_artifacts?",
-        "Does close-round generate the final-status rework round manifest?",
-        "Does round_manifest status agree with live reports and final_gate status_summary?",
-        "Does run-closeout avoid wrapping active WARN/PARTIAL/NEEDS_REVIEW into ACCEPTED?",
-        "Is the final recommendation one of ACCEPTED, ACCEPTED_WITH_LIMITATIONS, REWORK_REQUIRED, or BLOCKED, and is it supported by evidence?"
+        "Was the previous accepted baseline identified as decision_20260708_state_domain_taxonomy_final_status_rework_v1?",
+        "Was the User Solve Contract roadmap basis inspected?",
+        "Were existing user_solve / solve_contract / solve_state modules searched before adding new code?",
+        "Did the round avoid duplicating existing User Solve functionality if found?",
+        "Is UserSolveTask defined with schema_version and stable identity fields?",
+        "Is UserSolveResult defined with status, validation_status, candidates, message, confidence, and evidence refs?",
+        "Is CandidateResult defined without implying runtime validation?",
+        "Is ValidationStatus defined so candidate_found, static_verified, and runtime_validated are distinct?",
+        "Are failed and blocked reason codes explicit and serializable?",
+        "Does the state transition validator reject illegal transitions?",
+        "Does the state transition validator require evidence refs for verified/runtime_validated states?",
+        "Does candidate_found allow validation_status=pending?",
+        "Does runtime_validated require runtime validation evidence and not just static evidence?",
+        "Does blocked carry a reason such as policy/tool/environment/sample_format/unsupported?",
+        "Does the user-facing payload avoid exposing raw decision_packet, command-plan, negative_results, or internal gate file bodies?",
+        "Are JSON serialization/deserialization tests deterministic?",
+        "Are backward/forward compatibility rules documented for unknown optional fields?",
+        "Did pytest run and pass with explicit command recorded in pytest_result.txt?",
+        "Did command-plan include explicit pytest, report-summary, execution-log, final-check, run-closeout, and close-round?",
+        "Were any omitted or unauthorized commands executed?",
+        "Were project_state/current_state.json and task_packet.json left untouched?",
+        "Were artifact_index, negative_results, state_manifest, context, roadmap, domains, frontend, workflows, solve_reports, and training materials left untouched?",
+        "Did final-check pass or accurately reflect any limitations?",
+        "Did run-closeout and close-round pass and generate a round_manifest for this round?",
+        "Do execution_report.md and codex_execution_report.md agree on decision_id, round_id, status, acceptance_recommendation, tests_ran, and generated_artifacts?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
@@ -1720,16 +1762,14 @@
       "status": "PASS",
       "detail": "policy impact coverage satisfied or no policy-sensitive changes",
       "policy_sensitive_files": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_gate.py"
       ],
       "impacted_domains": [
         "command_plan",
         "final_check",
         "policy_lint",
         "report_status_schema",
-        "report_summary",
-        "tests"
+        "report_summary"
       ],
       "missing_report_topics": []
     },
@@ -1740,13 +1780,11 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "WARN",
-      "detail": "current-round artifacts complete; historical/backlog artifacts non-blocking",
+      "status": "PASS",
+      "detail": "SUCCESS report passes lint and doctor",
       "lint_errors": [],
-      "warnings": [
-        "doctor status is WARN (historical/backlog artifacts non-blocking)"
-      ],
-      "doctor_status": "WARN",
+      "warnings": [],
+      "doctor_status": "PASS",
       "report_status": "SUCCESS",
       "canonical_status_source": "execution_report_summary",
       "canonical_acceptance_recommendation": "ACCEPTED",
@@ -1756,13 +1794,13 @@
       "required_current_artifacts": [],
       "claimed_evidence_artifacts": [],
       "historical_or_backlog_artifacts": [
-        "50 missing, 0 stale artifacts"
+        "50 missing, 0 stale historical sample artifacts (non-blocking)"
       ],
       "historical_backlog": [
-        "50 missing, 0 stale artifacts"
+        "50 missing, 0 stale historical sample artifacts (non-blocking)"
       ],
       "external_state_notices": [
-        "historical sample artifacts missing; non-blocking for current non-sample evidence policy"
+        "50 missing historical sample artifacts"
       ]
     },
     {
@@ -1836,7 +1874,7 @@
       "closeout_warnings": [],
       "close_round_result_warnings": [
         "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
-        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=4"
+        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=3"
       ],
       "resolved_pre_archive_warnings": [
         "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
@@ -1856,10 +1894,9 @@
   "blocking_reasons": [],
   "warnings": [
     "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
-    "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
+    "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=3",
     "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
-    "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
-    "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
+    "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=3"
   ],
   "recommended_next_action": "no_action_required",
   "status_summary": {

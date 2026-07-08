@@ -3,15 +3,16 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "PASSED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "generated_at": "2026-07-08T12:36:03.341618Z",
+  "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+  "round_id": "round_20260708_user_solve_contract_foundation_v1",
+  "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
+  "generated_at": "2026-07-08T15:34:46.715837Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
-    "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-    "based_on_decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
+    "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
+    "round_id": "round_20260708_user_solve_contract_foundation_v1",
+    "based_on_decision_id": "decision_20260708_user_solve_contract_foundation_v1",
     "files_changed": [
+      "docs/user_solve_contract.md",
       "project_state/codex_execution_report.md",
       "project_state/execution_report.md",
       "project_state/gates/audit_precheck_result.json",
@@ -29,7 +30,6 @@
       "project_state/gates/gate_profile_plan.json",
       "project_state/gates/local_execution_bundle.json",
       "project_state/gates/preflight_result.json",
-      "project_state/gates/prework_provenance_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_close_snapshot.json",
@@ -39,13 +39,20 @@
       "project_state/gates/run_round_result.json",
       "project_state/gates/startup_snapshot.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json",
       "reverse_agent/project_gate.py",
-      "tests/test_project_gate.py"
+      "reverse_agent/user_solve_contract.py",
+      "reverse_agent/user_solve_errors.py",
+      "reverse_agent/user_solve_state.py",
+      "reverse_agent/user_solve_views.py",
+      "tests/test_user_solve_contract.py",
+      "tests/test_user_solve_errors.py",
+      "tests/test_user_solve_state.py",
+      "tests/test_user_solve_views.py"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -65,7 +72,6 @@
       "project_state/gates/gate_profile_plan.json",
       "project_state/gates/local_execution_bundle.json",
       "project_state/gates/preflight_result.json",
-      "project_state/gates/prework_provenance_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_close_snapshot.json",
@@ -75,11 +81,11 @@
       "project_state/gates/run_round_result.json",
       "project_state/gates/startup_snapshot.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json"
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json"
     ],
     "generated_or_updated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -99,7 +105,6 @@
       "project_state/gates/gate_profile_plan.json",
       "project_state/gates/local_execution_bundle.json",
       "project_state/gates/preflight_result.json",
-      "project_state/gates/prework_provenance_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_close_snapshot.json",
@@ -109,11 +114,11 @@
       "project_state/gates/run_round_result.json",
       "project_state/gates/startup_snapshot.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json"
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json"
     ],
     "historical_nonblocking_artifacts": [
       "project_state/gates/agent_runner_dry_run_result.json",
@@ -165,6 +170,7 @@
       "project_state/gates/policy_lint_result.json",
       "project_state/gates/post_final_evidence_sync_result.json",
       "project_state/gates/post_final_evidence_sync_snapshot.json",
+      "project_state/gates/prework_provenance_result.json",
       "project_state/gates/project_governance_context_result.json",
       "project_state/gates/project_governance_context_snapshot.json",
       "project_state/gates/retention_policy_validation.json",
@@ -195,18 +201,18 @@
       "project_state/gates/user_solve_workbench_snapshot.json"
     ],
     "archived_artifacts": [
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/execution_report.md",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260708_state_domain_taxonomy_final_status_rework_v1/round_manifest.json"
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/decision_packet.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/execution_report.md",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/pytest_result.txt",
+      "project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json"
     ],
     "tests_ran": [
-      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1 --dry-run",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
@@ -214,7 +220,7 @@
     "status": "SUCCESS",
     "acceptance_recommendation": "ACCEPTED",
     "external_state_notices": [
-      "historical sample artifacts missing; non-blocking for current non-sample evidence policy"
+      "50 missing historical sample artifacts"
     ]
   },
   "diffs": [],

@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "generated_at": "2026-07-08T12:35:49.696105Z",
+  "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+  "round_id": "round_20260708_user_solve_contract_foundation_v1",
+  "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
+  "generated_at": "2026-07-08T15:34:38.662179Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-    "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-    "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
+    "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+    "round_id": "round_20260708_user_solve_contract_foundation_v1",
+    "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "9cd75dbd6fd5cfa6bf1a9acceac1243e898970b3c0214ec5d8245644fd95371d",
-        "size_bytes": 15691,
+        "sha256": "8bc4cfbaa6df75febb4ed00ad2ce65a53ba2bbd4bfbd64063295cb2d25173c24",
+        "size_bytes": 15501,
         "command_block_count": 13
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "b7cddf451cba4fcee8e43b52673a634979754cefe4d73fadbec221a2abc10428",
-        "size_bytes": 4895,
-        "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-        "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+        "sha256": "3496e9d527505f4f1ec07ea5c094fa81f9c34afa9b9344bcf673270178b0d418",
+        "size_bytes": 4936,
+        "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+        "round_id": "round_20260708_user_solve_contract_foundation_v1",
         "plan_status": "PASSED",
         "command_count": 8
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "2f76f20359350015c1676f06d63af0ce27fdcd018fbbd24484dea4d118d44125",
-        "size_bytes": 43011,
-        "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-        "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
+        "sha256": "e6513a15142f183f67cdc7cf716eb0df074bfac36affc1154a86427a6fb359ce",
+        "size_bytes": 42919,
+        "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+        "round_id": "round_20260708_user_solve_contract_foundation_v1",
         "command_block_count": 13
       }
     },
     "command_count": 13,
-    "command_digest": "94c2bc2fed5493c8b90378180c801fd82424c74a97c93377373bd89d3d7ddf02"
+    "command_digest": "c582c2f78804a37022e61471bc275201f09599cdae6c46122f23609e7d74c130"
   },
   "commands": [
     {
@@ -130,7 +130,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -165,7 +165,7 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -176,7 +176,7 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_state_domain_taxonomy_final_status_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_foundation_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "round_id": "round_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "report_id": "codex_report_20260708_state_domain_taxonomy_final_status_rework_v1",
-  "generated_at": "2026-07-08T12:35:42.721785Z",
+  "decision_id": "decision_20260708_user_solve_contract_foundation_v1",
+  "round_id": "round_20260708_user_solve_contract_foundation_v1",
+  "report_id": "codex_report_20260708_user_solve_contract_foundation_v1",
+  "generated_at": "2026-07-08T15:34:31.548264Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -160,10 +160,9 @@
       "errors": [],
       "warnings": [
         "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
-        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
+        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=3",
         "scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)",
-        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=4",
-        "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
+        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=3"
       ]
     },
     "run_closeout": {
