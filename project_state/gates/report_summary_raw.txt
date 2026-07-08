@@ -1,0 +1,8 @@
+report-summary: FAILED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+report_id: codex_report_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+  [DIFF] files_changed
+  [DIFF] generated_artifacts
+  [DIFF] execution_report_alias.historical_nonblocking_artifacts
+artifact: project_state/gates/report_summary_synthesis.json

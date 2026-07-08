@@ -6785,7 +6785,16 @@ def _is_descriptive_backtick_line(line: str) -> bool:
 
 def _extract_unfenced_commands(text: str) -> list[str]:
     commands: list[str] = []
+    in_fence = False
     for raw_line in text.splitlines():
+        stripped_line = raw_line.strip()
+        # Track fenced code blocks so that descriptive lines inside ``text``
+        # (or any non-bash) fences are not mistaken for executable commands.
+        if stripped_line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         # Skip prohibitive lines entirely — they describe what NOT to do.
         if _is_prohibitive_line(raw_line):
             continue
@@ -25955,11 +25964,22 @@ def _inject_decision_preflight_workflow_pytest_command(extracted_commands: list[
 
 def _decision_requests_full_closeout_coverage(decision_text: str) -> bool:
     lowered = decision_text.lower()
-    return (
+    if (
         "execute-decision" in lowered
         and "execution-log" in lowered
         and "run-closeout" in lowered
-    )
+    ):
+        return True
+    # Also return True when the decision_contract explicitly requires
+    # closeout/close-round, even if the three coverage keywords are not
+    # all present in the decision text.
+    contract = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract.get("found") and not contract.get("parse_error"):
+        if contract.get("closeout_required") is True:
+            return True
+        if contract.get("close_round_required") is True:
+            return True
+    return False
 
 
 def _insert_before_first_kind(
@@ -26017,9 +26037,14 @@ def _inject_closeout_coverage_commands(
         "python -m reverse_agent.project_gate run-closeout "
         f"--state-dir {state_dir_arg} --round-id {round_id}"
     )
+    close_round_command = (
+        "python -m reverse_agent.project_gate close-round "
+        f"--state-dir {state_dir_arg} --round-id {round_id}"
+    )
     has_execute = any(_command_kind(command) == "execute-decision" for command in commands)
     has_execution_log = any(_command_kind(command) == "execution-log" for command in commands)
     has_run_closeout = any(_command_kind(command) == "run-closeout" for command in commands)
+    has_close_round = any(_command_kind(command) == "close-round" for command in commands)
     if not has_execute:
         commands = _insert_before_first_kind(
             commands,
@@ -26038,6 +26063,12 @@ def _inject_closeout_coverage_commands(
             run_closeout_command,
             after_kinds={"final-check", "audit-readiness-packet", "current-handoff-packet"},
         )
+    if not has_close_round:
+        commands = _insert_after_last_kind(
+            commands,
+            close_round_command,
+            after_kinds={"run-closeout", "final-check", "audit-readiness-packet", "current-handoff-packet"},
+        )
     coverage_order = [
         "execute-decision",
         "report-summary",
@@ -26046,6 +26077,7 @@ def _inject_closeout_coverage_commands(
         "current-handoff-packet",
         "final-check",
         "run-closeout",
+        "close-round",
     ]
     coverage_commands: dict[str, str] = {}
     remaining: list[str] = []
@@ -26197,8 +26229,11 @@ def command_plan(
             extracted_commands = _dedupe_commands(
                 [_with_allow_consumed_preflight(command) for command in extracted_commands]
             )
-        if extract_error:
-            blocking_reasons.append(extract_error)
+        # Defer the extract_error check until after inject functions add
+        # commands.  A decision's Tests section may only carry descriptive
+        # categories (no fenced bash block) while the decision_contract and
+        # inject functions still supply the required command coverage.  Only
+        # surface the error when the final command list remains empty.
         extracted_commands = _inject_report_summary_command(extracted_commands, decision_text)
         extracted_commands = _inject_audit_inventory_commands(extracted_commands, decision_text)
         extracted_commands = _inject_audit_readiness_commands(extracted_commands, decision_text)
@@ -26216,6 +26251,8 @@ def command_plan(
             decision_text=decision_text,
             round_id=round_id,
         )
+        if extract_error and not extracted_commands:
+            blocking_reasons.append(extract_error)
         # Feature B: Filter out forbidden live build commands when the
         # decision's Do Not Do section forbids live project_state build.
         do_not_do_section = _markdown_section(decision_text, "Do Not Do")
@@ -26291,6 +26328,19 @@ def command_plan(
 
     plan_status = "FAILED" if blocking_reasons else ("WARN" if warnings else "PASSED")
 
+    # Regenerate gate_profile_plan.json to ensure profile metadata is
+    # current for this decision/round (avoids stale profile from a previous
+    # round when gate-profile was not re-run between rounds).  Only
+    # regenerate when an existing artifact has stale decision_id/round_id
+    # (different from the current decision).  This preserves test fixtures
+    # and cases where gate_profile_plan.json does not yet exist.
+    _profile_path = state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME
+    if _profile_path.exists():
+        _existing_profile = _read_json(_profile_path)
+        _profile_decision_id = str(_existing_profile.get("decision_id") or "")
+        _profile_round_id = str(_existing_profile.get("round_id") or "")
+        if _profile_decision_id != decision_id or _profile_round_id != round_id:
+            gate_profile(state_dir=state_dir, write_result=True)
     # Include profile metadata from gate_profile_plan.json
     profile_payload = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
     profile_meta: dict[str, Any] = {}

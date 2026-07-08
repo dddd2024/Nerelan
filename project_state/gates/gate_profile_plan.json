@@ -2,23 +2,31 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
-  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T12:25:00.000000Z",
-  "profile": "fast",
-  "profile_reason": "artifact-only cleanup does not require close-round",
-  "risk_reasons": [],
-  "closeout_allowed": false,
+  "generated_at": "2026-07-07T16:00:36.148835Z",
+  "profile": "full",
+  "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
+  "risk_reasons": [
+    "gate/project_state source changes require full validation"
+  ],
+  "closeout_allowed": true,
   "required_command_kinds": [
     "startup",
     "preflight",
+    "gate-profile",
     "command-plan",
+    "run-round",
+    "pytest",
+    "doctor",
+    "lint-report",
     "report-summary",
-    "final-check"
+    "final-check",
+    "close-round"
   ],
   "reasons": [
-    "decision scope is artifact-only with generated/project-state deliverables: 14 artifact path(s)"
+    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py"
   ],
   "suggested_commands": [
     {
@@ -35,21 +43,57 @@
     },
     {
       "index": 3,
+      "command": "gate-profile",
+      "phase": "gate",
+      "kind": "gate-profile"
+    },
+    {
+      "index": 4,
       "command": "command-plan",
       "phase": "gate",
       "kind": "command-plan"
     },
     {
-      "index": 4,
+      "index": 5,
+      "command": "run-round",
+      "phase": "gate",
+      "kind": "run-round"
+    },
+    {
+      "index": 6,
+      "command": "full pytest for gate/project_state modules",
+      "phase": "test",
+      "kind": "pytest"
+    },
+    {
+      "index": 7,
+      "command": "doctor",
+      "phase": "status",
+      "kind": "doctor"
+    },
+    {
+      "index": 8,
+      "command": "lint-report",
+      "phase": "status",
+      "kind": "lint-report"
+    },
+    {
+      "index": 9,
       "command": "report-summary",
       "phase": "gate",
       "kind": "report-summary"
     },
     {
-      "index": 5,
+      "index": 10,
       "command": "final-check",
       "phase": "gate",
       "kind": "final-check"
+    },
+    {
+      "index": 11,
+      "command": "close-round",
+      "phase": "gate",
+      "kind": "close-round"
     }
   ],
   "future_phases": []

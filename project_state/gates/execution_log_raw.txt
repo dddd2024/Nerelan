@@ -1,0 +1,20 @@
+execution-log: PASSED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+commands: 15 entry/entries
+  [PASSED] Set-Location F:\reverse-agent (exit=0)
+  [PASSED] Get-Location (exit=0)
+  [PASSED] Test-Path F:\reverse-agent (exit=0)
+  [PASSED] git rev-parse --show-toplevel (exit=0)
+  [PASSED] git status --short (exit=0)
+  [PASSED] python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed (exit=0)
+  [PASSED] python -m pytest tests/test_project_gate.py tests/test_project_state.py -q (exit=0)
+  [PASSED] python -m reverse_agent.project_gate command-plan --state-dir project_state (exit=0)
+  [PASSED] python -m reverse_agent.project_gate command-plan --state-dir project_state --json (exit=0)
+  [PASSED] python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run (exit=0)
+  [PASSED] python -m reverse_agent.project_gate report-summary --state-dir project_state (exit=1)
+  [PASSED] python -m reverse_agent.project_gate execution-log --state-dir project_state (exit=0)
+  [PASSED] python -m reverse_agent.project_gate final-check --state-dir project_state (exit=1)
+  [FAILED] python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 (exit=1)
+  [FAILED] python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 (exit=1)
+recommended_next_action: no_action_required

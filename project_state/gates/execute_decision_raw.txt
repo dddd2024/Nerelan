@@ -1,0 +1,8 @@
+execute-decision: PASSED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+mainline: project_governance
+mode: plan-validation
+entrypoint: execute-decision
+delegates_to: run-round
+executed_count: 0

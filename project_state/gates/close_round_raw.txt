@@ -1,0 +1,52 @@
+close-round: FAILED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+report_id: codex_report_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+  [PASS] decision_meta_parse: decision_meta parsed
+  [PASS] decision_approved: decision status is APPROVED
+  [PASS] report_present: neutral execution report summary parsed from execution_report.md
+  [PASS] requested_round_id_match: requested round_id matches current decision
+  [PASS] report_decision_match: report is based on current decision
+  [FAIL] pytest_result_match: pytest_result does not match report
+  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
+  [PASS] command_plan_present: command_plan.json is present
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_execution_order_policy: command-plan explicitly documents coverage/expected-exit authority rather than strict wall-clock order
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [PASS] startup_command_coverage: pytest_result command blocks cover required startup commands
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout matches live command_plan.json command list, expected exits, and notes
+  [PASS] command_plan_run_closeout_success_semantics: accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
+  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
+  [PASS] round_delta_summary_present: round delta summary is baseline-aware
+  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
+  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
+  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
+  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
+  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
+  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
+  [PASS] report_prose_claims_covered_by_files_changed: report prose does not claim source/test changes beyond files_changed
+  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
+  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
+  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
+  [PASS] startup_command_position_order: first five command blocks are exactly the required startup sequence in correct order with no substantive commands before them
+  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
+  [PASS] build_output_scope: no build-generated state files in round delta
+  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [WARN] report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [WARN] scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)
+  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [WARN] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
+  [PASS] generated_artifacts_cover_gate_artifacts: generated_artifacts or referenced_artifacts cover all existing gate artifacts
+  [PASS] forbidden_paths_absent: no forbidden paths detected
+  [PASS] state_package_compact: state package classification is compact or non-blocking
+  [PASS] gate_profile_closeout_safety: profile full permits close-round
+archive_status: not_attempted
+  [BLOCK] pytest_result_match: pytest_result does not match report
+recommended_next_action: fix_close_round_failures_before_retry

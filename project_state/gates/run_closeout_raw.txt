@@ -1,0 +1,27 @@
+run-closeout: FAILED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+  [PASSED] decision-lint: exit=0
+  [PASSED] preflight: exit=0
+  [PASSED] pytest: exit=0
+  [PASSED] gate-profile: exit=0
+  [PASSED] command-plan: exit=0
+  [PASSED] command-plan-json: exit=0
+  [PASSED] execute-decision: exit=0
+  [PASSED] report-summary: exit=1
+  [PASSED] execution-log: exit=1
+  [PASSED] final-check: exit=1
+  [FAILED] close-round: exit=1
+  [BLOCK] step close-round exited 1, expected [0]: close_status=FAILED
+  [BLOCK] executed step close-round failed: exit=1, expected=[0]
+  [BLOCK] close-round close_status=FAILED
+  [BLOCK] close-round report_status=FAILED
+  [BLOCK] close-round blocking reason: final_check_before_archive: ['prework_provenance_gate_artifact', 'required_audit_coverage', 'status_policy_valid']
+  [BLOCK] close-round action final_check_before_archive failed: status=FAILED, gate_status=FAILED
+  [BLOCK] close-round nested failure: close_round_result.report_status=FAILED
+  [BLOCK] close-round nested failure: close_round_result.actions[0].status=FAILED (final_check_before_archive)
+  [BLOCK] close-round nested failure: close_round_result.actions[0].gate_status=FAILED (final_check_before_archive)
+  [BLOCK] close-round nested failure: close_round_result.status_summary.report_status=FAILED
+  [BLOCK] pytest_result.txt contains failed command block(s): python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 (exit=1)
+artifact: project_state/gates/run_closeout_result.json
+recommended_next_action: fix_run_closeout_failures_before_retry

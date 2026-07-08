@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-  "round_id": "round_20260707_next_step_roadmap_registration_v1",
-  "report_id": "codex_report_20260707_next_step_roadmap_registration_v1",
+  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T09:30:08.829050Z",
+  "generated_at": "2026-07-07T16:01:58.331823Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-    "round_id": "round_20260707_next_step_roadmap_registration_v1",
+    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -42,28 +42,12 @@
     "startup_snapshot_artifact": "project_state/gates/startup_snapshot.json"
   },
   "allowed_scope": {
-    "source_files": [],
-    "generated_or_updated_artifacts": [
-      "project_state/codex_execution_report.md",
-      "project_state/execution_report.md",
-      "project_state/pytest_result.txt",
-      "project_state/gates/startup_snapshot.json",
-      "project_state/gates/gate_profile_plan.json",
-      "project_state/gates/command_plan.json",
-      "project_state/gates/preflight_result.json",
-      "project_state/gates/prework_provenance_result.json",
-      "project_state/gates/report_summary_synthesis.json",
-      "project_state/gates/execution_log.json",
-      "project_state/gates/final_gate_result.json",
-      "project_state/gates/run_closeout_execution_log.json",
-      "project_state/gates/run_closeout_result.json",
-      "project_state/gates/round_baseline.json",
-      "project_state/gates/round_close_snapshot.json",
-      "project_state/gates/round_delta_summary.json",
-      "project_state/gates/codex_report_auto_summary.json",
-      "project_state/gates/execution_report_auto_summary.json",
-      "project_state/rounds/round_20260707_next_step_roadmap_registration_v1/*"
-    ]
+    "source_files": [
+      "reverse_agent/project_gate.py",
+      "reverse_agent/project_reports.py",
+      "reverse_agent/project_control_plane.py"
+    ],
+    "generated_or_updated_artifacts": []
   },
   "forbidden_scope": {
     "preserve_only_files": [],
@@ -75,16 +59,14 @@
       "training_materials/local_reverse/*",
       "project_state/current_state.json",
       "project_state/task_packet.json",
-      "project_state/jobs/*",
-      "project_state/user_sessions/*",
-      "project_state/archives/*",
-      "project_state/deletions/*",
-      "project_state/blob_store/*",
-      "project_state/index.sqlite",
-      "project_state/*.db",
+      "project_state/artifact_index.json",
+      "project_state/negative_results.json",
+      "project_state/state_manifest.json",
+      "project_state/context/*",
+      "project_state/roadmap/workstreams.json",
       "project_state/domains/*",
-      "reverse_agent/*",
-      "tests/*"
+      "project_state/*.db",
+      "project_state/index.sqlite"
     ],
     "no_runner_or_dispatcher": true,
     "remote_mutation_allowed": false
@@ -92,115 +74,80 @@
   "required_commands_summary": [
     {
       "index": 1,
-      "command": "Set-Location F:\\reverse-agent",
-      "kind": "set-location",
-      "phase": "status",
-      "required": true
-    },
-    {
-      "index": 2,
-      "command": "Get-Location",
-      "kind": "pwd",
-      "phase": "status",
-      "required": true
-    },
-    {
-      "index": 3,
-      "command": "Test-Path F:\\reverse-agent",
-      "kind": "test-path",
-      "phase": "status",
-      "required": true
-    },
-    {
-      "index": 4,
-      "command": "git rev-parse --show-toplevel",
-      "kind": "git rev-parse",
-      "phase": "status",
-      "required": true
-    },
-    {
-      "index": 5,
-      "command": "git status --short",
-      "kind": "git status",
-      "phase": "status",
-      "required": true
-    },
-    {
-      "index": 6,
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "kind": "startup-snapshot",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 8,
+      "index": 2,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
+      "index": 3,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
       "required": true
     },
     {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "kind": "preflight",
-      "phase": "preflight",
-      "required": true
-    },
-    {
-      "index": 11,
+      "index": 4,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight",
       "phase": "preflight",
       "required": true
     },
     {
-      "index": 12,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q",
-      "kind": "pytest",
-      "phase": "test",
+      "index": 5,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "kind": "execute-decision",
+      "phase": "gate",
       "required": true
     },
     {
-      "index": 13,
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 7,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 14,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_next_step_roadmap_registration_v1",
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
       "kind": "run-closeout",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "kind": "close-round",
       "phase": "gate",
       "required": true
     }
   ],
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
     ],
-    "includes_project_reports": true
+    "includes_project_reports": false
   },
   "required_artifacts": [
     "project_state/gates/current_handoff_packet.json",
@@ -219,11 +166,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-    "round_id": "round_20260707_next_step_roadmap_registration_v1",
+    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "c81978e006126e765df288e6a038616d060afabf9ebd15952cb42af54229841e"
+    "sha256": "0e11c0fff90642b9768ebba10578778a9d0767ee2dfaf93172181c2b8e499544"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -247,8 +194,8 @@
     "readiness_status": "PENDING",
     "recommendation": "REWORK_REQUIRED",
     "next_action": "complete_closeout_and_rerun_final_check",
-    "decision_id": "decision_20260707_next_step_roadmap_registration_v1",
-    "round_id": "round_20260707_next_step_roadmap_registration_v1",
+    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -256,7 +203,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260707_next_step_roadmap_registration_v1"
+    "round_id": "round_20260707_profile_contract_alignment_rework_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

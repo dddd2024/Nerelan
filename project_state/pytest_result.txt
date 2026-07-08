@@ -1,81 +1,83 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
-  "report_id": "codex_report_20260707_fast_profile_report_truth_rework_v1",
-  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
-  "generated_at": "2026-07-07T12:46:30.000000Z",
+  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+  "generated_at": "2026-07-07T16:15:00.000000Z",
   "status": "FAILED",
-  "profile": "fast",
-  "pytest_omitted_by_fast_profile": true,
   "tests_ran": [
-    "Set-Location F:\\reverse-agent",
-    "Get-Location",
-    "Test-Path F:\\reverse-agent",
-    "git rev-parse --show-toplevel",
-    "git status --short",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
     "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state"
-  ],
-  "omitted_commands": [
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q (fast profile)",
-    "python -m reverse_agent.project_gate close-round (fast profile + forbidden_capability this round)"
+    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1"
   ]
 }
 ```
 
 ===== COMMAND: Set-Location F:\reverse-agent =====
+F:\reverse-agent
+
 ===== EXIT: 0 =====
 
 ===== COMMAND: Get-Location =====
 F:\reverse-agent
+
 ===== EXIT: 0 =====
 
 ===== COMMAND: Test-Path F:\reverse-agent =====
 True
+
 ===== EXIT: 0 =====
 
 ===== COMMAND: git rev-parse --show-toplevel =====
 F:/reverse-agent
+
 ===== EXIT: 0 =====
 
 ===== COMMAND: git status --short =====
- M project_state/codex_execution_report.md
- M project_state/execution_report.md
- M project_state/gates/command_plan.json
- M project_state/gates/final_gate_result.json
- M project_state/gates/gate_profile_plan.json
- M project_state/gates/preflight_result.json
- M project_state/gates/prework_provenance_result.json
- M project_state/gates/report_summary_synthesis.json
- M project_state/gates/round_baseline.json
- M project_state/gates/round_delta_summary.json
- M project_state/gates/startup_snapshot.json
- M reverse_agent/project_gate.py
+
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate startup-snapshot --state-dir project_state =====
-startup-snapshot: PASSED
-decision_id: decision_20260707_fast_profile_report_truth_rework_v1
-round_id: round_20260707_fast_profile_report_truth_rework_v1
-mainline: project_governance
-recommended_next_action: None
+===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed =====
+preflight: PASSED
+
+===== EXIT: 0 =====
+
+===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 15%]
+........................................................................ [ 20%]
+........................................................................ [ 25%]
+........................................................................ [ 30%]
+........................................................................ [ 35%]
+........................................................................ [ 40%]
+........................................................................ [ 45%]
+........................................................................ [ 50%]
+........................................................................ [ 55%]
+........................................................................ [ 60%]
+........................................................................ [ 66%]
+........................................................................ [ 71%]
+........................................................................ [ 76%]
+........................................................................ [ 81%]
+........................................................................ [ 86%]
+........................................................................ [ 91%]
+........................................................................ [ 96%]
+..................................................                       [100%]
+1418 passed in 1217.51s (0:20:17)
+
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
-decision_id: decision_20260707_fast_profile_report_truth_rework_v1
-round_id: round_20260707_fast_profile_report_truth_rework_v1
-mainline: project_governance
-  [1] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state expected_exit=[0]
-  [2] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state --json expected_exit=[0]
-  [3] gate report-summary: python -m reverse_agent.project_gate report-summary --state-dir project_state expected_exit=[0, 1]
-  [4] gate final-check: python -m reverse_agent.project_gate final-check --state-dir project_state expected_exit=[0, 1]
-  [5] preflight preflight: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed expected_exit=[0]
-recommended_next_action: record_and_follow_command_plan_manually
+
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
@@ -83,20 +85,26 @@ recommended_next_action: record_and_follow_command_plan_manually
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
-  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-07T12:46:06.815942Z",
+  "generated_at": "2026-07-07T16:00:36.277312Z",
   "profile_meta": {
-    "profile": "fast",
-    "profile_reason": "artifact-only cleanup does not require close-round",
-    "closeout_allowed": false,
+    "profile": "full",
+    "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
+    "closeout_allowed": true,
     "required_command_kinds": [
       "startup",
       "preflight",
+      "gate-profile",
       "command-plan",
+      "run-round",
+      "pytest",
+      "doctor",
+      "lint-report",
       "report-summary",
-      "final-check"
+      "final-check",
+      "close-round"
     ]
   },
   "execution_order_policy": {
@@ -106,18 +114,7 @@ recommended_next_action: record_and_follow_command_plan_manually
     "expected_exit_authority": true,
     "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
   },
-  "omitted_commands": [
-    {
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "reason": "omitted by fast profile: pytest not in required_command_kinds"
-    },
-    {
-      "command": null,
-      "kind": "close-round",
-      "reason": "omitted by fast profile: closeout not allowed"
-    }
-  ],
+  "omitted_commands": [],
   "commands": [
     {
       "index": 1,
@@ -147,6 +144,45 @@ recommended_next_action: record_and_follow_command_plan_manually
     },
     {
       "index": 3,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 4,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "phase": "preflight",
+      "kind": "preflight",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "preflight expected to exit 0"
+    },
+    {
+      "index": 5,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "phase": "gate",
+      "kind": "execute-decision",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "execute-decision expected to exit 0"
+    },
+    {
+      "index": 6,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -160,7 +196,21 @@ recommended_next_action: record_and_follow_command_plan_manually
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 4,
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+      "phase": "gate",
+      "kind": "execution-log",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 8,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -174,104 +224,536 @@ recommended_next_action: record_and_follow_command_plan_manually
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 5,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "phase": "preflight",
-      "kind": "preflight",
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "phase": "gate",
+      "kind": "run-closeout",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
+      "notes": "run-closeout expected exit 0 after final-check passed"
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "phase": "gate",
+      "kind": "close-round",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": true,
+      "records_stdout_stderr": true,
+      "notes": "close-round closeout expected exit 0 after final-check passed"
     }
   ],
   "warnings": [],
   "blocking_reasons": [],
   "recommended_next_action": "record_and_follow_command_plan_manually"
 }
+
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed =====
-preflight: FAILED
-decision_id: decision_20260707_fast_profile_report_truth_rework_v1
-round_id: round_20260707_fast_profile_report_truth_rework_v1
-mainline: project_governance
-  [FAIL] implementation_scope_present: implementation scope is missing or has no parseable allowed paths
-  [FAIL] decision_command_plan_conflict: decision Tests/closeout expectations conflict with command-plan; stop before implementation
-recommended_next_action: fix_preflight_failures_before_starting
-===== EXIT: 1 =====
+===== COMMAND: python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run =====
+execute-decision: PASSED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+mode: plan-validation
+closeout_execution_mode: non_recursive_plan_validation
+artifact: project_state/gates/execute_decision_result.json
+
+===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: FAILED
-decision_id: decision_20260707_fast_profile_report_truth_rework_v1
-report_id: codex_report_20260707_fast_profile_report_truth_rework_v1
-round_id: round_20260707_fast_profile_report_truth_rework_v1
-  [DIFF] files_changed
-  [DIFF] tests_ran
-artifact: project_state/gates/report_summary_synthesis.json
+{
+  "schema_version": 1,
+  "artifact_name": "report_summary_synthesis.json",
+  "gate_name": "report-summary",
+  "synthesis_status": "FAILED",
+  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+  "generated_at": "2026-07-07T16:00:39.814974Z",
+  "synthesized_summary": {
+    "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "based_on_decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+    "files_changed": [
+      "project_state/codex_execution_report.md",
+      "project_state/execution_report.md",
+      "project_state/gates/audit_precheck_result.json",
+      "project_state/gates/audit_readiness_packet.json",
+      "project_state/gates/ci_audit_handoff_bundle.json",
+      "project_state/gates/ci_observation_reconcile_result.json",
+      "project_state/gates/close_round_raw.txt",
+      "project_state/gates/codex_prompt_packet.json",
+      "project_state/gates/codex_report_auto_summary.json",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/current_handoff_packet.json",
+      "project_state/gates/execute_decision_raw.txt",
+      "project_state/gates/execute_decision_result.json",
+      "project_state/gates/execution_log.json",
+      "project_state/gates/execution_log_raw.txt",
+      "project_state/gates/execution_report_auto_summary.json",
+      "project_state/gates/final_check_raw.txt",
+      "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
+      "project_state/gates/local_execution_bundle.json",
+      "project_state/gates/preflight_result.json",
+      "project_state/gates/pytest_raw_output_1.txt",
+      "project_state/gates/pytest_raw_output_2.txt",
+      "project_state/gates/report_summary_raw.txt",
+      "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_baseline.json",
+      "project_state/gates/round_delta_summary.json",
+      "project_state/gates/run_closeout_execution_log.json",
+      "project_state/gates/run_closeout_raw.txt",
+      "project_state/gates/run_closeout_result.json",
+      "project_state/gates/run_round_result.json",
+      "project_state/gates/startup_snapshot.json",
+      "project_state/pytest_result.txt",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/execution_report.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/round_manifest.json",
+      "reverse_agent/project_gate.py"
+    ],
+    "generated_artifacts": [
+      "project_state/codex_execution_report.md",
+      "project_state/execution_report.md",
+      "project_state/gates/audit_precheck_result.json",
+      "project_state/gates/audit_readiness_packet.json",
+      "project_state/gates/ci_audit_handoff_bundle.json",
+      "project_state/gates/ci_observation_reconcile_result.json",
+      "project_state/gates/codex_prompt_packet.json",
+      "project_state/gates/codex_report_auto_summary.json",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/current_handoff_packet.json",
+      "project_state/gates/execute_decision_result.json",
+      "project_state/gates/execution_log.json",
+      "project_state/gates/execution_report_auto_summary.json",
+      "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
+      "project_state/gates/local_execution_bundle.json",
+      "project_state/gates/preflight_result.json",
+      "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_baseline.json",
+      "project_state/gates/round_delta_summary.json",
+      "project_state/gates/run_closeout_execution_log.json",
+      "project_state/gates/run_closeout_result.json",
+      "project_state/gates/run_round_result.json",
+      "project_state/gates/startup_snapshot.json",
+      "project_state/pytest_result.txt",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/execution_report.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/round_manifest.json"
+    ],
+    "generated_or_updated_artifacts": [
+      "project_state/codex_execution_report.md",
+      "project_state/execution_report.md",
+      "project_state/gates/audit_precheck_result.json",
+      "project_state/gates/audit_readiness_packet.json",
+      "project_state/gates/ci_audit_handoff_bundle.json",
+      "project_state/gates/ci_observation_reconcile_result.json",
+      "project_state/gates/codex_prompt_packet.json",
+      "project_state/gates/codex_report_auto_summary.json",
+      "project_state/gates/command_plan.json",
+      "project_state/gates/current_handoff_packet.json",
+      "project_state/gates/execute_decision_result.json",
+      "project_state/gates/execution_log.json",
+      "project_state/gates/execution_report_auto_summary.json",
+      "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
+      "project_state/gates/local_execution_bundle.json",
+      "project_state/gates/preflight_result.json",
+      "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_baseline.json",
+      "project_state/gates/round_delta_summary.json",
+      "project_state/gates/run_closeout_execution_log.json",
+      "project_state/gates/run_closeout_result.json",
+      "project_state/gates/run_round_result.json",
+      "project_state/gates/startup_snapshot.json",
+      "project_state/pytest_result.txt",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/execution_report.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/round_manifest.json"
+    ],
+    "historical_nonblocking_artifacts": [
+      "project_state/gates/agent_runner_dry_run_result.json",
+      "project_state/gates/agent_runner_handoff_bundle.json",
+      "project_state/gates/agent_runner_handoff_validation.json",
+      "project_state/gates/archive_index.json",
+      "project_state/gates/archive_index_summary.json",
+      "project_state/gates/audit_handoff_for_cleanup_apply.json",
+      "project_state/gates/audit_inventory_result.json",
+      "project_state/gates/ci_artifact_manifest_result.json",
+      "project_state/gates/ci_observation_handoff_packet.json",
+      "project_state/gates/ci_observation_schema_result.json",
+      "project_state/gates/ci_run_evidence_result.json",
+      "project_state/gates/ci_workflow_coverage_result.json",
+      "project_state/gates/ci_workflow_readiness_result.json",
+      "project_state/gates/cleanup_apply_approval_checklist.json",
+      "project_state/gates/cleanup_apply_dry_run.json",
+      "project_state/gates/cleanup_apply_review_bundle.json",
+      "project_state/gates/cleanup_apply_review_result.json",
+      "project_state/gates/cleanup_apply_review_snapshot.json",
+      "project_state/gates/cleanup_apply_safety_plan.json",
+      "project_state/gates/cleanup_apply_safety_result.json",
+      "project_state/gates/cleanup_apply_safety_snapshot.json",
+      "project_state/gates/cleanup_candidate_risk_matrix.json",
+      "project_state/gates/cleanup_plan.json",
+      "project_state/gates/cleanup_plan_summary.json",
+      "project_state/gates/control_plane_snapshot.json",
+      "project_state/gates/decision_preflight_result.json",
+      "project_state/gates/decision_preflight_workflow_readiness.json",
+      "project_state/gates/deletion_manifest_dry_run.json",
+      "project_state/gates/deletion_manifest_schema.json",
+      "project_state/gates/deletion_manifest_validation_result.json",
+      "project_state/gates/doctor_backlog_split_result.json",
+      "project_state/gates/evidence_lock_manifest.json",
+      "project_state/gates/governance_fix_result.json",
+      "project_state/gates/governance_operations_bundle_result.json",
+      "project_state/gates/governance_operations_bundle_snapshot.json",
+      "project_state/gates/job_lifecycle_snapshot.json",
+      "project_state/gates/job_lifecycle_validation_result.json",
+      "project_state/gates/job_orchestration_result.json",
+      "project_state/gates/jobs_inventory_result.json",
+      "project_state/gates/lifecycle_transition_guard_result.json",
+      "project_state/gates/local_ci_parity_result.json",
+      "project_state/gates/manual_mode_orchestrator_result.json",
+      "project_state/gates/manual_mode_orchestrator_snapshot.json",
+      "project_state/gates/naming_migration_plan.json",
+      "project_state/gates/phase1_completion_result.json",
+      "project_state/gates/policy_impact_audit.json",
+      "project_state/gates/policy_lint_result.json",
+      "project_state/gates/post_final_evidence_sync_result.json",
+      "project_state/gates/post_final_evidence_sync_snapshot.json",
+      "project_state/gates/prework_provenance_result.json",
+      "project_state/gates/project_governance_context_result.json",
+      "project_state/gates/project_governance_context_snapshot.json",
+      "project_state/gates/retention_policy_validation.json",
+      "project_state/gates/rollback_handoff_plan.json",
+      "project_state/gates/round_close_snapshot.json",
+      "project_state/gates/round_compaction_dry_run.json",
+      "project_state/gates/round_compaction_manifest_dry_run.json",
+      "project_state/gates/round_compaction_plan.json",
+      "project_state/gates/runner_contract_result.json",
+      "project_state/gates/state_governance_bundle_result.json",
+      "project_state/gates/state_governance_bundle_snapshot.json",
+      "project_state/gates/state_hygiene_dashboard_feed.json",
+      "project_state/gates/state_hygiene_dashboard_summary.json",
+      "project_state/gates/state_hygiene_inventory.json",
+      "project_state/gates/state_index_readiness_plan.json",
+      "project_state/gates/state_index_readiness_result.json",
+      "project_state/gates/state_index_readiness_schema.json",
+      "project_state/gates/status_policy_reconcile_result.json",
+      "project_state/gates/tombstone_plan_dry_run.json",
+      "project_state/gates/tombstone_schema.json",
+      "project_state/gates/tombstone_validation_result.json",
+      "project_state/gates/user_solve_control_plane_result.json",
+      "project_state/gates/user_solve_frontend_mvp_snapshot.json",
+      "project_state/gates/user_solve_layer_result.json",
+      "project_state/gates/user_solve_local_frontend_mvp_result.json",
+      "project_state/gates/user_solve_session_bundle_result.json",
+      "project_state/gates/user_solve_trace_fallback_result.json",
+      "project_state/gates/user_solve_workbench_result.json",
+      "project_state/gates/user_solve_workbench_snapshot.json"
+    ],
+    "archived_artifacts": [
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/execution_report.md",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/round_manifest.json"
+    ],
+    "tests_ran": [
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+      "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1"
+    ],
+    "status": "FAILED",
+    "acceptance_recommendation": "REWORK_REQUIRED"
+  },
+  "diffs": [
+    {
+      "field": "files_changed",
+      "expected": [
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/audit_precheck_result.json",
+        "project_state/gates/audit_readiness_packet.json",
+        "project_state/gates/ci_audit_handoff_bundle.json",
+        "project_state/gates/ci_observation_reconcile_result.json",
+        "project_state/gates/close_round_raw.txt",
+        "project_state/gates/codex_prompt_packet.json",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/current_handoff_packet.json",
+        "project_state/gates/execute_decision_raw.txt",
+        "project_state/gates/execute_decision_result.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_log_raw.txt",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_check_raw.txt",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/pytest_raw_output_1.txt",
+        "project_state/gates/pytest_raw_output_2.txt",
+        "project_state/gates/report_summary_raw.txt",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_raw.txt",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/round_manifest.json",
+        "reverse_agent/project_gate.py"
+      ],
+      "actual": [
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/audit_precheck_result.json",
+        "project_state/gates/audit_readiness_packet.json",
+        "project_state/gates/ci_audit_handoff_bundle.json",
+        "project_state/gates/ci_observation_reconcile_result.json",
+        "project_state/gates/close_round_raw.txt",
+        "project_state/gates/codex_prompt_packet.json",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/current_handoff_packet.json",
+        "project_state/gates/execute_decision_raw.txt",
+        "project_state/gates/execute_decision_result.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_log_raw.txt",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_check_raw.txt",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/pytest_raw_output_1.txt",
+        "project_state/gates/pytest_raw_output_2.txt",
+        "project_state/gates/report_summary_raw.txt",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_raw.txt",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py"
+      ]
+    },
+    {
+      "field": "generated_artifacts",
+      "expected": [
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/audit_precheck_result.json",
+        "project_state/gates/audit_readiness_packet.json",
+        "project_state/gates/ci_audit_handoff_bundle.json",
+        "project_state/gates/ci_observation_reconcile_result.json",
+        "project_state/gates/codex_prompt_packet.json",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/current_handoff_packet.json",
+        "project_state/gates/execute_decision_result.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260707_profile_contract_alignment_rework_v1/round_manifest.json"
+      ],
+      "actual": [
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/audit_precheck_result.json",
+        "project_state/gates/audit_readiness_packet.json",
+        "project_state/gates/ci_audit_handoff_bundle.json",
+        "project_state/gates/ci_observation_reconcile_result.json",
+        "project_state/gates/codex_prompt_packet.json",
+        "project_state/gates/codex_report_auto_summary.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/current_handoff_packet.json",
+        "project_state/gates/execute_decision_result.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/execution_report_auto_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/gates/startup_snapshot.json",
+        "project_state/pytest_result.txt"
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": [],
+  "non_blocking_warnings": [],
+  "sources": {
+    "decision_meta": "project_state/decision_packet.md",
+    "execution_report": "project_state/execution_report.md",
+    "execution_report_summary_block": "execution_report_summary",
+    "legacy_execution_report_alias": "project_state/codex_execution_report.md",
+    "legacy_report_summary_block_alias": "codex_report_summary",
+    "parsed_report_source": "project_state/execution_report.md",
+    "command_plan": "project_state/gates/command_plan.json",
+    "round_delta_summary": "project_state/gates/round_delta_summary.json",
+    "final_gate_result": "project_state/gates/final_gate_result.json",
+    "pytest_result": "project_state/pytest_result.txt"
+  }
+}
+
 ===== EXIT: 1 =====
+
+===== COMMAND: python -m reverse_agent.project_gate execution-log --state-dir project_state =====
+execution-log: PASSED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+recommended_next_action: no_action_required
+===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 final-check: FAILED
-decision_id: decision_20260707_fast_profile_report_truth_rework_v1
-report_id: codex_report_20260707_fast_profile_report_truth_rework_v1
-round_id: round_20260707_fast_profile_report_truth_rework_v1
-  [FAIL] pytest_result_match
-  [FAIL] command_plan_covers_report_tests
-  [FAIL] command_plan_json_stdout_matches_artifact
-  [FAIL] report_summary_fields_match_synthesis
-  [FAIL] fast_profile_scope_valid
-  [FAIL] fast_profile_pytest_not_omitted_with_source_changes
-  [FAIL] required_audit_coverage
-  [FAIL] status_policy_valid
-  [FAIL] execution_log_consistency
-  [FAIL] execution_log_provenance_valid
-  [WARN] execution_log_report_id_is_current
-  [WARN] report_auto_summary_consistency
-  [WARN] command_plan_execution_authority
-  [PASS] decision_report_match
-  [PASS] execution_report_alias_present
-  [PASS] execution_report_alias_semantic_parity
-  [PASS] execution_report_summary_block_semantic_parity
-  [PASS] pytest_result_covers_report_tests
-  [PASS] pytest_result_status_supports_accepted_report
-  [PASS] pytest_result_exit_codes_match_command_plan
-  [PASS] preflight_failure_handoff
-  [PASS] stale_artifact_ids
-  [PASS] closeout_nested_failures_absent
-  [PASS] gate_profile_plan_current
-  [PASS] gate_profile_plan_command_plan_consistency
-  [PASS] startup_status_order_valid
-  [PASS] startup_command_position_order
-  [PASS] startup_snapshot_immediate_after_startup_status
-  [PASS] startup_snapshot_artifact
-  [PASS] round_baseline_derived_from_startup_snapshot
-  [PASS] files_changed_covers_git_diff
-  [PASS] files_changed_covers_substantive_changes
-  [PASS] generated_artifacts_cover_round_delta
-  [PASS] decision_immutability
-  [PASS] command_plan_json_stdout_full
-  [PASS] closeout_active_warnings_clean
-recommended_next_action: fix_gate_failures_before_archive_or_handoff
+blocking_reasons:
+- prework_provenance_gate_artifact: prework provenance artifact is invalid
+- required_audit_coverage: report has 18 of 18 Required Audit items with placeholder answers; substantive answers required regardless of report status
+- status_policy_valid: status policy found blocking issues
+- execution_log_provenance_valid: execution_log.json hybrid provenance does not match live evidence
+
 ===== EXIT: 1 =====
 
-===== OMITTED COMMANDS (NOT EXECUTED per command-plan + instruction #9) =====
-- python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
-  reason: omitted by fast profile (pytest not in required_command_kinds); instruction #9 forbids executing omitted_commands
-- python -m reverse_agent.project_gate close-round ...
-  reason: omitted by fast profile; also forbidden_capability_this_round (close_round)
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 =====
+close-round: FAILED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+report_id: codex_report_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+  [PASS] decision_meta_parse: decision_meta parsed
+  [PASS] decision_approved: decision status is APPROVED
+  [PASS] report_present: neutral execution report summary parsed from execution_report.md
+  [PASS] requested_round_id_match: requested round_id matches current decision
+  [PASS] report_decision_match: report is based on current decision
+  [PASS] pytest_result_match: pytest_result matches report
+  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
+  [PASS] command_plan_present: command_plan.json is present
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_execution_order_policy: command-plan explicitly documents coverage/expected-exit authority rather than strict wall-clock order
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [PASS] startup_command_coverage: pytest_result command blocks cover required startup commands
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout matches live command_plan.json command list, expected exits, and notes
+  [PASS] command_plan_run_closeout_success_semantics: accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
+  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
+  [PASS] round_delta_summary_present: round delta summary is baseline-aware
+  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
+  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
+  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
+  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
+  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
+  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
+  [PASS] report_prose_claims_covered_by_files_changed: report prose does not claim source/test changes beyond files_changed
+  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
+  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
+  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
+  [PASS] startup_command_position_order: first five command blocks are exactly the required startup sequence in correct order with no substantive commands before them
+  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
+  [PASS] build_output_scope: no build-generated state files in round delta
+  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [WARN] report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [WARN] scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)
+  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [WARN] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
+  [PASS] generated_artifacts_cover_gate_artifacts: generated_artifacts or referenced_artifacts cover all existing gate artifacts
+  [PASS] forbidden_paths_absent: no forbidden paths detected
+  [PASS] state_package_compact: state package classification is compact or non-blocking
+  [PASS] gate_profile_closeout_safety: profile full permits close-round
+  [ACTION FAILED] final_check_before_archive
+archive_status: not_attempted
+  [BLOCK] final_check_before_archive: ['prework_provenance_gate_artifact', 'required_audit_coverage', 'status_policy_valid']
+recommended_next_action: fix_close_round_failures_before_retry
 
-===== SUMMARY =====
-pytest_result_status: FAILED (preflight --allow-consumed exit 1 does not match command_plan expected_exit_codes [0]; report-summary and final-check exit 1 are within expected [0,1])
-decision_id: decision_20260707_fast_profile_report_truth_rework_v1
-round_id: round_20260707_fast_profile_report_truth_rework_v1
-report_id: codex_report_20260707_fast_profile_report_truth_rework_v1
-profile: fast
-closeout_required: false
-close_round_required: false
-closeout_executed: false
-preflight_status: FAILED (implementation_scope_present + decision_command_plan_conflict)
-final_check_status: FAILED (multiple gate checks failed)
-blocker: preflight FAILED due to decision_command_plan_conflict; report-summary and final-check FAIL with blocking reasons; round is REWORK_REQUIRED
+===== EXIT: 1 =====
+
+===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 =====
+run-closeout: FAILED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+  [PASSED] decision-lint: exit=0
+  [PASSED] preflight: exit=0
+  [PASSED] pytest: exit=0
+  [PASSED] gate-profile: exit=0
+  [PASSED] command-plan: exit=0
+  [PASSED] command-plan-json: exit=0
+  [PASSED] execute-decision: exit=0
+  [PASSED] report-summary: exit=1
+  [PASSED] execution-log: exit=1
+  [PASSED] final-check: exit=1
+  [FAILED] close-round: exit=1
+  [BLOCK] step close-round exited 1, expected [0]: close_status=FAILED
+  [BLOCK] executed step close-round failed: exit=1, expected=[0]
+  [BLOCK] close-round close_status=FAILED
+  [BLOCK] close-round report_status=FAILED
+  [BLOCK] close-round blocking reason: final_check_before_archive: ['prework_provenance_gate_artifact', 'required_audit_coverage', 'status_policy_valid']
+  [BLOCK] close-round action final_check_before_archive failed: status=FAILED, gate_status=FAILED
+  [BLOCK] close-round nested failure: close_round_result.report_status=FAILED
+  [BLOCK] close-round nested failure: close_round_result.actions[0].status=FAILED (final_check_before_archive)
+  [BLOCK] close-round nested failure: close_round_result.actions[0].gate_status=FAILED (final_check_before_archive)
+  [BLOCK] close-round nested failure: close_round_result.status_summary.report_status=FAILED
+  [BLOCK] pytest_result.txt contains failed command block(s): python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 (exit=1)
+artifact: project_state/gates/run_closeout_result.json
+recommended_next_action: fix_run_closeout_failures_before_retry
+
+===== EXIT: 1 =====
+

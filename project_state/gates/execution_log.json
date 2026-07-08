@@ -3,41 +3,51 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
-  "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
-  "report_id": "codex_report_20260707_fast_profile_report_truth_rework_v1",
-  "generated_at": "2026-07-07T12:47:00.000000Z",
-  "source": "hybrid_from_pytest_result_and_command_plan",
+  "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+  "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+  "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
+  "generated_at": "2026-07-07T16:06:37.203758Z",
+  "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
-    "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
-    "report_id": "codex_report_20260707_fast_profile_report_truth_rework_v1",
+    "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+    "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+    "report_id": "codex_report_20260707_profile_contract_alignment_rework_v1",
     "evidence_sources": [
       "pytest_result",
-      "command_plan"
+      "command_plan",
+      "run_closeout_execution_log"
     ],
     "artifacts": {
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "b83f13d04213226fd479ea3d9f59138c8b24da506b1ab95c36fd1f491bd44d4c",
-        "size_bytes": 11626,
-        "command_block_count": 11
+        "sha256": "96dc1d6ab5cd8bb8037b810a6ffd19bc2a06938c2c84d63283592055989b4c81",
+        "size_bytes": 40204,
+        "command_block_count": 15
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "943b8ca31936b334ca1c35b421b178c8e90fb0108a544f6415653a297d137aac",
-        "size_bytes": 3570,
-        "decision_id": "decision_20260707_fast_profile_report_truth_rework_v1",
-        "round_id": "round_20260707_fast_profile_report_truth_rework_v1",
+        "sha256": "5f0048ba4d9594945792272372e38091b9afbf2fb6be406381ba07d0435d9b58",
+        "size_bytes": 5577,
+        "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+        "round_id": "round_20260707_profile_contract_alignment_rework_v1",
         "plan_status": "PASSED",
-        "command_count": 5
+        "command_count": 10
+      },
+      "run_closeout_execution_log": {
+        "path": "project_state/gates/run_closeout_execution_log.json",
+        "exists": true,
+        "sha256": "1d70ca697a4255dc0efbdb56b717c687b75b3171e76143acc4295898e16ed4fb",
+        "size_bytes": 43792,
+        "decision_id": "decision_20260707_profile_contract_alignment_rework_v1",
+        "round_id": "round_20260707_profile_contract_alignment_rework_v1",
+        "command_block_count": 12
       }
     },
-    "command_count": 10,
-    "command_digest": "973c13f0e56cede0d873f16021dde7d57c55e92841cdc8a1a4dc5478fc241419"
+    "command_count": 15,
+    "command_digest": "feb3d700c6b3f705471df717020c57062c5bcad9a924ab3e3f4c185c4c5df213"
   },
   "commands": [
     {
@@ -45,9 +55,7 @@
       "command": "Set-Location F:\\reverse-agent",
       "kind": "set-location",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -56,9 +64,7 @@
       "command": "Get-Location",
       "kind": "pwd",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -67,9 +73,7 @@
       "command": "Test-Path F:\\reverse-agent",
       "kind": "test-path",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -78,9 +82,7 @@
       "command": "git rev-parse --show-toplevel",
       "kind": "git rev-parse",
       "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [],
       "exit_code": 0,
       "status": "PASSED"
     },
@@ -89,6 +91,15 @@
       "command": "git status --short",
       "kind": "git status",
       "phase": "status",
+      "expected_exit_codes": [],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
       "expected_exit_codes": [
         0
       ],
@@ -97,6 +108,17 @@
     },
     {
       "index": 7,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 8,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -107,7 +129,7 @@
       "status": "PASSED"
     },
     {
-      "index": 8,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -118,18 +140,18 @@
       "status": "PASSED"
     },
     {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "phase": "preflight",
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1 --dry-run",
+      "kind": "execute-decision",
+      "phase": "gate",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 1,
-      "status": "FAILED"
+      "exit_code": 0,
+      "status": "PASSED"
     },
     {
-      "index": 10,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -141,7 +163,19 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+      "kind": "execution-log",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 13,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -151,11 +185,31 @@
       ],
       "exit_code": 1,
       "status": "PASSED"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "kind": "close-round",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 1,
+      "status": "FAILED"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1",
+      "kind": "run-closeout",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 1,
+      "status": "FAILED"
     }
   ],
-  "warnings": [
-    "preflight --allow-consumed exited 1 (FAILED) due to implementation_scope_present + decision_command_plan_conflict; command-plan wins per instruction #10"
-  ],
+  "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff"
+  "recommended_next_action": "no_action_required"
 }

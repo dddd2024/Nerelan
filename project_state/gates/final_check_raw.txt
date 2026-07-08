@@ -1,0 +1,133 @@
+final-check: FAILED
+decision_id: decision_20260707_profile_contract_alignment_rework_v1
+report_id: codex_report_20260707_profile_contract_alignment_rework_v1
+round_id: round_20260707_profile_contract_alignment_rework_v1
+  [PASS] decision_report_match: decision/report ids and round_id match
+  [PASS] execution_report_alias_present: execution_report.md neutral alias is present
+  [PASS] execution_report_alias_semantic_parity: execution_report.md semantically matches codex_execution_report.md
+  [PASS] execution_report_summary_block_semantic_parity: dual report summary blocks are semantically aligned
+  [PASS] pytest_result_match: pytest_result matches report
+  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
+  [PASS] pytest_result_status_supports_accepted_report: pytest_result_summary.status supports accepted report
+  [PASS] pytest_result_failed_command_blocks_absent: report is not accepted; failed command block absence is not an acceptance precondition
+  [WARN] scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)
+  [WARN] round_manifest_present: round manifest is missing
+  [PASS] round_manifest_status_matches_report: round manifest status matches report
+  [WARN] archived_report_matches_live_report: archived report differs from live report
+  [WARN] archived_execution_report_alias_matches_live_alias: archived execution_report.md differs from live execution_report.md
+  [WARN] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
+  [PASS] round_delta_summary_present: round delta summary is baseline-aware
+  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
+  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
+  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
+  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
+  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
+  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
+  [PASS] report_prose_claims_covered_by_files_changed: report prose source/test claims are covered by files_changed
+  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
+  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
+  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
+  [PASS] startup_command_position_order: first five command blocks are exactly the required startup sequence in correct order with no substantive commands before them
+  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
+  [PASS] build_output_scope: no build-generated state files in round delta
+  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
+  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
+  [WARN] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
+  [PASS] generated_artifacts_cover_gate_artifacts: generated_artifacts or referenced_artifacts cover all existing gate artifacts
+  [PASS] closeout_execution_log_is_current: run_closeout_execution_log.json contains current round IDs
+  [PASS] execution_log_report_id_is_current: execution_log.json carries current report_id
+  [PASS] required_closeout_artifacts_covered: no required closeout artifacts declared in decision
+  [PASS] command_plan_present: command_plan.json is present
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_execution_order_policy: command-plan explicitly documents coverage/expected-exit authority rather than strict wall-clock order
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [PASS] startup_command_coverage: pytest_result command blocks cover required startup commands
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout matches live command_plan.json command list, expected exits, and notes
+  [PASS] command_plan_run_closeout_success_semantics: accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [FAIL] close_round_is_last_command_block: close-round is not the last command block; last block is: 'python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260707_profile_contract_alignment_rework_v1'
+  [FAIL] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
+  [PASS] command_plan_execution_authority: all recorded commands are authorized by command_plan
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [WARN] report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [WARN] scoped_metadata_coverage: Phase A scoped metadata foundation not yet surfaced in state_manifest or artifact_index (legacy, non-blocking)
+  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
+  [PASS] stale_artifact_ids: gate artifacts carry current decision/round/report IDs
+  [PASS] report_body_consistency: report body prose is consistent with structured JSON summary
+  [PASS] startup_snapshot_immediate_after_startup_status: startup-snapshot is recorded immediately after the five startup status commands
+  [PASS] startup_snapshot_artifact: startup snapshot is current and source/test clean
+  [PASS] round_baseline_derived_from_startup_snapshot: round baseline is derived from the current startup snapshot
+  [PASS] github_ci_state_gate_workflows: GitHub CI workflows are bounded, read-only, and include project_gate validation
+  [PASS] decision_preflight_workflow: decision-preflight workflow is read-only, bounded, and validates preflight/job foundation
+  [PASS] ci_workflow_coverage_gate_artifact: ci workflow coverage audit not required
+  [PASS] ci_workflow_readiness_gate_artifact: ci workflow readiness gate not required
+  [PASS] decision_preflight_gate_artifact: decision-preflight artifact is stale and not required
+  [PASS] ci_run_evidence_gate_artifact: ci run evidence gate not required
+  [PASS] local_ci_parity_gate_artifact: local CI parity gate not required
+  [PASS] project_job_schema_validation: project job schema validator is present, non-dispatching, and validates any project_state/jobs/*.json files
+  [PASS] jobs_inventory_gate_artifact: jobs inventory gate artifact is stale and not required for this decision
+  [PASS] job_lifecycle_gate_artifact: job lifecycle artifact is stale and not required for this decision
+  [PASS] job_orchestration_artifact: job orchestration artifact is stale and not required for this decision
+  [PASS] runner_contract_artifact: runner contract artifact is stale and not required for this decision
+  [PASS] agent_runner_dry_run_artifact: agent runner dry-run artifact is stale and not required for this decision
+  [PASS] agent_runner_handoff_bundle_artifact: agent runner handoff bundle artifact is stale and not required for this decision
+  [PASS] agent_runner_handoff_validation_artifact: agent runner handoff validation artifact is stale and not required for this decision
+  [PASS] audit_inventory_gate_artifact: audit inventory gate artifact is stale and not required for this decision
+  [PASS] control_plane_snapshot_artifact: control-plane snapshot artifact is stale and not required for this decision
+  [PASS] naming_migration_plan_ids_current: naming_migration_plan.json not required for this decision
+  [PASS] decision_contract_artifact_placement: decision_contract has no required artifact/file constraints
+  [PASS] artifact_role_taxonomy: report summary separates generated, referenced, historical, and archived artifacts
+  [PASS] audit_readiness_packet_valid: audit readiness packet is current and evidence-only
+  [PASS] ci_observation_schema_gate_artifact: ci-observation-schema gate not required
+  [PASS] ci_observation_handoff_gate_artifact: ci-observation-handoff gate not required
+  [PASS] ci_observation_reconcile_gate_artifact: ci-observation-reconcile gate not required
+  [PASS] ci_artifact_manifest_gate_artifact: ci-artifact-manifest gate not required
+  [PASS] ci_audit_handoff_bundle_gate_artifact: ci-audit-handoff-bundle gate not required
+  [PASS] ci_bridge_closeout_consistency: CI bridge closeout consistency hardening not required
+  [PASS] current_handoff_packet_valid: current handoff packet not required
+  [PASS] local_execution_bundle_valid: local execution bundle not required
+  [PASS] codex_prompt_packet_valid: codex prompt packet not required
+  [PASS] audit_precheck_valid: audit precheck not required
+  [PASS] user_solve_layer_gate_artifact: user solve layer gate not required
+  [PASS] user_solve_trace_fallback_gate_artifact: user solve trace/fallback gate artifact is stale and not required for this decision
+  [PASS] user_solve_session_bundle_gate_artifact: user solve session bundle artifact is stale and not required for this decision
+  [PASS] prework_provenance_gate_artifact: prework provenance artifact is current and blocks undeclared dirty startup state
+  [PASS] user_solve_control_plane_gate_artifact: user solve control plane artifact is stale and not required for this decision
+  [PASS] user_solve_local_frontend_mvp_gate_artifact: user solve local frontend MVP artifact is stale and not required for this decision
+  [PASS] user_solve_workbench_gate_artifact: user solve workbench gate not required for current decision; historical workbench artifacts ignored
+  [PASS] manual_mode_orchestrator_gate_artifact: manual-mode orchestrator artifacts are historical and not required for this decision
+  [PASS] project_governance_context_gate_artifact: project governance context artifacts are historical and not required for this decision
+  [PASS] state_governance_bundle_gate_artifact: state governance bundle artifacts are historical and not required for this decision
+  [PASS] governance_fix_gate_artifact: governance fix artifact is historical and not required for this decision
+  [PASS] cleanup_apply_safety_gate_artifact: cleanup apply safety artifact is historical and not required for this decision
+  [PASS] governance_operations_bundle_gate_artifact: governance operations bundle artifact is historical and not required for this decision
+  [PASS] post_final_evidence_sync_gate_artifact: post-final evidence sync artifact is stale and not required
+  [PASS] timestamp_precision_hardening: timestamp precision hardening not required for this round
+  [PASS] decision_contract_status_hardening: decision_contract status hardening requirements satisfied
+  [PASS] execute_decision_contract: execute-decision artifact satisfies command-plan authority contract
+  [PASS] gate_profile_plan_current: gate_profile_plan.json carries current decision/round IDs
+  [PASS] gate_profile_plan_command_plan_consistency: gate_profile_plan.json profile matches command_plan.json profile
+  [PASS] fast_profile_scope_valid: profile is not fast; scope validation not applicable
+  [PASS] fast_profile_pytest_not_omitted_with_source_changes: profile is not fast; pytest omission check not applicable
+  [PASS] fast_profile_closeout_consistency: profile is not fast; closeout consistency check not applicable
+  [PASS] forbidden_paths_absent: no forbidden paths detected
+  [PASS] required_audit_coverage: report covers all 18 Required Audit items with substantive aligned answers
+  [PASS] policy_impact_coverage: policy impact coverage satisfied or no policy-sensitive changes
+  [PASS] command_plan_recommends_run_closeout: run-closeout not required by decision_contract (manual fallback is acceptable)
+  [FAIL] status_policy_valid: status policy found blocking issues
+  [PASS] final_check_stdout_matches_gate_status: archive-pending final-check status is allowed to differ before close-round
+  [PASS] execution_log_consistency: execution_log.json is consistent with pytest_result and command_plan
+  [PASS] execution_log_provenance_valid: execution_log.json hybrid provenance matches pytest_result, command_plan, closeout log, and current IDs
+  [PASS] execution_log_required_commands_recorded: all required command_plan commands recorded in execution_log
+  [WARN] report_auto_summary_consistency: execution_report_auto_summary.json disagrees with live execution report summary (non-SUCCESS report)
+  [PASS] execution_report_auto_summary_alias_present: execution_report_auto_summary.json neutral alias is present
+  [PASS] execution_report_auto_summary_alias_semantic_parity: execution_report_auto_summary.json semantically matches codex_report_auto_summary.json
+  [PASS] phase1_completion_status: Phase 1 completion artifact is PASS
+  [PASS] phase1_completion_evidence_paths_exist: All Phase 1 completion capability evidence paths exist on disk
+  [PASS] phase1_completion_evidence_paths_reported: All Phase 1 completion gate evidence paths are in generated_artifacts or referenced_artifacts
+  [WARN] closeout_active_warnings_clean: closeout result has active warnings
+  [FAIL] closeout_nested_failures_absent: run_closeout_result.json contains active nested FAIL/FAILED states
+recommended_next_action: fix_gate_failures_before_archive_or_handoff
