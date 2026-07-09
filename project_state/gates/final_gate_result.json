@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
-  "report_id": "codex_report_20260708_user_solve_contract_test_coverage_rework_v1",
-  "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
-  "generated_at": "2026-07-08T16:27:48.947453Z",
+  "decision_id": "decision_20260709_required_audit_report_body_rework_v1",
+  "report_id": "codex_report_20260709_required_audit_report_body_rework_v1",
+  "round_id": "round_20260709_required_audit_report_body_rework_v1",
+  "generated_at": "2026-07-09T07:00:37.264952Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -51,22 +51,14 @@
       "required_test_files": [
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
-        "tests/test_project_reports.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_errors.py",
-        "tests/test_user_solve_state.py",
-        "tests/test_user_solve_views.py"
+        "tests/test_project_reports.py"
       ],
       "pytest_test_files": [
         "tests/test_project_context.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
-        "tests/test_project_state_manifest.py",
-        "tests/test_user_solve_contract.py",
-        "tests/test_user_solve_errors.py",
-        "tests/test_user_solve_state.py",
-        "tests/test_user_solve_views.py"
+        "tests/test_project_state_manifest.py"
       ]
     },
     {
@@ -113,8 +105,8 @@
         "context_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
         "context_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
         "context_mainline": "engineering_branch",
-        "current_decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
-        "current_round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+        "current_decision_id": "decision_20260709_required_audit_report_body_rework_v1",
+        "current_round_id": "round_20260709_required_audit_report_body_rework_v1",
         "current_mainline": "engineering_branch",
         "field_domains": {
           "allowed_capability_profile": "",
@@ -152,14 +144,14 @@
             "field": "decision_id",
             "domain": "project_governance",
             "observed_value": "decision_20260706_prework_provenance_closeout_rework_v1",
-            "expected_value": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+            "expected_value": "decision_20260709_required_audit_report_body_rework_v1",
             "reason": "context packet decision_id does not match current decision"
           },
           {
             "field": "round_id",
             "domain": "project_governance",
             "observed_value": "round_20260706_prework_provenance_closeout_rework_v1",
-            "expected_value": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+            "expected_value": "round_20260709_required_audit_report_body_rework_v1",
             "reason": "context packet round_id does not match current round"
           },
           {
@@ -187,7 +179,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260708_user_solve_contract_test_coverage_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260709_required_audit_report_body_rework_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -247,13 +239,13 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -282,13 +274,13 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ]
     },
     {
@@ -329,13 +321,13 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -364,13 +356,13 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "inherited_dirty_files": []
     },
@@ -380,7 +372,7 @@
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "claimed_source_test_paths": []
     },
@@ -405,17 +397,12 @@
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "tests/test_project_reports.py"
       ],
       "allowed_inherited_dirty_files": [
-        "docs/user_solve_contract.md",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_reports.py",
-        "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_errors.py",
-        "reverse_agent/user_solve_state.py",
-        "reverse_agent/user_solve_views.py"
+        "reverse_agent/project_reports.py"
       ],
       "generated_or_archive_baseline_dirty_files": [],
       "close_worktree_clean": false,
@@ -427,14 +414,9 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
-        "docs/user_solve_contract.md",
         "reverse_agent/project_control_plane.py",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_reports.py",
-        "reverse_agent/user_solve_contract.py",
-        "reverse_agent/user_solve_errors.py",
-        "reverse_agent/user_solve_state.py",
-        "reverse_agent/user_solve_views.py"
+        "reverse_agent/project_reports.py"
       ],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
@@ -725,17 +707,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
-      "closeout_log_round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
-      "expected_decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
-      "expected_round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1"
+      "closeout_log_decision_id": "decision_20260709_required_audit_report_body_rework_v1",
+      "closeout_log_round_id": "round_20260709_required_audit_report_body_rework_v1",
+      "expected_decision_id": "decision_20260709_required_audit_report_body_rework_v1",
+      "expected_round_id": "round_20260709_required_audit_report_body_rework_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260708_user_solve_contract_test_coverage_rework_v1",
-      "expected_report_id": "codex_report_20260708_user_solve_contract_test_coverage_rework_v1"
+      "execution_log_report_id": "codex_report_20260709_required_audit_report_body_rework_v1",
+      "expected_report_id": "codex_report_20260709_required_audit_report_body_rework_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -760,8 +742,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
-      "command_plan_round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1"
+      "command_plan_decision_id": "decision_20260709_required_audit_report_body_rework_v1",
+      "command_plan_round_id": "round_20260709_required_audit_report_body_rework_v1"
     },
     {
       "name": "command_plan_execution_order_policy",
@@ -821,7 +803,7 @@
       "name": "close_round_is_last_command_block",
       "status": "PASS",
       "detail": "close-round is the last command block in pytest_result",
-      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1",
+      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_required_audit_report_body_rework_v1",
       "last_kind": "close-round"
     },
     {
@@ -884,8 +866,8 @@
         "context_decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
         "context_round_id": "round_20260706_prework_provenance_closeout_rework_v1",
         "context_mainline": "engineering_branch",
-        "current_decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
-        "current_round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+        "current_decision_id": "decision_20260709_required_audit_report_body_rework_v1",
+        "current_round_id": "round_20260709_required_audit_report_body_rework_v1",
         "current_mainline": "engineering_branch",
         "field_domains": {
           "allowed_capability_profile": "",
@@ -923,14 +905,14 @@
             "field": "decision_id",
             "domain": "project_governance",
             "observed_value": "decision_20260706_prework_provenance_closeout_rework_v1",
-            "expected_value": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+            "expected_value": "decision_20260709_required_audit_report_body_rework_v1",
             "reason": "context packet decision_id does not match current decision"
           },
           {
             "field": "round_id",
             "domain": "project_governance",
             "observed_value": "round_20260706_prework_provenance_closeout_rework_v1",
-            "expected_value": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+            "expected_value": "round_20260709_required_audit_report_body_rework_v1",
             "reason": "context packet round_id does not match current round"
           },
           {
@@ -953,6 +935,13 @@
       "legacy_compatible": true,
       "hard_failure": false,
       "non_blocking": true
+    },
+    {
+      "name": "required_audit_body_present",
+      "status": "PASS",
+      "detail": "report includes a substantive Required Audit body covering 31 items",
+      "required": true,
+      "required_audit_items": 31
     },
     {
       "name": "preflight_failure_handoff",
@@ -1328,11 +1317,11 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/round_manifest.json"
       ],
       "historical_nonblocking_artifacts": [
         "project_state/gates/agent_runner_dry_run_result.json",
@@ -1415,11 +1404,11 @@
         "project_state/gates/user_solve_workbench_snapshot.json"
       ],
       "archived_artifacts": [
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/round_manifest.json"
       ]
     },
     {
@@ -1665,8 +1654,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
-      "gate_profile_round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1"
+      "gate_profile_decision_id": "decision_20260709_required_audit_report_body_rework_v1",
+      "gate_profile_round_id": "round_20260709_required_audit_report_body_rework_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -1699,36 +1688,37 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 30 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 31 Required Audit items with substantive aligned answers",
       "required_audit_items": [
         "Is decision_meta valid JSON and schema_version=1?",
         "Is status APPROVED?",
         "Is mainline engineering_branch?",
         "Is reverse-agent-iteration@v2 active?",
         "Is task_packet treated as advisory/background only?",
-        "Was the previous failed round correctly identified as decision_20260708_user_solve_contract_foundation_v1?",
-        "Did the rework avoid expanding User Solve functionality beyond coverage repair and direct test failures?",
-        "Does command_plan.json include an explicit pytest command?",
-        "Does command_plan.json pytest command include tests/test_user_solve_contract.py?",
-        "Does command_plan.json pytest command include tests/test_user_solve_state.py?",
-        "Does command_plan.json pytest command include tests/test_user_solve_errors.py?",
-        "Does command_plan.json pytest command include tests/test_user_solve_views.py when user_solve_views.py exists or is changed?",
-        "Does pytest_result.txt summary include the same User Solve pytest command?",
-        "Does pytest_result.txt transcript show the same User Solve pytest command with exit code 0?",
-        "Does codex_execution_report.md tests_ran include the User Solve pytest command?",
-        "Does execution_report.md tests_ran include the User Solve pytest command?",
-        "Does final-check explicitly validate that changed tests are covered by pytest_result?",
-        "Does final-check block if tests/test_user_solve_* are changed but omitted from pytest?",
-        "Do UserSolveResult tests still verify candidate_found != verified?",
-        "Do User Solve tests still verify static_verified != runtime_validated?",
-        "Do User Solve tests still verify runtime_validated requires runtime evidence?",
-        "Do User Solve tests still verify failed/blocked require explicit reason?",
+        "Was the previous accepted-with-limitations round correctly identified as decision_20260708_user_solve_contract_test_coverage_rework_v1?",
+        "Is the current limitation specifically the human-readable Required Audit report body?",
+        "Did the rework avoid modifying User Solve source files?",
+        "Did the rework avoid expanding User Solve functionality?",
+        "Did the rework avoid off-scope features and forbidden state mutations?",
+        "Does codex_execution_report.md contain a non-empty Required Audit body?",
+        "Does execution_report.md contain a non-empty Required Audit body?",
+        "Does the Required Audit body answer every item from this decision?",
+        "Does report-summary parse or validate the Required Audit body coverage?",
+        "Does final-check explicitly validate Required Audit body presence?",
+        "Does final-check explicitly validate Required Audit item coverage?",
+        "Does final-check fail or warn if the Required Audit body is empty while the report claims ACCEPTED?",
+        "Does the structured JSON summary remain present?",
+        "Does the structured JSON summary remain semantically aligned with the body?",
+        "Does pytest_result.txt record an explicit pytest command and exit code 0?",
+        "Does pytest include tests/test_project_reports.py?",
+        "Does pytest include tests/test_project_gate.py?",
+        "Does pytest include tests/test_project_control_plane.py when project_control_plane.py is changed?",
         "Were any omitted or unauthorized commands executed?",
         "Were project_state/current_state.json and task_packet.json left untouched?",
         "Were artifact_index, negative_results, state_manifest, context, roadmap, domains, frontend, workflows, solve_reports, and training materials left untouched?",
         "Did final-check pass or accurately reflect any limitations?",
         "Did run-closeout pass?",
-        "Did close-round generate round_manifest for round_20260708_user_solve_contract_test_coverage_rework_v1?",
+        "Did close-round generate round_manifest for round_20260709_required_audit_report_body_rework_v1?",
         "Do execution_report.md and codex_execution_report.md agree on decision_id, round_id, status, acceptance_recommendation, tests_ran, and generated_artifacts?",
         "Does round_manifest status agree with live reports and final_gate status_summary?"
       ],
@@ -1741,16 +1731,14 @@
       "status": "PASS",
       "detail": "policy impact coverage satisfied or no policy-sensitive changes",
       "policy_sensitive_files": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_gate.py"
       ],
       "impacted_domains": [
         "command_plan",
         "final_check",
         "policy_lint",
         "report_status_schema",
-        "report_summary",
-        "tests"
+        "report_summary"
       ],
       "missing_report_topics": []
     },

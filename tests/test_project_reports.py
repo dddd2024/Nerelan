@@ -8,6 +8,7 @@ from reverse_agent.project_gate import (
     _generate_ci_workflow_readiness_required_audit,
     _generate_current_handoff_packet_required_audit,
     _generate_final_check_exit_and_audit_readiness_required_audit,
+    _generate_generic_required_audit_body,
     _generate_governance_operations_bundle_required_audit,
     _generate_local_execution_loop_required_audit,
     _generate_required_audit_direct_evidence_rework_required_audit,
@@ -18,9 +19,11 @@ from reverse_agent.project_gate import (
     _generate_manual_mode_orchestrator_required_audit,
     _generate_user_solve_session_bundle_required_audit,
     _required_audit_alignment_failures,
+    _required_audit_body_in_report_check,
     _required_audit_coverage_check,
     _scoped_metadata_coverage_check,
     command_plan,
+    generate_required_audit_scaffold,
 )
 
 
@@ -1145,3 +1148,210 @@ def test_scoped_metadata_coverage_check_legacy_entries_do_not_fail(tmp_path: Pat
     assert any("state files lack scope metadata" in w for w in check["warnings"])
     assert any("artifact kinds lack scope metadata" in w for w in check["warnings"])
     assert any("negative results lack scope metadata" in w for w in check["warnings"])
+
+
+# ---------------------------------------------------------------------------
+# Required Audit body rework tests
+#
+# These tests verify that:
+# 1. The generic Required Audit generator produces substantive answers.
+# 2. Empty/placeholder Required Audit bodies are rejected for ACCEPTED reports.
+# 3. Complete Required Audit bodies are accepted.
+# 4. The report-summary Required Audit body presence check works.
+# ---------------------------------------------------------------------------
+
+REQUIRED_AUDIT_BODY_REWORK_QUESTIONS = [
+    "Is decision_meta valid JSON and schema_version=1?",
+    "Is status APPROVED?",
+    "Is mainline engineering_branch?",
+    "Is reverse-agent-iteration@v2 active?",
+    "Is task_packet treated as advisory/background only?",
+    "Was the previous accepted-with-limitations round correctly identified as decision_20260708_user_solve_contract_test_coverage_rework_v1?",
+    "Is the current limitation specifically the human-readable Required Audit report body?",
+    "Did the rework avoid modifying User Solve source files?",
+    "Did the rework avoid expanding User Solve functionality?",
+    "Did the rework avoid off-scope features and forbidden state mutations?",
+    "Does codex_execution_report.md contain a non-empty Required Audit body?",
+    "Does execution_report.md contain a non-empty Required Audit body?",
+    "Does the Required Audit body answer every item from this decision?",
+    "Does report-summary parse or validate the Required Audit body coverage?",
+    "Does final-check explicitly validate Required Audit body presence?",
+    "Does final-check explicitly validate Required Audit item coverage?",
+    "Does final-check fail or warn if the Required Audit body is empty while the report claims ACCEPTED?",
+    "Does the structured JSON summary remain present?",
+    "Does the structured JSON summary remain semantically aligned with the body?",
+    "Does pytest_result.txt record an explicit pytest command and exit code 0?",
+    "Does pytest include tests/test_project_reports.py?",
+    "Does pytest include tests/test_project_gate.py?",
+    "Does pytest include tests/test_project_control_plane.py when project_control_plane.py is changed?",
+    "Were any omitted or unauthorized commands executed?",
+    "Were project_state/current_state.json and task_packet.json left untouched?",
+    "Were artifact_index, negative_results, state_manifest, context, roadmap, domains, frontend, workflows, solve_reports, and training materials left untouched?",
+    "Did final-check pass or accurately reflect any limitations?",
+    "Did run-closeout pass?",
+    "Did close-round generate round_manifest for round_20260709_required_audit_report_body_rework_v1?",
+    "Do execution_report.md and codex_execution_report.md agree on decision_id, round_id, status, acceptance_recommendation, tests_ran, and generated_artifacts?",
+    "Does round_manifest status agree with live reports and final_gate status_summary?",
+]
+
+
+def _required_audit_body_rework_decision_text() -> str:
+    return (
+        "# Decision\n\n"
+        "decision_20260709_required_audit_report_body_rework_v1 "
+        "Required Audit Report Body Rework\n\n"
+        "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(REQUIRED_AUDIT_BODY_REWORK_QUESTIONS, start=1)
+        )
+    )
+
+
+def test_generic_required_audit_generator_is_substantive() -> None:
+    """The generic generator must produce substantive answers for all items."""
+    decision_text = _required_audit_body_rework_decision_text()
+    audit = _generate_generic_required_audit_body(decision_text, Path("project_state"))
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text="# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        report_status="SUCCESS",
+    )
+
+    assert audit.count("### ") == 31
+    assert result["status"] == "PASS"
+    assert result["alignment_failures"] == []
+    assert result["placeholder_answers"] == []
+    assert result["missing_answers"] == []
+
+
+def test_empty_required_audit_body_rejected_for_accepted_report() -> None:
+    """An empty Required Audit body must be rejected for ACCEPTED reports."""
+    decision_text = _required_audit_body_rework_decision_text()
+    # Report with no Required Audit section
+    report_text = (
+        "# CODEX_EXECUTION_REPORT\n\n"
+        "## Status\n\nSUCCESS\n"
+    )
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text=report_text,
+        report_status="SUCCESS",
+    )
+
+    assert result["status"] == "FAIL"
+    assert "missing ## Required Audit section" in result["detail"]
+
+
+def test_placeholder_required_audit_body_rejected_for_accepted_report() -> None:
+    """A placeholder Required Audit body must be rejected for ACCEPTED reports."""
+    decision_text = _required_audit_body_rework_decision_text()
+    scaffold = generate_required_audit_scaffold(decision_text)
+    report_text = (
+        "# CODEX_EXECUTION_REPORT\n\n"
+        "## Status\n\nSUCCESS\n\n"
+        + scaffold
+    )
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text=report_text,
+        report_status="SUCCESS",
+    )
+
+    assert result["status"] == "FAIL"
+    assert result["placeholder_answers"]
+
+
+def test_complete_required_audit_body_accepted() -> None:
+    """A complete Required Audit body must be accepted for ACCEPTED reports."""
+    decision_text = _required_audit_body_rework_decision_text()
+    audit = _generate_generic_required_audit_body(decision_text, Path("project_state"))
+    report_text = (
+        "# CODEX_EXECUTION_REPORT\n\n"
+        "## Status\n\nSUCCESS\n\n"
+        + audit
+    )
+    result = _required_audit_coverage_check(
+        decision_text=decision_text,
+        report_text=report_text,
+        report_status="SUCCESS",
+    )
+
+    assert result["status"] == "PASS"
+    assert result["placeholder_answers"] == []
+    assert result["missing_answers"] == []
+    assert result.get("alignment_failures", []) == []
+
+
+def test_report_summary_rejects_empty_required_audit_body(tmp_path) -> None:
+    """report-summary must reject empty Required Audit body for ACCEPTED reports."""
+    decision_text = _required_audit_body_rework_decision_text()
+    state_dir = tmp_path / "project_state"
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True)
+
+    # Write a report with no Required Audit section
+    report_file = state_dir / "codex_execution_report.md"
+    report_file.write_text(
+        "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n",
+        encoding="utf-8",
+    )
+
+    report = {"status": "SUCCESS"}
+    check = _required_audit_body_in_report_check(
+        state_dir=state_dir,
+        decision_text=decision_text,
+        report=report,
+    )
+
+    assert check["status"] == "FAIL"
+    assert "missing ## Required Audit section" in check["detail"]
+
+
+def test_report_summary_rejects_placeholder_required_audit_body(tmp_path) -> None:
+    """report-summary must reject placeholder Required Audit body for ACCEPTED reports."""
+    decision_text = _required_audit_body_rework_decision_text()
+    state_dir = tmp_path / "project_state"
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True)
+
+    scaffold = generate_required_audit_scaffold(decision_text)
+    report_file = state_dir / "codex_execution_report.md"
+    report_file.write_text(
+        "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + scaffold,
+        encoding="utf-8",
+    )
+
+    report = {"status": "SUCCESS"}
+    check = _required_audit_body_in_report_check(
+        state_dir=state_dir,
+        decision_text=decision_text,
+        report=report,
+    )
+
+    assert check["status"] == "FAIL"
+    assert check["placeholder_answers"]
+
+
+def test_report_summary_accepts_complete_required_audit_body(tmp_path) -> None:
+    """report-summary must accept a complete Required Audit body."""
+    decision_text = _required_audit_body_rework_decision_text()
+    state_dir = tmp_path / "project_state"
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True)
+
+    audit = _generate_generic_required_audit_body(decision_text, Path("project_state"))
+    report_file = state_dir / "codex_execution_report.md"
+    report_file.write_text(
+        "# CODEX_EXECUTION_REPORT\n\n## Status\n\nSUCCESS\n\n" + audit,
+        encoding="utf-8",
+    )
+
+    report = {"status": "SUCCESS"}
+    check = _required_audit_body_in_report_check(
+        state_dir=state_dir,
+        decision_text=decision_text,
+        report=report,
+    )
+
+    assert check["status"] == "PASS"
