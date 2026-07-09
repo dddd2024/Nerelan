@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
-  "round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+  "decision_id": "decision_20260709_required_audit_report_body_rework_v1",
+  "round_id": "round_20260709_required_audit_report_body_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,57 +13,35 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260708_user_solve_contract_foundation_v1",
-  "follows_last_round_id": "round_20260708_user_solve_contract_foundation_v1",
-  "previous_audit_outcome": "REWORK_REQUIRED",
+  "follows_last_decision_id": "decision_20260708_user_solve_contract_test_coverage_rework_v1",
+  "follows_last_round_id": "round_20260708_user_solve_contract_test_coverage_rework_v1",
+  "previous_audit_outcome": "ACCEPTED_WITH_LIMITATIONS",
   "required_profile": "standard_or_full",
   "closeout_required": true,
   "close_round_required": true,
   "closeout_allowed": true,
   "pytest_required": true,
   "explicit_pytest_command_required": true,
-  "pytest_must_include_user_solve_tests": true,
-  "command_plan_must_include_explicit_pytest_command": true,
-  "command_plan_pytest_must_include_user_solve_tests": true,
-  "pytest_result_must_include_user_solve_tests": true,
-  "report_tests_must_include_user_solve_tests": true,
-  "final_check_must_verify_changed_tests_are_covered": true,
-  "command_plan_must_not_omit_report_summary": true,
-  "command_plan_must_not_omit_execution_log": true,
-  "command_plan_must_not_omit_final_check": true,
-  "command_plan_must_not_omit_run_closeout": true,
-  "command_plan_must_not_omit_close_round": true,
+  "report_body_required_audit_required": true,
+  "report_body_required_audit_must_cover_all_items": true,
+  "structured_summary_remains_required": true,
+  "final_check_must_validate_required_audit_body": true,
   "allowed_source_files": [
-    "reverse_agent/project_gate.py",
     "reverse_agent/project_reports.py",
-    "reverse_agent/project_control_plane.py",
-    "reverse_agent/user_solve_contract.py",
-    "reverse_agent/user_solve_state.py",
-    "reverse_agent/user_solve_errors.py",
-    "reverse_agent/user_solve_views.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_control_plane.py"
   ],
   "allowed_test_files": [
-    "tests/test_project_gate.py",
     "tests/test_project_reports.py",
-    "tests/test_project_control_plane.py",
-    "tests/test_user_solve_contract.py",
-    "tests/test_user_solve_state.py",
-    "tests/test_user_solve_errors.py",
-    "tests/test_user_solve_views.py"
-  ],
-  "allowed_docs": [
-    "docs/user_solve_contract.md"
+    "tests/test_project_gate.py",
+    "tests/test_project_control_plane.py"
   ],
   "allowed_project_state_files": [
     "project_state/gates/*.json",
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
-    "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json",
-    "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/pytest_result.txt"
+    "project_state/rounds/round_20260709_required_audit_report_body_rework_v1/*"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
@@ -71,6 +49,10 @@
     "frontend/*",
     "solve_reports/*",
     "training_materials/local_reverse/*",
+    "reverse_agent/user_solve_contract.py",
+    "reverse_agent/user_solve_state.py",
+    "reverse_agent/user_solve_errors.py",
+    "reverse_agent/user_solve_views.py",
     "project_state/current_state.json",
     "project_state/task_packet.json",
     "project_state/artifact_index.json",
@@ -93,35 +75,21 @@
 
 ## 1. Goal
 
-Repair the test coverage gap from the previous User Solve Contract foundation round.
+Repair the audit limitation from the previous User Solve Contract test coverage rework round by making execution reports human-readable as well as machine-checkable.
 
 Previous round:
 
 ```text
-decision_id: decision_20260708_user_solve_contract_foundation_v1
-round_id: round_20260708_user_solve_contract_foundation_v1
-audit_outcome: REWORK_REQUIRED
+decision_id: decision_20260708_user_solve_contract_test_coverage_rework_v1
+round_id: round_20260708_user_solve_contract_test_coverage_rework_v1
+audit_outcome: ACCEPTED_WITH_LIMITATIONS
 ```
 
-The previous round added useful User Solve contract files and tests, but it cannot be accepted because the executed pytest command did not include any `tests/test_user_solve_*` files.
+The previous round satisfied the core evidence path: command-plan, pytest_result, reports, final-check, execution_log, run-closeout, and round_manifest all covered the User Solve tests. The remaining limitation is that the report body `## Required Audit` section was not useful enough for human review.
 
-This rework must make the evidence chain prove that the new User Solve contract tests actually ran.
+This round must make `codex_execution_report.md` and `execution_report.md` include a substantive `## Required Audit` body that answers every Required Audit item from the current decision. It must preserve the existing structured JSON summary blocks and final-check behavior.
 
-The minimum repaired evidence must show:
-
-```text
-1. command_plan.json contains an explicit pytest command that includes tests/test_user_solve_contract.py;
-2. command_plan.json contains tests/test_user_solve_state.py;
-3. command_plan.json contains tests/test_user_solve_errors.py;
-4. command_plan.json contains tests/test_user_solve_views.py when user_solve_views.py exists or is claimed changed;
-5. pytest_result.txt summary includes the same explicit pytest command;
-6. pytest_result.txt command transcript shows the same pytest command and exit code 0;
-7. codex_execution_report.md and execution_report.md tests_ran include the User Solve pytest command;
-8. final-check detects changed tests not covered by pytest and blocks future ACCEPTED reports;
-9. run-closeout and close-round archive a round_manifest for this rework round.
-```
-
-This is a test coverage and gate coverage rework only. Do not expand the User Solve contract feature unless the User Solve tests reveal a direct contract bug that can be fixed inside the already allowed contract files.
+This is an engineering report/gate readability hardening round only.
 
 ## 2. Current Evidence
 
@@ -142,7 +110,7 @@ engineering_branch
 Reason:
 
 ```text
-This round repairs command-plan / pytest / final-check coverage for an engineering contract module. It is not a reverse_solving round, and it must not perform sample solving or tool invocation.
+This round repairs report generation, Required Audit prose coverage, and final-check validation for engineering auditability.
 ```
 
 Skill profile:
@@ -151,50 +119,54 @@ Skill profile:
 reverse-agent-iteration@v2
 ```
 
-Previous accepted baseline before the failed User Solve round:
+Previous accepted-with-limitations baseline:
 
 ```text
-decision_20260708_state_domain_taxonomy_final_status_rework_v1
-round_20260708_state_domain_taxonomy_final_status_rework_v1
+decision_20260708_user_solve_contract_test_coverage_rework_v1
+round_20260708_user_solve_contract_test_coverage_rework_v1
 ACCEPTED_WITH_LIMITATIONS
 ```
 
-Failed round to repair:
+Evidence from the previous round:
 
 ```text
-decision_20260708_user_solve_contract_foundation_v1
-round_20260708_user_solve_contract_foundation_v1
-REWORK_REQUIRED
+1. decision_meta was valid and APPROVED.
+2. mainline was engineering_branch.
+3. command_plan.json was PASSED and omitted_commands was empty.
+4. command_plan.json included the explicit User Solve pytest command.
+5. pytest_result.txt recorded the same pytest command.
+6. pytest_result.txt showed 1219 passed and exit code 0.
+7. codex_execution_report.md and execution_report.md tests_ran included the same User Solve pytest command.
+8. final_gate_result.json PASSED and changed_tests_covered_by_pytest covered the User Solve tests.
+9. execution_log.json recorded current decision_id, round_id, report_id, and command coverage.
+10. run_closeout_result.json PASSED.
+11. round_manifest.json was created for the previous round.
 ```
 
-Evidence from the failed round:
+Remaining limitation from audit:
 
 ```text
-1. codex_execution_report.md claimed SUCCESS / ACCEPTED;
-2. final_gate_result.json claimed PASSED;
-3. run_closeout_result.json claimed PASSED;
-4. round_manifest.json claimed SUCCESS / ACCEPTED;
-5. files_changed included reverse_agent/user_solve_contract.py, user_solve_state.py, user_solve_errors.py, user_solve_views.py;
-6. files_changed included tests/test_user_solve_contract.py, tests/test_user_solve_state.py, tests/test_user_solve_errors.py, tests/test_user_solve_views.py;
-7. pytest_result.txt only ran project_gate/project_reports/project_control_plane/project_context/project_state_manifest tests;
-8. no tests/test_user_solve_* appeared in the executed pytest command;
-9. final-check validated report/pytest consistency but did not catch that newly changed tests were excluded from pytest coverage.
+The report body Required Audit section was not human-readable enough. The acceptance evidence relied mainly on structured JSON summaries, report-summary synthesis, and final-check.
 ```
 
-Already acceptable from the failed round:
+Current state summary:
 
 ```text
-1. decision_meta was valid;
-2. mainline was engineering_branch;
-3. User Solve source/test files were within allowed paths;
-4. no sample solving, Web, tool provider, database, or runner dispatch was observed;
-5. report/final-check/run-closeout/round_manifest status consistency path itself worked.
+project_state/current_state.json remains older reverse_solving / samplereverse context and is not current task authority.
+project_state/task_packet.json remains older reverse_solving advisory context and is not current task authority.
+project_state/artifact_index.json still contains many missing historical sample artifacts; these are non-blocking for this engineering_branch round unless claimed as current evidence.
 ```
 
-Current insufficient evidence:
+Artifact freshness:
 
 ```text
-The User Solve implementation cannot be accepted until User Solve tests are executed and the gate layer prevents this class of coverage omission.
+Current acceptance must use this round's project_state/gates artifacts and this round's reports. Historical User Solve / Web / sample artifacts may be referenced only as historical non-blocking evidence.
+```
+
+Negative results:
+
+```text
+negative_results.json is mostly reverse_solving oriented. The global hard block against committing full solve_reports remains relevant.
 ```
 
 Existing capabilities to reuse:
@@ -202,38 +174,68 @@ Existing capabilities to reuse:
 ```text
 command-plan authority
 pytest_result parser
-execution-log
-report-summary
+execution-log synthesis
+report-summary synthesis
 final-check
 run-closeout
 close-round
-round_delta_summary
-files_changed coverage checks
+round_manifest archive
 report/pytest semantic parity checks
+required audit coverage checks
+changed tests coverage checks
 ```
 
-Do not create parallel gates. Extend the existing command-plan/final-check/report validation path.
-
-Artifact freshness policy:
+Tool and runtime policy:
 
 ```text
-1. All current-round gate artifacts must match this decision_id and round_id.
-2. Failed-round artifacts are failure evidence only.
-3. Historical user_solve_* gate artifacts are not current acceptance evidence.
-4. Historical sample artifacts remain non-blocking unless claimed as current evidence.
+No off-scope analysis tools, sample execution, Web runtime, model API runner, queue, database, or runner dispatch is allowed.
+```
+
+Heavy artifact policy:
+
+```text
+Do not read full solve_reports/.
+Do not read full PROJECT_PROGRESS_LOG.txt.
+Only inspect targeted project_state, gate, report, source, and test files listed in this decision.
+```
+
+Closeout policy:
+
+```text
+closeout_allowed=true
+closeout_required=true
+close_round_required=true
+```
+
+Gate profile / command-plan strategy:
+
+```text
+Use generated command-plan as command authority.
+The command-plan must include pytest, report-summary, execution-log, final-check, run-closeout, and close-round.
+No omitted command may be executed.
+```
+
+Context packet / workstream registry:
+
+```text
+project_state/context/current_context_packet.json exists but is stale and must not be treated as current fact authority.
+project_state/roadmap/workstreams.json exists and says roadmap entries are not execution authority.
+This round must not update roadmap/workstreams.json.
+```
+
+Repeat check:
+
+```text
+This round does not reimplement prompt versioning, prompt consistency, policy-lint, report-summary, execution-log, command-plan, final-check, or run-closeout. It only tightens the existing report body and final-check validation for Required Audit prose coverage.
 ```
 
 ## 3. Do Not Do
 
-Do not expand the User Solve contract beyond fixing test coverage and direct test failures.
+Do not expand User Solve functionality.
 
-Do not implement solving.
+Do not modify User Solve source files.
 
-Do not generate candidate flags.
-
-Do not run samples.
-
-Do not upload or execute binaries.
+Do not implement solving or sample processing.
 
 Do not implement Fast Static Solve.
 
@@ -242,20 +244,6 @@ Do not implement Evidence Trace or Evidence Replay.
 Do not implement Web Workbench or frontend.
 
 Do not implement tool provider integration.
-
-Do not invoke:
-
-```text
-IDA
-Ghidra
-OllyDbg
-x64dbg
-radare2
-MCP
-emulator
-debugger
-runtime probe
-```
 
 Do not create or modify:
 
@@ -286,18 +274,11 @@ project_state/index.sqlite
 docs/roadmap/*
 ```
 
-Do not add a database, queue, runner dispatcher, PR automation, cleanup-apply flow, archive compaction, or deletion flow.
+Do not add a database, queue, runner dispatcher, PR automation, cleanup-apply flow, archive compaction, deletion flow, or new workflow engine.
 
-Do not claim ACCEPTED unless User Solve tests are visibly present in:
+Do not claim ACCEPTED unless the report body `## Required Audit` section is substantive and covers every Required Audit item in this decision.
 
-```text
-command_plan.json
-pytest_result.txt summary
-pytest_result.txt command transcript
-codex_execution_report.md tests_ran
-execution_report.md tests_ran
-final_gate_result.json checks
-```
+Do not rely only on JSON summary blocks for human audit coverage.
 
 ## 4. Files To Inspect
 
@@ -311,59 +292,50 @@ project_state/current_state.json
 project_state/artifact_index.json
 project_state/negative_results.json
 project_state/state_manifest.json
+project_state/context/current_context_packet.json
+project_state/roadmap/workstreams.json
 project_state/codex_execution_report.md
 project_state/execution_report.md
 project_state/pytest_result.txt
 project_state/gates/command_plan.json
 project_state/gates/final_gate_result.json
 project_state/gates/run_closeout_result.json
-project_state/rounds/round_20260708_user_solve_contract_foundation_v1/round_manifest.json
+project_state/gates/execution_log.json
+project_state/gates/report_summary_synthesis.json
+project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json
 ```
 
-Required failed-round files to inspect:
+Allowed source files to inspect or modify:
 
 ```text
-reverse_agent/user_solve_contract.py
-reverse_agent/user_solve_state.py
-reverse_agent/user_solve_errors.py
-reverse_agent/user_solve_views.py
-tests/test_user_solve_contract.py
-tests/test_user_solve_state.py
-tests/test_user_solve_errors.py
-tests/test_user_solve_views.py
-docs/user_solve_contract.md
-```
-
-Allowed gate/report files to inspect or modify:
-
-```text
-reverse_agent/project_gate.py
 reverse_agent/project_reports.py
+reverse_agent/project_gate.py
 reverse_agent/project_control_plane.py
-tests/test_project_gate.py
+```
+
+Allowed test files to inspect or modify:
+
+```text
 tests/test_project_reports.py
+tests/test_project_gate.py
 tests/test_project_control_plane.py
 ```
 
-Allowed User Solve files to modify only if the newly run tests reveal direct contract bugs:
+Allowed generated state/report files:
 
 ```text
-reverse_agent/user_solve_contract.py
-reverse_agent/user_solve_state.py
-reverse_agent/user_solve_errors.py
-reverse_agent/user_solve_views.py
-tests/test_user_solve_contract.py
-tests/test_user_solve_state.py
-tests/test_user_solve_errors.py
-tests/test_user_solve_views.py
-docs/user_solve_contract.md
+project_state/gates/*.json
+project_state/pytest_result.txt
+project_state/codex_execution_report.md
+project_state/execution_report.md
+project_state/rounds/round_20260709_required_audit_report_body_rework_v1/*
 ```
 
 Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
-The execution report for this round must answer all of the following:
+The execution report for this round must answer all of the following in the human-readable `## Required Audit` body and the structured report summary must remain consistent with those answers:
 
 ```text
 1. Is decision_meta valid JSON and schema_version=1?
@@ -371,31 +343,32 @@ The execution report for this round must answer all of the following:
 3. Is mainline engineering_branch?
 4. Is reverse-agent-iteration@v2 active?
 5. Is task_packet treated as advisory/background only?
-6. Was the previous failed round correctly identified as decision_20260708_user_solve_contract_foundation_v1?
-7. Did the rework avoid expanding User Solve functionality beyond coverage repair and direct test failures?
-8. Does command_plan.json include an explicit pytest command?
-9. Does command_plan.json pytest command include tests/test_user_solve_contract.py?
-10. Does command_plan.json pytest command include tests/test_user_solve_state.py?
-11. Does command_plan.json pytest command include tests/test_user_solve_errors.py?
-12. Does command_plan.json pytest command include tests/test_user_solve_views.py when user_solve_views.py exists or is changed?
-13. Does pytest_result.txt summary include the same User Solve pytest command?
-14. Does pytest_result.txt transcript show the same User Solve pytest command with exit code 0?
-15. Does codex_execution_report.md tests_ran include the User Solve pytest command?
-16. Does execution_report.md tests_ran include the User Solve pytest command?
-17. Does final-check explicitly validate that changed tests are covered by pytest_result?
-18. Does final-check block if tests/test_user_solve_* are changed but omitted from pytest?
-19. Do UserSolveResult tests still verify candidate_found != verified?
-20. Do User Solve tests still verify static_verified != runtime_validated?
-21. Do User Solve tests still verify runtime_validated requires runtime evidence?
-22. Do User Solve tests still verify failed/blocked require explicit reason?
-23. Were any omitted or unauthorized commands executed?
-24. Were project_state/current_state.json and task_packet.json left untouched?
-25. Were artifact_index, negative_results, state_manifest, context, roadmap, domains, frontend, workflows, solve_reports, and training materials left untouched?
-26. Did final-check pass or accurately reflect any limitations?
-27. Did run-closeout pass?
-28. Did close-round generate round_manifest for round_20260708_user_solve_contract_test_coverage_rework_v1?
-29. Do execution_report.md and codex_execution_report.md agree on decision_id, round_id, status, acceptance_recommendation, tests_ran, and generated_artifacts?
-30. Does round_manifest status agree with live reports and final_gate status_summary?
+6. Was the previous accepted-with-limitations round correctly identified as decision_20260708_user_solve_contract_test_coverage_rework_v1?
+7. Is the current limitation specifically the human-readable Required Audit report body?
+8. Did the rework avoid modifying User Solve source files?
+9. Did the rework avoid expanding User Solve functionality?
+10. Did the rework avoid off-scope features and forbidden state mutations?
+11. Does codex_execution_report.md contain a non-empty Required Audit body?
+12. Does execution_report.md contain a non-empty Required Audit body?
+13. Does the Required Audit body answer every item from this decision?
+14. Does report-summary parse or validate the Required Audit body coverage?
+15. Does final-check explicitly validate Required Audit body presence?
+16. Does final-check explicitly validate Required Audit item coverage?
+17. Does final-check fail or warn if the Required Audit body is empty while the report claims ACCEPTED?
+18. Does the structured JSON summary remain present?
+19. Does the structured JSON summary remain semantically aligned with the body?
+20. Does pytest_result.txt record an explicit pytest command and exit code 0?
+21. Does pytest include tests/test_project_reports.py?
+22. Does pytest include tests/test_project_gate.py?
+23. Does pytest include tests/test_project_control_plane.py when project_control_plane.py is changed?
+24. Were any omitted or unauthorized commands executed?
+25. Were project_state/current_state.json and task_packet.json left untouched?
+26. Were artifact_index, negative_results, state_manifest, context, roadmap, domains, frontend, workflows, solve_reports, and training materials left untouched?
+27. Did final-check pass or accurately reflect any limitations?
+28. Did run-closeout pass?
+29. Did close-round generate round_manifest for round_20260709_required_audit_report_body_rework_v1?
+30. Do execution_report.md and codex_execution_report.md agree on decision_id, round_id, status, acceptance_recommendation, tests_ran, and generated_artifacts?
+31. Does round_manifest status agree with live reports and final_gate status_summary?
 ```
 
 ## 6. Implementation Scope
@@ -403,67 +376,49 @@ The execution report for this round must answer all of the following:
 Allowed implementation tasks:
 
 ```text
-1. Fix command-plan pytest selection so changed User Solve source/test files cause tests/test_user_solve_* to be included.
-2. Fix final-check so changed test files must be covered by pytest_result, not only by report tests_ran.
-3. Fix report-summary or report validation if it allows reports to omit changed test files from tests_ran.
-4. Add tests for command-plan selecting User Solve tests when User Solve files change.
-5. Add tests for final-check rejecting changed tests omitted from pytest_result.
-6. Run the User Solve test suite and fix direct contract bugs if those tests fail.
-7. Regenerate pytest_result, command_plan, report-summary, execution-log, final-check, run-closeout, close-round, execution reports, and round manifest for this rework round.
-```
-
-Expected minimum pytest command:
-
-```text
-python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_user_solve_errors.py tests/test_user_solve_views.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py -q
-```
-
-Allowed broader pytest command:
-
-```text
-python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_user_solve_errors.py tests/test_user_solve_views.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q
+1. Add or repair report generation so `codex_execution_report.md` and `execution_report.md` include a substantive `## Required Audit` section.
+2. Ensure the Required Audit section is generated from the current decision's Required Audit items, not hard-coded stale text.
+3. Ensure the Required Audit section records clear PASS / WARN / FAIL style answers or equivalent explicit prose.
+4. Extend report-summary validation so it can detect empty or placeholder Required Audit bodies when a report claims SUCCESS / ACCEPTED.
+5. Extend final-check so ACCEPTED reports cannot pass with an empty or placeholder Required Audit body.
+6. Add tests proving empty Required Audit body is rejected for accepted reports.
+7. Add tests proving a complete Required Audit body is accepted.
+8. Preserve structured report summary blocks and semantic parity between codex_execution_report.md and execution_report.md.
+9. Regenerate pytest_result, command_plan, report-summary, execution-log, final-check, run-closeout, close-round, execution reports, and round manifest for this rework round.
 ```
 
 Allowed source files:
 
 ```text
-reverse_agent/project_gate.py
 reverse_agent/project_reports.py
+reverse_agent/project_gate.py
 reverse_agent/project_control_plane.py
-reverse_agent/user_solve_contract.py
-reverse_agent/user_solve_state.py
-reverse_agent/user_solve_errors.py
-reverse_agent/user_solve_views.py
 ```
 
 Allowed test files:
 
 ```text
-tests/test_project_gate.py
 tests/test_project_reports.py
+tests/test_project_gate.py
 tests/test_project_control_plane.py
-tests/test_user_solve_contract.py
-tests/test_user_solve_state.py
-tests/test_user_solve_errors.py
-tests/test_user_solve_views.py
 ```
 
-Allowed docs:
-
-```text
-docs/user_solve_contract.md
-```
-
-If implementation requires solver code, sample harnesses, Web runtime, tool providers, database, runner dispatch, cleanup, or roadmap mutation, stop and report BLOCKED.
+If implementation requires forbidden paths or off-scope capabilities, stop and report BLOCKED.
 
 ## 7. Tests
 
-The exact command list must come from generated command-plan. It must include explicit pytest and User Solve tests.
+The exact command list must come from generated command-plan. It must include explicit pytest and the report/gate tests affected by this round.
 
 Minimum pytest command:
 
 ```text
-python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_user_solve_errors.py tests/test_user_solve_views.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py -q
+python -m pytest tests/test_project_reports.py tests/test_project_gate.py tests/test_project_control_plane.py -q
+```
+
+Allowed broader pytest command:
+
+```text
+python -m pytest tests/test_project_reports.py tests/test_project_gate.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_user_solve_contract.py tests/test_user_solve_errors.py tests/test_user_solve_state.py tests/test_user_solve_views.py -q
 ```
 
 Required gate sequence:
@@ -473,12 +428,12 @@ python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate gate-profile --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
-python -m pytest tests/test_user_solve_contract.py tests/test_user_solve_state.py tests/test_user_solve_errors.py tests/test_user_solve_views.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py -q
+python -m pytest tests/test_project_reports.py tests/test_project_gate.py tests/test_project_control_plane.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260708_user_solve_contract_test_coverage_rework_v1
+python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_required_audit_report_body_rework_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_required_audit_report_body_rework_v1
 ```
 
 Required output files:
@@ -492,7 +447,7 @@ project_state/gates/report_summary_synthesis.json
 project_state/gates/execution_log.json
 project_state/gates/final_gate_result.json
 project_state/gates/run_closeout_result.json
-project_state/rounds/round_20260708_user_solve_contract_test_coverage_rework_v1/round_manifest.json
+project_state/rounds/round_20260709_required_audit_report_body_rework_v1/round_manifest.json
 ```
 
 ## 8. Stop Conditions
@@ -504,8 +459,8 @@ Stop with `BLOCKED` if:
 2. .codex-skills/registry.json cannot be read.
 3. reverse-agent-iteration@v2 is not active.
 4. command-plan cannot be generated.
-5. fixing coverage requires forbidden path changes.
-6. fixing coverage requires sample execution, solver implementation, Web runtime, external tool invocation, database, runner dispatch, cleanup, or roadmap mutation.
+5. fixing Required Audit body coverage requires forbidden path changes.
+6. fixing Required Audit body coverage requires off-scope capabilities.
 ```
 
 Stop with `REWORK_REQUIRED` if:
@@ -513,29 +468,25 @@ Stop with `REWORK_REQUIRED` if:
 ```text
 1. pytest fails or is not recorded.
 2. command-plan omits explicit pytest.
-3. command-plan pytest omits tests/test_user_solve_contract.py.
-4. command-plan pytest omits tests/test_user_solve_state.py.
-5. command-plan pytest omits tests/test_user_solve_errors.py.
-6. command-plan pytest omits tests/test_user_solve_views.py while user_solve_views.py exists or is changed.
-7. pytest_result.txt summary omits the User Solve pytest command.
-8. pytest_result.txt transcript omits the User Solve pytest command.
-9. codex_execution_report.md or execution_report.md tests_ran omits the User Solve pytest command.
-10. final-check does not catch changed tests omitted from pytest_result.
-11. User Solve tests reveal candidate_found == verified, static_verified == runtime_validated, missing runtime evidence, or missing failed/blocked reasons.
-12. final-check fails or reports unsupported acceptance status.
-13. run-closeout or close-round fails.
-14. round_manifest is missing.
-15. execution_report.md and codex_execution_report.md disagree.
-16. any forbidden path is modified.
-17. current_state.json or task_packet.json is modified.
-18. roadmap, context, state_manifest, artifact_index, negative_results, domains, docs/roadmap, frontend, workflows, solve_reports, databases, archives, or training materials are modified.
-19. sample solving, runtime probing, debugger/tool/MCP invocation, Web work, runner dispatch, cleanup apply, deletion, commit/push/PR/merge/rebase is performed.
+3. command-plan omits report-summary, execution-log, final-check, run-closeout, or close-round.
+4. codex_execution_report.md omits a substantive Required Audit body.
+5. execution_report.md omits a substantive Required Audit body.
+6. Required Audit body does not answer every current Required Audit item.
+7. final-check does not catch empty or placeholder Required Audit body for accepted reports.
+8. report-summary does not preserve semantic alignment between structured summary and prose body.
+9. codex_execution_report.md and execution_report.md disagree.
+10. final-check fails or reports unsupported acceptance status.
+11. run-closeout or close-round fails.
+12. round_manifest is missing.
+13. any forbidden path is modified.
+14. current_state.json or task_packet.json is modified.
+15. roadmap, context, state_manifest, artifact_index, negative_results, domains, docs/roadmap, frontend, workflows, solve_reports, databases, archives, deletions, or training materials are modified.
 ```
 
 Acceptance target:
 
 ```text
-ACCEPTED if User Solve tests are explicitly covered by command-plan, pytest_result, reports, final-check, run-closeout, and round_manifest for this decision_id and round_id.
-ACCEPTED_WITH_LIMITATIONS only if remaining warnings are explicitly non-blocking and do not affect User Solve contract or coverage semantics.
+ACCEPTED if both reports include a substantive Required Audit body covering every item, structured summaries remain aligned, command-plan/pytest/final-check/run-closeout/round_manifest all pass for this decision_id and round_id, and no forbidden path or forbidden capability is used.
+ACCEPTED_WITH_LIMITATIONS only if remaining warnings are explicitly non-blocking and do not affect Required Audit body coverage or report acceptance semantics.
 Otherwise report REWORK_REQUIRED or BLOCKED.
 ```
