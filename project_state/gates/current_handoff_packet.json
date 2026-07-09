@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_required_audit_report_body_rework_v1",
-  "round_id": "round_20260709_required_audit_report_body_rework_v1",
-  "report_id": "codex_report_20260709_required_audit_report_body_rework_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-07-09T07:00:36.726785Z",
+  "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "mainline": "project_governance",
+  "generated_at": "2026-07-09T14:08:20.159571Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260709_required_audit_report_body_rework_v1",
-    "round_id": "round_20260709_required_audit_report_body_rework_v1",
+    "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+    "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,9 +43,7 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/project_reports.py",
-      "reverse_agent/project_gate.py",
-      "reverse_agent/project_control_plane.py"
+      "reverse_agent/project_gate.py"
     ],
     "generated_or_updated_artifacts": []
   },
@@ -65,8 +63,6 @@
       "project_state/task_packet.json",
       "project_state/artifact_index.json",
       "project_state/negative_results.json",
-      "project_state/state_manifest.json",
-      "project_state/context/*",
       "project_state/roadmap/workstreams.json",
       "project_state/domains/*",
       "project_state/archives/*",
@@ -93,8 +89,8 @@
     "gate_artifacts": []
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260709_required_audit_report_body_rework_v1",
-    "current_round_id": "round_20260709_required_audit_report_body_rework_v1",
+    "current_decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+    "current_round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -112,8 +108,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260709_required_audit_report_body_rework_v1",
-    "round_id": "round_20260709_required_audit_report_body_rework_v1",
+    "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+    "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -121,7 +117,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260709_required_audit_report_body_rework_v1"
+    "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

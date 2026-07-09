@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_required_audit_report_body_rework_v1",
-  "round_id": "round_20260709_required_audit_report_body_rework_v1",
-  "report_id": "codex_report_20260709_required_audit_report_body_rework_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-07-09T07:00:36.728483Z",
+  "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "mainline": "project_governance",
+  "generated_at": "2026-07-09T14:08:20.162590Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260709_required_audit_report_body_rework_v1",
-      "round_id": "round_20260709_required_audit_report_body_rework_v1",
-      "sha256": "d74d6d78cd339e943cef998f683ee6a5d3fdedac46466b883b4d750db7fee667"
+      "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "sha256": "6cca25dc487507a77015d50f5ac8d636370275cb834cde82244b9f3822e1cd17"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260709_required_audit_report_body_rework_v1",
-      "round_id": "round_20260709_required_audit_report_body_rework_v1",
-      "sha256": "2d89157188729865e375ef6cb1f70b5ec08c5e608ee87c614bde4b80f4670d92"
+      "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "sha256": "4b0c24c9fc86ccaa57b46a58646546037ee5b879c8e20572c3db70443275f528"
     }
   },
   "prompt_sections": {

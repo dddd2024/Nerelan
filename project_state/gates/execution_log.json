@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_context_manifest_sync_v1",
-  "round_id": "round_20260709_context_manifest_sync_v1",
-  "report_id": "codex_report_20260709_context_manifest_sync_v1",
-  "generated_at": "2026-07-09T13:12:38.721662Z",
+  "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "generated_at": "2026-07-09T14:08:14.812980Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260709_context_manifest_sync_v1",
-    "round_id": "round_20260709_context_manifest_sync_v1",
-    "report_id": "codex_report_20260709_context_manifest_sync_v1",
+    "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+    "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+    "report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "01c3dfb3e47e018200526a746b0ef6cbc18e34d3e052a1bd583a3e22589a6f25",
-        "size_bytes": 8955,
+        "sha256": "2c6e2d2ad15670786dafa6c3094f9ba78937604f52cc7494372a633a1313ca9b",
+        "size_bytes": 15907,
         "command_block_count": 13
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "5caaa184833fbb95bd1d4da3ed9c04174f694a431051c29b81367cbbcef2d127",
-        "size_bytes": 4795,
-        "decision_id": "decision_20260709_context_manifest_sync_v1",
-        "round_id": "round_20260709_context_manifest_sync_v1",
+        "sha256": "d404e6f1bf57239e1c13bf4b039da4b0c662a1618d3e4f5cd8b2d896838b3968",
+        "size_bytes": 4920,
+        "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+        "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
         "plan_status": "PASSED",
         "command_count": 8
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "161198265322279ca815c20e9fc3f9d9b702a2655f3f5baabab9dfc8a094cef3",
-        "size_bytes": 2409,
-        "decision_id": "decision_20260709_context_manifest_sync_v1",
-        "round_id": "round_20260709_context_manifest_sync_v1",
-        "command_block_count": 3
+        "sha256": "2beb654954882ad145c91ce1f3e29f944d2a9f996a293ae671b13e6d5e6f277a",
+        "size_bytes": 42420,
+        "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+        "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+        "command_block_count": 13
       }
     },
     "command_count": 13,
-    "command_digest": "8429b1cd16fd0b6da76fd4dfe881b7d91e9ba2e9ae3554c97991983979aa59d2"
+    "command_digest": "d879584ed4f4a0fa0fd152e0cb5758a9d4e87b4288e02eed394d8b0badc04535"
   },
   "commands": [
     {
@@ -108,8 +108,8 @@
     },
     {
       "index": 7,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260709_context_manifest_sync_v1 --dry-run",
-      "kind": "execute-decision",
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -119,6 +119,28 @@
     },
     {
       "index": 8,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1 --dry-run",
+      "kind": "execute-decision",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 10,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -126,11 +148,11 @@
         0,
         1
       ],
-      "exit_code": 1,
+      "exit_code": 0,
       "status": "PASSED"
     },
     {
-      "index": 9,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -142,31 +164,9 @@
       "status": "PASSED"
     },
     {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_context_manifest_sync_v1",
-      "kind": "run-closeout",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -176,8 +176,8 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_context_manifest_sync_v1",
-      "kind": "close-round",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
