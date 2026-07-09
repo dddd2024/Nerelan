@@ -14321,6 +14321,8 @@ def _post_final_evidence_sync_gate_check(
     required = bool(
         decision_contract.get("accepted_requires_context_packet_post_final_status_sync")
         or decision_contract.get("accepted_requires_post_final_evidence_sync_gate")
+        or decision_contract.get("post_final_evidence_sync_required")
+        or decision_contract.get("context_packet_sync_required")
     )
     payload = _read_json(state_dir / "gates" / POST_FINAL_EVIDENCE_SYNC_RESULT_NAME)
     if not payload:
@@ -22127,6 +22129,33 @@ def final_check(
         )
     )
 
+    # Early context/manifest sync: when decision_contract requires sync,
+    # refresh artifacts BEFORE checks read them so checks validate current
+    # state instead of stale pre-final artifacts. The sync is refreshed
+    # again after final_gate_result.json is written (see write_result block).
+    _early_contract = read_decision_contract(state_dir)
+    _early_contract_block = extract_markdown_json_block(decision_text, "decision_contract")
+    if _early_contract_block.get("found") and not _early_contract_block.get("parse_error"):
+        _early_contract = {**_early_contract, **_early_contract_block}
+    if (
+        _early_contract.get("context_packet_sync_required")
+        or _early_contract.get("post_final_evidence_sync_required")
+        or _early_contract.get("accepted_requires_context_packet_post_final_status_sync")
+        or _early_contract.get("accepted_requires_post_final_evidence_sync_gate")
+    ):
+        build_post_final_evidence_sync_result(
+            state_dir=state_dir,
+            write_result=True,
+            refresh_context=True,
+        )
+    if _early_contract.get("state_manifest_sync_required"):
+        try:
+            from .project_state_manifest import build_state_manifest
+
+            build_state_manifest(state_dir=state_dir, write_result=True)
+        except Exception:  # pragma: no cover - defensive regeneration
+            pass
+
     checks.append(_scoped_metadata_coverage_check(state_dir))
     checks.append(_context_domain_awareness_check(state_dir))
 
@@ -24495,15 +24524,27 @@ def final_check(
         out_dir = state_dir / "gates"
         out_dir.mkdir(parents=True, exist_ok=True)
         _write_json_with_retry(out_dir / FINAL_GATE_RESULT_NAME, result)
-        if (
+        post_final_sync_required = bool(
             decision_contract.get("accepted_requires_context_packet_post_final_status_sync")
             or decision_contract.get("accepted_requires_post_final_evidence_sync_gate")
-        ):
+            or decision_contract.get("post_final_evidence_sync_required")
+            or decision_contract.get("context_packet_sync_required")
+        )
+        if post_final_sync_required:
             build_post_final_evidence_sync_result(
                 state_dir=state_dir,
                 write_result=True,
                 refresh_context=True,
             )
+        if decision_contract.get("state_manifest_sync_required"):
+            # Regenerate state_manifest after context sync so scoped_metadata
+            # reflects the current context packet and gate artifacts.
+            try:
+                from .project_state_manifest import build_state_manifest
+
+                build_state_manifest(state_dir=state_dir, write_result=True)
+            except Exception:  # pragma: no cover - defensive regeneration
+                pass
     return result
 
 

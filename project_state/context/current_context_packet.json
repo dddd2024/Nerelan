@@ -14,25 +14,25 @@
   "artifact_path": "project_state/context/current_context_packet.json",
   "auditor_context": {
     "command_plan_status": "PASSED",
-    "context_generated_after_final_gate": false,
-    "context_sync_basis": "pre_final",
-    "final_gate_current": false,
-    "final_gate_decision_id": "decision_20260706_post_final_timestamp_precision_hardening_v1",
-    "final_gate_generated_at": "2026-07-06T07:55:50.349942Z",
-    "final_gate_report_id": "codex_report_20260706_post_final_timestamp_precision_hardening_v1",
-    "final_gate_round_id": "round_20260706_post_final_timestamp_precision_hardening_v1",
+    "context_generated_after_final_gate": true,
+    "context_sync_basis": "timestamp_and_digest",
+    "final_gate_current": true,
+    "final_gate_decision_id": "decision_20260709_context_manifest_sync_v1",
+    "final_gate_generated_at": "2026-07-09T13:17:55.246924Z",
+    "final_gate_report_id": "codex_report_20260709_context_manifest_sync_v1",
+    "final_gate_round_id": "round_20260709_context_manifest_sync_v1",
     "final_gate_source_path": "project_state/gates/final_gate_result.json",
-    "final_gate_source_sha256": "ecb44b3087bd941e07d90a3e0d64afc8529b39d8cc8777246b84d29d23940f18",
-    "final_gate_status": "",
-    "final_gate_status_source": "stale_final_gate_result",
+    "final_gate_source_sha256": "4f616056b5593a8ea1da90f6b729cdac9cc4a1ca757ebb806ea39c81eddb7c4c",
+    "final_gate_status": "PASSED",
+    "final_gate_status_source": "current_final_gate_result",
     "governance_artifacts_are_fact_source_replacements": false,
     "large_sources_omitted": [
       "solve_reports/**",
       "full PROJECT_PROGRESS_LOG.txt"
     ],
-    "post_final_sync_evaluated_at": "2026-07-06T08:44:11Z",
-    "post_final_sync_status": "STALE_PRE_FINAL_CONTEXT",
-    "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
+    "post_final_sync_evaluated_at": "2026-07-09T13:17:55Z",
+    "post_final_sync_status": "CURRENT_POST_FINAL_SYNCED",
+    "report_id": "codex_report_20260709_context_manifest_sync_v1",
     "required_governance_artifacts": [
       "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
@@ -78,11 +78,11 @@
       "project_state/gates/project_governance_context_result.json",
       "project_state/gates/project_governance_context_snapshot.json"
     ],
-    "stale_context_detected": true,
+    "stale_context_detected": false,
     "timestamp_precision_policy": "precise_parsed_with_digest_fallback"
   },
   "bounded": true,
-  "decision_id": "decision_20260706_prework_provenance_closeout_rework_v1",
+  "decision_id": "decision_20260709_context_manifest_sync_v1",
   "do_not_assume": [
     "missing sample artifacts are current blockers for this governance round",
     "roadmap workstreams grant execution authority",
@@ -132,17 +132,17 @@
     "project_state/task_packet.json",
     "project_state/artifact_index.json",
     "project_state/negative_results.json",
-    "project_state/jobs/*",
     "project_state/roadmap/workstreams.json",
-    "project_state/user_sessions/*",
+    "project_state/domains/*",
     "project_state/archives/*",
     "project_state/deletions/*",
     "project_state/blob_store/*",
+    "project_state/*.db",
     "project_state/index.sqlite",
-    "project_state/*.db"
+    "docs/roadmap/*"
   ],
-  "generated_at": "2026-07-06T08:44:11.094544Z",
-  "mainline": "engineering_branch",
+  "generated_at": "2026-07-09T13:17:55.377204Z",
+  "mainline": "project_governance",
   "model_api_invocation": false,
   "negative_results_constraints": [
     {
@@ -198,52 +198,52 @@
       "missing_sample_artifacts_blocking_for_current_round": false
     },
     "command_authority": "project_state/gates/command_plan.json",
-    "current_mainline": "engineering_branch",
+    "current_mainline": "project_governance",
     "next_action_policy": "follow command_plan; do not execute roadmap entries unless selected by decision_packet",
     "previous_accepted_baseline": {
       "decision_id": "",
-      "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-      "round_manifest": "project_state/rounds/round_20260706_post_final_sync_job_preflight_big_step_v1/round_manifest.json"
+      "round_id": "round_20260709_context_manifest_sync_v1",
+      "round_manifest": "project_state/rounds/round_20260709_context_manifest_sync_v1/round_manifest.json"
     },
     "state_build_id": "state_20260618_134029_d6bd033d2532",
     "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
     "task_authority": "project_state/decision_packet.md",
     "task_packet_role": "background_only"
   },
-  "report_id": "codex_report_20260706_prework_provenance_closeout_rework_v1",
-  "round_id": "round_20260706_prework_provenance_closeout_rework_v1",
+  "report_id": "codex_report_20260709_context_manifest_sync_v1",
+  "round_id": "round_20260709_context_manifest_sync_v1",
   "runner_dispatch": false,
   "schema_version": 1,
   "source_files": {
     "codex_execution_report.md": {
       "exists": true,
       "path": "project_state/codex_execution_report.md",
-      "sha256": "ff3515d54d8a3e57a631f9eac8331367f6cc3fc19b616d62faef65b3bc130e09",
-      "size_bytes": 7117
+      "sha256": "53cd5f1ac033e34ab617bb7d71d3d9874a899920391ea360db6fdf58a2d16cfa",
+      "size_bytes": 23124
     },
     "decision_packet.md": {
       "exists": true,
       "path": "project_state/decision_packet.md",
-      "sha256": "1a7f5fa2316acfafc1818b69d114c15130e6bdd4835450b320d83db8306b2635",
-      "size_bytes": 19854
+      "sha256": "1e990723512a9fb90836c3d71218fdf3c9264f6854d4e3292e01b714918c2ffe",
+      "size_bytes": 18063
     },
     "gates/command_plan.json": {
       "exists": true,
       "path": "project_state/gates/command_plan.json",
-      "sha256": "d5afeff6997ba11e33ccad59061d1e1d7f442ed287658797715c4dfa74f9534e",
-      "size_bytes": 8004
+      "sha256": "5caaa184833fbb95bd1d4da3ed9c04174f694a431051c29b81367cbbcef2d127",
+      "size_bytes": 4795
     },
     "gates/final_gate_result.json": {
       "exists": true,
       "path": "project_state/gates/final_gate_result.json",
-      "sha256": "ecb44b3087bd941e07d90a3e0d64afc8529b39d8cc8777246b84d29d23940f18",
-      "size_bytes": 73457
+      "sha256": "4f616056b5593a8ea1da90f6b729cdac9cc4a1ca757ebb806ea39c81eddb7c4c",
+      "size_bytes": 78938
     },
     "gates/report_summary_synthesis.json": {
       "exists": true,
       "path": "project_state/gates/report_summary_synthesis.json",
-      "sha256": "bbd59794e24cfd8bdea456cde5f07d0bfca584ea8151e752474b6f624d500970",
-      "size_bytes": 12597
+      "sha256": "468505d8b9c2ca2784015767310344ebae98fb2fe8dd655441f39aeb7953182c",
+      "size_bytes": 13232
     },
     "negative_results.json": {
       "exists": true,
@@ -254,8 +254,8 @@
     "pytest_result.txt": {
       "exists": true,
       "path": "project_state/pytest_result.txt",
-      "sha256": "92d7eb8ade64e5abe91eaa0b9c3591aa8e7935227c89fd44786f3e754f26a21b",
-      "size_bytes": 2806
+      "sha256": "01c3dfb3e47e018200526a746b0ef6cbc18e34d3e052a1bd583a3e22589a6f25",
+      "size_bytes": 8955
     }
   },
   "stop_conditions": []

@@ -20,11 +20,11 @@
     "archived": {
       "latest_accepted_round_manifest": {
         "exists": true,
-        "path": "project_state/rounds/round_20260705_status_policy_final_acceptance_rework_v1/round_manifest.json",
+        "path": "project_state/rounds/round_20260709_context_manifest_sync_v1/round_manifest.json",
         "required": false,
         "role": "archived",
-        "sha256": "71bf2313e8256da4984e80f21dbc72a7f91ad710130f3b4939189615eff32b88",
-        "size_bytes": 2223
+        "sha256": "4b68af41a29e1afeb4eace5036d9c6cdf96280c0ccc6c631f7c97448abb8f4a7",
+        "size_bytes": 2166
       }
     },
     "current": {
@@ -33,72 +33,72 @@
         "path": "project_state/codex_execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "69ae8978ced0e1e202c6bde315121a536ff33c8672e937abfdeb884677c3771c",
-        "size_bytes": 32174
+        "sha256": "53cd5f1ac033e34ab617bb7d71d3d9874a899920391ea360db6fdf58a2d16cfa",
+        "size_bytes": 23124
       },
       "command_plan": {
         "exists": true,
         "path": "project_state/gates/command_plan.json",
         "required": true,
         "role": "current",
-        "sha256": "c43933d73676e0f357ab8b3eccba125f1e91a47d652c2b910049ee4d5675a087",
-        "size_bytes": 8049
+        "sha256": "5caaa184833fbb95bd1d4da3ed9c04174f694a431051c29b81367cbbcef2d127",
+        "size_bytes": 4795
       },
       "decision_packet": {
         "exists": true,
         "path": "project_state/decision_packet.md",
         "required": true,
         "role": "current",
-        "sha256": "027044fa6df189530a3f73c80fdc81fe98fd9549157fe61fe0c0a5c1a95e033a",
-        "size_bytes": 30893
+        "sha256": "1e990723512a9fb90836c3d71218fdf3c9264f6854d4e3292e01b714918c2ffe",
+        "size_bytes": 18063
       },
       "execution_log": {
         "exists": true,
         "path": "project_state/gates/execution_log.json",
         "required": false,
         "role": "current",
-        "sha256": "973beb3a30fb51065bdbc11fbdab1830160fffa2c6d59862850913f8ff96bc1d",
-        "size_bytes": 7146
+        "sha256": "cca2439c51efa60dd7c825bae0c87c140d6287e5707cd96e071ad88a26688376",
+        "size_bytes": 5716
       },
       "execution_report": {
         "exists": true,
         "path": "project_state/execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "8479fbdd66685017a20b57d0fa8c5591becf9558036c84b916cdb78255e3fa13",
-        "size_bytes": 32172
+        "sha256": "5af21052d76ea8eae83cbf3a7cae03ab1815f73657a5b9a8f099bfc50d5b213b",
+        "size_bytes": 23122
       },
       "final_check": {
         "exists": true,
         "path": "project_state/gates/final_gate_result.json",
         "required": false,
         "role": "current",
-        "sha256": "0adb8f4597f1ce41231289c0251a2e7f316d15cec0061c1eaa700a6dadc9e6c2",
-        "size_bytes": 96178
+        "sha256": "4f616056b5593a8ea1da90f6b729cdac9cc4a1ca757ebb806ea39c81eddb7c4c",
+        "size_bytes": 78938
       },
       "pytest_result": {
         "exists": true,
         "path": "project_state/pytest_result.txt",
         "required": false,
         "role": "current",
-        "sha256": "82c04e7d6f65f2c80f38247542ae1a1af386125e0d1371e612925d216f218d6a",
-        "size_bytes": 18658
+        "sha256": "01c3dfb3e47e018200526a746b0ef6cbc18e34d3e052a1bd583a3e22589a6f25",
+        "size_bytes": 8955
       },
       "report_summary": {
         "exists": true,
         "path": "project_state/gates/report_summary_synthesis.json",
         "required": false,
         "role": "current",
-        "sha256": "dc289bcf67068826a2d77d7b3cd274fd9464596e87cfa6570f2b4b4e2c982cc6",
-        "size_bytes": 18054
+        "sha256": "468505d8b9c2ca2784015767310344ebae98fb2fe8dd655441f39aeb7953182c",
+        "size_bytes": 13232
       },
       "run_closeout": {
         "exists": true,
         "path": "project_state/gates/run_closeout_result.json",
         "required": false,
         "role": "current",
-        "sha256": "9b866071d77446edd6915be9b318b9d037c59b1c7348e76dd94d2e12f849b847",
-        "size_bytes": 496
+        "sha256": "283369d5f77b34482b27e255199ebf5e2f1c944680505162236f18ed97608ac1",
+        "size_bytes": 464
       }
     },
     "generated_or_updated": {
@@ -219,8 +219,32 @@
         "path": "project_state/context/current_context_packet.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "a1f38156a519229ae2111490b8a36d33f0562127e35a73ddc399666375ed3eea",
-        "size_bytes": 10458
+        "sha256": "12a415a7faa8549a395b4d9d7596e89590717b09213b362e86e97c7a3950814f",
+        "size_bytes": 11312
+      },
+      "current_planned_job": {
+        "exists": false,
+        "path": "project_state/jobs/job_20260709_context_manifest_sync_v1.json",
+        "required": false,
+        "role": "missing_optional",
+        "sha256": "",
+        "size_bytes": 0
+      },
+      "decision_preflight": {
+        "exists": true,
+        "path": "project_state/gates/decision_preflight_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "dec2b7ca1ec39158abed1812f9fd0a51458ca28786754484930321b7efa675b6",
+        "size_bytes": 1693
+      },
+      "decision_preflight_workflow_readiness": {
+        "exists": true,
+        "path": "project_state/gates/decision_preflight_workflow_readiness.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "b91844a757a96588f2e9f15b56d6f84fc5969d127c4e9cce9ec15b3469724753",
+        "size_bytes": 934
       },
       "deletion_manifest_dry_run": {
         "exists": true,
@@ -275,7 +299,7 @@
         "path": "project_state/gates/governance_operations_bundle_result.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "a10412f161cb98dff8f47de1cfc9cff750751dc923f9d475489a4b1c60ed1ad9",
+        "sha256": "010e5fb8dccc5e35c5280f02a1bd73b219c20e2548a7b79e5623412beca6045a",
         "size_bytes": 3777
       },
       "governance_operations_bundle_snapshot": {
@@ -283,8 +307,24 @@
         "path": "project_state/gates/governance_operations_bundle_snapshot.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "e68136c01ba6db97501b7b74fb1cb0c27fea11b48fddace73082e1a2ec809ea3",
+        "sha256": "4a9b478b608934abadac27c1f33f36c7e1cb3c2962287a092665ff943b87c1bf",
         "size_bytes": 1021
+      },
+      "job_lifecycle_snapshot": {
+        "exists": true,
+        "path": "project_state/gates/job_lifecycle_snapshot.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "14c2cd4c4060650020e6dc874da4bda7319cfafdc9f5abfa4bc5ad1f3cc1ff7b",
+        "size_bytes": 6669
+      },
+      "job_lifecycle_validation": {
+        "exists": true,
+        "path": "project_state/gates/job_lifecycle_validation_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "dab819fe3a9241b1db3bd4456cad04d7c4ea4ec1a3241a16f1fe91af8990807e",
+        "size_bytes": 2150
       },
       "lifecycle_transition_guard_result": {
         "exists": true,
@@ -293,6 +333,22 @@
         "role": "generated_or_updated",
         "sha256": "0544adf19318df51a9a565fcd5bede4e16d6b16e35a703d885f81a8bb7e00e76",
         "size_bytes": 1010
+      },
+      "post_final_evidence_sync": {
+        "exists": true,
+        "path": "project_state/gates/post_final_evidence_sync_result.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "429ad2bea30228e313f359e8bd3eab927dfcbdea5159df4a50fb497c9fd8702f",
+        "size_bytes": 1824
+      },
+      "post_final_evidence_sync_snapshot": {
+        "exists": true,
+        "path": "project_state/gates/post_final_evidence_sync_snapshot.json",
+        "required": false,
+        "role": "generated_or_updated",
+        "sha256": "c26ab5fc98d4dba8298a902d127c5ed0c3df3d24e7551a06e4c671417ef0df03",
+        "size_bytes": 856
       },
       "project_governance_context_result": {
         "exists": true,
@@ -427,8 +483,8 @@
         "path": "project_state/state_manifest.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "bf141f5c8c882c2b6e6f2b8bd2b35cf14a0d4439fd8aac5aadc65ec0d9614742",
-        "size_bytes": 20991
+        "sha256": "435f9c8c06730a32fe443b4e17e291743a626330138452699b645c6febfc3163",
+        "size_bytes": 41011
       },
       "status_policy_reconcile": {
         "exists": true,
@@ -467,8 +523,8 @@
         "path": "project_state/roadmap/workstreams.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "94927bd1d8a1b22aef1ad2cd3cb21924a9fdf97f6cd22b9d1f60ce6dadf42051",
-        "size_bytes": 10538
+        "sha256": "2093ee76e4132ef12bb2d712aebe0655e181049ffa1001187749ccada5801b12",
+        "size_bytes": 12709
       }
     },
     "historical_nonblocking": {
@@ -506,7 +562,16 @@
       }
     },
     "missing_blocking": {},
-    "missing_optional": {}
+    "missing_optional": {
+      "current_planned_job": {
+        "exists": false,
+        "path": "project_state/jobs/job_20260709_context_manifest_sync_v1.json",
+        "required": false,
+        "role": "missing_optional",
+        "sha256": "",
+        "size_bytes": 0
+      }
+    }
   },
   "authority": {
     "command_authority": "project_state/gates/command_plan.json",
@@ -519,27 +584,532 @@
     "project_state_files_remain_audit_fact_sources": true,
     "state_manifest_indexes_current_state_only": true
   },
-  "decision_id": "decision_20260705_governance_operations_bundle_big_step_v1",
-  "generated_at": "2026-07-06T02:38:19Z",
+  "decision_id": "decision_20260709_context_manifest_sync_v1",
+  "generated_at": "2026-07-09T13:17:55Z",
   "latest_accepted_baseline": {
     "decision_id": "",
-    "round_id": "round_20260705_status_policy_final_acceptance_rework_v1",
-    "round_manifest": "project_state/rounds/round_20260705_status_policy_final_acceptance_rework_v1/round_manifest.json"
+    "round_id": "round_20260709_context_manifest_sync_v1",
+    "round_manifest": "project_state/rounds/round_20260709_context_manifest_sync_v1/round_manifest.json"
   },
   "mainline": "project_governance",
-  "report_id": "codex_report_20260705_governance_operations_bundle_big_step_v1",
-  "round_id": "round_20260705_governance_operations_bundle_big_step_v1",
+  "report_id": "codex_report_20260709_context_manifest_sync_v1",
+  "round_id": "round_20260709_context_manifest_sync_v1",
   "schema_version": 1,
+  "scoped_metadata": {
+    "artifact_index_scope_coverage": {},
+    "negative_results_scope_coverage": {
+      "coverage_pct": 0.0,
+      "global_policy_records": 0,
+      "hard_failure": false,
+      "legacy_compatible": true,
+      "legacy_records_without_scope": 7,
+      "phase": "A",
+      "reverse_solving_records": 0,
+      "scoped_records": 0,
+      "total_records": 7
+    },
+    "phase": "A",
+    "policy": {
+      "domain_migration_not_complete": true,
+      "legacy_entries_preserved": true,
+      "missing_scope_metadata_is_non_blocking": true,
+      "no_files_moved_or_deleted": true
+    },
+    "state_file_scope": {
+      "project_state/artifact_index.json": {
+        "domain": "reverse_solving",
+        "freshness": "historical",
+        "mainline": "reverse_solving",
+        "role": "historical_nonblocking",
+        "scope": "sample"
+      },
+      "project_state/codex_execution_report.md": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "current",
+        "scope": "global"
+      },
+      "project_state/context/current_context_packet.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/current_state.json": {
+        "domain": "reverse_solving",
+        "freshness": "historical",
+        "mainline": "reverse_solving",
+        "role": "historical_nonblocking",
+        "scope": "sample"
+      },
+      "project_state/decision_packet.md": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "current",
+        "scope": "global"
+      },
+      "project_state/execution_report.md": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "current",
+        "scope": "global"
+      },
+      "project_state/gates/archive_index.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/archive_index_summary.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/audit_handoff_for_cleanup_apply.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_apply_approval_checklist.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_apply_dry_run.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_apply_review_bundle.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_apply_review_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_apply_review_snapshot.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_apply_safety_plan.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_apply_safety_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_apply_safety_snapshot.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_candidate_risk_matrix.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_plan.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/cleanup_plan_summary.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/command_plan.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/decision_preflight_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/decision_preflight_workflow_readiness.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/deletion_manifest_dry_run.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/deletion_manifest_schema.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/deletion_manifest_validation_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/doctor_backlog_split_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/evidence_lock_manifest.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/execution_log.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/final_gate_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/governance_fix_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/governance_operations_bundle_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/governance_operations_bundle_snapshot.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/job_lifecycle_snapshot.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/job_lifecycle_validation_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/lifecycle_transition_guard_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/post_final_evidence_sync_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/post_final_evidence_sync_snapshot.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/project_governance_context_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/project_governance_context_snapshot.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/report_summary_synthesis.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/retention_policy_validation.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/rollback_handoff_plan.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/round_compaction_dry_run.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/round_compaction_manifest_dry_run.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/round_compaction_plan.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/run_closeout_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/state_governance_bundle_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/state_governance_bundle_snapshot.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/state_hygiene_dashboard_feed.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/state_hygiene_dashboard_summary.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/state_index_readiness_plan.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/state_index_readiness_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/state_index_readiness_schema.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/status_policy_reconcile_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/tombstone_plan_dry_run.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/tombstone_schema.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/gates/tombstone_validation_result.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/jobs/job_20260709_context_manifest_sync_v1.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/negative_results.json": {
+        "domain": "reverse_solving",
+        "freshness": "historical",
+        "mainline": "reverse_solving",
+        "role": "historical_nonblocking",
+        "scope": "mixed"
+      },
+      "project_state/pytest_result.txt": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "current",
+        "scope": "global"
+      },
+      "project_state/retention_policy.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/roadmap/workstreams.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/rounds/round_20260709_context_manifest_sync_v1/round_manifest.json": {
+        "domain": "project_governance",
+        "freshness": "archived",
+        "mainline": "project_governance",
+        "role": "archived",
+        "scope": "global"
+      },
+      "project_state/state_lifecycle_registry.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/state_manifest.json": {
+        "domain": "project_governance",
+        "freshness": "current",
+        "mainline": "project_governance",
+        "role": "generated_or_updated",
+        "scope": "global"
+      },
+      "project_state/task_packet.json": {
+        "domain": "reverse_solving",
+        "freshness": "historical",
+        "mainline": "reverse_solving",
+        "role": "historical_nonblocking",
+        "scope": "sample"
+      }
+    },
+    "state_file_scope_coverage": {
+      "by_domain": {
+        "project_governance": 63,
+        "reverse_solving": 4
+      },
+      "coverage_pct": 100.0,
+      "hard_failure": false,
+      "legacy_compatible": true,
+      "legacy_state_files_without_scope": 0,
+      "phase": "A",
+      "scoped_state_files": 67,
+      "total_state_files": 67
+    }
+  },
   "state_build_id": "state_20260618_134029_d6bd033d2532",
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": {
-    "acceptance_recommendation": "REWORK_REQUIRED",
+    "acceptance_recommendation": "ACCEPTED",
     "closeout_status": "IN_PROGRESS",
     "command_plan_status": "PASSED",
     "decision_status": "APPROVED",
     "execution_log_status": "PASSED",
-    "final_check_status": "FAILED",
+    "final_check_status": "PASSED",
     "pytest_status": "PASSED",
-    "report_status": "FAILED"
+    "report_status": "SUCCESS"
   }
 }

@@ -26329,6 +26329,131 @@ def test_user_solve_session_bundle_gate_writes_current_safe_artifact(tmp_path: P
     assert check["status"] == "PASS"
 
 
+def test_final_check_triggers_post_final_sync_for_context_packet_sync_contract(tmp_path: Path) -> None:
+    """When decision_contract sets context_packet_sync_required or
+    post_final_evidence_sync_required, final-check must trigger
+    build_post_final_evidence_sync_result and write the sync artifact."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "context_packet_sync_required": True,
+            "post_final_evidence_sync_required": True,
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    sync_path = state_dir / "gates" / "post_final_evidence_sync_result.json"
+    assert sync_path.exists(), "post_final_evidence_sync_result.json must be written"
+    sync = json.loads(sync_path.read_text(encoding="utf-8"))
+    assert sync["decision_id"] == "decision_gate"
+    assert sync["round_id"] == "round_gate"
+    assert sync["runner_dispatch"] is False
+    assert sync["model_api_invocation"] is False
+    # The sync check should be required (not skipped)
+    sync_check = _check(result, "post_final_evidence_sync_gate_artifact")
+    assert sync_check["status"] == "PASS"
+    assert sync_check.get("required") is True
+
+
+def test_final_check_regenerates_state_manifest_with_scoped_metadata_for_sync_contract(
+    tmp_path: Path,
+) -> None:
+    """When decision_contract sets state_manifest_sync_required, final-check
+    must regenerate state_manifest.json so it includes scoped_metadata."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "state_manifest_sync_required": True,
+            "context_packet_sync_required": True,
+        },
+    )
+    # Write a stale state_manifest without scoped_metadata to prove regeneration
+    stale_manifest = {
+        "schema_version": 1,
+        "decision_id": "decision_old",
+        "round_id": "round_old",
+        "artifact_kind": "governance_index",
+    }
+    (state_dir / "state_manifest.json").write_text(
+        json.dumps(stale_manifest), encoding="utf-8"
+    )
+
+    final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    manifest_path = state_dir / "state_manifest.json"
+    assert manifest_path.exists()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    # Regenerated manifest must be current
+    assert manifest["decision_id"] == "decision_gate"
+    assert manifest["round_id"] == "round_gate"
+    # scoped_metadata section must be present
+    assert "scoped_metadata" in manifest
+    assert manifest["scoped_metadata"]["phase"] == "A"
+
+
+def test_final_check_sync_refreshes_context_packet_to_current_round(tmp_path: Path) -> None:
+    """After final-check with context_packet_sync_required, the context packet
+    must match the current decision/round and report no stale context."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "context_packet_sync_required": True,
+            "post_final_evidence_sync_required": True,
+        },
+    )
+    # Write a stale context packet to prove refresh
+    context_dir = state_dir / "context"
+    context_dir.mkdir(parents=True, exist_ok=True)
+    stale_context = {
+        "decision_id": "decision_old",
+        "round_id": "round_old",
+        "mainline": "engineering_branch",
+        "auditor_context": {"stale_context_detected": True},
+    }
+    (context_dir / "current_context_packet.json").write_text(
+        json.dumps(stale_context), encoding="utf-8"
+    )
+
+    final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    context = json.loads(
+        (context_dir / "current_context_packet.json").read_text(encoding="utf-8")
+    )
+    assert context["decision_id"] == "decision_gate"
+    assert context["round_id"] == "round_gate"
+    auditor = context.get("auditor_context", {})
+    assert auditor.get("stale_context_detected") is False
+
+
+def test_final_check_without_sync_contract_does_not_create_sync_artifact(tmp_path: Path) -> None:
+    """Without sync_required fields in decision_contract, final-check must not
+    create post_final_evidence_sync_result.json (backward compatible)."""
+    state_dir = _make_gate_state(tmp_path)
+    # _make_gate_state writes a decision without decision_contract, so no
+    # sync_required fields are present.
+
+    # Remove any pre-existing sync artifact from fixtures
+    sync_path = state_dir / "gates" / "post_final_evidence_sync_result.json"
+    if sync_path.exists():
+        sync_path.unlink()
+
+    final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert not sync_path.exists(), (
+        "post_final_evidence_sync_result.json must not be written without sync contract"
+    )
+
+
 def test_user_solve_session_bundle_gate_check_rejects_stale_or_failed_artifact(tmp_path: Path) -> None:
     state_dir = _make_preflight_state(
         tmp_path,
