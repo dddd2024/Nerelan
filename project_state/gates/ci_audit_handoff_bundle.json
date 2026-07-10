@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "generated_at": "2026-07-09T14:08:08.539564Z",
+  "decision_id": "decision_20260709_post_closeout_context_sync_v1",
+  "round_id": "round_20260709_post_closeout_context_sync_v1",
+  "report_id": "codex_report_20260709_post_closeout_context_sync_v1",
+  "generated_at": "2026-07-10T04:36:55.464822Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -159,8 +159,6 @@
       "recommendation": null,
       "errors": [],
       "warnings": [
-        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=2",
-        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=2",
         "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
       ]
     },

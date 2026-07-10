@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "generated_at": "2026-07-09T14:08:21.217506Z",
+  "decision_id": "decision_20260709_post_closeout_context_sync_v1",
+  "report_id": "codex_report_20260709_post_closeout_context_sync_v1",
+  "round_id": "round_20260709_post_closeout_context_sync_v1",
+  "generated_at": "2026-07-10T04:37:05.982418Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -49,7 +49,9 @@
       "status": "PASS",
       "detail": "all changed/allowed test files are covered by pytest_result",
       "required_test_files": [
-        "tests/test_project_gate.py"
+        "tests/test_project_context.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_reports.py"
       ],
       "pytest_test_files": [
         "tests/test_project_context.py",
@@ -116,20 +118,18 @@
     },
     {
       "name": "context_domain_awareness",
-      "status": "WARN",
-      "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=2",
-      "warnings": [
-        "2 stale domain fact(s): ['decision_id', 'round_id'] (non-blocking)"
-      ],
+      "status": "PASS",
+      "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=0",
+      "warnings": [],
       "awareness": {
         "schema_version": 1,
         "phase": "A",
         "context_packet_present": true,
-        "context_decision_id": "decision_20260709_context_manifest_sync_v1",
-        "context_round_id": "round_20260709_context_manifest_sync_v1",
+        "context_decision_id": "decision_20260709_post_closeout_context_sync_v1",
+        "context_round_id": "round_20260709_post_closeout_context_sync_v1",
         "context_mainline": "project_governance",
-        "current_decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-        "current_round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+        "current_decision_id": "decision_20260709_post_closeout_context_sync_v1",
+        "current_round_id": "round_20260709_post_closeout_context_sync_v1",
         "current_mainline": "project_governance",
         "field_domains": {
           "allowed_capability_profile": "",
@@ -162,23 +162,8 @@
           "project_governance",
           "reverse_solving"
         ],
-        "stale_domain_facts": [
-          {
-            "field": "decision_id",
-            "domain": "project_governance",
-            "observed_value": "decision_20260709_context_manifest_sync_v1",
-            "expected_value": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-            "reason": "context packet decision_id does not match current decision"
-          },
-          {
-            "field": "round_id",
-            "domain": "project_governance",
-            "observed_value": "round_20260709_context_manifest_sync_v1",
-            "expected_value": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-            "reason": "context packet round_id does not match current round"
-          }
-        ],
-        "stale_fact_count": 2,
+        "stale_domain_facts": [],
+        "stale_fact_count": 0,
         "policy": {
           "stale_domain_facts_are_non_blocking": true,
           "legacy_context_packets_remain_readable": true,
@@ -195,7 +180,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260709_context_manifest_sync_closeout_artifact_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260709_post_closeout_context_sync_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -230,6 +215,7 @@
       "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
+        "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
@@ -245,6 +231,8 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/post_final_evidence_sync_result.json",
+        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -255,14 +243,15 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/round_manifest.json"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
+        "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
@@ -278,6 +267,8 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/post_final_evidence_sync_result.json",
+        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -288,11 +279,11 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/round_manifest.json"
       ]
     },
     {
@@ -308,6 +299,7 @@
       "missing_files": [],
       "git_changed_files": [
         "project_state/codex_execution_report.md",
+        "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
@@ -323,6 +315,8 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/post_final_evidence_sync_result.json",
+        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -333,14 +327,15 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/round_manifest.json"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
+        "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
@@ -356,6 +351,8 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/post_final_evidence_sync_result.json",
+        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -366,11 +363,11 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/round_manifest.json"
       ],
       "inherited_dirty_files": []
     },
@@ -378,7 +375,9 @@
       "name": "files_changed_covers_substantive_changes",
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
-      "substantive_dirty_files": [],
+      "substantive_dirty_files": [
+        "project_state/context/current_context_packet.json"
+      ],
       "claimed_source_test_paths": []
     },
     {
@@ -402,6 +401,9 @@
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [],
       "allowed_inherited_dirty_files": [
+        "reverse_agent/post_final_evidence_sync.py",
+        "reverse_agent/project_context.py",
+        "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py"
       ],
       "generated_or_archive_baseline_dirty_files": [],
@@ -414,6 +416,9 @@
       "detail": "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
+        "reverse_agent/post_final_evidence_sync.py",
+        "reverse_agent/project_context.py",
+        "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py"
       ],
       "baseline_dirty_source_test_files": [],
@@ -453,6 +458,8 @@
         "project_state/gates/execution_report_auto_summary.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/post_final_evidence_sync_result.json",
+        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -582,6 +589,8 @@
         "project_state/gates/local_execution_bundle.json",
         "project_state/gates/manual_mode_orchestrator_result.json",
         "project_state/gates/manual_mode_orchestrator_snapshot.json",
+        "project_state/gates/post_final_evidence_sync_result.json",
+        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/prework_provenance_result.json",
         "project_state/gates/report_summary_synthesis.json",
@@ -668,8 +677,6 @@
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
-        "project_state/gates/post_final_evidence_sync_result.json",
-        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/prework_provenance_result.json",
         "project_state/gates/project_governance_context_result.json",
         "project_state/gates/project_governance_context_snapshot.json",
@@ -705,17 +712,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-      "closeout_log_round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-      "expected_decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-      "expected_round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1"
+      "closeout_log_decision_id": "decision_20260709_post_closeout_context_sync_v1",
+      "closeout_log_round_id": "round_20260709_post_closeout_context_sync_v1",
+      "expected_decision_id": "decision_20260709_post_closeout_context_sync_v1",
+      "expected_round_id": "round_20260709_post_closeout_context_sync_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-      "expected_report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1"
+      "execution_log_report_id": "codex_report_20260709_post_closeout_context_sync_v1",
+      "expected_report_id": "codex_report_20260709_post_closeout_context_sync_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -740,8 +747,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-      "command_plan_round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1"
+      "command_plan_decision_id": "decision_20260709_post_closeout_context_sync_v1",
+      "command_plan_round_id": "round_20260709_post_closeout_context_sync_v1"
     },
     {
       "name": "command_plan_execution_order_policy",
@@ -801,7 +808,7 @@
       "name": "close_round_is_last_command_block",
       "status": "PASS",
       "detail": "close-round is the last command block in pytest_result",
-      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1",
       "last_kind": "close-round"
     },
     {
@@ -877,20 +884,18 @@
     },
     {
       "name": "context_domain_awareness",
-      "status": "WARN",
-      "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=2",
-      "warnings": [
-        "2 stale domain fact(s): ['decision_id', 'round_id'] (non-blocking)"
-      ],
+      "status": "PASS",
+      "detail": "represented_domains=['project_governance', 'reverse_solving']; stale_facts=0",
+      "warnings": [],
       "awareness": {
         "schema_version": 1,
         "phase": "A",
         "context_packet_present": true,
-        "context_decision_id": "decision_20260709_context_manifest_sync_v1",
-        "context_round_id": "round_20260709_context_manifest_sync_v1",
+        "context_decision_id": "decision_20260709_post_closeout_context_sync_v1",
+        "context_round_id": "round_20260709_post_closeout_context_sync_v1",
         "context_mainline": "project_governance",
-        "current_decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-        "current_round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+        "current_decision_id": "decision_20260709_post_closeout_context_sync_v1",
+        "current_round_id": "round_20260709_post_closeout_context_sync_v1",
         "current_mainline": "project_governance",
         "field_domains": {
           "allowed_capability_profile": "",
@@ -923,23 +928,8 @@
           "project_governance",
           "reverse_solving"
         ],
-        "stale_domain_facts": [
-          {
-            "field": "decision_id",
-            "domain": "project_governance",
-            "observed_value": "decision_20260709_context_manifest_sync_v1",
-            "expected_value": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-            "reason": "context packet decision_id does not match current decision"
-          },
-          {
-            "field": "round_id",
-            "domain": "project_governance",
-            "observed_value": "round_20260709_context_manifest_sync_v1",
-            "expected_value": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-            "reason": "context packet round_id does not match current round"
-          }
-        ],
-        "stale_fact_count": 2,
+        "stale_domain_facts": [],
+        "stale_fact_count": 0,
         "policy": {
           "stale_domain_facts_are_non_blocking": true,
           "legacy_context_packets_remain_readable": true,
@@ -955,9 +945,9 @@
     {
       "name": "required_audit_body_present",
       "status": "PASS",
-      "detail": "report includes a substantive Required Audit body covering 31 items",
+      "detail": "report includes a substantive Required Audit body covering 32 items",
       "required": true,
-      "required_audit_items": 31
+      "required_audit_items": 32
     },
     {
       "name": "preflight_failure_handoff",
@@ -1308,6 +1298,7 @@
       "historical_only_claimed_current": [],
       "generated_or_updated_artifacts": [
         "project_state/codex_execution_report.md",
+        "project_state/context/current_context_packet.json",
         "project_state/execution_report.md",
         "project_state/gates/audit_precheck_result.json",
         "project_state/gates/audit_readiness_packet.json",
@@ -1323,6 +1314,8 @@
         "project_state/gates/final_gate_result.json",
         "project_state/gates/gate_profile_plan.json",
         "project_state/gates/local_execution_bundle.json",
+        "project_state/gates/post_final_evidence_sync_result.json",
+        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -1333,11 +1326,11 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/round_manifest.json"
       ],
       "historical_nonblocking_artifacts": [
         "project_state/gates/agent_runner_dry_run_result.json",
@@ -1387,8 +1380,6 @@
         "project_state/gates/phase1_completion_result.json",
         "project_state/gates/policy_impact_audit.json",
         "project_state/gates/policy_lint_result.json",
-        "project_state/gates/post_final_evidence_sync_result.json",
-        "project_state/gates/post_final_evidence_sync_snapshot.json",
         "project_state/gates/prework_provenance_result.json",
         "project_state/gates/project_governance_context_result.json",
         "project_state/gates/project_governance_context_snapshot.json",
@@ -1420,11 +1411,11 @@
         "project_state/gates/user_solve_workbench_snapshot.json"
       ],
       "archived_artifacts": [
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260709_context_manifest_sync_closeout_artifact_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/decision_packet.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/execution_report.md",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/pytest_result.txt",
+        "project_state/rounds/round_20260709_post_closeout_context_sync_v1/round_manifest.json"
       ]
     },
     {
@@ -1634,12 +1625,16 @@
     {
       "name": "post_final_evidence_sync_gate_artifact",
       "status": "PASS",
-      "detail": "post-final evidence sync artifact is stale and not required",
-      "required": false,
-      "errors": [
-        "decision_id mismatch",
-        "round_id mismatch"
-      ]
+      "detail": "post-final context/final-check evidence is current and synchronized",
+      "required": true,
+      "artifact": "project_state/gates/post_final_evidence_sync_result.json",
+      "final_gate_status": "PASSED",
+      "context_final_gate_status": "PASSED",
+      "context_generated_after_final_gate": true,
+      "stale_context_detected": false,
+      "context_sync_basis": "timestamp_and_digest",
+      "timestamp_precision_policy": "precise_parsed_with_digest_fallback",
+      "errors": []
     },
     {
       "name": "timestamp_precision_hardening",
@@ -1670,8 +1665,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-      "gate_profile_round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1"
+      "gate_profile_decision_id": "decision_20260709_post_closeout_context_sync_v1",
+      "gate_profile_round_id": "round_20260709_post_closeout_context_sync_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -1704,39 +1699,40 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 31 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 32 Required Audit items with substantive aligned answers",
       "required_audit_items": [
         "Is decision_meta valid JSON and schema_version=1?",
         "Is status APPROVED?",
         "Is mainline project_governance?",
         "Is reverse-agent-iteration@v2 active?",
         "Is task_packet treated as advisory/background only?",
-        "Was the previous REWORK_REQUIRED round correctly identified as decision_20260709_context_manifest_sync_v1?",
-        "Is the current blocking issue specifically closeout artifact inconsistency, not context/manifest functionality?",
-        "Does live run_closeout_result.json initially show IN_PROGRESS or otherwise stale/partial closeout state?",
-        "Does live run_closeout_execution_log.json initially lack the full closeout step transcript?",
-        "Does the implementation avoid modifying User Solve files?",
-        "Does the implementation avoid reverse_solving, Web, tool provider, database, cleanup, deletion, archive compaction, workflow, and roadmap work?",
+        "Was the previous baseline correctly identified as decision_20260709_context_manifest_sync_closeout_artifact_rework_v1 with audit outcome ACCEPTED_WITH_LIMITATIONS?",
+        "Did the previous closeout artifact rework remain accepted, with run_closeout_result.json PASSED and close_round_result CLOSED?",
+        "Is the current round limited to context freshness and report body quality?",
+        "Does current_context_packet.json initially point to the previous context sync round rather than the closeout rework round?",
+        "Does regenerated current_context_packet.json match decision_20260709_post_closeout_context_sync_v1 and round_20260709_post_closeout_context_sync_v1?",
+        "Does current_context_packet.json report final_gate_current=true after post-final sync?",
+        "Does current_context_packet.json report stale_context_detected=false after post-final sync?",
+        "Does post_final_evidence_sync_result.json exist for this round?",
+        "Does post_final_evidence_sync_result.json report sync_status=PASSED?",
+        "Does post_final_evidence_sync_result.json prove context_generated_after_final_gate=true or an equivalent digest/timestamp-current basis?",
+        "Does final_gate_result.json pass for this round?",
+        "Does final_gate_result.json report context_domain_awareness.stale_fact_count=0?",
+        "Does final_gate_result.json stop warning about stale decision_id and round_id in current_context_packet.json?",
+        "Does state_manifest.json remain a governance index and not replace underlying project_state fact sources?",
         "Were current_state.json and task_packet.json left untouched?",
         "Were artifact_index.json, negative_results.json, roadmap/workstreams.json, domains, frontend, workflows, solve_reports, training materials, archives, deletions, blob_store, and databases left untouched?",
-        "Does command_plan.json exist and pass for this rework round?",
-        "Does command_plan.json include run-closeout and close-round?",
+        "Does command_plan.json exist and pass for this round?",
+        "Does command_plan.json include required pytest, report-summary, execution-log, final-check, run-closeout, and close-round coverage?",
         "Were any omitted or unauthorized commands executed?",
         "Does pytest_result.txt record an explicit pytest command and exit code 0?",
+        "Does pytest include tests/test_project_context.py?",
         "Does pytest include tests/test_project_gate.py?",
-        "Does execution_log.json carry the current decision_id, round_id, and report_id?",
-        "Does execution_log.json record all command-plan required commands?",
-        "Does run_closeout_result.json end with closeout_status=PASSED for this rework round?",
-        "Does run_closeout_result.json contain executed_steps for the closeout pipeline?",
-        "Does run_closeout_result.json contain a close_round_result with close_status=CLOSED or equivalent current closed state?",
-        "Does run_closeout_execution_log.json contain the complete closeout transcript rather than only the initial start/preflight blocks?",
-        "Does final_gate_result.json pass for this rework round?",
-        "Does final_gate_result.json no longer contain active close_round_in_progress / final_check_after_archive_passed=false / empty close_round_close_status evidence for this rework round?",
-        "Does final-check after archive pass or otherwise accurately record closed archive status?",
-        "Does round_manifest exist for round_20260709_context_manifest_sync_closeout_artifact_rework_v1?",
-        "Does round_manifest agree with live reports and final_gate status_summary?",
-        "Do execution_report.md and codex_execution_report.md agree on decision_id, round_id, status, acceptance_recommendation, tests_ran, generated_artifacts, and closeout evidence?",
-        "Does the report body explicitly explain how the previous closeout inconsistency was resolved?"
+        "Do execution_log.json and pytest_result.txt agree on command execution and current IDs?",
+        "Does run_closeout_result.json pass and close the current round?",
+        "Does round_manifest exist for round_20260709_post_closeout_context_sync_v1 and agree with live reports?",
+        "Do execution_report.md and codex_execution_report.md agree on decision_id, round_id, status, acceptance_recommendation, tests_ran, and generated_artifacts?",
+        "Does the Required Audit body avoid placeholder answers and future-tense claims?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
@@ -1851,9 +1847,7 @@
       "status": "PASS",
       "detail": "closeout result has no active warnings",
       "closeout_warnings": [],
-      "close_round_result_warnings": [
-        "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=2"
-      ],
+      "close_round_result_warnings": [],
       "resolved_pre_archive_warnings": [
         "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
         "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files"
@@ -1871,8 +1865,6 @@
   ],
   "blocking_reasons": [],
   "warnings": [
-    "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=2",
-    "context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=2",
     "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
   ],
   "recommended_next_action": "no_action_required",

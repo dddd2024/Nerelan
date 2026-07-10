@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "decision_id": "decision_20260709_post_closeout_context_sync_v1",
+  "round_id": "round_20260709_post_closeout_context_sync_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-09T13:58:56.774111Z",
+  "generated_at": "2026-07-10T04:30:11.237666Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -78,7 +78,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260709_context_manifest_sync_closeout_artifact_rework_v1"
+      "report_id": "codex_report_20260709_post_closeout_context_sync_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -93,7 +93,6 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py"
       ]
     },
@@ -132,6 +131,9 @@
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
+        "reverse_agent/post_final_evidence_sync.py",
+        "reverse_agent/project_context.py",
+        "reverse_agent/project_context_builder.py",
         "reverse_agent/project_gate.py"
       ],
       "baseline_source_test_dirty": []
@@ -149,7 +151,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "e028379345da"
+    "head_commit": "9d3b75b5fc38"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

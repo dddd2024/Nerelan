@@ -3,10 +3,10 @@
   "artifact_name": "startup_snapshot.json",
   "gate_name": "startup-snapshot",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "decision_id": "decision_20260709_post_closeout_context_sync_v1",
+  "round_id": "round_20260709_post_closeout_context_sync_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-09T13:35:15.995222Z",
+  "generated_at": "2026-07-10T03:46:09.040887Z",
   "artifact_path": "project_state/gates/startup_snapshot.json",
   "startup_sequence": [
     {
@@ -38,7 +38,7 @@
   "repository_root": "F:/reverse-agent",
   "expected_repository_root": "F:\\reverse-agent",
   "repository_root_matches": true,
-  "head_commit": "e028379345da",
+  "head_commit": "9d3b75b5fc38",
   "raw_git_status_short": [],
   "dirty_files": [],
   "source_test_dirty_files": [],

@@ -4,21 +4,21 @@
   "gate_name": "run-round",
   "gate_status": "PASSED",
   "run_status": "PASSED",
-  "decision_id": "decision_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-  "round_id": "round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+  "decision_id": "decision_20260709_post_closeout_context_sync_v1",
+  "round_id": "round_20260709_post_closeout_context_sync_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-09T13:35:38.843037Z",
+  "generated_at": "2026-07-10T03:46:49.247232Z",
   "mode": "dry-run",
   "phases": [
     "gate",
     "test"
   ],
   "authorized_commands": [
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1 --dry-run",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1 --dry-run",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
@@ -27,7 +27,7 @@
   "would_run_commands": [
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q"
@@ -36,7 +36,7 @@
   "commands": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1 --dry-run",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -77,7 +77,7 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -90,7 +90,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_context_manifest_sync_closeout_artifact_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,
