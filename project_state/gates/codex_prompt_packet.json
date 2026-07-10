@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-  "round_id": "round_20260709_post_closeout_context_sync_v1",
-  "report_id": "codex_report_20260709_post_closeout_context_sync_v1",
+  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+  "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-10T04:37:05.243708Z",
+  "generated_at": "2026-07-10T07:48:16.211206Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-      "round_id": "round_20260709_post_closeout_context_sync_v1",
-      "sha256": "91cb411c484bbd7a13550997b08937c9a6a78c0c1f78f948ca5a1b4b87b1e104"
+      "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+      "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+      "sha256": "f93de3a6a5b9ae0bbd231fad5fc2c24a25144d17092a603ffb18801c542999b8"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-      "round_id": "round_20260709_post_closeout_context_sync_v1",
-      "sha256": "b9268e49b11fd5d0df4284185fe6877c62bf9b2220717b7dab009169550b3681"
+      "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+      "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+      "sha256": "d136a200e5068f0d9704a129850e2d824a6cad7b82d49415386531b1d5550410"
     }
   },
   "prompt_sections": {

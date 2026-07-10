@@ -20,11 +20,11 @@
     "archived": {
       "latest_accepted_round_manifest": {
         "exists": true,
-        "path": "project_state/rounds/round_20260709_context_manifest_sync_v1/round_manifest.json",
+        "path": "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json",
         "required": false,
         "role": "archived",
-        "sha256": "4b68af41a29e1afeb4eace5036d9c6cdf96280c0ccc6c631f7c97448abb8f4a7",
-        "size_bytes": 2166
+        "sha256": "6a67dfd5da0c94144d1ad75e3ff11116d131edd6c8745c846840b8378f37ba4c",
+        "size_bytes": 2181
       }
     },
     "current": {
@@ -33,72 +33,72 @@
         "path": "project_state/codex_execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "53cd5f1ac033e34ab617bb7d71d3d9874a899920391ea360db6fdf58a2d16cfa",
-        "size_bytes": 23124
+        "sha256": "5d5cb7c0ba543b5a79dbc27447e760a5b18ed75485cd691d67439b7b03ea6aca",
+        "size_bytes": 33827
       },
       "command_plan": {
         "exists": true,
         "path": "project_state/gates/command_plan.json",
         "required": true,
         "role": "current",
-        "sha256": "5caaa184833fbb95bd1d4da3ed9c04174f694a431051c29b81367cbbcef2d127",
-        "size_bytes": 4795
+        "sha256": "0b8c4238a95efbab4ff6da025da7baa575afcd7d8d2f5159eacf062c3dab8c95",
+        "size_bytes": 4845
       },
       "decision_packet": {
         "exists": true,
         "path": "project_state/decision_packet.md",
         "required": true,
         "role": "current",
-        "sha256": "1e990723512a9fb90836c3d71218fdf3c9264f6854d4e3292e01b714918c2ffe",
-        "size_bytes": 18063
+        "sha256": "ec382a855e6a3bf08383a4fe26a08267f6642f6dc46a4a7de993868d67e194a3",
+        "size_bytes": 22228
       },
       "execution_log": {
         "exists": true,
         "path": "project_state/gates/execution_log.json",
         "required": false,
         "role": "current",
-        "sha256": "cca2439c51efa60dd7c825bae0c87c140d6287e5707cd96e071ad88a26688376",
-        "size_bytes": 5716
+        "sha256": "74754bf87fe7362f36cb8e0b11dee6250f719a761b75ffb0973292f440d46525",
+        "size_bytes": 5849
       },
       "execution_report": {
         "exists": true,
         "path": "project_state/execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "5af21052d76ea8eae83cbf3a7cae03ab1815f73657a5b9a8f099bfc50d5b213b",
-        "size_bytes": 23122
+        "sha256": "c241a2f82586e759f28b13b305b5a0a9146a7d82a8929f72f15e023026e860cb",
+        "size_bytes": 33825
       },
       "final_check": {
         "exists": true,
         "path": "project_state/gates/final_gate_result.json",
         "required": false,
         "role": "current",
-        "sha256": "4f616056b5593a8ea1da90f6b729cdac9cc4a1ca757ebb806ea39c81eddb7c4c",
-        "size_bytes": 78938
+        "sha256": "e890cb89e9c0fc93b810c3794f2cac82a15ed6304ed2cd453524783a629226a4",
+        "size_bytes": 83898
       },
       "pytest_result": {
         "exists": true,
         "path": "project_state/pytest_result.txt",
         "required": false,
         "role": "current",
-        "sha256": "01c3dfb3e47e018200526a746b0ef6cbc18e34d3e052a1bd583a3e22589a6f25",
-        "size_bytes": 8955
+        "sha256": "7e19e489e26dcf2206640d78fc499470982b60c6cf178b83906dfaea5c1d06b6",
+        "size_bytes": 15517
       },
       "report_summary": {
         "exists": true,
         "path": "project_state/gates/report_summary_synthesis.json",
         "required": false,
         "role": "current",
-        "sha256": "468505d8b9c2ca2784015767310344ebae98fb2fe8dd655441f39aeb7953182c",
-        "size_bytes": 13232
+        "sha256": "3c892afbd40551f803f2d12ec621fd7592d317f409b9e06b2ae183109f34b755",
+        "size_bytes": 14537
       },
       "run_closeout": {
         "exists": true,
         "path": "project_state/gates/run_closeout_result.json",
         "required": false,
         "role": "current",
-        "sha256": "283369d5f77b34482b27e255199ebf5e2f1c944680505162236f18ed97608ac1",
-        "size_bytes": 464
+        "sha256": "67e045644e4bbe83071c821740d06049baa57fa675c5f8cb4bd5d0973ef051be",
+        "size_bytes": 53117
       }
     },
     "generated_or_updated": {
@@ -219,12 +219,12 @@
         "path": "project_state/context/current_context_packet.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "12a415a7faa8549a395b4d9d7596e89590717b09213b362e86e97c7a3950814f",
-        "size_bytes": 11312
+        "sha256": "9d44ebe1f5336079354694d50facefe29705c8c80ea6faca68b4e271d8122bbd",
+        "size_bytes": 11571
       },
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260709_context_manifest_sync_v1.json",
+        "path": "project_state/jobs/job_20260710_state_manifest_freshness_rework_v1.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -339,16 +339,16 @@
         "path": "project_state/gates/post_final_evidence_sync_result.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "429ad2bea30228e313f359e8bd3eab927dfcbdea5159df4a50fb497c9fd8702f",
-        "size_bytes": 1824
+        "sha256": "b5d13fe82b361d57c518b0fe0bb62d29a3329a765fc9568eaf588384d6036e00",
+        "size_bytes": 1864
       },
       "post_final_evidence_sync_snapshot": {
         "exists": true,
         "path": "project_state/gates/post_final_evidence_sync_snapshot.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "c26ab5fc98d4dba8298a902d127c5ed0c3df3d24e7551a06e4c671417ef0df03",
-        "size_bytes": 856
+        "sha256": "5a21f8a7b44fa9994bfe219fa301c7245db7d779843b6b081e29a342fdd49d14",
+        "size_bytes": 916
       },
       "project_governance_context_result": {
         "exists": true,
@@ -483,8 +483,8 @@
         "path": "project_state/state_manifest.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "435f9c8c06730a32fe443b4e17e291743a626330138452699b645c6febfc3163",
-        "size_bytes": 41011
+        "sha256": "aedbe4d8c8b7089f14bff783f9ec5ceb17a0b75b0c129937a6bb92d7ef0de8f5",
+        "size_bytes": 41109
       },
       "status_policy_reconcile": {
         "exists": true,
@@ -565,7 +565,7 @@
     "missing_optional": {
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260709_context_manifest_sync_v1.json",
+        "path": "project_state/jobs/job_20260710_state_manifest_freshness_rework_v1.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -584,16 +584,16 @@
     "project_state_files_remain_audit_fact_sources": true,
     "state_manifest_indexes_current_state_only": true
   },
-  "decision_id": "decision_20260709_context_manifest_sync_v1",
-  "generated_at": "2026-07-09T13:17:55Z",
+  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+  "generated_at": "2026-07-10T07:48:17Z",
   "latest_accepted_baseline": {
     "decision_id": "",
-    "round_id": "round_20260709_context_manifest_sync_v1",
-    "round_manifest": "project_state/rounds/round_20260709_context_manifest_sync_v1/round_manifest.json"
+    "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+    "round_manifest": "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json"
   },
   "mainline": "project_governance",
-  "report_id": "codex_report_20260709_context_manifest_sync_v1",
-  "round_id": "round_20260709_context_manifest_sync_v1",
+  "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
+  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
   "schema_version": 1,
   "scoped_metadata": {
     "artifact_index_scope_coverage": {},
@@ -1022,7 +1022,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/jobs/job_20260709_context_manifest_sync_v1.json": {
+      "project_state/jobs/job_20260710_state_manifest_freshness_rework_v1.json": {
         "domain": "project_governance",
         "freshness": "current",
         "mainline": "project_governance",
@@ -1057,7 +1057,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/rounds/round_20260709_context_manifest_sync_v1/round_manifest.json": {
+      "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json": {
         "domain": "project_governance",
         "freshness": "archived",
         "mainline": "project_governance",
@@ -1104,7 +1104,7 @@
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": {
     "acceptance_recommendation": "ACCEPTED",
-    "closeout_status": "IN_PROGRESS",
+    "closeout_status": "PASSED",
     "command_plan_status": "PASSED",
     "decision_status": "APPROVED",
     "execution_log_status": "PASSED",

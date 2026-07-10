@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-  "round_id": "round_20260709_post_closeout_context_sync_v1",
-  "report_id": "codex_report_20260709_post_closeout_context_sync_v1",
+  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+  "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-10T04:37:05.242460Z",
+  "generated_at": "2026-07-10T07:48:16.210508Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-    "round_id": "round_20260709_post_closeout_context_sync_v1",
+    "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+    "round_id": "round_20260710_state_manifest_freshness_rework_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,9 +43,7 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/project_context_builder.py",
-      "reverse_agent/project_context.py",
-      "reverse_agent/post_final_evidence_sync.py",
+      "reverse_agent/project_state_manifest.py",
       "reverse_agent/project_gate.py"
     ],
     "generated_or_updated_artifacts": []
@@ -81,7 +79,7 @@
   "required_commands_summary": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "required": true
@@ -102,37 +100,37 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "required": true
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260709_post_closeout_context_sync_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "required": true
     },
     {
       "index": 6,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "required": true
+    },
+    {
+      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 7,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-      "kind": "pytest",
-      "phase": "test",
       "required": true
     }
   ],
@@ -159,11 +157,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-    "round_id": "round_20260709_post_closeout_context_sync_v1",
+    "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+    "round_id": "round_20260710_state_manifest_freshness_rework_v1",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "b9268e49b11fd5d0df4284185fe6877c62bf9b2220717b7dab009169550b3681"
+    "sha256": "d136a200e5068f0d9704a129850e2d824a6cad7b82d49415386531b1d5550410"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -187,8 +185,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-    "round_id": "round_20260709_post_closeout_context_sync_v1",
+    "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+    "round_id": "round_20260710_state_manifest_freshness_rework_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -196,7 +194,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260709_post_closeout_context_sync_v1"
+    "round_id": "round_20260710_state_manifest_freshness_rework_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

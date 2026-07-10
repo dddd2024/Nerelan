@@ -1742,6 +1742,59 @@ def test_final_check_accepts_conservative_warn_for_limitations(tmp_path: Path) -
     assert stdout_check["conservative_warn_accepted"] is True
 
 
+def test_final_check_reports_state_manifest_freshness_failure_with_actionable_detail(
+    tmp_path: Path,
+) -> None:
+    """final-check must include a state_manifest_freshness check that FAILs
+    with an actionable detail when a current artifact SHA-256 is stale."""
+    from reverse_agent.project_state_manifest import build_state_manifest
+
+    state_dir = _make_gate_state(tmp_path)
+    # Build a valid manifest, then tamper with a current artifact SHA-256
+    manifest = build_state_manifest(state_dir=state_dir, write_result=True)
+    manifest["artifact_roles"]["current"]["decision_packet"]["sha256"] = "0" * 64
+    (state_dir / "state_manifest.json").write_text(
+        json.dumps(manifest, indent=2), encoding="utf-8"
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    freshness = _check(result, "state_manifest_freshness")
+    assert freshness["status"] == "FAIL"
+    assert any("sha256 mismatch" in e and "decision_packet" in e for e in freshness["errors"])
+
+
+def test_final_check_passes_state_manifest_freshness_after_regeneration(
+    tmp_path: Path,
+) -> None:
+    """final-check must PASS the state_manifest_freshness check after the
+    manifest is regenerated for the current decision and round."""
+    state_dir = _make_gate_state(tmp_path)
+    _write_decision_with_contract(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        contract={
+            "state_manifest_refresh_required": True,
+        },
+    )
+    # Write a stale state_manifest to prove regeneration
+    stale_manifest = {
+        "schema_version": 1,
+        "decision_id": "decision_old",
+        "round_id": "round_old",
+        "artifact_kind": "governance_index",
+    }
+    (state_dir / "state_manifest.json").write_text(
+        json.dumps(stale_manifest), encoding="utf-8"
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    freshness = _check(result, "state_manifest_freshness")
+    assert freshness["status"] == "PASS"
+
+
 def test_project_gate_final_check_cli_prints_warn_when_gate_is_warn(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

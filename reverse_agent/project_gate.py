@@ -13472,7 +13472,7 @@ def project_governance_context(
         manifest = build_state_manifest(state_dir=state_dir, write_result=write_result)
         context_packet = build_current_context_packet(state_dir=state_dir, write_result=write_result)
         workstreams = build_workstream_registry(state_dir=state_dir, write_result=write_result)
-        manifest_errors = validate_state_manifest(manifest, decision_id=decision_id, round_id=round_id)
+        manifest_errors = validate_state_manifest(manifest, decision_id=decision_id, round_id=round_id, report_id=report_id, state_dir=state_dir)
         context_errors = validate_current_context_packet(context_packet, decision_id=decision_id, round_id=round_id)
         workstream_errors = validate_workstream_registry(workstreams, decision_id=decision_id, round_id=round_id)
         checks.extend([
@@ -14827,6 +14827,76 @@ def _context_domain_awareness_check(state_dir: Path) -> dict[str, Any]:
         legacy_compatible=True,
         hard_failure=False,
         non_blocking=True,
+    )
+
+
+def _state_manifest_freshness_check(
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+) -> dict[str, Any]:
+    """Validate state_manifest.json current artifact references against live files.
+
+    Enforces the freshness invariant: every manifest entry classified as
+    ``current`` must match the corresponding live file's existence, SHA-256,
+    and size. Also validates decision_id, round_id, and report_id. Stale
+    SHA-256/size values produce actionable error details with the manifest
+    and live values. Historical, archived, generated_or_updated, and
+    missing_optional entries remain non-blocking (backward compatible).
+    """
+    from .project_state_manifest import validate_state_manifest
+
+    manifest_payload = _read_json(state_dir / "state_manifest.json")
+    if not manifest_payload:
+        return _check(
+            "state_manifest_freshness",
+            "PASS",
+            "state_manifest.json is missing or empty (legacy; nothing to validate)",
+            decision_id=decision_id,
+            round_id=round_id,
+            non_blocking=True,
+        )
+    errors = validate_state_manifest(
+        manifest_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+        report_id=report_id,
+        state_dir=state_dir,
+    )
+    roles = manifest_payload.get("artifact_roles") if isinstance(manifest_payload, Mapping) else {}
+    current_refs = roles.get("current") if isinstance(roles, Mapping) and isinstance(roles.get("current"), Mapping) else {}
+    current_count = len(current_refs)
+    manifest_decision_id = str(manifest_payload.get("decision_id") or "")
+    manifest_round_id = str(manifest_payload.get("round_id") or "")
+    manifest_report_id = str(manifest_payload.get("report_id") or "")
+    if errors:
+        return _check(
+            "state_manifest_freshness",
+            "FAIL",
+            (
+                f"state_manifest current artifact references are stale or invalid "
+                f"({len(errors)} errors across {current_count} current refs; "
+                f"manifest decision_id={manifest_decision_id} round_id={manifest_round_id} report_id={manifest_report_id})"
+            ),
+            errors=errors,
+            current_artifact_count=current_count,
+            manifest_decision_id=manifest_decision_id,
+            manifest_round_id=manifest_round_id,
+            manifest_report_id=manifest_report_id,
+        )
+    return _check(
+        "state_manifest_freshness",
+        "PASS",
+        (
+            f"state_manifest current artifact references match live files "
+            f"({current_count} current refs validated; "
+            f"decision_id={manifest_decision_id} round_id={manifest_round_id} report_id={manifest_report_id})"
+        ),
+        current_artifact_count=current_count,
+        manifest_decision_id=manifest_decision_id,
+        manifest_round_id=manifest_round_id,
+        manifest_report_id=manifest_report_id,
     )
 
 
@@ -22148,7 +22218,7 @@ def final_check(
             write_result=True,
             refresh_context=True,
         )
-    if _early_contract.get("state_manifest_sync_required"):
+    if _early_contract.get("state_manifest_sync_required") or _early_contract.get("state_manifest_refresh_required"):
         try:
             from .project_state_manifest import build_state_manifest
 
@@ -22158,6 +22228,14 @@ def final_check(
 
     checks.append(_scoped_metadata_coverage_check(state_dir))
     checks.append(_context_domain_awareness_check(state_dir))
+    checks.append(
+        _state_manifest_freshness_check(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+        )
+    )
 
     manifest_present = bool(round_consistency.get("round_manifest_present"))
     manifest_files = list(round_consistency.get("round_manifest_files") or [])
@@ -24536,7 +24614,7 @@ def final_check(
                 write_result=True,
                 refresh_context=True,
             )
-        if decision_contract.get("state_manifest_sync_required"):
+        if decision_contract.get("state_manifest_sync_required") or decision_contract.get("state_manifest_refresh_required"):
             # Regenerate state_manifest after context sync so scoped_metadata
             # reflects the current context packet and gate artifacts.
             try:

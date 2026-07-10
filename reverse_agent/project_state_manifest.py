@@ -416,7 +416,23 @@ def build_state_manifest(
     return manifest
 
 
-def validate_state_manifest(payload: Mapping[str, Any], *, decision_id: str, round_id: str) -> list[str]:
+def _resolve_manifest_path_to_state_dir(rel_path: str) -> str:
+    """Convert a manifest path like 'project_state/gates/foo.json' to a
+    state_dir-relative path like 'gates/foo.json'."""
+    norm = str(rel_path).replace("\\", "/")
+    if norm.startswith("project_state/"):
+        return norm[len("project_state/"):]
+    return norm
+
+
+def validate_state_manifest(
+    payload: Mapping[str, Any],
+    *,
+    decision_id: str,
+    round_id: str,
+    report_id: str | None = None,
+    state_dir: str | Path | None = None,
+) -> list[str]:
     errors: list[str] = []
     if payload.get("schema_version") != STATE_MANIFEST_SCHEMA_VERSION:
         errors.append("schema_version mismatch")
@@ -424,6 +440,8 @@ def validate_state_manifest(payload: Mapping[str, Any], *, decision_id: str, rou
         errors.append("decision_id mismatch")
     if str(payload.get("round_id") or "") != round_id:
         errors.append("round_id mismatch")
+    if report_id is not None and str(payload.get("report_id") or "") != report_id:
+        errors.append("report_id mismatch")
     if payload.get("artifact_kind") != GOVERNANCE_ARTIFACT_KIND:
         errors.append("artifact_kind mismatch")
     authority = payload.get("authority") if isinstance(payload.get("authority"), Mapping) else {}
@@ -436,4 +454,44 @@ def validate_state_manifest(payload: Mapping[str, Any], *, decision_id: str, rou
     freshness = payload.get("artifact_freshness") if isinstance(payload.get("artifact_freshness"), Mapping) else {}
     if freshness.get("missing_sample_artifacts_blocking_for_current_round") is not False:
         errors.append("missing historical sample artifacts must be nonblocking")
+
+    # Validate current artifact references against live files when state_dir
+    # is provided. This enforces the freshness invariant: every manifest entry
+    # classified as "current" must match the corresponding live file's
+    # existence, SHA-256, and size. Historical, archived, generated_or_updated,
+    # and missing_optional entries remain non-blocking (backward compatible).
+    if state_dir is not None:
+        state_dir_path = Path(state_dir)
+        current_refs = roles.get("current") if isinstance(roles.get("current"), Mapping) else {}
+        for ref_name, ref in current_refs.items():
+            if not isinstance(ref, Mapping):
+                continue
+            ref_path_str = str(ref.get("path") or "")
+            if not ref_path_str:
+                errors.append(f"current artifact '{ref_name}' has no path")
+                continue
+            rel_within_state_dir = _resolve_manifest_path_to_state_dir(ref_path_str)
+            live_path = state_dir_path / rel_within_state_dir
+            if not live_path.exists():
+                if ref.get("exists") is True:
+                    errors.append(
+                        f"current artifact '{ref_name}' marked exists=true but live file missing at {ref_path_str}"
+                    )
+                elif ref.get("required") is True:
+                    errors.append(
+                        f"required current artifact '{ref_name}' is missing at {ref_path_str}"
+                    )
+                continue
+            live_sha = _sha256_file(live_path)
+            manifest_sha = str(ref.get("sha256") or "")
+            if manifest_sha and manifest_sha != live_sha:
+                errors.append(
+                    f"current artifact '{ref_name}' sha256 mismatch: manifest={manifest_sha} live={live_sha} path={ref_path_str}"
+                )
+            live_size = live_path.stat().st_size
+            manifest_size = int(ref.get("size_bytes") or 0)
+            if manifest_size and manifest_size != live_size:
+                errors.append(
+                    f"current artifact '{ref_name}' size mismatch: manifest={manifest_size} live={live_size} path={ref_path_str}"
+                )
     return errors

@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-  "round_id": "round_20260709_post_closeout_context_sync_v1",
-  "report_id": "codex_report_20260709_post_closeout_context_sync_v1",
+  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+  "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-10T04:37:05.241122Z",
+  "generated_at": "2026-07-10T07:48:16.209526Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-    "round_id": "round_20260709_post_closeout_context_sync_v1",
+    "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+    "round_id": "round_20260710_state_manifest_freshness_rework_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,9 +43,7 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/project_context_builder.py",
-      "reverse_agent/project_context.py",
-      "reverse_agent/post_final_evidence_sync.py",
+      "reverse_agent/project_state_manifest.py",
       "reverse_agent/project_gate.py"
     ],
     "generated_or_updated_artifacts": []
@@ -92,8 +90,8 @@
     "gate_artifacts": []
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260709_post_closeout_context_sync_v1",
-    "current_round_id": "round_20260709_post_closeout_context_sync_v1",
+    "current_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+    "current_round_id": "round_20260710_state_manifest_freshness_rework_v1",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -111,8 +109,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260709_post_closeout_context_sync_v1",
-    "round_id": "round_20260709_post_closeout_context_sync_v1",
+    "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+    "round_id": "round_20260710_state_manifest_freshness_rework_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -120,7 +118,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260709_post_closeout_context_sync_v1"
+    "round_id": "round_20260710_state_manifest_freshness_rework_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

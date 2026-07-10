@@ -464,3 +464,135 @@ def test_write_pytest_result_without_command_plan_still_downgrades(tmp_path: Pat
     text = result_path.read_text(encoding="utf-8")
     header = parse_pytest_result_header(text)
     assert header["status"] == "FAILED"
+
+
+# ---------------------------------------------------------------------------
+# State manifest freshness validation tests
+# ---------------------------------------------------------------------------
+
+REPORT_ID = "codex_report_20260705_project_governance_context_registry_v1"
+
+
+def _build_fresh_manifest(tmp_path: Path) -> tuple[Path, dict]:
+    """Build a state_manifest from a valid fixture and return (state_dir, manifest)."""
+    state_dir = tmp_path / "project_state"
+    _write_state(state_dir)
+    manifest = build_state_manifest(state_dir=state_dir)
+    return state_dir, manifest
+
+
+def test_validate_state_manifest_current_artifacts_pass_when_fresh(tmp_path: Path) -> None:
+    """A manifest regenerated from live files must pass freshness validation."""
+    state_dir, manifest = _build_fresh_manifest(tmp_path)
+    errors = validate_state_manifest(
+        manifest,
+        decision_id=DECISION_ID,
+        round_id=ROUND_ID,
+        report_id=REPORT_ID,
+        state_dir=state_dir,
+    )
+    assert errors == []
+
+
+def test_validate_state_manifest_rejects_stale_decision_id(tmp_path: Path) -> None:
+    """A manifest with a stale decision_id must fail validation."""
+    state_dir, manifest = _build_fresh_manifest(tmp_path)
+    manifest["decision_id"] = "decision_stale_v0"
+    errors = validate_state_manifest(
+        manifest,
+        decision_id=DECISION_ID,
+        round_id=ROUND_ID,
+        report_id=REPORT_ID,
+        state_dir=state_dir,
+    )
+    assert any("decision_id mismatch" in e for e in errors)
+
+
+def test_validate_state_manifest_rejects_stale_round_id(tmp_path: Path) -> None:
+    """A manifest with a stale round_id must fail validation."""
+    state_dir, manifest = _build_fresh_manifest(tmp_path)
+    manifest["round_id"] = "round_stale_v0"
+    errors = validate_state_manifest(
+        manifest,
+        decision_id=DECISION_ID,
+        round_id=ROUND_ID,
+        report_id=REPORT_ID,
+        state_dir=state_dir,
+    )
+    assert any("round_id mismatch" in e for e in errors)
+
+
+def test_validate_state_manifest_rejects_stale_current_artifact_sha256(tmp_path: Path) -> None:
+    """A manifest with a stale SHA-256 for a current artifact must fail."""
+    state_dir, manifest = _build_fresh_manifest(tmp_path)
+    current = manifest["artifact_roles"]["current"]
+    # Tamper with the decision_packet SHA-256 (it is a required current ref)
+    current["decision_packet"]["sha256"] = "0" * 64
+    errors = validate_state_manifest(
+        manifest,
+        decision_id=DECISION_ID,
+        round_id=ROUND_ID,
+        report_id=REPORT_ID,
+        state_dir=state_dir,
+    )
+    assert any("sha256 mismatch" in e and "decision_packet" in e for e in errors)
+
+
+def test_validate_state_manifest_rejects_stale_current_artifact_size(tmp_path: Path) -> None:
+    """A manifest with a stale size for a current artifact must fail."""
+    state_dir, manifest = _build_fresh_manifest(tmp_path)
+    current = manifest["artifact_roles"]["current"]
+    # Tamper with the decision_packet size (it is a required current ref)
+    current["decision_packet"]["size_bytes"] = current["decision_packet"]["size_bytes"] + 999
+    errors = validate_state_manifest(
+        manifest,
+        decision_id=DECISION_ID,
+        round_id=ROUND_ID,
+        report_id=REPORT_ID,
+        state_dir=state_dir,
+    )
+    assert any("size mismatch" in e and "decision_packet" in e for e in errors)
+
+
+def test_validate_state_manifest_rejects_missing_required_current_file(tmp_path: Path) -> None:
+    """A manifest marking a required current file as exists=true when it is
+    missing on disk must fail."""
+    state_dir, manifest = _build_fresh_manifest(tmp_path)
+    # Delete a required current file from disk
+    (state_dir / "decision_packet.md").unlink()
+    errors = validate_state_manifest(
+        manifest,
+        decision_id=DECISION_ID,
+        round_id=ROUND_ID,
+        report_id=REPORT_ID,
+        state_dir=state_dir,
+    )
+    assert any("decision_packet" in e and "missing" in e for e in errors)
+
+
+def test_validate_state_manifest_rejects_stale_report_id(tmp_path: Path) -> None:
+    """A manifest with a stale report_id must fail when report_id is provided."""
+    state_dir, manifest = _build_fresh_manifest(tmp_path)
+    manifest["report_id"] = "codex_report_stale_v0"
+    errors = validate_state_manifest(
+        manifest,
+        decision_id=DECISION_ID,
+        round_id=ROUND_ID,
+        report_id=REPORT_ID,
+        state_dir=state_dir,
+    )
+    assert any("report_id mismatch" in e for e in errors)
+
+
+def test_validate_state_manifest_without_state_dir_skips_freshness(tmp_path: Path) -> None:
+    """When state_dir is not provided, freshness validation is skipped
+    (backward compatible with existing callers)."""
+    state_dir, manifest = _build_fresh_manifest(tmp_path)
+    # Tamper with SHA-256 but don't pass state_dir — should NOT report sha256 error
+    manifest["artifact_roles"]["current"]["decision_packet"]["sha256"] = "0" * 64
+    errors = validate_state_manifest(
+        manifest,
+        decision_id=DECISION_ID,
+        round_id=ROUND_ID,
+    )
+    assert not any("sha256 mismatch" in e for e in errors)
