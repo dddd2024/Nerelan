@@ -1,13 +1,28 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
-  "head_commit": "209b172f8dcc",
+  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "head_commit": "8076ccf00531",
   "baseline_available": true,
-  "baseline_git_status_short": [],
-  "baseline_git_diff_name_only": [],
-  "baseline_dirty_files": [],
+  "baseline_git_status_short": [
+    " M project_state/gates/command_plan.json",
+    " M project_state/gates/gate_profile_plan.json",
+    " M project_state/gates/preflight_result.json",
+    " M project_state/gates/round_baseline.json"
+  ],
+  "baseline_git_diff_name_only": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json"
+  ],
+  "baseline_dirty_files": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json"
+  ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
   "final_git_status_short": [
@@ -42,12 +57,13 @@
     " M project_state/pytest_result.txt",
     " M project_state/state_manifest.json",
     " M reverse_agent/project_gate.py",
+    " M reverse_agent/project_state.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
-    "?? project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/execution_report.md",
+    "?? project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -81,6 +97,7 @@
     "project_state/pytest_result.txt",
     "project_state/state_manifest.json",
     "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
     "tests/test_project_gate.py"
   ],
   "final_dirty_files": [
@@ -113,13 +130,14 @@
     "project_state/gates/run_round_result.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/execution_report.md",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json",
     "project_state/state_manifest.json",
     "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
     "tests/test_project_gate.py"
   ],
   "new_dirty_files_since_baseline": [
@@ -132,19 +150,15 @@
     "project_state/gates/ci_observation_reconcile_result.json",
     "project_state/gates/codex_prompt_packet.json",
     "project_state/gates/codex_report_auto_summary.json",
-    "project_state/gates/command_plan.json",
     "project_state/gates/current_handoff_packet.json",
     "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
-    "project_state/gates/gate_profile_plan.json",
     "project_state/gates/local_execution_bundle.json",
     "project_state/gates/post_final_evidence_sync_result.json",
     "project_state/gates/post_final_evidence_sync_snapshot.json",
-    "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/round_baseline.json",
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_closeout_execution_log.json",
@@ -152,16 +166,22 @@
     "project_state/gates/run_round_result.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/execution_report.md",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json",
     "project_state/state_manifest.json",
     "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
     "tests/test_project_gate.py"
   ],
-  "inherited_dirty_files": [],
+  "inherited_dirty_files": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json"
+  ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-07-10T11:12:58.137129Z"
+  "generated_at": "2026-07-16T12:40:11.081611Z"
 }

@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
-  "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
-  "generated_at": "2026-07-10T11:12:51.726112Z",
+  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
+  "generated_at": "2026-07-16T12:40:04.102343Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-    "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
-    "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
+    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "cab534d3232ed0b1f45e355e1cc16d8754a6315da086ce4cbd3e2d6b09d5ddea",
-        "size_bytes": 16261,
-        "command_block_count": 13
+        "sha256": "931cd3c435059bfb0f6bac84d6c8cc8583a8a9339226a322cf8fda98a875afbc",
+        "size_bytes": 17604,
+        "command_block_count": 15
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "104deb721aa47013b01fc96fa4618bdabd7b69c5271af459818f9ebb7f0e5f54",
-        "size_bytes": 4923,
-        "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-        "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+        "sha256": "3c2ef6a4ad483d3abdddb63ac96794f024c0a81f139cf8ca1a9bd4546ecf8a45",
+        "size_bytes": 5705,
+        "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+        "round_id": "round_20260716_closeout_order_provenance_rework_v1",
         "plan_status": "PASSED",
-        "command_count": 8
+        "command_count": 10
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "642e4ed0cbcc26bba9dfa4228465571f22e4c3df958b432d4bb92802e512fa9b",
-        "size_bytes": 44581,
-        "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-        "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+        "sha256": "cf00891fa82f2af4f1d159040fe61355c523a3a89c1d0ea6a0dd9cea425cd4ef",
+        "size_bytes": 45278,
+        "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+        "round_id": "round_20260716_closeout_order_provenance_rework_v1",
         "command_block_count": 13
       }
     },
-    "command_count": 13,
-    "command_digest": "b43fbecbc292c6c16cd6aaf8070dd338b2ec8f82f028b369b7bdba2c393b7040"
+    "command_count": 15,
+    "command_digest": "78ada790cf1edc1c3f64fe4f00f42cf5a883af001bf817fceddd8cbf05689ec2"
   },
   "commands": [
     {
@@ -97,6 +97,28 @@
     },
     {
       "index": 6,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "kind": "run-closeout",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 8,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -107,7 +129,7 @@
       "status": "PASSED"
     },
     {
-      "index": 7,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -118,7 +140,7 @@
       "status": "PASSED"
     },
     {
-      "index": 8,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -129,8 +151,8 @@
       "status": "PASSED"
     },
     {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1 --dry-run",
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -140,7 +162,7 @@
       "status": "PASSED"
     },
     {
-      "index": 10,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -152,7 +174,7 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -164,8 +186,8 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1",
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -175,17 +197,111 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1",
-      "kind": "run-closeout",
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
       "phase": "gate",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "exit_code": 0,
       "status": "PASSED"
     }
   ],
+  "observed_chronology": [
+    {
+      "index": 1,
+      "command": "Set-Location F:\\reverse-agent",
+      "kind": "set-location",
+      "exit_code": 0
+    },
+    {
+      "index": 2,
+      "command": "Get-Location",
+      "kind": "pwd",
+      "exit_code": 0
+    },
+    {
+      "index": 3,
+      "command": "Test-Path F:\\reverse-agent",
+      "kind": "test-path",
+      "exit_code": 0
+    },
+    {
+      "index": 4,
+      "command": "git rev-parse --show-toplevel",
+      "kind": "git rev-parse",
+      "exit_code": 0
+    },
+    {
+      "index": 5,
+      "command": "git status --short",
+      "kind": "git status",
+      "exit_code": 0
+    },
+    {
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "kind": "run-closeout",
+      "exit_code": 0
+    },
+    {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "exit_code": 0
+    },
+    {
+      "index": 8,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "exit_code": 0
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
+      "exit_code": 0
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "exit_code": 0
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
+      "kind": "execute-decision",
+      "exit_code": 0
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "kind": "report-summary",
+      "exit_code": 0
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+      "kind": "execution-log",
+      "exit_code": 0
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "kind": "close-round",
+      "exit_code": 0
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "exit_code": 0
+    }
+  ],
+  "final_observed_command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
   "warnings": [],
   "blocking_reasons": [],
   "recommended_next_action": "no_action_required"

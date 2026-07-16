@@ -20,11 +20,11 @@
     "archived": {
       "latest_accepted_round_manifest": {
         "exists": true,
-        "path": "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
+        "path": "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json",
         "required": false,
         "role": "archived",
-        "sha256": "b0ab7167b8807dd5411df9021ea870632bd4f2a15137260bbbfa42f57188f2fc",
-        "size_bytes": 2251
+        "sha256": "b00b302cf18ae8f9d81bbaab1ca78eaa8e4a59645797a08f36a32a53b42e0811",
+        "size_bytes": 2623
       }
     },
     "current": {
@@ -33,72 +33,72 @@
         "path": "project_state/codex_execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "9d90a693f3721f6de8b5b7e90cf041e2170bb98a290313a8665532190d88b5b4",
-        "size_bytes": 36252
+        "sha256": "fdb7a0b1d50822f309890afa5bd030652454d35f15da9a8d88bae213fbb95957",
+        "size_bytes": 79210
       },
       "command_plan": {
         "exists": true,
         "path": "project_state/gates/command_plan.json",
         "required": true,
         "role": "current",
-        "sha256": "104deb721aa47013b01fc96fa4618bdabd7b69c5271af459818f9ebb7f0e5f54",
-        "size_bytes": 4923
+        "sha256": "3c2ef6a4ad483d3abdddb63ac96794f024c0a81f139cf8ca1a9bd4546ecf8a45",
+        "size_bytes": 5705
       },
       "decision_packet": {
         "exists": true,
         "path": "project_state/decision_packet.md",
         "required": true,
         "role": "current",
-        "sha256": "e7030f1f762e9b0980a251999e3de48c49d1240f3bc1fd822889bf057a62c38d",
-        "size_bytes": 32763
+        "sha256": "9aafe83069b39e8b5a7ab0a25dd8b370e6820d63cea8f4acb5840bed9b496232",
+        "size_bytes": 23152
       },
       "execution_log": {
         "exists": true,
         "path": "project_state/gates/execution_log.json",
         "required": false,
         "role": "current",
-        "sha256": "e0edc80c9e71a2e7ad412ee5f342071ba06a511d526910a69db4aa37e1ff9475",
-        "size_bytes": 6007
+        "sha256": "4da18f21099b90367b266eb5fbfef83bf2deaa58b507e51333f362d9b5ae9a7c",
+        "size_bytes": 9363
       },
       "execution_report": {
         "exists": true,
         "path": "project_state/execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "1a0ad681517e9bab4dfe07a9f46ee8295488405123165056e729308ac6b9bdd1",
-        "size_bytes": 36250
+        "sha256": "257048e323119467d904f68105885b5629fc2043f0101ff4dd3eb2dc15aa4a0d",
+        "size_bytes": 79208
       },
       "final_check": {
         "exists": true,
         "path": "project_state/gates/final_gate_result.json",
         "required": false,
         "role": "current",
-        "sha256": "e8ad4ea36e1a6a4cab2a99ae55a6f820d971cf38323c821abb34dbbd610e708c",
-        "size_bytes": 85399
+        "sha256": "0ae43e36771cf4287b87a326f6f2d343bbcf8799051054cacc0b977a68f0ee95",
+        "size_bytes": 88424
       },
       "pytest_result": {
         "exists": true,
         "path": "project_state/pytest_result.txt",
         "required": false,
         "role": "current",
-        "sha256": "cab534d3232ed0b1f45e355e1cc16d8754a6315da086ce4cbd3e2d6b09d5ddea",
-        "size_bytes": 16261
+        "sha256": "931cd3c435059bfb0f6bac84d6c8cc8583a8a9339226a322cf8fda98a875afbc",
+        "size_bytes": 17604
       },
       "report_summary": {
         "exists": true,
         "path": "project_state/gates/report_summary_synthesis.json",
         "required": false,
         "role": "current",
-        "sha256": "2a0b8a4d193adab9e1b5382bc639f03244f70b938e61f810baa3f131ab1e5dd9",
-        "size_bytes": 14760
+        "sha256": "237cace1da86c373f6e69b1474a0824ecddb884da3cea2ba4be31ca9422ec997",
+        "size_bytes": 14572
       },
       "run_closeout": {
         "exists": true,
         "path": "project_state/gates/run_closeout_result.json",
         "required": false,
         "role": "current",
-        "sha256": "fb619b201d1eb0f1cc8334f08a16ea90cd0d17bc546232d1424b60042697af97",
-        "size_bytes": 52553
+        "sha256": "16f2527c8e8150514bdc92da447524677bc97ab50890ef09e5aa8d52c87bf6a9",
+        "size_bytes": 53810
       }
     },
     "generated_or_updated": {
@@ -219,12 +219,12 @@
         "path": "project_state/context/current_context_packet.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "0926941ae69c2d9d11318697055ac631fbbb8f81c1fa991189c5629cbfe3d66d",
-        "size_bytes": 11773
+        "sha256": "e62627981718f4242d936d01b160aa754898606e87d1e94de7616f3944cad224",
+        "size_bytes": 11732
       },
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260710_post_closeout_required_audit_truth_rework_v1.json",
+        "path": "project_state/jobs/job_20260716_closeout_order_provenance_rework_v1.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -339,16 +339,16 @@
         "path": "project_state/gates/post_final_evidence_sync_result.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "97f763d856402b062fb1c645b0a48ff60675ac57b2a787521dcd3669bf9b1093",
-        "size_bytes": 1904
+        "sha256": "d3be58d58d74d609531c8bf6019489efacd21d7b44545ad7a2567c823d531167",
+        "size_bytes": 1868
       },
       "post_final_evidence_sync_snapshot": {
         "exists": true,
         "path": "project_state/gates/post_final_evidence_sync_snapshot.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "7287911bfccdab399946a3143297c69cf9ce41607dd25b75dfce065999d86356",
-        "size_bytes": 976
+        "sha256": "c9a660a136171abc8547e0433e473c6b9b5182c7256d654dfed8974027b54837",
+        "size_bytes": 922
       },
       "project_governance_context_result": {
         "exists": true,
@@ -483,8 +483,8 @@
         "path": "project_state/state_manifest.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "f49e018a6c1140a38ee6b4a6a31838487f11c2b1e775796b70985a0ea458fb2d",
-        "size_bytes": 41209
+        "sha256": "27e87e463cb09a35ce1cc12fe63f6b81405140b2f66aa08fcc79be0ee80c4135",
+        "size_bytes": 41119
       },
       "status_policy_reconcile": {
         "exists": true,
@@ -565,7 +565,7 @@
     "missing_optional": {
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260710_post_closeout_required_audit_truth_rework_v1.json",
+        "path": "project_state/jobs/job_20260716_closeout_order_provenance_rework_v1.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -584,16 +584,16 @@
     "project_state_files_remain_audit_fact_sources": true,
     "state_manifest_indexes_current_state_only": true
   },
-  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-  "generated_at": "2026-07-10T11:12:57Z",
+  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+  "generated_at": "2026-07-16T12:40:10Z",
   "latest_accepted_baseline": {
     "decision_id": "",
-    "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
-    "round_manifest": "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json"
+    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "round_manifest": "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json"
   },
   "mainline": "project_governance",
-  "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
-  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
+  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
   "schema_version": 1,
   "scoped_metadata": {
     "artifact_index_scope_coverage": {},
@@ -1022,7 +1022,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/jobs/job_20260710_post_closeout_required_audit_truth_rework_v1.json": {
+      "project_state/jobs/job_20260716_closeout_order_provenance_rework_v1.json": {
         "domain": "project_governance",
         "freshness": "current",
         "mainline": "project_governance",
@@ -1057,7 +1057,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json": {
+      "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json": {
         "domain": "project_governance",
         "freshness": "archived",
         "mainline": "project_governance",

@@ -31052,3 +31052,197 @@ def test_final_report_archived_parity_check_passes_for_matching_digests(tmp_path
         state_dir=state_dir,
     )
     assert result["status"] == "PASS"
+def test_closeout_chronology_rejects_run_closeout_recorded_after_close_round() -> None:
+    from reverse_agent.project_gate import _closeout_chronology_truth_check, _execution_log_observed_chronology
+
+    close_cmd = "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_x"
+    run_cmd = "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_x"
+    transcript = _command_block(close_cmd, "closed", exit_code=0) + "\n" + _command_block(run_cmd, "passed", exit_code=0)
+    observed = _execution_log_observed_chronology(transcript)
+    result = _closeout_chronology_truth_check(
+        decision_contract_block={"canonical_closeout_order_required": True},
+        pytest_text=transcript,
+        execution_log_payload={"observed_chronology": observed, "final_observed_command": run_cmd},
+    )
+    assert result["status"] == "FAIL"
+    assert any(item["reason"] == "run_closeout_recorded_after_close_round" for item in result["failures"])
+
+
+def test_execution_log_observed_chronology_preserves_duplicates_and_order() -> None:
+    from reverse_agent.project_gate import _execution_log_observed_chronology
+
+    transcript = "\n".join(
+        [
+            _command_block("one", "first", exit_code=0),
+            _command_block("two", "second", exit_code=0),
+            _command_block("one", "third", exit_code=1),
+        ]
+    )
+    chronology = _execution_log_observed_chronology(transcript)
+    assert [item["command"] for item in chronology] == ["one", "two", "one"]
+    assert [item["exit_code"] for item in chronology] == [0, 0, 1]
+
+
+def test_closeout_chronology_rejects_final_command_claim_mismatch() -> None:
+    from reverse_agent.project_gate import _closeout_chronology_truth_check, _execution_log_observed_chronology
+
+    transcript = _command_block("one", "ok", exit_code=0) + "\n" + _command_block("two", "ok", exit_code=0)
+    result = _closeout_chronology_truth_check(
+        decision_contract_block={"execution_log_chronology_required": True},
+        pytest_text=transcript,
+        execution_log_payload={
+            "observed_chronology": _execution_log_observed_chronology(transcript),
+            "final_observed_command": "one",
+        },
+    )
+    assert result["status"] == "FAIL"
+    assert any(item["reason"] == "final_command_claim_mismatch" for item in result["failures"])
+
+
+def test_report_finalization_runtime_provenance_requires_finalized_at(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _report_finalization_matches_live_closeout_check, _sha256_path
+
+    state_dir = tmp_path / "project_state"
+    closeout = state_dir / "gates" / "run_closeout_result.json"
+    closeout.parent.mkdir(parents=True)
+    _write_json(closeout, {"generated_at": "2026-07-16T10:00:00Z", "closeout_status": "PASSED", "close_round_result": {"close_status": "CLOSED"}})
+    block = {
+        "decision_id": "decision_x", "round_id": "round_x", "report_id": "codex_report_x",
+        "run_closeout_result_path": "project_state/gates/run_closeout_result.json",
+        "run_closeout_result_sha256": _sha256_path(closeout),
+        "run_closeout_generated_at": "2026-07-16T10:00:00Z", "run_closeout_status": "PASSED",
+        "embedded_close_round_status": "CLOSED", "report_self_digest_embedded": False,
+        "report_finalization_basis": "observed",
+    }
+    report = "```json report_finalization\n" + json.dumps(block) + "\n```\n"
+    result = _report_finalization_matches_live_closeout_check(
+        decision_contract_block={"report_finalization_runtime_provenance_required": True},
+        decision_id="decision_x", round_id="round_x", report_id="codex_report_x",
+        legacy_report_text=report, neutral_report_text=report, state_dir=state_dir,
+    )
+    assert result["status"] == "FAIL"
+    assert any(item["field"] == "report_finalized_at" for item in result["failures"])
+
+
+def test_final_archive_refresh_provenance_rejects_refresh_before_finalization(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _final_archive_refresh_provenance_check
+
+    state_dir = tmp_path / "project_state"
+    round_dir = state_dir / "rounds" / "round_x"
+    round_dir.mkdir(parents=True)
+    _write_json(round_dir / "round_manifest.json", {
+        "report_finalized_at": "2026-07-16T11:00:00Z",
+        "archive_refreshed_at": "2026-07-16T10:59:59Z",
+        "archive_refresh_basis": "final copy",
+        "archived_report_sha256": "a" * 64,
+        "live_report_sha256_at_archive": "a" * 64,
+        "final_archive_refresh_status": "PASSED",
+    })
+    result = _final_archive_refresh_provenance_check(
+        decision_contract_block={"round_manifest_provenance_fields_required": True},
+        round_id="round_x", state_dir=state_dir,
+    )
+    assert result["status"] == "FAIL"
+    assert any(item["reason"] == "before_report_finalized_at" for item in result["failures"])
+
+
+def test_final_archive_refresh_provenance_rejects_digest_mismatch(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _final_archive_refresh_provenance_check
+
+    state_dir = tmp_path / "project_state"
+    round_dir = state_dir / "rounds" / "round_x"
+    round_dir.mkdir(parents=True)
+    _write_json(round_dir / "round_manifest.json", {
+        "report_finalized_at": "2026-07-16T10:00:00Z",
+        "archive_refreshed_at": "2026-07-16T10:00:01Z",
+        "archive_refresh_basis": "final copy",
+        "archived_report_sha256": "a" * 64,
+        "live_report_sha256_at_archive": "b" * 64,
+        "final_archive_refresh_status": "PASSED",
+    })
+    result = _final_archive_refresh_provenance_check(
+        decision_contract_block={"round_manifest_provenance_fields_required": True},
+        round_id="round_x", state_dir=state_dir,
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_final_archive_refresh_provenance_accepts_canonical_order(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _final_archive_refresh_provenance_check
+
+    state_dir = tmp_path / "project_state"
+    round_dir = state_dir / "rounds" / "round_x"
+    round_dir.mkdir(parents=True)
+    _write_json(round_dir / "round_manifest.json", {
+        "report_finalized_at": "2026-07-16T10:00:00Z",
+        "archive_refreshed_at": "2026-07-16T10:00:01Z",
+        "archive_refresh_basis": "final copy",
+        "archived_report_sha256": "a" * 64,
+        "live_report_sha256_at_archive": "a" * 64,
+        "final_archive_refresh_status": "PASSED",
+    })
+    result = _final_archive_refresh_provenance_check(
+        decision_contract_block={"round_manifest_provenance_fields_required": True},
+        round_id="round_x", state_dir=state_dir,
+    )
+    assert result["status"] == "PASS"
+
+
+def test_final_archive_refresh_provenance_rejects_manifest_time_stale_against_live_report(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _final_archive_refresh_provenance_check
+
+    state_dir = tmp_path / "project_state"
+    round_dir = state_dir / "rounds" / "round_x"
+    round_dir.mkdir(parents=True)
+    _write_json(round_dir / "round_manifest.json", {
+        "report_finalized_at": "2026-07-16T10:00:00Z",
+        "archive_refreshed_at": "2026-07-16T10:00:01Z",
+        "archive_refresh_basis": "final copy",
+        "archived_report_sha256": "a" * 64,
+        "live_report_sha256_at_archive": "a" * 64,
+        "final_archive_refresh_status": "PASSED",
+    })
+    (state_dir / "execution_report.md").write_text(
+        "```json report_finalization\n"
+        + json.dumps({"report_finalized_at": "2026-07-16T10:00:02Z"})
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    result = _final_archive_refresh_provenance_check(
+        decision_contract_block={"round_manifest_provenance_fields_required": True},
+        round_id="round_x", state_dir=state_dir,
+    )
+    assert result["status"] == "FAIL"
+    assert any(item["reason"] == "manifest_does_not_match_live_report" for item in result["failures"])
+
+
+def test_required_audit_closeout_runtime_evidence_rejects_function_only_answers() -> None:
+    from reverse_agent.project_gate import _required_audit_closeout_runtime_evidence_check
+
+    blocks = []
+    for index in range(1, 27):
+        blocks.append(f"### {index}. Question {index}\n\n- Evidence: reverse_agent/project_gate.py function call.\n- Status: PASS\n- Answer: The function runs in the designed order.\n")
+    report = "## Required Audit\n\n" + "\n".join(blocks)
+    result = _required_audit_closeout_runtime_evidence_check(
+        decision_contract_block={"report_finalization_runtime_provenance_required": True},
+        report_text=report,
+    )
+    assert result["status"] == "FAIL"
+    assert {item["item"] for item in result["failures"]} == {25, 26}
+
+
+def test_closeout_order_provenance_generated_audit_is_semantically_aligned(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import (
+        _generate_closeout_order_provenance_required_audit,
+        _required_audit_alignment_failures,
+        parse_required_audit_questions,
+    )
+
+    decision_text = (Path(__file__).parents[1] / "project_state" / "decision_packet.md").read_text(encoding="utf-8")
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+    body = _generate_closeout_order_provenance_required_audit(decision_text, state_dir)
+    questions = parse_required_audit_questions(decision_text)
+    assert len(questions) == 48
+    assert _required_audit_alignment_failures(questions, body) == []

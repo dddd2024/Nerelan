@@ -7014,6 +7014,24 @@ def _build_round_manifest(
         report_status = str(report_summary.get("status") or "")
         acceptance_recommendation = str(report_summary.get("acceptance_recommendation") or "")
 
+    report_finalization: dict[str, Any] = {}
+    report_bytes = files.get("execution_report.md") or files.get("codex_execution_report.md")
+    if report_bytes:
+        parsed = extract_markdown_json_block(
+            report_bytes.decode("utf-8", errors="replace"),
+            "report_finalization",
+        )
+        if parsed.get("found") and not parsed.get("parse_error"):
+            report_finalization = {
+                key: value
+                for key, value in parsed.items()
+                if key not in {"found", "parse_error"}
+            }
+
+    live_report_bytes = files.get("codex_execution_report.md") or b""
+    live_report_sha256 = _sha256_bytes(live_report_bytes) if live_report_bytes else ""
+    report_finalized_at = str(report_finalization.get("report_finalized_at") or "")
+
     return {
         "schema_version": 1,
         "round_id": round_id,
@@ -7023,6 +7041,12 @@ def _build_round_manifest(
         "report_status": report_status,
         "acceptance_recommendation": acceptance_recommendation,
         "archived_at": archived_at,
+        "report_finalized_at": report_finalized_at,
+        "archive_refreshed_at": archived_at,
+        "archive_refresh_basis": "final_live_report_after_report_finalization",
+        "archived_report_sha256": live_report_sha256,
+        "live_report_sha256_at_archive": live_report_sha256,
+        "final_archive_refresh_status": "PASSED" if report_finalized_at and live_report_sha256 else "PENDING",
         "source_git_commit": _git_commit() or current_state.get("source_git_commit") or "",
         "source_harness_run": current_state.get("source_harness_run") or "",
         "state_build_id": current_state.get("state_build_id") or "",

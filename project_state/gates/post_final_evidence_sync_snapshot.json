@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "artifact_name": "post_final_evidence_sync_snapshot.json",
-  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
-  "generated_at": "2026-07-10T11:12:57Z",
-  "before_context_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-  "before_context_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "generated_at": "2026-07-16T12:40:10Z",
+  "before_context_decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+  "before_context_round_id": "round_20260716_closeout_order_provenance_rework_v1",
   "before_context_final_gate_status": "PASSED",
-  "after_context_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-  "after_context_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+  "after_context_decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+  "after_context_round_id": "round_20260716_closeout_order_provenance_rework_v1",
   "after_context_final_gate_status": "PASSED",
   "final_gate_status": "PASSED",
   "stale_context_detected": false,
   "context_sync_basis": "timestamp_and_digest",
-  "final_gate_source_sha256": "e8ad4ea36e1a6a4cab2a99ae55a6f820d971cf38323c821abb34dbbd610e708c"
+  "final_gate_source_sha256": "0ae43e36771cf4287b87a326f6f2d343bbcf8799051054cacc0b977a68f0ee95"
 }

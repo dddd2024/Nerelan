@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
-  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
+  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-10T11:04:47.818891Z",
+  "generated_at": "2026-07-16T12:32:05.570465Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -25,8 +25,18 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [],
-      "baseline_dirty_files": []
+      "startup_dirty_files": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json"
+      ],
+      "baseline_dirty_files": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json"
+      ]
     },
     {
       "name": "decision_not_dirty_in_baseline",
@@ -78,7 +88,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1"
+      "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -93,8 +103,16 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py"
+        "Derive final-command conclusions from the raw observed transcript.",
+        "Do not migrate unrelated state files.",
+        "Do not modify modules outside the explicit allowlist.",
+        "Generated artifacts are limited to current gate/report/context/state-manifest files and the current round archive.",
+        "Hard-fail when transcript, execution log, and final-gate order claims disagree.",
+        "Keep command-plan coverage and expected-exit policy separate from runtime chronology.",
+        "Keep legacy artifacts readable.",
+        "Preserve existing public fields and CLI behavior unless a new optional provenance field is required.",
+        "execution_log.json",
+        "pytest_result.txt"
       ]
     },
     {
@@ -108,7 +126,9 @@
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
       "matched_terms": [],
-      "matched_paths": []
+      "matched_paths": [
+        "Keep command-plan coverage and expected-exit policy separate from runtime chronology."
+      ]
     },
     {
       "name": "artifact_freshness_policy",
@@ -149,8 +169,13 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [],
-    "head_commit": "209b172f8dcc"
+    "baseline_dirty_files": [
+      "project_state/gates/command_plan.json",
+      "project_state/gates/gate_profile_plan.json",
+      "project_state/gates/preflight_result.json",
+      "project_state/gates/round_baseline.json"
+    ],
+    "head_commit": "8076ccf00531"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

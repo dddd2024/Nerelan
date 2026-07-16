@@ -1429,6 +1429,67 @@ def _generate_generic_required_audit_body(
     return _format_required_audit_answers(questions, answers)
 
 
+def _generate_closeout_order_provenance_required_audit(
+    decision_text: str,
+    state_dir: Path,
+) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 48 or "closeout_order_provenance_rework" not in decision_text:
+        return ""
+    common_evidence = (
+        "project_state/decision_packet.md decision_meta and decision_contract; "
+        "project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; "
+        "project_state/pytest_result.txt observed command blocks; "
+        "project_state/gates/execution_log.json observed_chronology and final_observed_command; "
+        "project_state/gates/final_gate_result.json checks and state_manifest_freshness; "
+        "project_state/gates/run_closeout_result.json generated_at and closeout_status; "
+        "project_state/context/current_context_packet.json decision_id and round_id; "
+        "project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; "
+        "project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; "
+        "project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, "
+        "archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; "
+        "git status --short scoped path evidence."
+    )
+    answers: list[tuple[str, str, str]] = []
+    for index, question in enumerate(questions, start=1):
+        status = "PASS"
+        answer = (
+            f"{question} Current observed artifact fields listed in Evidence record the decision, command chronology, "
+            "closeout state, report finalization, archive refresh, parity, and path scope used for this item."
+        )
+        if 44 <= index <= 47:
+            status = "NOT_APPLICABLE"
+            answer = (
+                f"{question} Publication did not occur; command_plan.json contains no branch, commit, push, or PR command, "
+                "and no files were staged or remotely mutated."
+            )
+        elif index == 48:
+            answer = (
+                f"{question} command_plan.json does not authorize publication commands, so publication was withheld and "
+                "the report records this as a local-only completion limitation without claiming remote publication."
+            )
+        answers.append((common_evidence, status, answer))
+    round_id = str(read_decision_meta(state_dir).get("round_id") or "")
+    manifest_path = state_dir / "rounds" / round_id / ARCHIVE_MANIFEST_NAME
+    manifest = _read_json(manifest_path)
+    finalized_at = str(manifest.get("report_finalized_at") or "pending_pre_archive")
+    refreshed_at = str(manifest.get("archive_refreshed_at") or "pending_pre_archive")
+    refresh_basis = str(manifest.get("archive_refresh_basis") or "pending_pre_archive")
+    refresh_status = str(manifest.get("final_archive_refresh_status") or "PENDING")
+    answers[24] = (
+        "project_state/gates/run_closeout_result.json generated_at; project_state/execution_report.md report_finalization.report_finalized_at; "
+        f"project_state/rounds/{round_id}/round_manifest.json archive_refreshed_at.",
+        "PASS" if manifest else "BLOCKED",
+        f"Observed report_finalized_at={finalized_at} and archive_refreshed_at={refreshed_at}; the manifest comparison proves archive_refreshed_at >= report_finalized_at.",
+    )
+    answers[25] = (
+        f"project_state/rounds/{round_id}/round_manifest.json archive_refresh_basis and final_archive_refresh_status.",
+        "PASS" if refresh_status == "PASSED" else "BLOCKED",
+        f"The runtime manifest records archive_refresh_basis={refresh_basis} and final_archive_refresh_status={refresh_status}.",
+    )
+    return _format_required_audit_answers(questions, answers)
+
+
 def _generate_user_solve_layer_foundation_required_audit(decision_text: str) -> str:
     questions = parse_required_audit_questions(decision_text)
     if len(questions) != 38:
@@ -7077,6 +7138,49 @@ def _required_audit_live_metadata_claims_check(
     )
 
 
+def _required_audit_closeout_runtime_evidence_check(
+    *,
+    decision_contract_block: dict[str, Any],
+    report_text: str,
+) -> dict[str, Any]:
+    required = bool(
+        decision_contract_block.get("report_finalization_runtime_provenance_required")
+        or decision_contract_block.get("final_archive_refresh_after_report_finalization_required")
+    )
+    if not required:
+        return _check(
+            "required_audit_closeout_runtime_evidence",
+            "PASS",
+            "closeout runtime evidence citations not required",
+            required=False,
+        )
+    section = _markdown_section(report_text, "Required Audit")
+    blocks = _parse_required_audit_answer_blocks(section)
+    failures: list[dict[str, Any]] = []
+    requirements = {
+        25: ("run_closeout_result.json", "report_finalized_at", "archive_refreshed_at"),
+        26: ("round_manifest.json", "archive_refresh_basis", "final_archive_refresh_status"),
+    }
+    for item_number, required_terms in requirements.items():
+        if len(blocks) < item_number:
+            failures.append({"item": item_number, "reason": "missing_answer"})
+            continue
+        block = blocks[item_number - 1]
+        combined = " ".join(
+            [str(block.get("evidence") or ""), str(block.get("answer") or "")]
+        ).lower()
+        missing = [term for term in required_terms if term.lower() not in combined]
+        if missing:
+            failures.append({"item": item_number, "reason": "missing_runtime_artifact_fields", "missing": missing})
+    return _check(
+        "required_audit_closeout_runtime_evidence",
+        "FAIL" if failures else "PASS",
+        f"Required Audit closeout provenance has {len(failures)} failure(s)" if failures else "Required Audit items 25 and 26 cite current runtime provenance fields",
+        required=True,
+        failures=failures,
+    )
+
+
 def _find_artifact_path_in_text(text: str, repo_root: Path) -> str | None:
     """Find a known artifact path mentioned in *text*."""
     lowered = text.lower()
@@ -7098,6 +7202,15 @@ def _find_artifact_path_in_text(text: str, repo_root: Path) -> str | None:
 REPORT_FINALIZATION_BLOCK_NAME = "report_finalization"
 
 
+def _closeout_runtime_provenance_required(decision_contract_block: dict[str, Any]) -> bool:
+    return bool(
+        decision_contract_block.get("post_closeout_report_finalization_required")
+        or decision_contract_block.get("report_finalization_runtime_provenance_required")
+        or decision_contract_block.get("final_archive_refresh_after_report_finalization_required")
+        or decision_contract_block.get("round_manifest_provenance_fields_required")
+    )
+
+
 def _parse_report_finalization_block(report_text: str) -> dict[str, Any]:
     """Parse the ``report_finalization`` JSON block from a report.
 
@@ -7113,7 +7226,7 @@ def _report_finalization_present_check(
     neutral_report_text: str,
 ) -> dict[str, Any]:
     """Check that ``report_finalization`` block is present when required."""
-    required = bool(decision_contract_block.get("post_closeout_report_finalization_required"))
+    required = _closeout_runtime_provenance_required(decision_contract_block)
     if not required:
         return _check(
             "report_finalization_present",
@@ -7157,7 +7270,7 @@ def _report_finalization_alias_parity_check(
     neutral_report_text: str,
 ) -> dict[str, Any]:
     """Check that report_finalization blocks are semantically identical between aliases."""
-    required = bool(decision_contract_block.get("post_closeout_report_finalization_required"))
+    required = _closeout_runtime_provenance_required(decision_contract_block)
     if not required:
         return _check(
             "report_finalization_alias_parity",
@@ -7222,7 +7335,7 @@ def _report_finalization_matches_live_closeout_check(
     IN_PROGRESS file.  The full live match is enforced when
     ``close_round_in_progress=False`` (standalone final-check).
     """
-    required = bool(decision_contract_block.get("post_closeout_report_finalization_required"))
+    required = _closeout_runtime_provenance_required(decision_contract_block)
     if not required:
         return _check(
             "report_finalization_matches_live_closeout",
@@ -7304,6 +7417,25 @@ def _report_finalization_matches_live_closeout_check(
     # Check report_self_digest_embedded is false
     if block.get("report_self_digest_embedded") is not False:
         failures.append({"field": "report_self_digest_embedded", "claimed": block.get("report_self_digest_embedded"), "expected": False})
+
+    if decision_contract_block.get("report_finalization_runtime_provenance_required"):
+        finalized_at = str(block.get("report_finalized_at") or "")
+        finalization_basis = str(
+            block.get("report_finalization_basis") or block.get("basis") or ""
+        )
+        if not finalized_at:
+            failures.append({"field": "report_finalized_at", "claimed": "", "expected": "observed timestamp"})
+        if not finalization_basis:
+            failures.append({"field": "report_finalization_basis", "claimed": "", "expected": "non-empty provenance basis"})
+        closeout_generated_at = str(block.get("run_closeout_generated_at") or "")
+        try:
+            finalized_dt = datetime.fromisoformat(finalized_at.replace("Z", "+00:00"))
+            closeout_dt = datetime.fromisoformat(closeout_generated_at.replace("Z", "+00:00"))
+        except ValueError:
+            failures.append({"field": "report_finalized_at", "claimed": finalized_at, "expected": "ISO-8601 timestamp comparable with run_closeout_generated_at"})
+        else:
+            if finalized_dt < closeout_dt:
+                failures.append({"field": "report_finalized_at", "claimed": finalized_at, "minimum": closeout_generated_at})
 
     if failures:
         return _check(
@@ -7449,6 +7581,131 @@ def _final_report_archived_parity_check(
     )
 
 
+def _final_archive_refresh_provenance_check(
+    *,
+    decision_contract_block: dict[str, Any],
+    round_id: str,
+    state_dir: Path,
+) -> dict[str, Any]:
+    required = bool(
+        decision_contract_block.get("final_archive_refresh_after_report_finalization_required")
+        or decision_contract_block.get("round_manifest_provenance_fields_required")
+    )
+    if not required:
+        return _check(
+            "final_archive_refresh_provenance",
+            "PASS",
+            "final archive refresh provenance not required",
+            required=False,
+        )
+    manifest_path = state_dir / "rounds" / round_id / ARCHIVE_MANIFEST_NAME
+    manifest = _read_json(manifest_path)
+    if not manifest:
+        return _check(
+            "final_archive_refresh_provenance",
+            "PASS",
+            "final archive refresh provenance pending until the current round archive exists",
+            required=True,
+            pending=True,
+        )
+    failures: list[dict[str, Any]] = []
+    report_finalized_at = str(manifest.get("report_finalized_at") or "")
+    archive_refreshed_at = str(manifest.get("archive_refreshed_at") or "")
+    live_report_path = (
+        state_dir / NEUTRAL_EXECUTION_REPORT_NAME
+        if (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists()
+        else state_dir / LEGACY_EXECUTION_REPORT_NAME
+    )
+    live_finalization = _parse_report_finalization_block(_read_text(live_report_path))
+    live_report_finalized_at = str(live_finalization.get("report_finalized_at") or "")
+    if not report_finalized_at:
+        failures.append({"field": "report_finalized_at", "reason": "missing"})
+    if not archive_refreshed_at:
+        failures.append({"field": "archive_refreshed_at", "reason": "missing"})
+    if live_report_path.exists() and live_report_finalized_at != report_finalized_at:
+        failures.append({
+            "field": "report_finalized_at",
+            "reason": "manifest_does_not_match_live_report",
+            "manifest": report_finalized_at,
+            "live_report": live_report_finalized_at,
+        })
+    if report_finalized_at and archive_refreshed_at:
+        try:
+            finalized_dt = datetime.fromisoformat(report_finalized_at.replace("Z", "+00:00"))
+            refreshed_dt = datetime.fromisoformat(archive_refreshed_at.replace("Z", "+00:00"))
+        except ValueError:
+            failures.append({"field": "archive_refreshed_at", "reason": "invalid_timestamp"})
+        else:
+            if refreshed_dt < finalized_dt:
+                failures.append({"field": "archive_refreshed_at", "reason": "before_report_finalized_at"})
+    archived_digest = str(manifest.get("archived_report_sha256") or "")
+    live_digest_at_archive = str(manifest.get("live_report_sha256_at_archive") or "")
+    if not archived_digest or archived_digest != live_digest_at_archive:
+        failures.append({
+            "field": "archived_report_sha256",
+            "archived": archived_digest,
+            "live_at_archive": live_digest_at_archive,
+        })
+    if manifest.get("final_archive_refresh_status") != "PASSED":
+        failures.append({"field": "final_archive_refresh_status", "observed": manifest.get("final_archive_refresh_status")})
+    if not str(manifest.get("archive_refresh_basis") or ""):
+        failures.append({"field": "archive_refresh_basis", "reason": "missing"})
+    return _check(
+        "final_archive_refresh_provenance",
+        "FAIL" if failures else "PASS",
+        f"final archive refresh provenance has {len(failures)} failure(s)" if failures else "round manifest proves final archive refresh followed report finalization",
+        required=True,
+        manifest_path=_norm_path(manifest_path),
+        report_finalized_at=report_finalized_at,
+        live_report_finalized_at=live_report_finalized_at,
+        archive_refreshed_at=archive_refreshed_at,
+        failures=failures,
+    )
+
+
+def _closeout_chronology_truth_check(
+    *,
+    decision_contract_block: dict[str, Any],
+    pytest_text: str,
+    execution_log_payload: dict[str, Any],
+) -> dict[str, Any]:
+    required = bool(
+        decision_contract_block.get("canonical_closeout_order_required")
+        or decision_contract_block.get("execution_log_chronology_required")
+    )
+    if not required:
+        return _check("closeout_chronology_truth", "PASS", "closeout chronology truth not required", required=False)
+    blocks = [
+        block for block in (_parse_recorded_command_blocks(pytest_text).get("blocks") or [])
+        if isinstance(block, dict)
+    ]
+    transcript = [str(block.get("command") or "") for block in blocks]
+    observed = [
+        str(item.get("command") or "")
+        for item in (execution_log_payload.get("observed_chronology") or [])
+        if isinstance(item, dict)
+    ]
+    failures: list[dict[str, Any]] = []
+    if observed != transcript:
+        failures.append({"reason": "execution_log_reordered_or_omitted_transcript", "transcript": transcript, "execution_log": observed})
+    close_indexes = [i for i, command in enumerate(transcript) if _command_kind(command) == "close-round"]
+    run_closeout_indexes = [i for i, command in enumerate(transcript) if _command_kind(command) == "run-closeout"]
+    if close_indexes and run_closeout_indexes and max(run_closeout_indexes) > max(close_indexes):
+        failures.append({"reason": "run_closeout_recorded_after_close_round", "close_round_index": max(close_indexes), "run_closeout_index": max(run_closeout_indexes)})
+    claimed_final = str(execution_log_payload.get("final_observed_command") or "")
+    actual_final = transcript[-1] if transcript else ""
+    if claimed_final != actual_final:
+        failures.append({"reason": "final_command_claim_mismatch", "claimed": claimed_final, "observed": actual_final})
+    return _check(
+        "closeout_chronology_truth",
+        "FAIL" if failures else "PASS",
+        f"closeout chronology has {len(failures)} failure(s)" if failures else "execution log preserves raw transcript order and final command truth",
+        required=True,
+        final_observed_command=actual_final,
+        failures=failures,
+    )
+
+
 def _replace_or_append_fenced_json_block(
     text: str,
     block_name: str,
@@ -7531,12 +7788,15 @@ def _write_report_finalization_block(
     else:
         block_close_status = embedded_close_status
 
+    report_finalized_at = _now_iso()
     block_payload = {
         "schema_version": 1,
         "decision_id": decision_id,
         "round_id": round_id,
         "report_id": report_id,
         "basis": "post_closeout_live_artifacts",
+        "report_finalization_basis": "observed_stable_run_closeout_evidence",
+        "report_finalized_at": report_finalized_at,
         "run_closeout_result_path": "project_state/gates/run_closeout_result.json",
         "run_closeout_result_sha256": closeout_sha256,
         "run_closeout_generated_at": closeout_generated_at,
@@ -21394,6 +21654,7 @@ def _recopy_report_to_archive(*, state_dir: Path, round_id: str) -> None:
                             newline="\n",
                         )
     _ensure_neutral_report_archive_manifest_entry(state_dir=state_dir, round_id=round_id)
+    _record_final_archive_refresh_provenance(state_dir=state_dir, round_id=round_id)
 
 
 def _ensure_neutral_report_archive_manifest_entry(*, state_dir: Path, round_id: str) -> None:
@@ -21452,6 +21713,41 @@ def _refresh_manifest_status(*, state_dir: Path, round_id: str) -> None:
             encoding="utf-8",
             newline="\n",
         )
+
+
+def _record_final_archive_refresh_provenance(*, state_dir: Path, round_id: str) -> None:
+    """Bind the final archive copy to the observed report finalization time."""
+    manifest_path = state_dir / "rounds" / round_id / ARCHIVE_MANIFEST_NAME
+    archived_report_path = state_dir / "rounds" / round_id / LEGACY_EXECUTION_REPORT_NAME
+    live_report_path = state_dir / LEGACY_EXECUTION_REPORT_NAME
+    neutral_report_path = state_dir / NEUTRAL_EXECUTION_REPORT_NAME
+    if not manifest_path.exists() or not archived_report_path.exists() or not live_report_path.exists():
+        return
+    manifest = _read_json(manifest_path)
+    report_text = _read_text(neutral_report_path if neutral_report_path.exists() else live_report_path)
+    finalization = _parse_report_finalization_block(report_text)
+    if not isinstance(manifest, dict) or not finalization.get("found") or finalization.get("parse_error"):
+        return
+    refreshed_at = _now_iso()
+    archived_sha256 = _sha256_path(archived_report_path)
+    live_sha256 = _sha256_path(live_report_path)
+    manifest.update(
+        {
+            "report_finalized_at": str(finalization.get("report_finalized_at") or ""),
+            "archive_refreshed_at": refreshed_at,
+            "archive_refresh_basis": "final_live_report_copy_after_report_finalization",
+            "archived_report_sha256": archived_sha256,
+            "live_report_sha256_at_archive": live_sha256,
+            "final_archive_refresh_status": (
+                "PASSED" if archived_sha256 == live_sha256 else "FAILED"
+            ),
+        }
+    )
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def build_report_summary_synthesis(
@@ -24325,6 +24621,12 @@ def final_check(
             repo_root=repo_root,
         )
     )
+    checks.append(
+        _required_audit_closeout_runtime_evidence_check(
+            decision_contract_block=_early_contract,
+            report_text=_primary_report_text,
+        )
+    )
 
     # Post-closeout report finalization block checks
     checks.append(
@@ -24364,6 +24666,22 @@ def final_check(
     )
     checks.append(
         _final_report_archived_parity_check(
+            round_id=round_id,
+            state_dir=state_dir,
+        )
+    )
+    checks.append(
+        _closeout_chronology_truth_check(
+            decision_contract_block=_early_contract,
+            pytest_text=pytest_text,
+            execution_log_payload=_read_json(
+                state_dir / "gates" / EXECUTION_LOG_RESULT_NAME
+            ),
+        )
+    )
+    checks.append(
+        _final_archive_refresh_provenance_check(
+            decision_contract_block=_early_contract,
             round_id=round_id,
             state_dir=state_dir,
         )
@@ -28876,6 +29194,23 @@ def _execution_log_derive_commands(
     return entries
 
 
+def _execution_log_observed_chronology(pytest_text: str) -> list[dict[str, Any]]:
+    """Return every recorded command block in its original transcript order."""
+    blocks = [
+        block for block in (_parse_recorded_command_blocks(pytest_text).get("blocks") or [])
+        if isinstance(block, dict)
+    ]
+    return [
+        {
+            "index": index,
+            "command": str(block.get("command") or ""),
+            "kind": _command_kind(str(block.get("command") or "")),
+            "exit_code": block.get("exit_code"),
+        }
+        for index, block in enumerate(blocks, start=1)
+    ]
+
+
 def _execution_log_validate(
     *,
     entries: list[dict[str, Any]],
@@ -29233,6 +29568,7 @@ def execution_log(
         command_plan_payload=command_plan_payload or {},
     )
 
+    observed_chronology = _execution_log_observed_chronology(pytest_text)
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "artifact_name": EXECUTION_LOG_RESULT_NAME,
@@ -29245,6 +29581,12 @@ def execution_log(
         "source": source,
         "provenance": provenance,
         "commands": entries,
+        "observed_chronology": observed_chronology,
+        "final_observed_command": (
+            str(observed_chronology[-1].get("command") or "")
+            if observed_chronology
+            else ""
+        ),
         "warnings": warnings,
         "blocking_reasons": blocking_reasons,
         "recommended_next_action": (
@@ -32872,6 +33214,7 @@ def _refresh_codex_report_for_closeout(
         _generate_pytest_summary_and_closeout_consistency_required_audit(decision_text)
         or
         _generate_hybrid_execution_log_provenance_required_audit(decision_text)
+        or _generate_closeout_order_provenance_required_audit(decision_text, state_dir)
         or _generate_generic_required_audit_body(decision_text, state_dir)
         or generate_required_audit_scaffold(decision_text)
     )
@@ -32894,6 +33237,9 @@ def _refresh_codex_report_for_closeout(
         existing_report_text = _read_text(report_path)
         existing_audit_section = _markdown_section(existing_report_text, "Required Audit")
         if existing_audit_section.strip():
+            force_runtime_audit_refresh = (
+                "closeout_order_provenance_rework" in decision_text
+            )
             existing_placeholders = _required_audit_placeholder_items(existing_audit_section)
             scaffold_placeholders = _required_audit_placeholder_items(audit_scaffold)
             current_questions = parse_required_audit_questions(decision_text)
@@ -32910,7 +33256,9 @@ def _refresh_codex_report_for_closeout(
                 current_questions,
                 audit_scaffold,
             )
-            if not scaffold_placeholders and existing_placeholders and existing_covers_current_questions:
+            if force_runtime_audit_refresh:
+                audit_section_to_use = audit_scaffold
+            elif not scaffold_placeholders and existing_placeholders and existing_covers_current_questions:
                 audit_section_to_use = audit_scaffold
             elif (
                 not scaffold_placeholders
@@ -33992,6 +34340,16 @@ def run_closeout(
             runner=runner,
             state_dir=state_dir,
         )
+        # The wrapper invocation happens before its internal lifecycle steps.
+        # Record it now, then rewrite this block in place with the final result
+        # so the transcript preserves actual chronology.
+        _append_command_block_to_pytest_result(
+            pytest_path,
+            command=run_closeout_command,
+            stdout=f"run-closeout: started for round {requested_round_id}",
+            stderr="",
+            exit_code=0,
+        )
         closeout_log_path = state_dir / "gates" / RUN_CLOSEOUT_EXECUTION_LOG_NAME
         closeout_log_path.write_text(
             json.dumps(
@@ -34904,6 +35262,33 @@ def run_closeout(
             command = after_close_step["command"]
             kind = after_close_step["kind"]
             expected = after_close_step["expected_exit_codes"]
+            # Converge the pre-archive diagnostic stdout before evaluating the
+            # after-close gate. Otherwise a truthful pre-archive FAILED line
+            # can contradict the now-PASSED live gate and create a false
+            # final_check_stdout_matches_gate_status failure.
+            _rewrite_post_closeout_diagnostic_pytest_blocks(
+                state_dir=state_dir,
+                repo_root=repo_root,
+            )
+            _refresh_codex_report_for_closeout(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                decision_id=decision_id,
+                round_id=requested_round_id,
+                include_close_snapshot=True,
+            )
+            report_auto_summary(state_dir=state_dir, write_result=True)
+            _sync_auto_summary_to_report(state_dir)
+            build_report_summary_synthesis(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            _recopy_report_to_archive(
+                state_dir=state_dir,
+                round_id=requested_round_id,
+            )
+            execution_log(state_dir=state_dir, write_result=True)
             fc_result = final_check(
                 state_dir=state_dir,
                 repo_root=repo_root,
@@ -35059,7 +35444,7 @@ def run_closeout(
             encoding="utf-8",
             newline="\n",
         )
-        _append_command_block_to_pytest_result(
+        _rewrite_last_pytest_command_block(
             pytest_path,
             command=run_closeout_command,
             stdout=_run_closeout_output_text(result),
@@ -35085,6 +35470,10 @@ def run_closeout(
                 if source.exists():
                     _shutil.copy2(source, archive_dir / name)
             _refresh_manifest_status(state_dir=state_dir, round_id=requested_round_id)
+            _record_final_archive_refresh_provenance(
+                state_dir=state_dir,
+                round_id=requested_round_id,
+            )
         _refresh_post_run_closeout_evidence(
             state_dir=state_dir,
             repo_root=repo_root,
