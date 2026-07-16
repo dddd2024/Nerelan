@@ -2,10 +2,20 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
   "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:39:28.094530Z",
+  "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
+  "base_branch": "main",
+  "decision_commit_sha": "3e1be754a2c05b336b43f691c75d4541c4478d05",
+  "decision_packet_sha256": "d368718c936a972561b3ed13e077a12f236c72c859e9755e718cfcbcd0301900",
+  "head_sha_at_plan_generation": "3e1be754a2c05b336b43f691c75d4541c4478d05",
+  "restart_from_decision_id": "decision_20260716_closeout_final_seal_and_publication_truth_rework_v2",
+  "restart_from_round_id": "round_20260716_closeout_final_seal_and_publication_truth_rework_v2",
+  "previous_final_gate_status": "FAILED",
+  "previous_seal_status": "PASSED",
+  "previous_artifacts_read_only": true,
+  "generated_at": "2026-07-16T15:20:41.890354Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
@@ -74,7 +84,7 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
       "required": true,
@@ -87,7 +97,7 @@
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3 --dry-run",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -142,7 +152,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
       "phase": "gate",
       "kind": "run-closeout",
       "required": true,
@@ -155,7 +165,7 @@
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
       "phase": "gate",
       "kind": "close-round",
       "required": true,
@@ -165,6 +175,63 @@
       "conditional_closeout": true,
       "records_stdout_stderr": true,
       "notes": "close-round closeout expected exit 0 after final-check passed"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+      "phase": "unknown",
+      "kind": "final-evidence-seal",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "final-evidence-seal expected to exit 0"
+    },
+    {
+      "index": 12,
+      "command": "git add -- reverse_agent/project_gate.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py project_state/codex_execution_report.md project_state/execution_report.md project_state/pytest_result.txt project_state/state_manifest.json project_state/context/current_context_packet.json project_state/gates project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+      "phase": "publication",
+      "kind": "git-stage-explicit",
+      "required": false,
+      "expected_exit_codes": [0],
+      "conditional_closeout": true,
+      "records_stdout_stderr": true,
+      "notes": "stage only Decision-authorized implementation, tests, and current-round evidence"
+    },
+    {
+      "index": 13,
+      "command": "git commit -m \"governance: propagate terminal status and seal restart truth\"",
+      "phase": "publication",
+      "kind": "git-commit",
+      "required": false,
+      "expected_exit_codes": [0],
+      "conditional_closeout": true,
+      "records_stdout_stderr": true,
+      "notes": "create the implementation and evidence commit after validation"
+    },
+    {
+      "index": 14,
+      "command": "git push -u origin agent/terminal-status-propagation-seal-restart-rework-v3",
+      "phase": "publication",
+      "kind": "git-push",
+      "required": false,
+      "expected_exit_codes": [0],
+      "conditional_closeout": true,
+      "records_stdout_stderr": true,
+      "notes": "push only the existing authorized execution branch"
+    },
+    {
+      "index": 15,
+      "command": "gh pr view 5 --json number,title,state,isDraft,headRefName,baseRefName,url,mergeStateStatus,statusCheckRollup",
+      "phase": "publication",
+      "kind": "github-pr-observation",
+      "required": false,
+      "expected_exit_codes": [0],
+      "conditional_closeout": true,
+      "records_stdout_stderr": true,
+      "notes": "read back the existing Draft PR after push; do not merge"
     }
   ],
   "warnings": [],

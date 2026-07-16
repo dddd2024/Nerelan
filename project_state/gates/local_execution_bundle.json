@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
+  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "report_id": "codex_report_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
   "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:40:09.842789Z",
+  "generated_at": "2026-07-16T18:04:04.128964Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+    "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -104,14 +104,14 @@
     },
     {
       "index": 4,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight",
       "phase": "preflight",
       "required": true
     },
     {
       "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "required": true
@@ -139,17 +139,52 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
       "kind": "run-closeout",
       "phase": "gate",
       "required": true
     },
     {
       "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
       "kind": "close-round",
       "phase": "gate",
       "required": true
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+      "kind": "final-evidence-seal",
+      "phase": "unknown",
+      "required": true
+    },
+    {
+      "index": 12,
+      "command": "git add -- reverse_agent/project_gate.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py project_state/codex_execution_report.md project_state/execution_report.md project_state/pytest_result.txt project_state/state_manifest.json project_state/context/current_context_packet.json project_state/gates project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+      "kind": "git-stage-explicit",
+      "phase": "publication",
+      "required": false
+    },
+    {
+      "index": 13,
+      "command": "git commit -m \"governance: propagate terminal status and seal restart truth\"",
+      "kind": "git-commit",
+      "phase": "publication",
+      "required": false
+    },
+    {
+      "index": 14,
+      "command": "git push -u origin agent/terminal-status-propagation-seal-restart-rework-v3",
+      "kind": "git-push",
+      "phase": "publication",
+      "required": false
+    },
+    {
+      "index": 15,
+      "command": "gh pr view 5 --json number,title,state,isDraft,headRefName,baseRefName,url,mergeStateStatus,statusCheckRollup",
+      "kind": "github-pr-observation",
+      "phase": "publication",
+      "required": false
     }
   ],
   "required_tests": {
@@ -175,11 +210,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+    "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "d0830033385df59dbb07826ecfb83ae835697e40592ab588f5f26a90ce63b00f"
+    "sha256": "50e8f19c087905f05118825dbfbf4f6847709f9dfed762cf01719bed6a4eca63"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -203,8 +238,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+    "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
     "current": true
   },
   "closeout_expectations": {
@@ -212,7 +247,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1"
+    "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

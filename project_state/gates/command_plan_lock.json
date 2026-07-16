@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "artifact_name": "command_plan_lock.json",
+  "command_plan_path": "project_state/gates/command_plan.json",
+  "command_plan_sha256": "3b5c1b6dda652641f1a14e641ff4b818b8c353f2342212505e7fbb79fd227dbf",
+  "command_plan_generated_at": "2026-07-16T15:20:41.890354Z",
+  "command_plan_locked_at": "2026-07-16T15:56:17.7096176Z",
+  "command_plan_lock_status": "LOCKED",
+  "command_plan_decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "command_plan_round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
+  "base_branch": "main",
+  "decision_commit_sha": "3e1be754a2c05b336b43f691c75d4541c4478d05",
+  "decision_packet_sha256": "d368718c936a972561b3ed13e077a12f236c72c859e9755e718cfcbcd0301900",
+  "head_sha_at_plan_generation": "3e1be754a2c05b336b43f691c75d4541c4478d05",
+  "first_substantive_command_at": "2026-07-16T15:22:05.2192179Z",
+  "permitted_terminal_event": "terminal_final_evidence_seal",
+  "restart_count": 2,
+  "invalidation": {
+    "previous_decision_id": "decision_20260716_closeout_final_seal_and_publication_truth_rework_v2",
+    "previous_round_id": "round_20260716_closeout_final_seal_and_publication_truth_rework_v2",
+    "reason": "publication commands were reclassified as post-validation conditional commands after the first v3 closeout exposed premature required-command coverage"
+  }
+}

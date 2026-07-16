@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "generated_at": "2026-07-16T12:39:57.634788Z",
+  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "report_id": "codex_report_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "generated_at": "2026-07-16T18:03:53.508958Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -138,14 +138,16 @@
       "artifact": "project_state/gates/execution_log.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "PASSED",
+      "gate_status": "WARN",
       "status": null,
       "close_round_status": null,
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
       "errors": [],
-      "warnings": []
+      "warnings": [
+        "command_plan has 5 optional command(s) not recorded in execution_log: gh pr view 5 --json number,title,state,isDraft,headRefName,baseRefName,url,mergeStateStatus,statusCheckRollup, git add -- reverse_agent/project_gate.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py project_state/codex_execution_report.md project_state/execution_report.md project_state/pytest_result.txt project_state/state_manifest.json project_state/context/current_context_packet.json project_state/gates project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3, git commit -m \"governance: propagate terminal status and seal restart truth\", git push -u origin agent/terminal-status-propagation-seal-restart-rework-v3, python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3"
+      ]
     },
     "final_check": {
       "artifact": "project_state/gates/final_gate_result.json",
@@ -188,7 +190,7 @@
     "final_check_gate_status": "PASSED",
     "run_closeout_status": "PASSED",
     "close_round_status": "CLOSED",
-    "execution_log_gate_status": "PASSED",
+    "execution_log_gate_status": "WARN",
     "report_summary_status": null
   },
   "evidence_only": true,

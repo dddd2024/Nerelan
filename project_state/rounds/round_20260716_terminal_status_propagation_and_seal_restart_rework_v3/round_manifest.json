@@ -1,0 +1,54 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archive_refresh_basis": "final_live_report_copy_after_report_finalization",
+  "archive_refreshed_at": "2026-07-16T18:04:05.306939Z",
+  "archived_at": "2026-07-16T18:03:31Z",
+  "archived_report_sha256": "38ebb24ee117cfb14c424f7d6d91e4460a081261881981ffd5f65817c07db9db",
+  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260716_terminal_status_propagation_and_seal_restart_rework_v3\\codex_execution_report.md",
+      "sha256": "38ebb24ee117cfb14c424f7d6d91e4460a081261881981ffd5f65817c07db9db",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260716_terminal_status_propagation_and_seal_restart_rework_v3\\decision_packet.md",
+      "sha256": "d368718c936a972561b3ed13e077a12f236c72c859e9755e718cfcbcd0301900",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260716_terminal_status_propagation_and_seal_restart_rework_v3\\pytest_result.txt",
+      "sha256": "492401682a3ec624dead73aef07bc29786fa76b04326c5e33484d438a25df3f0",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260716_terminal_status_propagation_and_seal_restart_rework_v3\\execution_report.md",
+      "sha256": "8a60af19a64812f8454d57502591f20e4a06c66438e1f2c518b574f2414bed55",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "final_archive_refresh_status": "PASSED",
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "live_report_sha256_at_archive": "38ebb24ee117cfb14c424f7d6d91e4460a081261881981ffd5f65817c07db9db",
+  "mainline": "project_governance",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_finalized_at": "2026-07-16T18:04:03.797922Z",
+  "report_id": "codex_report_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "schema_version": 1,
+  "source_git_commit": "3e1be754a2c0",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

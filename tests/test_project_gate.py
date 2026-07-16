@@ -17794,8 +17794,9 @@ def test_run_closeout_constants_and_allowlist():
                 "cleanup-apply-safety",
                 "governance-operations-bundle",
             "control-plane-snapshot", "run-round", "run-closeout",
-            "execute-decision",
-        }
+                "execute-decision",
+                "final-evidence-seal",
+            }
     assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
 
 
@@ -31233,7 +31234,7 @@ def test_required_audit_closeout_runtime_evidence_rejects_function_only_answers(
 
 def test_closeout_order_provenance_generated_audit_is_semantically_aligned(tmp_path: Path) -> None:
     from reverse_agent.project_gate import (
-        _generate_closeout_order_provenance_required_audit,
+        _generate_terminal_status_restart_required_audit,
         _required_audit_alignment_failures,
         parse_required_audit_questions,
     )
@@ -31242,7 +31243,244 @@ def test_closeout_order_provenance_generated_audit_is_semantically_aligned(tmp_p
     state_dir = tmp_path / "project_state"
     state_dir.mkdir()
     (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
-    body = _generate_closeout_order_provenance_required_audit(decision_text, state_dir)
+    body = _generate_terminal_status_restart_required_audit(decision_text, state_dir)
     questions = parse_required_audit_questions(decision_text)
-    assert len(questions) == 48
+    assert len(questions) == 35
     assert _required_audit_alignment_failures(questions, body) == []
+def _make_locked_plan_fixture(tmp_path: Path) -> tuple[Path, str, str]:
+    from reverse_agent.project_gate import COMMAND_PLAN_LOCK_RESULT_NAME, COMMAND_PLAN_RESULT_NAME, _sha256_path
+
+    state_dir = tmp_path / "project_state"
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True)
+    decision_id = "decision_lock"
+    round_id = "round_lock"
+    plan_path = gates / COMMAND_PLAN_RESULT_NAME
+    _write_json(plan_path, {"decision_id": decision_id, "round_id": round_id, "plan_status": "PASSED", "commands": []})
+    _write_json(gates / COMMAND_PLAN_LOCK_RESULT_NAME, {
+        "command_plan_lock_status": "LOCKED",
+        "command_plan_decision_id": decision_id,
+        "command_plan_round_id": round_id,
+        "command_plan_sha256": _sha256_path(plan_path),
+        "command_plan_locked_at": "2026-07-16T10:00:00Z",
+    })
+    return state_dir, decision_id, round_id
+
+
+def test_command_plan_lock_validation_passes_for_current_digest(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _command_plan_lock_validation
+
+    state_dir, decision_id, round_id = _make_locked_plan_fixture(tmp_path)
+    result = _command_plan_lock_validation(state_dir=state_dir, decision_id=decision_id, round_id=round_id)
+    assert result["status"] == "PASS"
+
+
+def test_command_plan_lock_validation_rejects_digest_change(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import COMMAND_PLAN_RESULT_NAME, _command_plan_lock_validation
+
+    state_dir, decision_id, round_id = _make_locked_plan_fixture(tmp_path)
+    _write_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME, {"decision_id": decision_id, "round_id": round_id, "commands": ["changed"]})
+    result = _command_plan_lock_validation(state_dir=state_dir, decision_id=decision_id, round_id=round_id)
+    assert result["status"] == "FAIL"
+    assert any(item["field"] == "command_plan_sha256" for item in result["failures"])
+
+
+def test_command_plan_lock_validation_rejects_missing_lock(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _command_plan_lock_validation
+
+    state_dir = tmp_path / "project_state"
+    (state_dir / "gates").mkdir(parents=True)
+    result = _command_plan_lock_validation(state_dir=state_dir, decision_id="d", round_id="r")
+    assert result["status"] == "FAIL"
+
+
+def test_strict_required_audit_rejects_repeated_generic_answers() -> None:
+    from reverse_agent.project_gate import _required_audit_semantic_specificity_check
+
+    decision = "## 5. Required Audit\n\n1. What is id?\n2. What is status?\n"
+    report = """## Required Audit
+
+### 1. What is id?
+- Evidence: listed fields
+- Status: PASS
+- Answer: the listed fields prove this item
+
+### 2. What is status?
+- Evidence: listed fields
+- Status: PASS
+- Answer: the listed fields prove this item
+"""
+    result = _required_audit_semantic_specificity_check(
+        decision_contract_block={"required_audit_semantic_specificity_required": True},
+        decision_text=decision,
+        report_text=report,
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_strict_required_audit_accepts_item_specific_observed_values() -> None:
+    from reverse_agent.project_gate import _required_audit_semantic_specificity_check
+
+    decision = "## 5. Required Audit\n\n1. What is id?\n2. What is status?\n"
+    report = """## Required Audit
+
+### 1. What is id?
+- Evidence: question_number=1; artifact_path=project_state/decision_packet.md; field_name_or_observation=decision_id; observed_value=decision_x
+- Status: PASS
+- Answer: question_number=1; item_specific_answer=What is id? conclusion=PASS: decision_id is decision_x.
+
+### 2. What is status?
+- Evidence: question_number=2; artifact_path=project_state/gates/final_gate_result.json; field_name_or_observation=gate_status; observed_value=PASSED
+- Status: PASS
+- Answer: question_number=2; item_specific_answer=What is status? conclusion=PASS: gate_status is PASSED.
+"""
+    result = _required_audit_semantic_specificity_check(
+        decision_contract_block={"required_audit_semantic_specificity_required": True},
+        decision_text=decision,
+        report_text=report,
+    )
+    assert result["status"] == "PASS"
+
+
+def _make_seal_fixture(tmp_path: Path) -> tuple[Path, str]:
+    state_dir = tmp_path / "project_state"
+    round_id = "round_seal"
+    round_dir = state_dir / "rounds" / round_id
+    gates = state_dir / "gates"
+    context = state_dir / "context"
+    round_dir.mkdir(parents=True)
+    gates.mkdir(parents=True)
+    context.mkdir(parents=True)
+    _write_json(gates / "final_gate_result.json", {"generated_at": "2026-07-16T10:00:01Z", "gate_status": "PASSED"})
+    _write_json(gates / "run_closeout_result.json", {"generated_at": "2026-07-16T10:00:00Z", "closeout_status": "PASSED"})
+    _write_json(context / "current_context_packet.json", {"generated_at": "2026-07-16T10:00:02Z"})
+    _write_json(state_dir / "state_manifest.json", {"generated_at": "2026-07-16T10:00:03Z"})
+    _write_json(round_dir / "round_manifest.json", {"archive_refreshed_at": "2026-07-16T10:00:00Z"})
+    report_text = """```json codex_report_summary
+{"schema_version": 1, "decision_id": "decision_seal", "based_on_decision_id": "decision_seal", "report_id": "report_round_seal", "round_id": "round_seal", "status": "SUCCESS", "acceptance_recommendation": "ACCEPTED", "files_changed": [], "generated_artifacts": [], "tests_ran": []}
+```
+
+# Execution Report
+"""
+    (state_dir / "execution_report.md").write_text(report_text, encoding="utf-8")
+    (round_dir / "execution_report.md").write_text(report_text, encoding="utf-8")
+    _write_json(gates / "report_summary_synthesis.json", {"synthesis_status": "PASSED"})
+    _write_json(gates / "command_plan.json", {"decision_id": "decision_seal", "round_id": round_id})
+    from reverse_agent.project_gate import _sha256_path
+    _write_json(gates / "command_plan_lock.json", {"command_plan_sha256": _sha256_path(gates / "command_plan.json")})
+    _write_json(gates / "execution_log.json", {"provenance": {"command_digest": "a" * 64}})
+    transcript = "===== COMMAND: test =====\nok\n===== EXIT: 0 =====\n\n"
+    (state_dir / "pytest_result.txt").write_text(transcript, encoding="utf-8")
+    (round_dir / "pytest_result.txt").write_text(transcript, encoding="utf-8")
+    return state_dir, round_id
+
+
+def test_final_evidence_seal_passes_and_uses_non_self_referential_boundary(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _generate_final_evidence_seal, _verify_final_evidence_seal
+
+    state_dir, round_id = _make_seal_fixture(tmp_path)
+    seal = _generate_final_evidence_seal(state_dir=state_dir, decision_id="decision_seal", round_id=round_id)
+    assert seal["seal_status"] == "PASSED"
+    assert seal["self_digest_embedded"] is False
+    assert _verify_final_evidence_seal(state_dir=state_dir, round_id=round_id)["status"] == "PASS"
+
+
+def test_final_evidence_seal_detects_sealed_artifact_mutation(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _generate_final_evidence_seal, _verify_final_evidence_seal
+
+    state_dir, round_id = _make_seal_fixture(tmp_path)
+    _generate_final_evidence_seal(state_dir=state_dir, decision_id="decision_seal", round_id=round_id)
+    (state_dir / "execution_report.md").write_text("tampered", encoding="utf-8")
+    result = _verify_final_evidence_seal(state_dir=state_dir, round_id=round_id)
+    assert result["status"] == "FAIL"
+    assert any(item.get("reason") == "sealed_digest_mismatch" for item in result["failures"])
+
+
+def test_final_evidence_seal_detects_command_after_terminal_block(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _append_command_block_to_pytest_result, _generate_final_evidence_seal, _verify_final_evidence_seal
+
+    state_dir, round_id = _make_seal_fixture(tmp_path)
+    _generate_final_evidence_seal(state_dir=state_dir, decision_id="decision_seal", round_id=round_id)
+    _append_command_block_to_pytest_result(state_dir / "pytest_result.txt", command="later", stdout="bad", stderr="", exit_code=0)
+    result = _verify_final_evidence_seal(state_dir=state_dir, round_id=round_id)
+    assert result["status"] == "FAIL"
+    assert any(item.get("reason") == "command_after_terminal_seal" for item in result["failures"])
+
+
+def test_publication_truth_distinguishes_not_observed_from_not_performed() -> None:
+    from reverse_agent.project_gate import _publication_truth_result
+
+    result = _publication_truth_result(decision_id="d", round_id="r")
+    assert result["publication_status"] == "NOT_OBSERVED"
+    assert result["push_result"] == "NOT_ATTEMPTED"
+    assert result["publication_status"] != "NOT_PERFORMED"
+    assert result["historical_remote_mutation"]["classification"] == "UNATTRIBUTED_REMOTE_MUTATION"
+
+
+def test_final_evidence_seal_rejects_failed_terminal_gate(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _generate_final_evidence_seal
+
+    state_dir, round_id = _make_seal_fixture(tmp_path)
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {"generated_at": "2026-07-16T10:00:01Z", "gate_status": "FAILED"},
+    )
+    seal = _generate_final_evidence_seal(
+        state_dir=state_dir,
+        decision_id="decision_seal",
+        round_id=round_id,
+    )
+    assert seal["seal_status"] == "REWORK_REQUIRED"
+    assert seal["bound_final_gate_status"] == "FAILED"
+    assert seal["accepting_prerequisites_satisfied"] is False
+
+
+def test_required_audit_future_claim_check_ignores_repeated_decision_question() -> None:
+    from reverse_agent.project_gate import (
+        _format_required_audit_answers,
+        _required_audit_future_completion_claims_check,
+    )
+
+    question = "Is the seal generated after final-check?"
+    report = _format_required_audit_answers(
+        [question],
+        [(
+            "artifact_path=project_state/gates/final_evidence_seal.json; observed_value=PASSED",
+            "PASS",
+            f"item_specific_answer={question} conclusion=PASS: observed seal_status as PASSED.",
+        )],
+    )
+    result = _required_audit_future_completion_claims_check(
+        decision_text=f"## 5. Required Audit\n\n1. {question}\n",
+        report_text=report,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "PASS"
+
+
+def test_allowed_inherited_paths_include_explicit_tests_and_project_state() -> None:
+    from reverse_agent.project_gate import _allowed_inherited_baseline_paths
+
+    decision = """```json decision_contract
+{"allowed_source_files": ["reverse_agent/project_gate.py"], "allowed_test_files": ["tests/test_project_gate.py"], "allowed_project_state_files": ["project_state/state_manifest.json", "project_state/gates/*.json"]}
+```
+"""
+    paths = _allowed_inherited_baseline_paths(decision)
+    assert "reverse_agent/project_gate.py" in paths
+    assert "tests/test_project_gate.py" in paths
+    assert "project_state/state_manifest.json" in paths
+    assert "project_state/gates/*.json" not in paths
+
+
+def test_expected_exit_codes_ignore_unexecuted_optional_publication_commands() -> None:
+    from reverse_agent.project_gate import _expected_exit_codes_by_command
+
+    payload = {
+        "commands": [
+            {"command": "python -m pytest -q", "required": True, "expected_exit_codes": [0]},
+            {"command": "git push -u origin agent/example", "required": False, "expected_exit_codes": [0]},
+        ]
+    }
+    expected = _expected_exit_codes_by_command(payload)
+    assert "python -m pytest -q" in expected
+    assert "git push -u origin agent/example" not in expected

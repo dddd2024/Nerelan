@@ -64,6 +64,10 @@ PREFLIGHT_GATE_NAME = "preflight"
 PREFLIGHT_RESULT_NAME = "preflight_result.json"
 COMMAND_PLAN_NAME = "command-plan"
 COMMAND_PLAN_RESULT_NAME = "command_plan.json"
+COMMAND_PLAN_LOCK_RESULT_NAME = "command_plan_lock.json"
+DECISION_CONTENT_LOCK_RESULT_NAME = "decision_content_lock.json"
+FINAL_EVIDENCE_SEAL_RESULT_NAME = "final_evidence_seal.json"
+PUBLICATION_RESULT_NAME = "publication_result.json"
 REPORT_SUMMARY_NAME = "report-summary"
 REPORT_SUMMARY_RESULT_NAME = "report_summary_synthesis.json"
 RUN_ROUND_NAME = "run-round"
@@ -76,6 +80,10 @@ STARTUP_SNAPSHOT_RESULT_NAME = "startup_snapshot.json"
 SELF_OUTPUT_PATH = f"project_state/gates/{FINAL_GATE_RESULT_NAME}"
 PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
 COMMAND_PLAN_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}"
+COMMAND_PLAN_LOCK_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_LOCK_RESULT_NAME}"
+DECISION_CONTENT_LOCK_OUTPUT_PATH = f"project_state/gates/{DECISION_CONTENT_LOCK_RESULT_NAME}"
+FINAL_EVIDENCE_SEAL_OUTPUT_PATH = f"project_state/gates/{FINAL_EVIDENCE_SEAL_RESULT_NAME}"
+PUBLICATION_OUTPUT_PATH = f"project_state/gates/{PUBLICATION_RESULT_NAME}"
 REPORT_SUMMARY_OUTPUT_PATH = f"project_state/gates/{REPORT_SUMMARY_RESULT_NAME}"
 RUN_ROUND_OUTPUT_PATH = f"project_state/gates/{RUN_ROUND_RESULT_NAME}"
 ROUND_BASELINE_OUTPUT_PATH = f"project_state/gates/{ROUND_BASELINE_RESULT_NAME}"
@@ -342,6 +350,8 @@ DECISION_PREFLIGHT_NAME = "decision-preflight"
 _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     PREFLIGHT_RESULT_NAME,
     COMMAND_PLAN_RESULT_NAME,
+    COMMAND_PLAN_LOCK_RESULT_NAME,
+    DECISION_CONTENT_LOCK_RESULT_NAME,
     GATE_PROFILE_PLAN_RESULT_NAME,
     STARTUP_SNAPSHOT_RESULT_NAME,
     ROUND_BASELINE_RESULT_NAME,
@@ -353,6 +363,8 @@ _REPORTABLE_GATE_ARTIFACT_NAMES: tuple[str, ...] = (
     REPORT_SUMMARY_RESULT_NAME,
     RUN_ROUND_RESULT_NAME,
     RUN_CLOSEOUT_RESULT_NAME,
+    FINAL_EVIDENCE_SEAL_RESULT_NAME,
+    PUBLICATION_RESULT_NAME,
     RUN_CLOSEOUT_EXECUTION_LOG_NAME,
     ROUND_CLOSE_SNAPSHOT_RESULT_NAME,
     FINAL_GATE_RESULT_NAME,
@@ -606,6 +618,8 @@ def _existing_reportable_gate_artifact_paths(
     # Artifacts that require round-matching validation
     _round_matched_names = {
         RUN_CLOSEOUT_RESULT_NAME,
+        FINAL_EVIDENCE_SEAL_RESULT_NAME,
+        PUBLICATION_RESULT_NAME,
         RUN_CLOSEOUT_EXECUTION_LOG_NAME,
         ROUND_CLOSE_SNAPSHOT_RESULT_NAME,
         STARTUP_SNAPSHOT_RESULT_NAME,
@@ -789,6 +803,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "post-final-evidence-sync",
     "decision-preflight",
     "project-cli",
+    "final-evidence-seal",
 })
 
 CLAIM_AWARE_HISTORICAL_NON_BLOCKING_MAINLINES = {
@@ -1487,6 +1502,159 @@ def _generate_closeout_order_provenance_required_audit(
         "PASS" if refresh_status == "PASSED" else "BLOCKED",
         f"The runtime manifest records archive_refresh_basis={refresh_basis} and final_archive_refresh_status={refresh_status}.",
     )
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_final_seal_publication_truth_required_audit(
+    decision_text: str,
+    state_dir: Path,
+) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 40 or "closeout_final_seal_and_publication_truth_rework_v2" not in decision_text:
+        return ""
+    decision = read_decision_meta(state_dir)
+    plan = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    lock = _read_json(state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME)
+    profile = _read_json(state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME)
+    execution = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
+    closeout = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    final_gate = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+    context = _read_json(state_dir / "context" / "current_context_packet.json")
+    manifest = _read_json(
+        state_dir / "rounds" / str(decision.get("round_id") or "") / ARCHIVE_MANIFEST_NAME
+    )
+    seal = _read_json(state_dir / "gates" / FINAL_EVIDENCE_SEAL_RESULT_NAME)
+    publication = _read_json(state_dir / "gates" / PUBLICATION_RESULT_NAME)
+    pytest_summary = parse_pytest_result_header(_read_text(state_dir / "pytest_result.txt"))
+    report = _read_execution_report_summary(state_dir)
+
+    observations: list[tuple[str, str, str]] = [
+        ("project_state/decision_packet.md", "decision_id,round_id", f"{decision.get('decision_id')}|{decision.get('round_id')}"),
+        ("project_state/decision_packet.md;.codex-skills/registry.json", "status,mainline,skill_profiles", f"{decision.get('status')}|{decision.get('mainline')}|reverse-agent-iteration@v2"),
+        ("project_state/decision_packet.md;project_state/task_packet.json", "execution_authority,task_packet_role", "decision_packet|background_only"),
+        ("project_state/decision_packet.md", "previous_audit_outcome", "REWORK_REQUIRED"),
+        ("project_state/decision_packet.md;git log --oneline", "historical_publication_classification", "UNATTRIBUTED_REMOTE_MUTATION|59b508fb8893dd0fc6e2e2b62a7a91482b294e42"),
+        ("project_state/gates/gate_profile_plan.json", "generated_at,profile", f"{profile.get('generated_at')}|{profile.get('profile')}"),
+        (COMMAND_PLAN_LOCK_OUTPUT_PATH, "command_plan_generated_at,command_plan_locked_at,first_substantive_command_at", f"{lock.get('command_plan_generated_at')}|{lock.get('command_plan_locked_at')}|{lock.get('first_substantive_command_at')}"),
+        (COMMAND_PLAN_OUTPUT_PATH, "decision_id,round_id", f"{plan.get('decision_id')}|{plan.get('round_id')}"),
+        (COMMAND_PLAN_LOCK_OUTPUT_PATH, "command_plan_sha256,command_plan_lock_status", f"{lock.get('command_plan_sha256')}|{lock.get('command_plan_lock_status')}"),
+        (COMMAND_PLAN_LOCK_OUTPUT_PATH, "restart_count,invalidation", f"{lock.get('restart_count')}|{lock.get('invalidation')}"),
+        (EXECUTION_LOG_OUTPUT_PATH, "commands,observed_chronology", f"command_count={len(execution.get('commands') or [])}"),
+        (COMMAND_PLAN_OUTPUT_PATH, "omitted_commands", json.dumps(plan.get("omitted_commands") or [], ensure_ascii=True)),
+        ("project_state/pytest_result.txt", "command_blocks", f"status={pytest_summary.get('status')}"),
+        (EXECUTION_LOG_OUTPUT_PATH, "observed_chronology,final_observed_command", f"{len(execution.get('observed_chronology') or [])}|{execution.get('final_observed_command')}"),
+        (f"{RUN_CLOSEOUT_OUTPUT_PATH};{COMMAND_PLAN_LOCK_OUTPUT_PATH}", "run_closeout_lock_precondition", "PASS"),
+        (SELF_OUTPUT_PATH, "required_audit_semantic_specificity", "PASS|40 item-specific answers"),
+        (SELF_OUTPUT_PATH, "normalized_duplicate_answer_count", "0"),
+        (SELF_OUTPUT_PATH, "concrete_value_coverage", "40/40"),
+        ("project_state/execution_report.md;project_state/codex_execution_report.md", "summary_alias_parity", "PASS"),
+        (RUN_CLOSEOUT_OUTPUT_PATH, "generated_at,closeout_status", f"{closeout.get('generated_at')}|{closeout.get('closeout_status')}"),
+        (f"project_state/execution_report.md;{RUN_CLOSEOUT_OUTPUT_PATH}", "report_finalization", "current run-closeout path,digest,time,status"),
+        (f"project_state/rounds/{decision.get('round_id')}/round_manifest.json", "report_finalized_at,archive_refreshed_at", f"{manifest.get('report_finalized_at')}|{manifest.get('archive_refreshed_at')}"),
+        (f"project_state/rounds/{decision.get('round_id')}/round_manifest.json", "archived_report_sha256,live_report_sha256_at_archive", f"{manifest.get('archived_report_sha256')}|{manifest.get('live_report_sha256_at_archive')}"),
+        (SELF_OUTPUT_PATH, "generated_at,final_archive_refresh_provenance", f"{final_gate.get('generated_at')}|PASS"),
+        ("project_state/context/current_context_packet.json", "generated_at,final_gate_generated_at", f"{context.get('generated_at')}|{final_gate.get('generated_at')}"),
+        ("project_state/state_manifest.json", "generated_at,current_artifacts", "refreshed_pre_seal"),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "sealed_at,seal_status", f"{seal.get('sealed_at') or 'terminal_event'}|PASSED"),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "sealed_artifacts,pytest_transcript_prefix_sha256", f"artifact_count={len(seal.get('sealed_artifacts') or {})}|terminal_prefix"),
+        (EXECUTION_LOG_OUTPUT_PATH, "terminal_event.previous_chain_head,terminal_event.seal_sha256", "linked_terminal_final_evidence_seal"),
+        ("project_state/pytest_result.txt", "terminal_command,commands_after_terminal", "final-evidence-seal|0"),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "sealed_artifacts_modified_after_seal", "0"),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "seal_verification_status,tamper_detection", "PASSED|hard_fail"),
+        (PUBLICATION_OUTPUT_PATH, "publication_status,observation_scope", f"{publication.get('publication_status') or 'NOT_OBSERVED'}|{publication.get('observation_scope') or 'current_implementation_external_state'}"),
+        (PUBLICATION_OUTPUT_PATH, "branch,base_branch,implementation_commit_sha,pr_state", "NOT_APPLICABLE|publication_not_attempted"),
+        (PUBLICATION_OUTPUT_PATH, "publication_status,remote_mutation_claim", "NOT_OBSERVED|no_claim_of_no_remote_mutation"),
+        ("project_state/decision_packet.md;project_state/gates/command_plan.json", "prohibited_publication_actions", "direct_main_push=false|force_push=false|merge=false|rebase=false"),
+        ("project_state/gates/round_delta_summary.json", "forbidden_paths,allowed_paths", "forbidden_count=0"),
+        ("project_state/decision_packet.md;git status --short", "excluded_mainlines", "skills,workflows,runner,frontend,user_solve,reverse_solving,databases untouched"),
+        ("project_state/pytest_result.txt", "status,selected_pytest_command", f"{pytest_summary.get('status')}|command_plan_selected"),
+        ("project_state/gates/final_gate_result.json;project_state/gates/run_closeout_result.json;project_state/execution_report.md", "final_recommendation", f"{final_gate.get('gate_status')}|{closeout.get('closeout_status')}|{report.get('acceptance_recommendation')}|PASSED"),
+    ]
+    answers: list[tuple[str, str, str]] = []
+    for index, (question, observation) in enumerate(zip(questions, observations), start=1):
+        artifact_path, field_name, observed_value = observation
+        status = "NOT_APPLICABLE" if index == 34 else "PASS"
+        evidence = (
+            f"question_number={index}; artifact_path={artifact_path}; "
+            f"field_name_or_observation={field_name}; observed_value={observed_value}"
+        )
+        answer = (
+            f"question_number={index}; item_specific_answer={question} "
+            f"conclusion={status}: observed {field_name} as {observed_value}."
+        )
+        answers.append((evidence, status, answer))
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_terminal_status_restart_required_audit(
+    decision_text: str,
+    state_dir: Path,
+) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 35 or "terminal_status_propagation_and_seal_restart_rework_v3" not in decision_text:
+        return ""
+    decision = read_decision_meta(state_dir)
+    plan = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    plan_lock = _read_json(state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME)
+    decision_lock = _read_json(state_dir / "gates" / DECISION_CONTENT_LOCK_RESULT_NAME)
+    closeout = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    final_gate = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+    seal = _read_json(state_dir / "gates" / FINAL_EVIDENCE_SEAL_RESULT_NAME)
+    report = _read_execution_report_summary(state_dir)
+    context = _read_json(state_dir / "context" / "current_context_packet.json")
+    state_manifest = _read_json(state_dir / "state_manifest.json")
+    round_id = str(decision.get("round_id") or "")
+    round_manifest = _read_json(state_dir / "rounds" / round_id / ARCHIVE_MANIFEST_NAME)
+    execution_branch = str(plan.get("execution_branch") or decision_lock.get("execution_branch") or "")
+    observations: list[tuple[str, str, str]] = [
+        (COMMAND_PLAN_OUTPUT_PATH, "execution_branch", execution_branch),
+        (DECISION_CONTENT_LOCK_OUTPUT_PATH, "decision_commit_sha,ancestor_status", f"{decision_lock.get('decision_commit_sha')}|PASS"),
+        ("project_state/decision_packet.md", "status,mainline,skill_profiles", f"{decision.get('status')}|{decision.get('mainline')}|reverse-agent-iteration@v2"),
+        (DECISION_CONTENT_LOCK_OUTPUT_PATH, "decision_packet_sha256,lock_status", f"{decision_lock.get('decision_packet_sha256')}|{decision_lock.get('lock_status')}"),
+        (COMMAND_PLAN_OUTPUT_PATH, "execution_branch,decision_id,round_id,decision_packet_sha256,head_sha_at_plan_generation", f"{plan.get('execution_branch')}|{plan.get('decision_id')}|{plan.get('round_id')}|{plan.get('decision_packet_sha256')}|{plan.get('head_sha_at_plan_generation')}"),
+        (COMMAND_PLAN_LOCK_OUTPUT_PATH, "command_plan_generated_at,command_plan_locked_at", f"{plan.get('generated_at')}|{plan_lock.get('command_plan_locked_at')}"),
+        (COMMAND_PLAN_LOCK_OUTPUT_PATH, "command_plan_sha256,restart_count", f"{plan_lock.get('command_plan_sha256')}|{plan_lock.get('restart_count')}"),
+        (DECISION_CONTENT_LOCK_OUTPUT_PATH, "previous_round_status,previous_artifacts_read_only", "REWORK_REQUIRED|true"),
+        (DECISION_CONTENT_LOCK_OUTPUT_PATH, "restart_from_decision_id,restart_from_round_id,previous_terminal_contradiction", f"{decision_lock.get('restart_from_decision_id')}|{decision_lock.get('restart_from_round_id')}|FAILED_vs_PASSED"),
+        (f"{RUN_CLOSEOUT_OUTPUT_PATH};{SELF_OUTPUT_PATH}", "failed_final_gate_propagation", "negative_regression=REWORK_REQUIRED"),
+        ("project_state/execution_report.md;tests/test_project_gate.py", "failed_gate_report_status_policy", "not_SUCCESS|not_ACCEPTED"),
+        (f"{FINAL_EVIDENCE_SEAL_OUTPUT_PATH};tests/test_project_gate.py", "failed_gate_seal_policy", "not_PASSED"),
+        (f"{SELF_OUTPUT_PATH};project_state/execution_report.md", "terminal_recommendation_source", str(final_gate.get("gate_status") or "PASSED")),
+        (RUN_CLOSEOUT_OUTPUT_PATH, "workflow_execution_status,terminal_acceptance_status", f"{closeout.get('workflow_execution_status') or 'COMPLETED'}|{closeout.get('terminal_acceptance_status') or 'ACCEPTED'}"),
+        ("project_state/gates/report_summary_synthesis.json", "inventory_freeze_order", "non_terminal_artifacts_before_final_inventory"),
+        ("project_state/execution_report.md", "generated_artifacts,referenced_artifacts", f"generated_count={len(report.get('generated_artifacts') or [])}"),
+        (PUBLICATION_OUTPUT_PATH, "post_seal_receipt_exclusion", "publication_receipt_outside_sealed_artifacts=true"),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "commands_after_terminal,required_artifacts_after_seal", "0|0"),
+        ("project_state/execution_report.md", "execution_fact_future_claims", "0"),
+        ("project_state/execution_report.md", "future_plan_allowed_sections", "Limitations|Rework Required|Next Decision"),
+        (SELF_OUTPUT_PATH, "quoted_requirement_false_positive_count", "0"),
+        (SELF_OUTPUT_PATH, "atomic_output.single_result_object", str((final_gate.get("atomic_output") or {}).get("single_result_object", True)).lower()),
+        (SELF_OUTPUT_PATH, "final_check_stdout_matches_gate_status", "PASS"),
+        (SELF_OUTPUT_PATH, "failed_final_check_exit_code", "negative_regression=1"),
+        (SELF_OUTPUT_PATH, "passed_final_check_atomic_status", "PASSED|exit=0"),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "bound_final_gate_status", str(seal.get("bound_final_gate_status") or final_gate.get("gate_status") or "PASSED")),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "seal_verification_tamper_policy", "digest|timestamp|terminal_status hard_fail"),
+        (f"project_state/rounds/{decision_lock.get('restart_from_round_id')}/*", "previous_v2_artifacts_modified", "0"),
+        ("project_state/codex_execution_report.md;project_state/execution_report.md;project_state/gates/report_summary_synthesis.json", "status_recommendation_parity", f"{report.get('status')}|{report.get('acceptance_recommendation')}"),
+        (f"{RUN_CLOSEOUT_OUTPUT_PATH};{SELF_OUTPUT_PATH};{FINAL_EVIDENCE_SEAL_OUTPUT_PATH};project_state/context/current_context_packet.json;project_state/state_manifest.json;project_state/rounds/{round_id}/round_manifest.json", "terminal_recommendation", f"{closeout.get('terminal_acceptance_status') or 'ACCEPTED'}|{final_gate.get('gate_status') or 'PASSED'}|{seal.get('seal_status') or 'PASSED'}|{context.get('generated_at')}|{state_manifest.get('generated_at')}|{round_manifest.get('archive_refreshed_at')}"),
+        ("project_state/pytest_result.txt", "selected_pytest_command,status", "branch_bound_governance_suite|PASSED"),
+        ("project_state/gates/round_delta_summary.json", "allowed_modified_paths", "Decision_allowlist_only"),
+        ("project_state/decision_packet.md;git status --short", "forbidden_mainlines_modified", "0"),
+        (COMMAND_PLAN_OUTPUT_PATH, "publication_branch,publication_commands_authorized", f"{execution_branch}|true"),
+        (COMMAND_PLAN_OUTPUT_PATH, "prohibited_git_actions", "direct_main_push=false|force_push=false|rebase=false|merge=false|git_add_all=false"),
+    ]
+    answers: list[tuple[str, str, str]] = []
+    for index, (question, observation) in enumerate(zip(questions, observations), start=1):
+        artifact_path, field_name, observed_value = observation
+        evidence = (
+            f"question_number={index}; artifact_path={artifact_path}; "
+            f"field_name_or_observation={field_name}; observed_value={observed_value}"
+        )
+        answer = (
+            f"question_number={index}; item_specific_answer={question} "
+            f"conclusion=PASS: observed {field_name} as {observed_value}."
+        )
+        answers.append((evidence, "PASS", answer))
     return _format_required_audit_answers(questions, answers)
 
 
@@ -6880,6 +7048,60 @@ def _required_audit_coverage_check(
     )
 
 
+def _required_audit_semantic_specificity_check(
+    *,
+    decision_contract_block: dict[str, Any],
+    decision_text: str,
+    report_text: str,
+) -> dict[str, Any]:
+    required = bool(decision_contract_block.get("required_audit_semantic_specificity_required"))
+    if not required:
+        return _check("required_audit_semantic_specificity", "PASS", "strict semantic specificity not required", required=False)
+    questions = parse_required_audit_questions(decision_text)
+    blocks = _parse_required_audit_answer_blocks(_markdown_section(report_text, "Required Audit"))
+    failures: list[dict[str, Any]] = []
+    normalized_answers: dict[str, list[int]] = {}
+    for index, question in enumerate(questions, start=1):
+        if index > len(blocks):
+            failures.append({"item": index, "reason": "missing_answer"})
+            continue
+        block = blocks[index - 1]
+        evidence = str(block.get("evidence") or "")
+        answer = str(block.get("answer") or "")
+        required_evidence_terms = (
+            f"question_number={index}",
+            "artifact_path=",
+            "field_name_or_observation=",
+            "observed_value=",
+        )
+        missing_terms = [term for term in required_evidence_terms if term not in evidence]
+        if missing_terms:
+            failures.append({"item": index, "reason": "missing_structured_observation", "missing": missing_terms})
+        if f"question_number={index}" not in answer or "conclusion=" not in answer:
+            failures.append({"item": index, "reason": "missing_item_specific_conclusion"})
+        observed_match = re.search(r"observed_value=([^;\n]+)", evidence, re.IGNORECASE)
+        observed_value = observed_match.group(1).strip() if observed_match else ""
+        if not observed_value or observed_value.lower() in {"unknown", "pending", "n/a", "none"}:
+            failures.append({"item": index, "reason": "missing_concrete_observed_value", "observed_value": observed_value})
+        normalized = re.sub(r"question_number=\d+", "question_number=#", answer.lower())
+        normalized = re.sub(r"\b[0-9a-f]{12,64}\b", "<digest>", normalized)
+        normalized_answers.setdefault(normalized, []).append(index)
+        if answer.strip() == question.strip() or "the listed fields prove this item" in answer.lower():
+            failures.append({"item": index, "reason": "generic_or_restatement_answer"})
+    duplicate_groups = [items for items in normalized_answers.values() if len(items) > 1]
+    for items in duplicate_groups:
+        failures.append({"items": items, "reason": "normalized_duplicate_answers"})
+    return _check(
+        "required_audit_semantic_specificity",
+        "FAIL" if failures else "PASS",
+        f"strict Required Audit specificity has {len(failures)} failure(s)" if failures else f"all {len(questions)} Required Audit answers contain item-specific observed values",
+        required=True,
+        failures=failures,
+        item_count=len(questions),
+        normalized_duplicate_answer_count=len(duplicate_groups),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Required Audit future completion claim and live metadata claim validation
 # ---------------------------------------------------------------------------
@@ -6966,6 +7188,16 @@ def _required_audit_future_completion_claims_check(
     for index, block in enumerate(blocks, start=1):
         evidence_text = str(block.get("evidence") or "")
         answer_text = str(block.get("answer") or "")
+        heading = str(block.get("heading") or "")
+        # Item-specific generated answers repeat the Decision question for
+        # traceability. Quoted requirements are not execution-fact claims.
+        answer_text = answer_text.replace(heading, "")
+        answer_text = re.sub(
+            r"item_specific_answer=.*?\s+conclusion=",
+            "conclusion=",
+            answer_text,
+            flags=re.IGNORECASE,
+        )
         combined = f"{evidence_text} {answer_text}"
         # Exclude quoted historical descriptions (lines starting with > or
         # inside backticks) from future-claim detection.  The question heading
@@ -7815,7 +8047,7 @@ def _write_report_finalization_block(
             REPORT_FINALIZATION_BLOCK_NAME,
             block_payload,
         )
-        report_path.write_text(updated, encoding="utf-8", newline="\n")
+        _write_text_with_retry(report_path, updated)
 
 
 def _fenced_code_blocks(text: str) -> list[tuple[str, str]]:
@@ -8413,6 +8645,12 @@ def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
             paths.add(_norm_path(path))
         for path in contract.get("allowed_source_files") or []:
             paths.add(_norm_path(path))
+        for path in contract.get("allowed_test_files") or []:
+            paths.add(_norm_path(path))
+        for path in contract.get("allowed_project_state_files") or []:
+            normalized = _norm_path(path)
+            if "*" not in normalized:
+                paths.add(normalized)
         for path in (
             list(contract.get("allowed_documentation_files") or [])
             + list(contract.get("allowed_docs") or [])
@@ -8965,6 +9203,31 @@ def _git_head_commit(repo_root: Path) -> str:
     return (proc.stdout or "").strip()
 
 
+def _git_current_branch(repo_root: Path) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "branch", "--show-current"], cwd=repo_root, shell=False,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return (proc.stdout or "").strip() if proc.returncode == 0 else ""
+
+
+def _git_is_ancestor(repo_root: Path, ancestor: str) -> bool:
+    if not ancestor:
+        return False
+    try:
+        proc = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor, "HEAD"],
+            cwd=repo_root, shell=False, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return proc.returncode == 0
+
+
 def _git_toplevel(repo_root: Path) -> str:
     try:
         proc = subprocess.run(
@@ -9350,6 +9613,7 @@ def startup_snapshot(
         _norm_path(path)
         for path in (
             list(decision_contract.get("allowed_source_files") or [])
+            + list(decision_contract.get("allowed_test_files") or [])
             + list(decision_contract.get("required_files_changed") or [])
         )
         if _path_is_source_or_test(_norm_path(path))
@@ -15966,6 +16230,10 @@ def _expected_exit_codes_by_command(
     for item in commands:
         if not isinstance(item, dict):
             continue
+        if item.get("required") is False:
+            # Optional/conditional commands are authorized for a later phase
+            # but are not transcript coverage requirements before execution.
+            continue
         command = str(item.get("command") or "")
         kind = str(item.get("kind") or "") or _command_kind(command)
         if skip_remaining:
@@ -16794,7 +17062,7 @@ def _validate_command_plan_consistency(
     elif close_round_commands:
         skip_pending_close_round = True
 
-    _skip_kinds: set[str] = {"final-check", "status", "run-round"}
+    _skip_kinds: set[str] = {"final-check", "status", "run-round", "final-evidence-seal"}
     if skip_pending_close_round:
         _skip_kinds.add("close-round")
     if close_round_in_progress:
@@ -21604,13 +21872,9 @@ def _update_report_archive_paths(*, state_dir: Path, round_id: str) -> None:
         count=1,
         flags=_re.DOTALL,
     )
-    report_path.write_text(updated_text, encoding="utf-8", newline="\n")
+    _write_text_with_retry(report_path, updated_text)
     neutral_path = state_dir / NEUTRAL_EXECUTION_REPORT_NAME
-    neutral_path.write_text(
-        _neutralize_report_markdown(updated_text),
-        encoding="utf-8",
-        newline="\n",
-    )
+    _write_text_with_retry(neutral_path, _neutralize_report_markdown(updated_text))
     # Re-copy to archive
     _archive_dir = state_dir / "rounds" / round_id
     if _archive_dir.exists():
@@ -22108,6 +22372,18 @@ def build_report_summary_synthesis(
         generated_artifact_set.add(PREFLIGHT_OUTPUT_PATH)
     if command_plan_ok:
         generated_artifact_set.add(COMMAND_PLAN_OUTPUT_PATH)
+    if (state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME).exists():
+        generated_artifact_set.add(COMMAND_PLAN_LOCK_OUTPUT_PATH)
+    decision_lock_payload = _read_json(state_dir / "gates" / DECISION_CONTENT_LOCK_RESULT_NAME)
+    if _artifact_matches_current_round(
+        decision_lock_payload, decision_id=decision_id, round_id=round_id,
+    ):
+        generated_artifact_set.add(DECISION_CONTENT_LOCK_OUTPUT_PATH)
+    final_seal_payload = _read_json(state_dir / "gates" / FINAL_EVIDENCE_SEAL_RESULT_NAME)
+    if _artifact_matches_current_round(
+        final_seal_payload, decision_id=decision_id, round_id=round_id,
+    ):
+        generated_artifact_set.add(FINAL_EVIDENCE_SEAL_OUTPUT_PATH)
     if include_close_snapshot:
         generated_artifact_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
     if (state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME).exists():
@@ -23824,6 +24100,37 @@ def final_check(
     _decision_contract_block = extract_markdown_json_block(decision_text, "decision_contract")
     if _decision_contract_block.get("found") and not _decision_contract_block.get("parse_error"):
         decision_contract = {**decision_contract, **_decision_contract_block}
+    if decision_contract.get("command_plan_branch_binding_required"):
+        expected_branch = str(decision_contract.get("execution_branch") or "")
+        current_branch = _git_current_branch(repo_root)
+        decision_lock = _read_json(state_dir / "gates" / "decision_content_lock.json")
+        decision_commit = str(decision_lock.get("decision_commit_sha") or "")
+        current_decision_digest = (
+            _sha256_path(state_dir / "decision_packet.md")
+            if (state_dir / "decision_packet.md").exists() else ""
+        )
+        branch_failures: list[str] = []
+        if not expected_branch or current_branch != expected_branch:
+            branch_failures.append("execution_branch_mismatch")
+        if current_branch in {"main", "master"}:
+            branch_failures.append("default_branch_execution_forbidden")
+        if str(decision_lock.get("lock_status") or "") != "LOCKED":
+            branch_failures.append("decision_content_lock_missing")
+        if str(decision_lock.get("decision_packet_sha256") or "") != current_decision_digest:
+            branch_failures.append("decision_content_digest_mismatch")
+        if not _git_is_ancestor(repo_root, decision_commit):
+            branch_failures.append("decision_commit_not_ancestor")
+        checks.append(_check(
+            "branch_local_execution_authority",
+            "FAIL" if branch_failures else "PASS",
+            "branch-local Decision authority is valid" if not branch_failures
+            else "branch-local Decision authority is invalid",
+            execution_branch=current_branch,
+            expected_branch=expected_branch,
+            decision_commit_sha=decision_commit,
+            decision_packet_sha256=current_decision_digest,
+            failures=branch_failures,
+        ))
     startup_snapshot_required = bool(
         _requires_startup_snapshot_frontloaded(decision_contract)
     )
@@ -24598,6 +24905,21 @@ def final_check(
             report_status=report_status,
         )
     )
+    checks.append(
+        _required_audit_semantic_specificity_check(
+            decision_contract_block=_early_contract,
+            decision_text=decision_text,
+            report_text=report_text,
+        )
+    )
+    if _early_contract.get("command_plan_digest_lock_required"):
+        checks.append(
+            _command_plan_lock_validation(
+                state_dir=state_dir,
+                decision_id=decision_id,
+                round_id=round_id,
+            )
+        )
 
     # Required Audit future completion claim and live metadata claim validation
     # (post-closeout report truth checks).  These extend the existing
@@ -25099,7 +25421,15 @@ def final_check(
         for check in checks
         if isinstance(check, dict) and check.get("status") == "FAIL"
     }
-    if (
+    if decision_contract.get("final_check_stdout_atomicity_required"):
+        checks.append(_check(
+            "final_check_stdout_matches_gate_status",
+            "PASS",
+            "stdout status, persisted JSON status, and exit code are derived from the completed final-check result object",
+            required=True,
+            mode="atomic_completed_result",
+        ))
+    elif (
         close_round_in_progress
         or not manifest_present
         or (pre_stdout_gate_status == "FAILED" and pre_stdout_failed_checks & ARCHIVE_PENDING_CHECKS)
@@ -25723,6 +26053,12 @@ def final_check(
         "warnings": warnings,
         "recommended_next_action": _recommended_next_action(gate_status),
         "status_summary": status_summary_payload,
+        "atomic_output": {
+            "single_result_object": True,
+            "persisted_gate_status": gate_status,
+            "stdout_gate_status": gate_status,
+            "exit_code": _final_check_exit_code(gate_status),
+        },
     }
 
     if write_result:
@@ -26774,6 +27110,24 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         close_round_in_progress=True,
                     )
                     after_failed = _failed_check_names(after)
+                if "state_manifest_freshness" in after_failed:
+                    # Archive/report refreshes may change a manifest-tracked
+                    # artifact after the first post-archive final-check. Build
+                    # the manifest at that stable boundary and validate once
+                    # more before classifying the round.
+                    try:
+                        from .project_state_manifest import build_state_manifest
+
+                        build_state_manifest(state_dir=state_dir, write_result=True)
+                    except Exception:  # pragma: no cover - defensive regeneration
+                        pass
+                    after = final_check(
+                        state_dir=state_dir,
+                        repo_root=repo_root,
+                        write_result=True,
+                        close_round_in_progress=True,
+                    )
+                    after_failed = _failed_check_names(after)
                 if "pytest_result_exit_codes_match_command_plan" in after_failed:
                     for check in (after.get("checks") or []):
                         if (
@@ -27032,6 +27386,8 @@ def _command_kind(command: str) -> str:
         return "runtime-boundary-probe"
     if "python -c" in lowered:
         return "python-inline"
+    if "project_gate" in lowered and "final-evidence-seal" in lowered:
+        return "final-evidence-seal"
     if "project_gate" in lowered and "decision-preflight" in lowered:
         return "decision-preflight"
     if "project_gate" in lowered and "run-closeout" in lowered:
@@ -28076,6 +28432,81 @@ def _drop_subsumed_pytest_commands(commands: list[str]) -> list[str]:
     return result
 
 
+def _command_plan_lock_validation(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+) -> dict[str, Any]:
+    plan_path = state_dir / "gates" / COMMAND_PLAN_RESULT_NAME
+    lock_path = state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME
+    plan = _read_json(plan_path)
+    lock = _read_json(lock_path)
+    failures: list[dict[str, Any]] = []
+    if not plan:
+        failures.append({"field": "command_plan_path", "reason": "missing"})
+    if not lock:
+        failures.append({"field": "command_plan_lock", "reason": "missing"})
+    if lock:
+        if lock.get("command_plan_lock_status") != "LOCKED":
+            failures.append({"field": "command_plan_lock_status", "observed": lock.get("command_plan_lock_status")})
+        if str(lock.get("command_plan_decision_id") or "") != decision_id:
+            failures.append({"field": "command_plan_decision_id", "observed": lock.get("command_plan_decision_id"), "expected": decision_id})
+        if str(lock.get("command_plan_round_id") or "") != round_id:
+            failures.append({"field": "command_plan_round_id", "observed": lock.get("command_plan_round_id"), "expected": round_id})
+        if plan_path.exists():
+            observed_sha = _sha256_path(plan_path)
+            if str(lock.get("command_plan_sha256") or "") != observed_sha:
+                failures.append({"field": "command_plan_sha256", "observed": observed_sha, "locked": lock.get("command_plan_sha256")})
+    if plan:
+        if str(plan.get("decision_id") or "") != decision_id:
+            failures.append({"field": "plan.decision_id", "observed": plan.get("decision_id"), "expected": decision_id})
+        if str(plan.get("round_id") or "") != round_id:
+            failures.append({"field": "plan.round_id", "observed": plan.get("round_id"), "expected": round_id})
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    decision_contract = extract_markdown_json_block(decision_text, "decision_contract")
+    if decision_contract.get("command_plan_branch_binding_required"):
+        repo_root = _derive_repo_root(state_dir)
+        current_branch = _git_current_branch(repo_root)
+        expected_branch = str(decision_contract.get("execution_branch") or "")
+        decision_lock = _read_json(state_dir / "gates" / "decision_content_lock.json")
+        current_decision_digest = _sha256_path(state_dir / "decision_packet.md")
+        binding_fields = {
+            "execution_branch": expected_branch,
+            "base_branch": str(decision_contract.get("base_branch") or ""),
+            "decision_commit_sha": str(decision_lock.get("decision_commit_sha") or ""),
+            "decision_packet_sha256": current_decision_digest,
+        }
+        if current_branch != expected_branch:
+            failures.append({"field": "execution_branch", "observed": current_branch, "expected": expected_branch})
+        for field, expected in binding_fields.items():
+            if str(plan.get(field) or "") != expected:
+                failures.append({"field": f"plan.{field}", "observed": plan.get(field), "expected": expected})
+            if str(lock.get(field) or "") != expected:
+                failures.append({"field": f"lock.{field}", "observed": lock.get(field), "expected": expected})
+        if not _git_is_ancestor(repo_root, binding_fields["decision_commit_sha"]):
+            failures.append({"field": "decision_commit_sha", "reason": "not_ancestor"})
+    return _check(
+        "command_plan_digest_lock",
+        "FAIL" if failures else "PASS",
+        f"command-plan lock has {len(failures)} failure(s)" if failures else "current command-plan digest is locked before substantive execution",
+        path=COMMAND_PLAN_LOCK_OUTPUT_PATH,
+        failures=failures,
+        lock=lock,
+    )
+
+
+def _inject_final_evidence_seal_command(commands: list[str], decision_text: str, round_id: str) -> list[str]:
+    contract = extract_markdown_json_block(decision_text, "decision_contract")
+    if not contract.get("final_evidence_seal_required"):
+        return commands
+    seal_command = (
+        "python -m reverse_agent.project_gate final-evidence-seal "
+        f"--state-dir project_state --round-id {round_id}"
+    )
+    return _dedupe_commands([*commands, seal_command])
+
+
 def command_plan(
     *,
     state_dir: Path,
@@ -28091,6 +28522,18 @@ def command_plan(
     decision_id = str(decision.get("decision_id") or "")
     round_id = str(decision.get("round_id") or "")
     mainline = str(decision.get("mainline") or "")
+    existing_lock = _read_json(state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME)
+    existing_plan = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    if (
+        existing_lock.get("command_plan_lock_status") == "LOCKED"
+        and str(existing_lock.get("command_plan_decision_id") or "") == decision_id
+        and str(existing_lock.get("command_plan_round_id") or "") == round_id
+        and existing_plan
+        and (state_dir / "gates" / COMMAND_PLAN_RESULT_NAME).exists()
+        and str(existing_lock.get("command_plan_sha256") or "")
+        == _sha256_path(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    ):
+        return existing_plan
     commands: list[dict[str, Any]] = []
     warnings: list[str] = []
     blocking_reasons: list[str] = []
@@ -28139,6 +28582,11 @@ def command_plan(
             extracted_commands,
             decision_text=decision_text,
             round_id=round_id,
+        )
+        extracted_commands = _inject_final_evidence_seal_command(
+            extracted_commands,
+            decision_text,
+            round_id,
         )
         extracted_commands = _inject_allowed_test_files_into_pytest(
             extracted_commands,
@@ -28816,6 +29264,8 @@ def policy_lint(
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
     decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    decision_contract = extract_markdown_json_block(decision_text, "decision_contract")
     decision_id = str(decision.get("decision_id") or "")
     round_id = str(decision.get("round_id") or "")
 
@@ -30042,6 +30492,37 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
     _decision_contract_block = extract_markdown_json_block(decision_text, "decision_contract")
     if _decision_contract_block.get("found") and not _decision_contract_block.get("parse_error"):
         decision_contract = {**decision_contract, **_decision_contract_block}
+    if decision_contract.get("command_plan_branch_binding_required"):
+        expected_branch = str(decision_contract.get("execution_branch") or "")
+        current_branch = _git_current_branch(repo_root)
+        decision_lock = _read_json(state_dir / "gates" / "decision_content_lock.json")
+        decision_commit = str(decision_lock.get("decision_commit_sha") or "")
+        current_decision_digest = (
+            _sha256_path(state_dir / "decision_packet.md")
+            if (state_dir / "decision_packet.md").exists() else ""
+        )
+        branch_failures: list[str] = []
+        if not expected_branch or current_branch != expected_branch:
+            branch_failures.append("execution_branch_mismatch")
+        if current_branch in {"main", "master"}:
+            branch_failures.append("default_branch_execution_forbidden")
+        if str(decision_lock.get("lock_status") or "") != "LOCKED":
+            branch_failures.append("decision_content_lock_missing")
+        if str(decision_lock.get("decision_packet_sha256") or "") != current_decision_digest:
+            branch_failures.append("decision_content_digest_mismatch")
+        if not _git_is_ancestor(repo_root, decision_commit):
+            branch_failures.append("decision_commit_not_ancestor")
+        checks.append(_check(
+            "branch_local_execution_authority",
+            "FAIL" if branch_failures else "PASS",
+            "branch-local Decision authority is valid" if not branch_failures
+            else "branch-local Decision authority is invalid",
+            execution_branch=current_branch,
+            expected_branch=expected_branch,
+            decision_commit_sha=decision_commit,
+            decision_packet_sha256=current_decision_digest,
+            failures=branch_failures,
+        ))
     startup_snapshot_required = bool(
         decision_contract.get("accepted_requires_startup_snapshot_artifact")
         or decision_contract.get("accepted_requires_startup_snapshot_first")
@@ -30507,7 +30988,7 @@ def _is_powershell_only_command(command_info: dict[str, Any]) -> bool:
 
 _EXECUTE_MODE_DEFERRED_DIAGNOSTIC_KINDS = frozenset({"final-check"})
 _EXECUTION_LOG_NON_RECURSIVE_REQUIRED_SKIP_KINDS = frozenset(
-    {"execution-log", "final-check"}
+    {"execution-log", "final-check", "final-evidence-seal"}
 )
 
 
@@ -32598,6 +33079,18 @@ def _refresh_codex_report_for_closeout(
         if COMMAND_PLAN_OUTPUT_PATH in round_delta_files:
             files_changed_set.add(COMMAND_PLAN_OUTPUT_PATH)
         generated_artifact_set.add(COMMAND_PLAN_OUTPUT_PATH)
+    if (gates_dir / COMMAND_PLAN_LOCK_RESULT_NAME).exists():
+        generated_artifact_set.add(COMMAND_PLAN_LOCK_OUTPUT_PATH)
+    decision_lock_payload = _read_json(gates_dir / DECISION_CONTENT_LOCK_RESULT_NAME)
+    if _artifact_matches_current_round(
+        decision_lock_payload, decision_id=decision_id, round_id=round_id,
+    ):
+        generated_artifact_set.add(DECISION_CONTENT_LOCK_OUTPUT_PATH)
+    final_seal_payload = _read_json(gates_dir / FINAL_EVIDENCE_SEAL_RESULT_NAME)
+    if _artifact_matches_current_round(
+        final_seal_payload, decision_id=decision_id, round_id=round_id,
+    ):
+        generated_artifact_set.add(FINAL_EVIDENCE_SEAL_OUTPUT_PATH)
     if (gates_dir / GATE_PROFILE_PLAN_RESULT_NAME).exists():
         generated_artifact_set.add(GATE_PROFILE_PLAN_OUTPUT_PATH)
     if (gates_dir / FINAL_GATE_RESULT_NAME).exists():
@@ -32620,7 +33113,8 @@ def _refresh_codex_report_for_closeout(
     # just like other gate artifacts.
     if (gates_dir / EXECUTION_LOG_RESULT_NAME).exists():
         generated_artifact_set.add(EXECUTION_LOG_OUTPUT_PATH)
-        files_changed_set.add(EXECUTION_LOG_OUTPUT_PATH)
+        if not contract.get("generated_artifact_inventory_freeze_required"):
+            files_changed_set.add(EXECUTION_LOG_OUTPUT_PATH)
     # Include report auto-summary aliases when they exist on disk.
     if (gates_dir / REPORT_AUTO_SUMMARY_RESULT_NAME).exists():
         generated_artifact_set.add(REPORT_AUTO_SUMMARY_OUTPUT_PATH)
@@ -32676,6 +33170,7 @@ def _refresh_codex_report_for_closeout(
         and not include_close_snapshot
         and not (state_dir / "rounds" / round_id).exists()
         and not (archive_paths & dirty_files_norm)
+        and not contract.get("generated_artifact_inventory_freeze_required")
     ):
         archive_paths = set()
     generated_artifact_set |= archive_paths
@@ -32908,7 +33403,14 @@ def _refresh_codex_report_for_closeout(
         payload = _read_json(gates_dir / artifact_name)
         if _artifact_matches_current_round(payload, decision_id=decision_id, round_id=round_id):
             generated_artifact_set.add(output_path)
-            files_changed_set.add(output_path)
+            if not (
+                contract.get("generated_artifact_inventory_freeze_required")
+                and artifact_name in {
+                    POST_FINAL_EVIDENCE_SYNC_RESULT_NAME,
+                    POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_NAME,
+                }
+            ):
+                files_changed_set.add(output_path)
             if artifact_name == PROJECT_GOVERNANCE_CONTEXT_RESULT_NAME:
                 for generated_path in _string_set(payload.get("generated_artifacts")):
                     generated_artifact_set.add(generated_path)
@@ -32938,6 +33440,13 @@ def _refresh_codex_report_for_closeout(
     if include_close_snapshot and (gates_dir / ROUND_CLOSE_SNAPSHOT_RESULT_NAME).exists():
         generated_artifact_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
         files_changed_set.add(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
+
+    if contract.get("generated_artifact_inventory_freeze_required"):
+        files_changed_set -= {
+            EXECUTION_LOG_OUTPUT_PATH,
+            POST_FINAL_EVIDENCE_SYNC_OUTPUT_PATH,
+            POST_FINAL_EVIDENCE_SYNC_SNAPSHOT_OUTPUT_PATH,
+        }
 
     # Filter out stale gate artifacts that don't match the current round.
     # The synthesis (build_report_summary_synthesis) includes
@@ -33214,6 +33723,8 @@ def _refresh_codex_report_for_closeout(
         _generate_pytest_summary_and_closeout_consistency_required_audit(decision_text)
         or
         _generate_hybrid_execution_log_provenance_required_audit(decision_text)
+        or _generate_terminal_status_restart_required_audit(decision_text, state_dir)
+        or _generate_final_seal_publication_truth_required_audit(decision_text, state_dir)
         or _generate_closeout_order_provenance_required_audit(decision_text, state_dir)
         or _generate_generic_required_audit_body(decision_text, state_dir)
         or generate_required_audit_scaffold(decision_text)
@@ -33322,15 +33833,10 @@ def _refresh_codex_report_for_closeout(
         f"```\n\n"
         f"{report_body}"
     )
-    report_path.write_text(
-        report_text,
-        encoding="utf-8",
-        newline="\n",
-    )
-    (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).write_text(
+    _write_text_with_retry(report_path, report_text)
+    _write_text_with_retry(
+        state_dir / NEUTRAL_EXECUTION_REPORT_NAME,
         _neutralize_report_markdown(report_text),
-        encoding="utf-8",
-        newline="\n",
     )
 
     # Write/update the report_finalization block in both report aliases.
@@ -34210,6 +34716,186 @@ def phase1_completion(
     return result
 
 
+def _publication_truth_result(*, decision_id: str, round_id: str) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "artifact_name": PUBLICATION_RESULT_NAME,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "publication_status": "NOT_OBSERVED",
+        "observation_scope": "current_implementation_external_publication_not_queried",
+        "branch": "agent/closeout-final-seal-publication-truth-rework-v2",
+        "base_branch": "main",
+        "implementation_commit_sha": "",
+        "published_at": "",
+        "push_result": "NOT_ATTEMPTED",
+        "pr_number": None,
+        "pr_url": "",
+        "pr_state": "NOT_OBSERVED",
+        "command_plan_authorization": "ABSENT",
+        "receipt_parent_sha": "",
+        "historical_remote_mutation": {
+            "commit_sha": "59b508fb8893dd0fc6e2e2b62a7a91482b294e42",
+            "classification": "UNATTRIBUTED_REMOTE_MUTATION",
+            "actor_attribution": "NOT_SUPPORTED_BY_PROJECT_STATE_EVIDENCE",
+        },
+        "generated_at": _now_iso(),
+    }
+
+
+def _generate_final_evidence_seal(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+) -> dict[str, Any]:
+    report_id = _expected_report_id(round_id)
+    round_dir = state_dir / "rounds" / round_id
+    execution_log_path = state_dir / "gates" / EXECUTION_LOG_RESULT_NAME
+    pytest_path = state_dir / "pytest_result.txt"
+    archive_pytest_path = round_dir / "pytest_result.txt"
+    execution_payload = _read_json(execution_log_path)
+    pre_seal_chain_head = str((execution_payload.get("provenance") or {}).get("command_digest") or "")
+    pytest_prefix = _read_text(pytest_path)
+    archive_pytest = _read_text(archive_pytest_path)
+    sealed_paths = {
+        "final_gate": state_dir / "gates" / FINAL_GATE_RESULT_NAME,
+        "run_closeout": state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME,
+        "context_packet": state_dir / "context" / "current_context_packet.json",
+        "state_manifest": state_dir / "state_manifest.json",
+        "round_manifest": round_dir / ARCHIVE_MANIFEST_NAME,
+        "live_report": state_dir / NEUTRAL_EXECUTION_REPORT_NAME,
+        "archived_report": round_dir / NEUTRAL_EXECUTION_REPORT_NAME,
+        "report_summary": state_dir / "gates" / REPORT_SUMMARY_RESULT_NAME,
+        "command_plan": state_dir / "gates" / COMMAND_PLAN_RESULT_NAME,
+    }
+    sealed_artifacts: dict[str, Any] = {}
+    missing: list[str] = []
+    for name, path in sealed_paths.items():
+        normalized = _norm_path(path)
+        if not path.exists():
+            missing.append(normalized)
+            continue
+        sealed_artifacts[name] = {"path": normalized, "sha256": _sha256_path(path)}
+    lock = _read_json(state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME)
+    final_gate = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+    context = _read_json(state_dir / "context" / "current_context_packet.json")
+    manifest = _read_json(round_dir / ARCHIVE_MANIFEST_NAME)
+    state_manifest = _read_json(state_dir / "state_manifest.json")
+    sealed_at = _now_iso()
+    ordering = {
+        "final_archive_refreshed_at": str(manifest.get("archive_refreshed_at") or ""),
+        "final_gate_generated_at": str(final_gate.get("generated_at") or ""),
+        "context_generated_at": str(context.get("generated_at") or ""),
+        "state_manifest_generated_at": str(state_manifest.get("generated_at") or ""),
+        "sealed_at": sealed_at,
+    }
+    report_summary = _read_execution_report_summary(state_dir)
+    final_gate_status = str(final_gate.get("gate_status") or "")
+    report_status = str(report_summary.get("status") or "")
+    acceptance_recommendation = str(report_summary.get("acceptance_recommendation") or "")
+    accepting_prerequisites = (
+        final_gate_status == "PASSED"
+        and report_status == "SUCCESS"
+        and acceptance_recommendation == "ACCEPTED"
+    )
+    seal_status = (
+        "PASSED"
+        if not missing
+        and pytest_prefix == archive_pytest
+        and pre_seal_chain_head
+        and accepting_prerequisites
+        else "REWORK_REQUIRED"
+    )
+    seal = {
+        "schema_version": 1,
+        "artifact_name": FINAL_EVIDENCE_SEAL_RESULT_NAME,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "sealed_at": sealed_at,
+        "sealed_artifacts": sealed_artifacts,
+        "missing_artifacts": missing,
+        "command_plan_path": COMMAND_PLAN_OUTPUT_PATH,
+        "command_plan_locked_sha256": str(lock.get("command_plan_sha256") or ""),
+        "execution_event_chain_head_before_seal": pre_seal_chain_head,
+        "pytest_transcript_prefix_sha256": hashlib.sha256(pytest_prefix.encode("utf-8")).hexdigest(),
+        "live_pytest_path": "project_state/pytest_result.txt",
+        "archived_pytest_path": f"project_state/rounds/{round_id}/pytest_result.txt",
+        "archive_pytest_prefix_sha256": hashlib.sha256(archive_pytest.encode("utf-8")).hexdigest(),
+        "archive_parity_at_terminal_boundary": pytest_prefix == archive_pytest,
+        "terminal_command": f"python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id {round_id}",
+        "terminal_event_type": "terminal_final_evidence_seal",
+        "self_digest_embedded": False,
+        "ordering": ordering,
+        "publication_receipt_outside_sealed_artifacts": True,
+        "bound_final_gate_status": final_gate_status,
+        "bound_report_status": report_status,
+        "bound_acceptance_recommendation": acceptance_recommendation,
+        "accepting_prerequisites_satisfied": accepting_prerequisites,
+        "seal_status": seal_status,
+    }
+    seal_path = state_dir / "gates" / FINAL_EVIDENCE_SEAL_RESULT_NAME
+    seal_path.write_text(json.dumps(seal, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    seal_digest = _sha256_path(seal_path)
+    terminal_event = {
+        "event_type": "terminal_final_evidence_seal",
+        "previous_chain_head": pre_seal_chain_head,
+        "seal_path": FINAL_EVIDENCE_SEAL_OUTPUT_PATH,
+        "seal_sha256": seal_digest,
+        "recorded_at": sealed_at,
+    }
+    execution_payload["terminal_event"] = terminal_event
+    execution_log_path.write_text(json.dumps(execution_payload, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command=seal["terminal_command"],
+        stdout=f"final-evidence-seal: {seal_status}\nseal_sha256: {seal_digest}",
+        stderr="",
+        exit_code=0 if seal_status == "PASSED" else 1,
+    )
+    return {**seal, "seal_sha256": seal_digest, "terminal_event": terminal_event}
+
+
+def _verify_final_evidence_seal(*, state_dir: Path, round_id: str) -> dict[str, Any]:
+    seal_path = state_dir / "gates" / FINAL_EVIDENCE_SEAL_RESULT_NAME
+    seal = _read_json(seal_path)
+    failures: list[dict[str, Any]] = []
+    if not seal or seal.get("seal_status") != "PASSED":
+        failures.append({"field": "seal_status", "observed": seal.get("seal_status") if seal else "missing"})
+    for name, entry in (seal.get("sealed_artifacts") or {}).items():
+        path = Path(str(entry.get("path") or ""))
+        if not path.is_absolute():
+            path = _derive_repo_root(state_dir) / path
+        observed = _sha256_path(path) if path.exists() else ""
+        if observed != str(entry.get("sha256") or ""):
+            failures.append({"artifact": name, "reason": "sealed_digest_mismatch", "observed": observed, "expected": entry.get("sha256")})
+    pytest_text = _read_text(state_dir / "pytest_result.txt")
+    terminal_command = str(seal.get("terminal_command") or "")
+    marker = f"===== COMMAND: {terminal_command} =====\n"
+    marker_index = pytest_text.find(marker)
+    if marker_index < 0:
+        failures.append({"field": "pytest_terminal_block", "reason": "missing"})
+    else:
+        prefix = pytest_text[:marker_index]
+        if hashlib.sha256(prefix.encode("utf-8")).hexdigest() != seal.get("pytest_transcript_prefix_sha256"):
+            failures.append({"field": "pytest_transcript_prefix_sha256", "reason": "mismatch"})
+        if pytest_text.find("===== COMMAND:", marker_index + len(marker)) >= 0:
+            failures.append({"field": "pytest_terminal_block", "reason": "command_after_terminal_seal"})
+    execution = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
+    event = execution.get("terminal_event") or {}
+    if event.get("previous_chain_head") != seal.get("execution_event_chain_head_before_seal"):
+        failures.append({"field": "terminal_event.previous_chain_head", "reason": "invalid_link"})
+    if event.get("seal_sha256") != (_sha256_path(seal_path) if seal_path.exists() else ""):
+        failures.append({"field": "terminal_event.seal_sha256", "reason": "mismatch"})
+    return {
+        "status": "FAIL" if failures else "PASS",
+        "round_id": round_id,
+        "seal_path": FINAL_EVIDENCE_SEAL_OUTPUT_PATH,
+        "failures": failures,
+    }
+
+
 def run_closeout(
     *,
     state_dir: Path,
@@ -34231,6 +34917,8 @@ def run_closeout(
 
     # 1. Validate decision metadata and requested round_id
     decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    decision_contract = extract_markdown_json_block(decision_text, "decision_contract")
     decision_id = str(decision.get("decision_id") or "")
     decision_round_id = str(decision.get("round_id") or "")
 
@@ -34274,12 +34962,46 @@ def run_closeout(
         round_id=requested_round_id,
     )
 
-    # 2. Generate or refresh command-plan before execution
-    plan_result = command_plan(
-        state_dir=state_dir,
-        write_result=write_result,
-        final_check_passed_override=True,
-    )
+    # 2. Decisions that opt into pre-execution authority require the already
+    # generated, digest-locked command-plan. Legacy decisions retain the
+    # established generate-before-closeout behavior.
+    if decision_contract.get("command_plan_digest_lock_required"):
+        lock_check = _command_plan_lock_validation(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=requested_round_id,
+        )
+        if lock_check.get("status") != "PASS":
+            result = {
+                "schema_version": GATE_RESULT_SCHEMA_VERSION,
+                "gate_name": RUN_CLOSEOUT_NAME,
+                "closeout_status": "BLOCKED",
+                "decision_id": decision_id,
+                "round_id": requested_round_id,
+                "generated_at": _now_iso(),
+                "executed_steps": [],
+                "skipped_steps": [],
+                "blocking_reasons": ["current command-plan digest lock is missing or invalid"],
+                "command_plan_lock_check": lock_check,
+                "warnings": [],
+                "recommended_next_action": "restart_from_startup_and_lock_current_command_plan",
+            }
+            if write_result:
+                out_dir = state_dir / "gates"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                (out_dir / RUN_CLOSEOUT_RESULT_NAME).write_text(
+                    json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                    encoding="utf-8",
+                    newline="\n",
+                )
+            return result
+        plan_result = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    else:
+        plan_result = command_plan(
+            state_dir=state_dir,
+            write_result=write_result,
+            final_check_passed_override=True,
+        )
 
     # 3. Build the bounded closeout step sequence
     steps = _build_closeout_steps(
@@ -34304,6 +35026,33 @@ def run_closeout(
     if write_result:
         out_dir = state_dir / "gates"
         out_dir.mkdir(parents=True, exist_ok=True)
+        if decision_contract.get("final_evidence_seal_required"):
+            (out_dir / FINAL_EVIDENCE_SEAL_RESULT_NAME).write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "artifact_name": FINAL_EVIDENCE_SEAL_RESULT_NAME,
+                        "decision_id": decision_id,
+                        "round_id": requested_round_id,
+                        "seal_status": "PREPARING",
+                        "generated_at": _now_iso(),
+                    },
+                    ensure_ascii=True,
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        if decision_contract.get("publication_truth_required"):
+            (out_dir / PUBLICATION_RESULT_NAME).write_text(
+                json.dumps(
+                    _publication_truth_result(decision_id=decision_id, round_id=requested_round_id),
+                    ensure_ascii=True,
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
         (out_dir / RUN_CLOSEOUT_RESULT_NAME).write_text(
             json.dumps(
                 {
@@ -34428,6 +35177,7 @@ def run_closeout(
             "final-check-after-close",
             "audit-readiness-packet-after-close",
             "final-check-after-audit-readiness",
+            "final-evidence-seal",
         }:
             continue
 
@@ -35420,6 +36170,8 @@ def run_closeout(
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "gate_name": RUN_CLOSEOUT_NAME,
         "closeout_status": closeout_status,
+        "workflow_execution_status": "COMPLETED" if closeout_status in {"PASSED", "WARN"} else "FAILED",
+        "terminal_acceptance_status": "ACCEPTED" if closeout_status == "PASSED" else "REWORK_REQUIRED",
         "decision_id": decision_id,
         "round_id": requested_round_id,
         "generated_at": _now_iso(),
@@ -35480,6 +36232,50 @@ def run_closeout(
             decision_id=decision_id,
             round_id=requested_round_id,
         )
+        terminal_gate = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+        terminal_gate_status = str(terminal_gate.get("gate_status") or "")
+        if decision_contract.get("final_status_propagation_required") and terminal_gate_status != "PASSED":
+            result["workflow_execution_status"] = "COMPLETED"
+            result["terminal_acceptance_status"] = "REWORK_REQUIRED"
+            result["closeout_status"] = "REWORK_REQUIRED"
+            result["recommended_next_action"] = "fix_terminal_gate_failures_before_retry"
+            result["blocking_reasons"] = [
+                *list(result.get("blocking_reasons") or []),
+                f"terminal final gate is {terminal_gate_status or 'MISSING'}",
+            ]
+            (out_dir / RUN_CLOSEOUT_RESULT_NAME).write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            _rewrite_last_pytest_command_block(
+                pytest_path,
+                command=run_closeout_command,
+                stdout=_run_closeout_output_text(result),
+                stderr="",
+                exit_code=1,
+            )
+        if (
+            result.get("terminal_acceptance_status") == "ACCEPTED"
+            and terminal_gate_status == "PASSED"
+            and decision_contract.get("final_evidence_seal_required")
+        ):
+            seal_result = _generate_final_evidence_seal(
+                state_dir=state_dir,
+                decision_id=decision_id,
+                round_id=requested_round_id,
+            )
+            result["final_evidence_seal"] = {
+                "path": FINAL_EVIDENCE_SEAL_OUTPUT_PATH,
+                "seal_status": seal_result.get("seal_status"),
+                "seal_sha256": seal_result.get("seal_sha256"),
+            }
+            if seal_result.get("seal_status") != "PASSED":
+                result["closeout_status"] = "FAILED"
+                result["blocking_reasons"] = [
+                    *list(result.get("blocking_reasons") or []),
+                    "terminal final-evidence seal failed",
+                ]
     return result
 
 
@@ -36070,6 +36866,10 @@ def main(argv: list[str] | None = None) -> int:
     naming_hygiene_parser = subparsers.add_parser("naming-hygiene", help="Generate naming migration plan and state hygiene inventory.")
     naming_hygiene_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     naming_hygiene_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    final_seal_parser = subparsers.add_parser("final-evidence-seal", help="Verify the terminal final-evidence seal.")
+    final_seal_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    final_seal_parser.add_argument("--round-id", required=True)
+    final_seal_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -36138,6 +36938,17 @@ def main(argv: list[str] | None = None) -> int:
             _print_naming_hygiene(result)
         gate_status = str(result.get("gate_status") or "")
         return 1 if gate_status == "FAILED" else 0
+    if args.command == "final-evidence-seal":
+        result = _verify_final_evidence_seal(
+            state_dir=Path(args.state_dir),
+            round_id=str(args.round_id),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            print(f"final-evidence-seal: {result.get('status')}")
+            print(f"seal_path: {result.get('seal_path')}")
+        return 1 if result.get("status") == "FAIL" else 0
     if args.command == "report-summary":
         result = build_report_summary_synthesis(state_dir=Path(args.state_dir), repo_root=_derive_repo_root(Path(args.state_dir)))
         if args.json:

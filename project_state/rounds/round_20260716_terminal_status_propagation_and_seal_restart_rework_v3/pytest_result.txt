@@ -479,9 +479,3 @@ final-check: PASSED
 
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3 =====
-final-evidence-seal: PASSED
-seal_sha256: acc77b462fa2e5bc4e49e796dc39c03fab3f12b6d99a27d93f9c6b9580147254
-
-===== EXIT: 0 =====
-

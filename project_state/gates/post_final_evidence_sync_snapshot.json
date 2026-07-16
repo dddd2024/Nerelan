@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "artifact_name": "post_final_evidence_sync_snapshot.json",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "generated_at": "2026-07-16T12:40:10Z",
-  "before_context_decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "before_context_round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "generated_at": "2026-07-16T18:04:05Z",
+  "before_context_decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "before_context_round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
   "before_context_final_gate_status": "PASSED",
-  "after_context_decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "after_context_round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "after_context_decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "after_context_round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
   "after_context_final_gate_status": "PASSED",
   "final_gate_status": "PASSED",
   "stale_context_detected": false,
   "context_sync_basis": "timestamp_and_digest",
-  "final_gate_source_sha256": "0ae43e36771cf4287b87a326f6f2d343bbcf8799051054cacc0b977a68f0ee95"
+  "final_gate_source_sha256": "048fca4b52f10dcd62c253258ef6a7514b704f4cca5cc6f026d899a355ee9a7e"
 }

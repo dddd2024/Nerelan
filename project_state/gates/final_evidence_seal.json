@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "artifact_name": "final_evidence_seal.json",
+  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "report_id": "codex_report_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "sealed_at": "2026-07-16T18:04:05.314425Z",
+  "sealed_artifacts": {
+    "final_gate": {
+      "path": "project_state/gates/final_gate_result.json",
+      "sha256": "048fca4b52f10dcd62c253258ef6a7514b704f4cca5cc6f026d899a355ee9a7e"
+    },
+    "run_closeout": {
+      "path": "project_state/gates/run_closeout_result.json",
+      "sha256": "55ac9e2fb843d1707010f5ce295c5182c898aaa13ae55f2c1ce05a85694e67b7"
+    },
+    "context_packet": {
+      "path": "project_state/context/current_context_packet.json",
+      "sha256": "124b4905f6ee4d8d9424cc02806cbfd047794ff87d29c1898267d62b178a43c8"
+    },
+    "state_manifest": {
+      "path": "project_state/state_manifest.json",
+      "sha256": "097ce87569bd1308c2970a14f6c050d3b993315041d8d11ce14261a4fa392fd4"
+    },
+    "round_manifest": {
+      "path": "project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/round_manifest.json",
+      "sha256": "99e88b6b4471e3bd70dd725c7cf4dc9245a983d921d3807d835813c2115e4c6c"
+    },
+    "live_report": {
+      "path": "project_state/execution_report.md",
+      "sha256": "8a60af19a64812f8454d57502591f20e4a06c66438e1f2c518b574f2414bed55"
+    },
+    "archived_report": {
+      "path": "project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/execution_report.md",
+      "sha256": "8a60af19a64812f8454d57502591f20e4a06c66438e1f2c518b574f2414bed55"
+    },
+    "report_summary": {
+      "path": "project_state/gates/report_summary_synthesis.json",
+      "sha256": "4b71ad7b33f17add7c1ad1e7f2ad02a1bd3ebe1c07b039b6b22bfd10e57445fc"
+    },
+    "command_plan": {
+      "path": "project_state/gates/command_plan.json",
+      "sha256": "3b5c1b6dda652641f1a14e641ff4b818b8c353f2342212505e7fbb79fd227dbf"
+    }
+  },
+  "missing_artifacts": [],
+  "command_plan_path": "project_state/gates/command_plan.json",
+  "command_plan_locked_sha256": "3b5c1b6dda652641f1a14e641ff4b818b8c353f2342212505e7fbb79fd227dbf",
+  "execution_event_chain_head_before_seal": "e3f8f89672078eaae1bb5711c483aa19208650c49c5b4730662808fd633d913e",
+  "pytest_transcript_prefix_sha256": "492401682a3ec624dead73aef07bc29786fa76b04326c5e33484d438a25df3f0",
+  "live_pytest_path": "project_state/pytest_result.txt",
+  "archived_pytest_path": "project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/pytest_result.txt",
+  "archive_pytest_prefix_sha256": "492401682a3ec624dead73aef07bc29786fa76b04326c5e33484d438a25df3f0",
+  "archive_parity_at_terminal_boundary": true,
+  "terminal_command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "terminal_event_type": "terminal_final_evidence_seal",
+  "self_digest_embedded": false,
+  "ordering": {
+    "final_archive_refreshed_at": "2026-07-16T18:04:05.306939Z",
+    "final_gate_generated_at": "2026-07-16T18:04:04.949176Z",
+    "context_generated_at": "2026-07-16T18:04:05.045623Z",
+    "state_manifest_generated_at": "2026-07-16T18:04:05Z",
+    "sealed_at": "2026-07-16T18:04:05.314425Z"
+  },
+  "publication_receipt_outside_sealed_artifacts": true,
+  "bound_final_gate_status": "PASSED",
+  "bound_report_status": "SUCCESS",
+  "bound_acceptance_recommendation": "ACCEPTED",
+  "accepting_prerequisites_satisfied": true,
+  "seal_status": "PASSED"
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "artifact_name": "decision_content_lock.json",
+  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
+  "base_branch": "main",
+  "decision_commit_sha": "3e1be754a2c05b336b43f691c75d4541c4478d05",
+  "head_sha_at_lock": "3e1be754a2c05b336b43f691c75d4541c4478d05",
+  "decision_packet_sha256": "d368718c936a972561b3ed13e077a12f236c72c859e9755e718cfcbcd0301900",
+  "decision_locked_at": "2026-07-16T15:20:13.2925914Z",
+  "lock_status": "LOCKED",
+  "restart_mode": "explicit_new_round",
+  "restart_from_decision_id": "decision_20260716_closeout_final_seal_and_publication_truth_rework_v2",
+  "restart_from_round_id": "round_20260716_closeout_final_seal_and_publication_truth_rework_v2",
+  "previous_final_gate_status": "FAILED",
+  "previous_seal_status": "PASSED",
+  "previous_artifacts_read_only": true,
+  "restart_reason": "previous round terminal final gate, closeout, and seal statuses disagreed"
+}
