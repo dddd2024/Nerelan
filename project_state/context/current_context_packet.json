@@ -17,12 +17,12 @@
     "context_generated_after_final_gate": true,
     "context_sync_basis": "timestamp_and_digest",
     "final_gate_current": true,
-    "final_gate_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-    "final_gate_generated_at": "2026-07-10T07:48:16.935210Z",
-    "final_gate_report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
-    "final_gate_round_id": "round_20260710_state_manifest_freshness_rework_v1",
+    "final_gate_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+    "final_gate_generated_at": "2026-07-10T11:12:57.706497Z",
+    "final_gate_report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
+    "final_gate_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
     "final_gate_source_path": "project_state/gates/final_gate_result.json",
-    "final_gate_source_sha256": "e890cb89e9c0fc93b810c3794f2cac82a15ed6304ed2cd453524783a629226a4",
+    "final_gate_source_sha256": "e8ad4ea36e1a6a4cab2a99ae55a6f820d971cf38323c821abb34dbbd610e708c",
     "final_gate_status": "PASSED",
     "final_gate_status_source": "current_final_gate_result",
     "governance_artifacts_are_fact_source_replacements": false,
@@ -30,9 +30,9 @@
       "solve_reports/**",
       "full PROJECT_PROGRESS_LOG.txt"
     ],
-    "post_final_sync_evaluated_at": "2026-07-10T07:48:17Z",
+    "post_final_sync_evaluated_at": "2026-07-10T11:12:57Z",
     "post_final_sync_status": "CURRENT_POST_FINAL_SYNCED",
-    "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
+    "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
     "required_governance_artifacts": [
       "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
@@ -82,7 +82,7 @@
     "timestamp_precision_policy": "precise_parsed_with_digest_fallback"
   },
   "bounded": true,
-  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
+  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
   "do_not_assume": [
     "missing sample artifacts are current blockers for this governance round",
     "roadmap workstreams grant execution authority",
@@ -128,6 +128,7 @@
     "frontend/*",
     "solve_reports/*",
     "training_materials/local_reverse/*",
+    "reverse_agent/project_state_manifest.py",
     "reverse_agent/user_solve_contract.py",
     "reverse_agent/user_solve_state.py",
     "reverse_agent/user_solve_errors.py",
@@ -138,6 +139,8 @@
     "project_state/negative_results.json",
     "project_state/roadmap/workstreams.json",
     "project_state/domains/*",
+    "project_state/jobs/*",
+    "project_state/user_sessions/*",
     "project_state/archives/*",
     "project_state/deletions/*",
     "project_state/blob_store/*",
@@ -145,7 +148,7 @@
     "project_state/index.sqlite",
     "docs/roadmap/*"
   ],
-  "generated_at": "2026-07-10T07:48:17.143680Z",
+  "generated_at": "2026-07-10T11:12:57.847135Z",
   "mainline": "project_governance",
   "model_api_invocation": false,
   "negative_results_constraints": [
@@ -206,48 +209,48 @@
     "next_action_policy": "follow command_plan; do not execute roadmap entries unless selected by decision_packet",
     "previous_accepted_baseline": {
       "decision_id": "",
-      "round_id": "round_20260710_state_manifest_freshness_rework_v1",
-      "round_manifest": "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json"
+      "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+      "round_manifest": "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json"
     },
     "state_build_id": "state_20260618_134029_d6bd033d2532",
     "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
     "task_authority": "project_state/decision_packet.md",
     "task_packet_role": "background_only"
   },
-  "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
-  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+  "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
+  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
   "runner_dispatch": false,
   "schema_version": 1,
   "source_files": {
     "codex_execution_report.md": {
       "exists": true,
       "path": "project_state/codex_execution_report.md",
-      "sha256": "5d5cb7c0ba543b5a79dbc27447e760a5b18ed75485cd691d67439b7b03ea6aca",
-      "size_bytes": 33827
+      "sha256": "9d90a693f3721f6de8b5b7e90cf041e2170bb98a290313a8665532190d88b5b4",
+      "size_bytes": 36252
     },
     "decision_packet.md": {
       "exists": true,
       "path": "project_state/decision_packet.md",
-      "sha256": "ec382a855e6a3bf08383a4fe26a08267f6642f6dc46a4a7de993868d67e194a3",
-      "size_bytes": 22228
+      "sha256": "e7030f1f762e9b0980a251999e3de48c49d1240f3bc1fd822889bf057a62c38d",
+      "size_bytes": 32763
     },
     "gates/command_plan.json": {
       "exists": true,
       "path": "project_state/gates/command_plan.json",
-      "sha256": "0b8c4238a95efbab4ff6da025da7baa575afcd7d8d2f5159eacf062c3dab8c95",
-      "size_bytes": 4845
+      "sha256": "104deb721aa47013b01fc96fa4618bdabd7b69c5271af459818f9ebb7f0e5f54",
+      "size_bytes": 4923
     },
     "gates/final_gate_result.json": {
       "exists": true,
       "path": "project_state/gates/final_gate_result.json",
-      "sha256": "e890cb89e9c0fc93b810c3794f2cac82a15ed6304ed2cd453524783a629226a4",
-      "size_bytes": 83898
+      "sha256": "e8ad4ea36e1a6a4cab2a99ae55a6f820d971cf38323c821abb34dbbd610e708c",
+      "size_bytes": 85399
     },
     "gates/report_summary_synthesis.json": {
       "exists": true,
       "path": "project_state/gates/report_summary_synthesis.json",
-      "sha256": "3c892afbd40551f803f2d12ec621fd7592d317f409b9e06b2ae183109f34b755",
-      "size_bytes": 14537
+      "sha256": "2a0b8a4d193adab9e1b5382bc639f03244f70b938e61f810baa3f131ab1e5dd9",
+      "size_bytes": 14760
     },
     "negative_results.json": {
       "exists": true,
@@ -258,8 +261,8 @@
     "pytest_result.txt": {
       "exists": true,
       "path": "project_state/pytest_result.txt",
-      "sha256": "7e19e489e26dcf2206640d78fc499470982b60c6cf178b83906dfaea5c1d06b6",
-      "size_bytes": 15517
+      "sha256": "cab534d3232ed0b1f45e355e1cc16d8754a6315da086ce4cbd3e2d6b09d5ddea",
+      "size_bytes": 16261
     }
   },
   "stop_conditions": []

@@ -2,9 +2,9 @@
   "schema_version": 1,
   "gate_name": "run-closeout",
   "closeout_status": "PASSED",
-  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
-  "generated_at": "2026-07-10T07:47:46.409768Z",
+  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+  "generated_at": "2026-07-10T11:12:28.557819Z",
   "executed_steps": [
     {
       "name": "decision-lint",
@@ -28,7 +28,7 @@
     },
     {
       "name": "pytest",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
       "kind": "pytest",
       "expected_exit_codes": [
         0
@@ -68,7 +68,7 @@
     },
     {
       "name": "execute-decision",
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1 --dry-run",
       "kind": "execute-decision",
       "expected_exit_codes": [
         0
@@ -111,7 +111,7 @@
     },
     {
       "name": "close-round",
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1",
       "kind": "close-round",
       "expected_exit_codes": [
         0
@@ -136,13 +136,13 @@
     "schema_version": 1,
     "gate_name": "close-round",
     "close_status": "CLOSED",
-    "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-    "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
-    "round_id": "round_20260710_state_manifest_freshness_rework_v1",
-    "decision_round_id": "round_20260710_state_manifest_freshness_rework_v1",
-    "report_round_id": "round_20260710_state_manifest_freshness_rework_v1",
+    "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+    "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
+    "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+    "decision_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+    "report_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
     "report_status": "SUCCESS",
-    "generated_at": "2026-07-10T07:47:44.907647Z",
+    "generated_at": "2026-07-10T11:12:26.939665Z",
     "checks": [
       {
         "name": "decision_meta_parse",
@@ -169,15 +169,15 @@
         "name": "requested_round_id_match",
         "status": "PASS",
         "detail": "requested round_id matches current decision",
-        "requested_round_id": "round_20260710_state_manifest_freshness_rework_v1",
-        "decision_round_id": "round_20260710_state_manifest_freshness_rework_v1",
-        "report_round_id": "round_20260710_state_manifest_freshness_rework_v1"
+        "requested_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+        "decision_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+        "report_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1"
       },
       {
         "name": "report_decision_match",
         "status": "PASS",
         "detail": "report is based on current decision",
-        "report_based_on_decision_id": "decision_20260710_state_manifest_freshness_rework_v1"
+        "report_based_on_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1"
       },
       {
         "name": "pytest_result_match",
@@ -203,8 +203,8 @@
         "status": "PASS",
         "detail": "command_plan ids and status match current decision/report",
         "plan_status": "PASSED",
-        "command_plan_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-        "command_plan_round_id": "round_20260710_state_manifest_freshness_rework_v1"
+        "command_plan_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+        "command_plan_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1"
       },
       {
         "name": "command_plan_execution_order_policy",
@@ -303,7 +303,6 @@
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
@@ -312,9 +311,7 @@
           "project_state/pytest_result.txt",
           "project_state/state_manifest.json",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_state_manifest.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "tests/test_project_gate.py"
         ],
         "final_dirty_files": [
           "project_state/codex_execution_report.md",
@@ -339,7 +336,6 @@
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
@@ -348,9 +344,7 @@
           "project_state/pytest_result.txt",
           "project_state/state_manifest.json",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_state_manifest.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "tests/test_project_gate.py"
         ]
       },
       {
@@ -387,7 +381,6 @@
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
@@ -396,9 +389,7 @@
           "project_state/pytest_result.txt",
           "project_state/state_manifest.json",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_state_manifest.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "tests/test_project_gate.py"
         ],
         "required_round_delta_files": [
           "project_state/codex_execution_report.md",
@@ -423,19 +414,16 @@
           "project_state/gates/preflight_result.json",
           "project_state/gates/report_summary_synthesis.json",
           "project_state/gates/round_baseline.json",
-          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_delta_summary.json",
           "project_state/gates/run_closeout_execution_log.json",
           "project_state/gates/run_closeout_result.json",
           "project_state/gates/run_round_result.json",
           "project_state/gates/startup_snapshot.json",
           "project_state/pytest_result.txt",
-          "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json",
+          "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
           "project_state/state_manifest.json",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_state_manifest.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "tests/test_project_gate.py"
         ],
         "inherited_dirty_files": []
       },
@@ -447,9 +435,7 @@
           "project_state/context/current_context_packet.json",
           "project_state/state_manifest.json",
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_state_manifest.py",
-          "tests/test_project_gate.py",
-          "tests/test_project_state_manifest.py"
+          "tests/test_project_gate.py"
         ],
         "claimed_source_test_paths": []
       },
@@ -474,7 +460,7 @@
         "source_test_baseline_dirty": [],
         "allowed_inherited_dirty_files": [
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_state_manifest.py"
+          "reverse_agent/project_state.py"
         ],
         "generated_or_archive_baseline_dirty_files": []
       },
@@ -485,7 +471,7 @@
         "suspected_late_baseline_files": [],
         "allowed_inherited_dirty_files": [
           "reverse_agent/project_gate.py",
-          "reverse_agent/project_state_manifest.py"
+          "reverse_agent/project_state.py"
         ],
         "baseline_dirty_source_test_files": [],
         "files_changed_overlap": [],
@@ -644,16 +630,14 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/startup_snapshot.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
               "project_state/state_manifest.json",
               "reverse_agent/project_gate.py",
-              "reverse_agent/project_state_manifest.py",
-              "tests/test_project_gate.py",
-              "tests/test_project_state_manifest.py"
+              "tests/test_project_gate.py"
             ],
             "actual": [
               "project_state/codex_execution_report.md",
@@ -686,9 +670,7 @@
               "project_state/pytest_result.txt",
               "project_state/state_manifest.json",
               "reverse_agent/project_gate.py",
-              "reverse_agent/project_state_manifest.py",
-              "tests/test_project_gate.py",
-              "tests/test_project_state_manifest.py"
+              "tests/test_project_gate.py"
             ]
           },
           {
@@ -722,11 +704,11 @@
               "project_state/gates/run_round_result.json",
               "project_state/gates/startup_snapshot.json",
               "project_state/pytest_result.txt",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/codex_execution_report.md",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/decision_packet.md",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/execution_report.md",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/pytest_result.txt",
-              "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json"
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
+              "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json"
             ],
             "actual": [
               "project_state/codex_execution_report.md",
@@ -816,11 +798,11 @@
           "schema_version": 1,
           "phase": "A",
           "context_packet_present": true,
-          "context_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-          "context_round_id": "round_20260710_state_manifest_freshness_rework_v1",
+          "context_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+          "context_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
           "context_mainline": "project_governance",
-          "current_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-          "current_round_id": "round_20260710_state_manifest_freshness_rework_v1",
+          "current_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+          "current_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
           "current_mainline": "project_governance",
           "field_domains": {
             "allowed_capability_profile": "",
@@ -870,9 +852,9 @@
       {
         "name": "required_audit_body_present",
         "status": "PASS",
-        "detail": "report includes a substantive Required Audit body covering 38 items",
+        "detail": "report includes a substantive Required Audit body covering 44 items",
         "required": true,
-        "required_audit_items": 38
+        "required_audit_items": 44
       },
       {
         "name": "preflight_failure_handoff",
@@ -885,7 +867,7 @@
         "status": "WARN",
         "detail": "generated_artifacts omits round archive files",
         "missing_artifacts": [
-          "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json"
+          "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json"
         ]
       },
       {
@@ -1028,6 +1010,7 @@
           "project_state/gates/project_governance_context_snapshot.json",
           "project_state/gates/retention_policy_validation.json",
           "project_state/gates/rollback_handoff_plan.json",
+          "project_state/gates/round_close_snapshot.json",
           "project_state/gates/round_compaction_dry_run.json",
           "project_state/gates/round_compaction_manifest_dry_run.json",
           "project_state/gates/round_compaction_plan.json",
@@ -1089,8 +1072,8 @@
       {
         "name": "archive_round",
         "status": "created",
-        "round_dir": "project_state\\rounds\\round_20260710_state_manifest_freshness_rework_v1",
-        "manifest": "project_state\\rounds\\round_20260710_state_manifest_freshness_rework_v1\\round_manifest.json",
+        "round_dir": "project_state\\rounds\\round_20260710_post_closeout_required_audit_truth_rework_v1",
+        "manifest": "project_state\\rounds\\round_20260710_post_closeout_required_audit_truth_rework_v1\\round_manifest.json",
         "copied": [
           "decision_packet.md",
           "codex_execution_report.md",
@@ -1107,7 +1090,7 @@
     ],
     "archive": {
       "status": "created",
-      "round_manifest_path": "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json",
+      "round_manifest_path": "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
       "files": [
         "codex_execution_report.md",
         "decision_packet.md",

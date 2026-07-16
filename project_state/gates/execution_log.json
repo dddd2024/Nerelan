@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
-  "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
-  "generated_at": "2026-07-10T07:48:10.752868Z",
+  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+  "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
+  "generated_at": "2026-07-10T11:12:51.726112Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-    "round_id": "round_20260710_state_manifest_freshness_rework_v1",
-    "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
+    "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+    "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+    "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "7e19e489e26dcf2206640d78fc499470982b60c6cf178b83906dfaea5c1d06b6",
-        "size_bytes": 15517,
+        "sha256": "cab534d3232ed0b1f45e355e1cc16d8754a6315da086ce4cbd3e2d6b09d5ddea",
+        "size_bytes": 16261,
         "command_block_count": 13
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "0b8c4238a95efbab4ff6da025da7baa575afcd7d8d2f5159eacf062c3dab8c95",
-        "size_bytes": 4845,
-        "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-        "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+        "sha256": "104deb721aa47013b01fc96fa4618bdabd7b69c5271af459818f9ebb7f0e5f54",
+        "size_bytes": 4923,
+        "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+        "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
         "plan_status": "PASSED",
         "command_count": 8
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "211af0fb5802d04e94914834aa745a11539d8f2530f9f54efdc49d2c8d888b3b",
-        "size_bytes": 43518,
-        "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-        "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+        "sha256": "642e4ed0cbcc26bba9dfa4228465571f22e4c3df958b432d4bb92802e512fa9b",
+        "size_bytes": 44581,
+        "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+        "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
         "command_block_count": 13
       }
     },
     "command_count": 13,
-    "command_digest": "540ae71755c70be2ef8fafb5762865b4d9172e237555f9b4d4027779681cd965"
+    "command_digest": "b43fbecbc292c6c16cd6aaf8070dd338b2ec8f82f028b369b7bdba2c393b7040"
   },
   "commands": [
     {
@@ -97,7 +97,7 @@
     },
     {
       "index": 6,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -130,7 +130,7 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1 --dry-run",
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -165,7 +165,7 @@
     },
     {
       "index": 12,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
@@ -176,7 +176,7 @@
     },
     {
       "index": 13,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [

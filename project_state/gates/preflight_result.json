@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
+  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-10T07:38:48.049859Z",
+  "generated_at": "2026-07-10T11:04:47.818891Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
@@ -76,9 +76,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision consumption allowed for closeout",
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1"
+      "detail": "decision has not been consumed by a report",
+      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -133,7 +133,7 @@
       "unauthorized_source_test_dirty": [],
       "allowed_inherited_dirty_baseline_files": [
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py"
+        "reverse_agent/project_state.py"
       ],
       "baseline_source_test_dirty": []
     },
@@ -150,12 +150,12 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "d83614f0dde2"
+    "head_commit": "209b172f8dcc"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
+    "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

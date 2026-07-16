@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-  "report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
-  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
-  "generated_at": "2026-07-10T07:48:16.935210Z",
+  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+  "report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
+  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+  "generated_at": "2026-07-10T11:12:57.706497Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -51,13 +51,14 @@
       "required_test_files": [
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
-        "tests/test_project_state_manifest.py"
+        "tests/test_project_state.py"
       ],
       "pytest_test_files": [
         "tests/test_project_context.py",
         "tests/test_project_control_plane.py",
         "tests/test_project_gate.py",
         "tests/test_project_reports.py",
+        "tests/test_project_state.py",
         "tests/test_project_state_manifest.py"
       ]
     },
@@ -125,11 +126,11 @@
         "schema_version": 1,
         "phase": "A",
         "context_packet_present": true,
-        "context_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-        "context_round_id": "round_20260710_state_manifest_freshness_rework_v1",
+        "context_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+        "context_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
         "context_mainline": "project_governance",
-        "current_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-        "current_round_id": "round_20260710_state_manifest_freshness_rework_v1",
+        "current_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+        "current_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
         "current_mainline": "project_governance",
         "field_domains": {
           "allowed_capability_profile": "",
@@ -179,17 +180,17 @@
     {
       "name": "state_manifest_freshness",
       "status": "PASS",
-      "detail": "state_manifest current artifact references match live files (9 current refs validated; decision_id=decision_20260710_state_manifest_freshness_rework_v1 round_id=round_20260710_state_manifest_freshness_rework_v1 report_id=codex_report_20260710_state_manifest_freshness_rework_v1)",
+      "detail": "state_manifest current artifact references match live files (9 current refs validated; decision_id=decision_20260710_post_closeout_required_audit_truth_rework_v1 round_id=round_20260710_post_closeout_required_audit_truth_rework_v1 report_id=codex_report_20260710_post_closeout_required_audit_truth_rework_v1)",
       "current_artifact_count": 9,
-      "manifest_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-      "manifest_round_id": "round_20260710_state_manifest_freshness_rework_v1",
-      "manifest_report_id": "codex_report_20260710_state_manifest_freshness_rework_v1"
+      "manifest_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+      "manifest_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+      "manifest_report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1"
     },
     {
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260710_state_manifest_freshness_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260710_post_closeout_required_audit_truth_rework_v1\\round_manifest.json"
     },
     {
       "name": "round_manifest_status_matches_report",
@@ -252,16 +253,14 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
         "project_state/state_manifest.json",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py"
+        "tests/test_project_gate.py"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -293,16 +292,14 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
         "project_state/state_manifest.json",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py"
+        "tests/test_project_gate.py"
       ]
     },
     {
@@ -346,16 +343,14 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
         "project_state/state_manifest.json",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py"
+        "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -387,16 +382,14 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json",
         "project_state/state_manifest.json",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py"
+        "tests/test_project_gate.py"
       ],
       "inherited_dirty_files": []
     },
@@ -408,9 +401,7 @@
         "project_state/context/current_context_packet.json",
         "project_state/state_manifest.json",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py"
+        "tests/test_project_gate.py"
       ],
       "claimed_source_test_paths": []
     },
@@ -435,13 +426,11 @@
       "source_test_baseline_dirty": [],
       "close_source_test_dirty": [
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state_manifest.py"
+        "tests/test_project_gate.py"
       ],
       "allowed_inherited_dirty_files": [
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py"
+        "reverse_agent/project_state.py"
       ],
       "generated_or_archive_baseline_dirty_files": [],
       "close_worktree_clean": false,
@@ -454,7 +443,7 @@
       "suspected_late_baseline_files": [],
       "allowed_inherited_dirty_files": [
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state_manifest.py"
+        "reverse_agent/project_state.py"
       ],
       "baseline_dirty_source_test_files": [],
       "files_changed_overlap": [],
@@ -747,17 +736,17 @@
       "name": "closeout_execution_log_is_current",
       "status": "PASS",
       "detail": "run_closeout_execution_log.json contains current round IDs",
-      "closeout_log_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-      "closeout_log_round_id": "round_20260710_state_manifest_freshness_rework_v1",
-      "expected_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-      "expected_round_id": "round_20260710_state_manifest_freshness_rework_v1"
+      "closeout_log_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+      "closeout_log_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+      "expected_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+      "expected_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1"
     },
     {
       "name": "execution_log_report_id_is_current",
       "status": "PASS",
       "detail": "execution_log.json carries current report_id",
-      "execution_log_report_id": "codex_report_20260710_state_manifest_freshness_rework_v1",
-      "expected_report_id": "codex_report_20260710_state_manifest_freshness_rework_v1"
+      "execution_log_report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1",
+      "expected_report_id": "codex_report_20260710_post_closeout_required_audit_truth_rework_v1"
     },
     {
       "name": "required_closeout_artifacts_covered",
@@ -782,8 +771,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-      "command_plan_round_id": "round_20260710_state_manifest_freshness_rework_v1"
+      "command_plan_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+      "command_plan_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1"
     },
     {
       "name": "command_plan_execution_order_policy",
@@ -843,7 +832,7 @@
       "name": "close_round_is_last_command_block",
       "status": "PASS",
       "detail": "close-round is the last command block in pytest_result",
-      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260710_state_manifest_freshness_rework_v1",
+      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260710_post_closeout_required_audit_truth_rework_v1",
       "last_kind": "close-round"
     },
     {
@@ -926,11 +915,11 @@
         "schema_version": 1,
         "phase": "A",
         "context_packet_present": true,
-        "context_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-        "context_round_id": "round_20260710_state_manifest_freshness_rework_v1",
+        "context_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+        "context_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
         "context_mainline": "project_governance",
-        "current_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-        "current_round_id": "round_20260710_state_manifest_freshness_rework_v1",
+        "current_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+        "current_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
         "current_mainline": "project_governance",
         "field_domains": {
           "allowed_capability_profile": "",
@@ -980,9 +969,9 @@
     {
       "name": "required_audit_body_present",
       "status": "PASS",
-      "detail": "report includes a substantive Required Audit body covering 38 items",
+      "detail": "report includes a substantive Required Audit body covering 44 items",
       "required": true,
-      "required_audit_items": 38
+      "required_audit_items": 44
     },
     {
       "name": "preflight_failure_handoff",
@@ -1361,11 +1350,11 @@
         "project_state/gates/run_round_result.json",
         "project_state/gates/startup_snapshot.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json"
       ],
       "historical_nonblocking_artifacts": [
         "project_state/gates/agent_runner_dry_run_result.json",
@@ -1446,11 +1435,11 @@
         "project_state/gates/user_solve_workbench_snapshot.json"
       ],
       "archived_artifacts": [
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/execution_report.md",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260710_state_manifest_freshness_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/execution_report.md",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260710_post_closeout_required_audit_truth_rework_v1/round_manifest.json"
       ]
     },
     {
@@ -1700,8 +1689,8 @@
       "name": "gate_profile_plan_current",
       "status": "PASS",
       "detail": "gate_profile_plan.json carries current decision/round IDs",
-      "gate_profile_decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-      "gate_profile_round_id": "round_20260710_state_manifest_freshness_rework_v1"
+      "gate_profile_decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+      "gate_profile_round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1"
     },
     {
       "name": "gate_profile_plan_command_plan_consistency",
@@ -1734,50 +1723,92 @@
     {
       "name": "required_audit_coverage",
       "status": "PASS",
-      "detail": "report covers all 38 Required Audit items with substantive aligned answers",
+      "detail": "report covers all 44 Required Audit items with substantive aligned answers",
       "required_audit_items": [
         "Is decision_meta valid JSON with schema_version=1?",
-        "Is decision status APPROVED and mainline project_governance?",
+        "Is status APPROVED and mainline project_governance?",
         "Is reverse-agent-iteration@v2 active?",
         "Is task_packet treated as background only?",
-        "Is the previous audited outcome correctly recorded as REWORK_REQUIRED?",
-        "Is this round limited to state-manifest freshness and its gate/report coverage?",
-        "What stale decision_id, round_id, report_id, generated_at, SHA-256, or size values were observed in the pre-rework state_manifest.json?",
-        "Does regenerated state_manifest.json match decision_20260710_state_manifest_freshness_rework_v1?",
-        "Does regenerated state_manifest.json match round_20260710_state_manifest_freshness_rework_v1?",
-        "Does regenerated state_manifest.json use the current report_id?",
-        "Does state_manifest.json remain artifact_kind=governance_index?",
-        "Does state_manifest.json continue to state that project_state files remain audit fact sources?",
-        "Does state_manifest.json avoid claiming that it replaces underlying fact sources?",
-        "Do current manifest references for decision_packet.md match the live SHA-256 and size?",
-        "Do current manifest references for codex_execution_report.md and execution_report.md match live SHA-256 and size values?",
-        "Does the current manifest reference for pytest_result.txt match the live SHA-256 and size?",
-        "Does the current manifest reference for command_plan.json match the live SHA-256 and size?",
-        "Does the current manifest reference for execution_log.json match the live SHA-256 and size?",
-        "Does the current manifest reference for final_gate_result.json match the live SHA-256 and size?",
-        "Does the current manifest reference for report_summary_synthesis.json match the live SHA-256 and size?",
-        "Does the current manifest reference for run_closeout_result.json match the live SHA-256 and size after closeout?",
-        "Does manifest validation reject a stale decision_id?",
-        "Does manifest validation reject a stale round_id?",
-        "Does manifest validation or final-check reject a stale current artifact SHA-256?",
-        "Does manifest validation or final-check reject a stale current artifact size?",
-        "Does final_gate_result.json include and pass the state-manifest freshness check?",
-        "Does final_gate_result.json pass for the current decision and round?",
+        "Is the previous manual audit outcome correctly recorded as REWORK_REQUIRED?",
+        "Is this round limited to Required Audit final-evidence truth and closeout ordering?",
+        "Is the previous state-manifest freshness implementation preserved rather than duplicated?",
+        "Which stale digest/size claims were present in the previous report?",
+        "Which future-tense completion claims were present in the previous report?",
+        "Why did the previous final-check pass despite those stale or future-tense report claims?",
+        "Does an accepted report now reject future-tense completion claims in Evidence and Answer fields?",
+        "Does an accepted report now reject a statement claiming that no future-tense claims exist when such claims are present?",
+        "If a Required Audit answer explicitly claims an exact SHA-256, is the full 64-character value required?",
+        "If a Required Audit answer explicitly claims an exact SHA-256, is it checked against the live file or current manifest entry?",
+        "If a Required Audit answer explicitly claims size_bytes, is it checked against the live file or current manifest entry?",
+        "Are abbreviated digest prefixes prevented from being presented as exact equality evidence?",
+        "Does the final report avoid embedding its own SHA-256?",
+        "Does the final report avoid embedding mutable final-gate or report-summary digests that change after report finalization?",
+        "Is a structured report_finalization block present in both report aliases?",
+        "Does report_finalization match the current decision_id, round_id, and report_id?",
+        "Does report_finalization identify project_state/gates/run_closeout_result.json as its closeout evidence source?",
+        "Does report_finalization contain the full live run_closeout_result SHA-256?",
+        "Does report_finalization match the live run_closeout generated_at and closeout_status?",
+        "Does report_finalization match the embedded close_round_result.close_status?",
+        "Was the report finalized after the current run-closeout evidence existed?",
+        "Was the final explicit close-round/archive refresh performed after report finalization?",
+        "Does the archived report match the final live report?",
+        "Do execution_report.md and codex_execution_report.md agree on summary fields and report_finalization?",
+        "Does pytest_result.txt match the current decision, round, and report?",
+        "Does pytest_result.txt record the exact pytest command and exit code 0?",
+        "Does command_plan.json exist, pass, and explicitly cover pytest, report-summary, execution-log, final-check, run-closeout, and close-round?",
+        "Were any omitted or unauthorized commands executed?",
+        "Does execution_log.json agree with pytest_result.txt, command_plan.json, and run-closeout evidence?",
+        "Does report_summary_synthesis.json match the final reports?",
+        "Does final_gate_result.json include and pass Required Audit future-claim and live-claim checks?",
+        "Does final_gate_result.json preserve state_manifest_freshness=PASS?",
         "Does current_context_packet.json match the current decision and round after post-final sync?",
         "Does post_final_evidence_sync_result.json report PASSED with context_generated_after_final_gate=true?",
-        "Does command_plan.json exist and pass with explicit pytest, report-summary, execution-log, final-check, run-closeout, and close-round coverage?",
-        "Were any omitted or unauthorized commands executed?",
-        "Does pytest_result.txt record the exact pytest command, exit code 0, and tests/test_project_state_manifest.py?",
-        "Do execution_log.json and pytest_result.txt agree on commands, exits, decision_id, and round_id?",
-        "Were current_state.json, task_packet.json, artifact_index.json, negative_results.json, roadmap/workstreams.json, domains, frontend, workflows, solve_reports, training materials, archives, deletions, blob_store, databases, and docs/roadmap left untouched?",
-        "Does run_closeout_result.json report PASSED and close_round_result CLOSED?",
-        "Does the new round_manifest exist and agree with live reports, pytest, decision, and closeout state?",
-        "Do execution_report.md and codex_execution_report.md agree on IDs, status, acceptance recommendation, tests, and generated artifacts?",
-        "Does the Required Audit body use actual observed manifest values rather than policy-only or template answers?"
+        "Does run_closeout_result.json report PASSED?",
+        "Does the final close-round result report CLOSED?",
+        "Does the new round_manifest exist and match final live reports, pytest, decision, and closeout state?",
+        "Were all forbidden paths left untouched?",
+        "Were no runner, Web, workflow, model API, database, cleanup, reverse-tool, or sample-solving capabilities used?",
+        "Does the final Required Audit body contain only current observed evidence and no placeholder, generic, contradictory, or future-tense completion answers?"
       ],
       "missing_answers": [],
       "placeholder_answers": [],
       "alignment_failures": []
+    },
+    {
+      "name": "required_audit_future_completion_claims_absent",
+      "status": "PASS",
+      "detail": "accepted report Required Audit answers contain no future completion claims"
+    },
+    {
+      "name": "required_audit_live_metadata_claims_match",
+      "status": "PASS",
+      "detail": "accepted report Required Audit metadata claims match live evidence"
+    },
+    {
+      "name": "report_finalization_present",
+      "status": "PASS",
+      "detail": "report_finalization block present in both report aliases",
+      "required": true
+    },
+    {
+      "name": "report_finalization_alias_parity",
+      "status": "PASS",
+      "detail": "report_finalization blocks are semantically identical between aliases"
+    },
+    {
+      "name": "report_finalization_matches_live_closeout",
+      "status": "PASS",
+      "detail": "report_finalization matches live run_closeout_result evidence"
+    },
+    {
+      "name": "report_finalization_no_self_digest",
+      "status": "PASS",
+      "detail": "report does not embed its own SHA-256 digest"
+    },
+    {
+      "name": "final_report_archived_parity",
+      "status": "PASS",
+      "detail": "archived reports match final live reports"
     },
     {
       "name": "policy_impact_coverage",

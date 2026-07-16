@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260710_state_manifest_freshness_rework_v1",
-  "round_id": "round_20260710_state_manifest_freshness_rework_v1",
-  "head_commit": "d83614f0dde2",
+  "decision_id": "decision_20260710_post_closeout_required_audit_truth_rework_v1",
+  "round_id": "round_20260710_post_closeout_required_audit_truth_rework_v1",
+  "head_commit": "209b172f8dcc",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
@@ -11,5 +11,5 @@
   "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-10T04:53:25.581060Z"
+  "generated_at": "2026-07-10T08:14:13.555382Z"
 }

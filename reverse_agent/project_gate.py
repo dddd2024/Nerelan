@@ -6819,6 +6819,745 @@ def _required_audit_coverage_check(
     )
 
 
+# ---------------------------------------------------------------------------
+# Required Audit future completion claim and live metadata claim validation
+# ---------------------------------------------------------------------------
+
+_FUTURE_COMPLETION_CLAIM_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"\bwill\s+be\s+(?:passed|generated|refreshed|present|matched|updated|created|finalized|synchronized|archived|closed)\b", re.IGNORECASE),
+    re.compile(r"\bwill\s+match\b", re.IGNORECASE),
+    re.compile(r"\bwill\s+report\b", re.IGNORECASE),
+    re.compile(r"\bwill\s+be\s+generated\b", re.IGNORECASE),
+    re.compile(r"\bwill\s+be\s+refreshed\b", re.IGNORECASE),
+    re.compile(r"\bto\s+be\s+generated\b", re.IGNORECASE),
+    re.compile(r"\bto\s+be\s+updated\b", re.IGNORECASE),
+    re.compile(r"\bafter\s+final[- ]check\b", re.IGNORECASE),
+    re.compile(r"\bafter\s+close[- ]round\b", re.IGNORECASE),
+    re.compile(r"\bafter\s+closeout\s+completes\b", re.IGNORECASE),
+    re.compile(r"\bafter\s+this\s+round(?:'s)?\s+command\b", re.IGNORECASE),
+    re.compile(r"\bafter\s+the\s+final\s+command\b", re.IGNORECASE),
+]
+
+# Phrases that, if present in the SAME answer, claim that no future-tense
+# language exists.  When future-tense patterns are also found, this creates
+# an internally contradictory claim.
+_NO_FUTURE_CLAIM_PHRASES = [
+    re.compile(r"no\s+future[- ]tense\s+(?:completion\s+)?claims?\b", re.IGNORECASE),
+    re.compile(r"no\s+future[- ]tense\s+(?:completion\s+)?language\b", re.IGNORECASE),
+    re.compile(r"no\s+future[- ]tense\s+(?:completion\s+)?statements?\b", re.IGNORECASE),
+    re.compile(r"does\s+not\s+contain\s+future(?:[- ]tense)?\s+claims?\b", re.IGNORECASE),
+    re.compile(r"contains?\s+no\s+future(?:[- ]tense)?\s+(?:completion\s+)?claims?\b", re.IGNORECASE),
+]
+
+
+def _detect_future_completion_claims(text: str) -> list[str]:
+    """Return matched future-tense completion-claim substrings from *text*.
+
+    Excludes backtick-quoted historical descriptions and lines starting
+    with ``>`` (block quotes) so that quoting previous-report future-tense
+    language as historical evidence does not create false positives.
+    """
+    # Strip backtick-quoted spans and block-quote lines before detection.
+    cleaned = re.sub(r"`[^`]*`", " ", text)
+    cleaned = "\n".join(
+        line for line in cleaned.splitlines()
+        if not line.lstrip().startswith(">")
+    )
+    hits: list[str] = []
+    for pattern in _FUTURE_COMPLETION_CLAIM_PATTERNS:
+        for m in pattern.finditer(cleaned):
+            hits.append(m.group(0))
+    return hits
+
+
+def _detect_no_future_claim_contradiction(text: str) -> bool:
+    """Check if text claims no future-tense claims exist."""
+    return any(pattern.search(text) for pattern in _NO_FUTURE_CLAIM_PHRASES)
+
+
+def _required_audit_future_completion_claims_check(
+    *,
+    decision_text: str,
+    report_text: str,
+    report_status: str,
+) -> dict[str, Any]:
+    """Reject unresolved future completion claims in accepted Required Audit answers.
+
+    For reports whose status/recommendation claims acceptance (SUCCESS,
+    ACCEPTED, ACCEPTED_WITH_LIMITATIONS), inspect the Evidence and Answer
+    content of each Required Audit item and reject unresolved future
+    completion claims.
+
+    A report that contains future completion claims must not pass by adding
+    a later sentence saying that no such claims exist (contradiction check).
+    """
+    is_accepted = report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
+    report_section = _markdown_section(report_text, "Required Audit")
+    if not report_section.strip() or not is_accepted:
+        return _check(
+            "required_audit_future_completion_claims_absent",
+            "PASS",
+            "future completion claim check not applicable (non-accepted report or no Required Audit section)",
+        )
+
+    blocks = _parse_required_audit_answer_blocks(report_section)
+    failures: list[dict[str, Any]] = []
+    for index, block in enumerate(blocks, start=1):
+        evidence_text = str(block.get("evidence") or "")
+        answer_text = str(block.get("answer") or "")
+        combined = f"{evidence_text} {answer_text}"
+        # Exclude quoted historical descriptions (lines starting with > or
+        # inside backticks) from future-claim detection.  The question heading
+        # itself must not create false positives.
+        future_hits = _detect_future_completion_claims(combined)
+        if future_hits:
+            no_future_claim = _detect_no_future_claim_contradiction(combined)
+            failures.append({
+                "item": index,
+                "heading": block.get("heading", ""),
+                "future_claims": future_hits,
+                "contradictory_no_future_claim": no_future_claim,
+            })
+
+    if failures:
+        detail = f"accepted report has {len(failures)} Required Audit item(s) with future completion claims"
+        return _check(
+            "required_audit_future_completion_claims_absent",
+            "FAIL",
+            detail,
+            failures=failures,
+        )
+    return _check(
+        "required_audit_future_completion_claims_absent",
+        "PASS",
+        "accepted report Required Audit answers contain no future completion claims",
+    )
+
+
+# Known artifact path patterns for live metadata claim validation.
+_KNOWN_ARTIFACT_PATHS = {
+    "project_state/pytest_result.txt",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/execution_log.json",
+    "project_state/gates/final_gate_result.json",
+    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/run_closeout_result.json",
+    "project_state/gates/round_close_snapshot.json",
+    "project_state/gates/round_baseline.json",
+    "project_state/gates/round_delta_summary.json",
+    "project_state/gates/post_final_evidence_sync_result.json",
+    "project_state/gates/post_final_evidence_sync_snapshot.json",
+    "project_state/gates/run_round_result.json",
+    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/gate_profile_plan.json",
+    "project_state/gates/execute_decision_result.json",
+    "project_state/state_manifest.json",
+    "project_state/context/current_context_packet.json",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+}
+
+_FULL_SHA256_RE = re.compile(r"\bsha256\s*=\s*([0-9a-fA-F]{64})\b", re.IGNORECASE)
+_SIZE_BYTES_RE = re.compile(r"\bsize_bytes\s*=\s*(\d+)\b", re.IGNORECASE)
+_DIGEST_PREFIX_RE = re.compile(r"\bsha256\s+prefix\s*=\s*([0-9a-fA-F]{4,63})\b", re.IGNORECASE)
+_EXACT_EQUALITY_PREFIX_RE = re.compile(r"\bsha256\s+(?:is\s+|equals\s+|matches\s+|=\s*)prefix\s*=\s*([0-9a-fA-F]{4,63})\b", re.IGNORECASE)
+
+
+def _required_audit_live_metadata_claims_check(
+    *,
+    report_text: str,
+    report_status: str,
+    repo_root: Path,
+) -> dict[str, Any]:
+    """Validate explicit SHA-256 and size_bytes claims against live evidence.
+
+    When an accepted report explicitly asserts ``sha256=<value>`` or
+    ``size_bytes=<integer>`` for a known artifact, the assertion is compared
+    with the current live file.
+
+    Rules enforced:
+    - Exact SHA-256 equality claims require a full 64-character digest.
+    - A full digest claim must match the live file.
+    - A size_bytes claim must match the live file.
+    - A digest prefix must not be described as exact equality.
+    """
+    is_accepted = report_status in {"SUCCESS", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
+    report_section = _markdown_section(report_text, "Required Audit")
+    if not report_section.strip() or not is_accepted:
+        return _check(
+            "required_audit_live_metadata_claims_match",
+            "PASS",
+            "live metadata claim check not applicable (non-accepted report or no Required Audit section)",
+        )
+
+    blocks = _parse_required_audit_answer_blocks(report_section)
+    failures: list[dict[str, Any]] = []
+
+    for index, block in enumerate(blocks, start=1):
+        combined = f"{block.get('evidence', '')} {block.get('answer', '')}"
+
+        # Check full SHA-256 claims
+        for m in _FULL_SHA256_RE.finditer(combined):
+            claimed_digest = m.group(1).lower()
+            # Find which artifact this claim refers to
+            artifact_path = _find_artifact_path_in_text(combined, repo_root)
+            if artifact_path:
+                live_path = repo_root / artifact_path
+                if live_path.exists():
+                    live_digest = _sha256_path(live_path)
+                    if claimed_digest != live_digest:
+                        failures.append({
+                            "item": index,
+                            "heading": block.get("heading", ""),
+                            "artifact": artifact_path,
+                            "claimed_sha256": claimed_digest,
+                            "observed_sha256": live_digest,
+                            "failure_type": "stale_sha256",
+                        })
+                else:
+                    failures.append({
+                        "item": index,
+                        "heading": block.get("heading", ""),
+                        "artifact": artifact_path,
+                        "claimed_sha256": claimed_digest,
+                        "observed_sha256": None,
+                        "failure_type": "artifact_missing",
+                    })
+
+        # Check size_bytes claims
+        for m in _SIZE_BYTES_RE.finditer(combined):
+            claimed_size = int(m.group(1))
+            artifact_path = _find_artifact_path_in_text(combined, repo_root)
+            if artifact_path:
+                live_path = repo_root / artifact_path
+                if live_path.exists():
+                    live_size = live_path.stat().st_size
+                    if claimed_size != live_size:
+                        failures.append({
+                            "item": index,
+                            "heading": block.get("heading", ""),
+                            "artifact": artifact_path,
+                            "claimed_size_bytes": claimed_size,
+                            "observed_size_bytes": live_size,
+                            "failure_type": "stale_size",
+                        })
+                else:
+                    failures.append({
+                        "item": index,
+                        "heading": block.get("heading", ""),
+                        "artifact": artifact_path,
+                        "claimed_size_bytes": claimed_size,
+                        "observed_size_bytes": None,
+                        "failure_type": "artifact_missing",
+                    })
+
+        # Check digest prefix described as exact equality
+        for m in _EXACT_EQUALITY_PREFIX_RE.finditer(combined):
+            prefix_val = m.group(1)
+            failures.append({
+                "item": index,
+                "heading": block.get("heading", ""),
+                "prefix_value": prefix_val,
+                "failure_type": "prefix_as_exact_equality",
+            })
+
+    if failures:
+        detail = f"accepted report has {len(failures)} Required Audit metadata claim mismatch(es)"
+        return _check(
+            "required_audit_live_metadata_claims_match",
+            "FAIL",
+            detail,
+            failures=failures,
+        )
+    return _check(
+        "required_audit_live_metadata_claims_match",
+        "PASS",
+        "accepted report Required Audit metadata claims match live evidence",
+    )
+
+
+def _find_artifact_path_in_text(text: str, repo_root: Path) -> str | None:
+    """Find a known artifact path mentioned in *text*."""
+    lowered = text.lower()
+    for path in _KNOWN_ARTIFACT_PATHS:
+        if path in lowered:
+            return path
+    # Also check if any path ending in .json or .txt or .md under project_state/ is mentioned
+    m = re.search(r"(project_state/[^\s,;\"')\]]+\.(?:json|txt|md))", text, re.IGNORECASE)
+    if m:
+        candidate = m.group(1).replace("\\", "/").lower()
+        return candidate
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Post-closeout report finalization block validation
+# ---------------------------------------------------------------------------
+
+REPORT_FINALIZATION_BLOCK_NAME = "report_finalization"
+
+
+def _parse_report_finalization_block(report_text: str) -> dict[str, Any]:
+    """Parse the ``report_finalization`` JSON block from a report.
+
+    Returns a dict with ``found``, ``parse_error``, and any merged fields.
+    """
+    return extract_markdown_json_block(report_text, REPORT_FINALIZATION_BLOCK_NAME)
+
+
+def _report_finalization_present_check(
+    *,
+    decision_contract_block: dict[str, Any],
+    legacy_report_text: str,
+    neutral_report_text: str,
+) -> dict[str, Any]:
+    """Check that ``report_finalization`` block is present when required."""
+    required = bool(decision_contract_block.get("post_closeout_report_finalization_required"))
+    if not required:
+        return _check(
+            "report_finalization_present",
+            "PASS",
+            "report_finalization not required by decision contract",
+            required=False,
+        )
+
+    legacy_block = _parse_report_finalization_block(legacy_report_text)
+    neutral_block = _parse_report_finalization_block(neutral_report_text)
+    legacy_found = legacy_block.get("found") and not legacy_block.get("parse_error")
+    neutral_found = neutral_block.get("found") and not neutral_block.get("parse_error")
+
+    if legacy_found and neutral_found:
+        return _check(
+            "report_finalization_present",
+            "PASS",
+            "report_finalization block present in both report aliases",
+            required=True,
+        )
+    missing: list[str] = []
+    if not legacy_found:
+        missing.append(LEGACY_EXECUTION_REPORT_NAME)
+    if not neutral_found:
+        missing.append(NEUTRAL_EXECUTION_REPORT_NAME)
+    return _check(
+        "report_finalization_present",
+        "FAIL",
+        f"report_finalization block missing in: {', '.join(missing)}",
+        required=True,
+        missing_in=missing,
+        legacy_parse_error=legacy_block.get("parse_error"),
+        neutral_parse_error=neutral_block.get("parse_error"),
+    )
+
+
+def _report_finalization_alias_parity_check(
+    *,
+    decision_contract_block: dict[str, Any],
+    legacy_report_text: str,
+    neutral_report_text: str,
+) -> dict[str, Any]:
+    """Check that report_finalization blocks are semantically identical between aliases."""
+    required = bool(decision_contract_block.get("post_closeout_report_finalization_required"))
+    if not required:
+        return _check(
+            "report_finalization_alias_parity",
+            "PASS",
+            "report_finalization alias parity not applicable (not required)",
+        )
+
+    legacy_block = _parse_report_finalization_block(legacy_report_text)
+    neutral_block = _parse_report_finalization_block(neutral_report_text)
+    if not legacy_block.get("found") or not neutral_block.get("found"):
+        return _check(
+            "report_finalization_alias_parity",
+            "PASS",
+            "report_finalization alias parity skipped (block missing, reported by report_finalization_present)",
+        )
+
+    # Compare semantic fields (exclude found/parse_error which are meta)
+    meta_keys = {"found", "parse_error"}
+    legacy_fields = {k: v for k, v in legacy_block.items() if k not in meta_keys}
+    neutral_fields = {k: v for k, v in neutral_block.items() if k not in meta_keys}
+    diffs = []
+    all_keys = sorted(set(legacy_fields) | set(neutral_fields))
+    for key in all_keys:
+        legacy_val = legacy_fields.get(key)
+        neutral_val = neutral_fields.get(key)
+        if legacy_val != neutral_val:
+            diffs.append({"field": key, "legacy": legacy_val, "neutral": neutral_val})
+
+    if diffs:
+        return _check(
+            "report_finalization_alias_parity",
+            "FAIL",
+            f"report_finalization blocks differ between aliases ({len(diffs)} field(s))",
+            diffs=diffs,
+        )
+    return _check(
+        "report_finalization_alias_parity",
+        "PASS",
+        "report_finalization blocks are semantically identical between aliases",
+    )
+
+
+def _report_finalization_matches_live_closeout_check(
+    *,
+    decision_contract_block: dict[str, Any],
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+    legacy_report_text: str,
+    neutral_report_text: str,
+    state_dir: Path,
+    close_round_in_progress: bool = False,
+) -> dict[str, Any]:
+    """Check that report_finalization matches live run_closeout_result evidence.
+
+    When ``close_round_in_progress=True`` (inside run-closeout's
+    final-check-after-close), the live ``run_closeout_result.json`` still has
+    ``closeout_status=IN_PROGRESS`` and its SHA-256 will change once the final
+    result is written.  In that mode, the SHA-256, generated_at, and
+    run_closeout_status fields are validated structurally (full 64-char digest,
+    non-empty timestamp, block claims PASSED) but not matched against the live
+    IN_PROGRESS file.  The full live match is enforced when
+    ``close_round_in_progress=False`` (standalone final-check).
+    """
+    required = bool(decision_contract_block.get("post_closeout_report_finalization_required"))
+    if not required:
+        return _check(
+            "report_finalization_matches_live_closeout",
+            "PASS",
+            "report_finalization live closeout match not applicable (not required)",
+        )
+
+    # Use neutral report as primary; fall back to legacy
+    block = _parse_report_finalization_block(neutral_report_text)
+    if not block.get("found"):
+        block = _parse_report_finalization_block(legacy_report_text)
+    if not block.get("found") or block.get("parse_error"):
+        return _check(
+            "report_finalization_matches_live_closeout",
+            "PASS",
+            "report_finalization live closeout match skipped (block missing, reported by report_finalization_present)",
+        )
+
+    failures: list[dict[str, Any]] = []
+
+    # Check decision_id, round_id, report_id
+    if block.get("decision_id") != decision_id:
+        failures.append({"field": "decision_id", "claimed": block.get("decision_id"), "expected": decision_id})
+    if block.get("round_id") != round_id:
+        failures.append({"field": "round_id", "claimed": block.get("round_id"), "expected": round_id})
+    if block.get("report_id") != report_id:
+        failures.append({"field": "report_id", "claimed": block.get("report_id"), "expected": report_id})
+
+    # Check run_closeout_result_path points to live artifact
+    closeout_path = str(block.get("run_closeout_result_path") or "")
+    expected_closeout_path = "project_state/gates/run_closeout_result.json"
+    if _norm_path(closeout_path) != expected_closeout_path:
+        failures.append({"field": "run_closeout_result_path", "claimed": closeout_path, "expected": expected_closeout_path})
+    else:
+        live_closeout = state_dir / "gates" / "run_closeout_result.json"
+        if live_closeout.exists():
+            claimed_digest = str(block.get("run_closeout_result_sha256") or "").lower()
+            claimed_status = str(block.get("run_closeout_status") or "")
+            claimed_generated_at = str(block.get("run_closeout_generated_at") or "")
+            claimed_close_status = str(block.get("embedded_close_round_status") or "")
+
+            if close_round_in_progress:
+                # During closeout, the live file has IN_PROGRESS status and its
+                # SHA-256 will change.  Validate structurally only:
+                # - SHA-256 must be a full 64-character hex string
+                # - run_closeout_status must be "PASSED" (expected final value)
+                # - generated_at must be non-empty
+                # - embedded_close_round_status must be "CLOSED"
+                if not re.fullmatch(r"[0-9a-fA-F]{64}", claimed_digest):
+                    failures.append({"field": "run_closeout_result_sha256", "claimed": claimed_digest, "expected": "64-character hex digest"})
+                if claimed_status != "PASSED":
+                    failures.append({"field": "run_closeout_status", "claimed": claimed_status, "expected": "PASSED"})
+                if not claimed_generated_at:
+                    failures.append({"field": "run_closeout_generated_at", "claimed": claimed_generated_at, "expected": "non-empty timestamp"})
+                if claimed_close_status != "CLOSED":
+                    failures.append({"field": "embedded_close_round_status", "claimed": claimed_close_status, "expected": "CLOSED"})
+            else:
+                # Standalone final-check: full live match
+                live_digest = _sha256_path(live_closeout)
+                if claimed_digest != live_digest:
+                    failures.append({"field": "run_closeout_result_sha256", "claimed": claimed_digest, "observed": live_digest})
+
+                closeout_data = _read_json(live_closeout) or {}
+                live_status = str(closeout_data.get("closeout_status") or "")
+                if claimed_status != live_status:
+                    failures.append({"field": "run_closeout_status", "claimed": claimed_status, "observed": live_status})
+
+                live_generated_at = str(closeout_data.get("generated_at") or "")
+                if claimed_generated_at != live_generated_at:
+                    failures.append({"field": "run_closeout_generated_at", "claimed": claimed_generated_at, "observed": live_generated_at})
+
+                close_round_result = closeout_data.get("close_round_result") or {}
+                live_close_status = str(close_round_result.get("close_status") or "")
+                if claimed_close_status != live_close_status:
+                    failures.append({"field": "embedded_close_round_status", "claimed": claimed_close_status, "observed": live_close_status})
+        else:
+            failures.append({"field": "run_closeout_result_path", "claimed": closeout_path, "observed": "file not found"})
+
+    # Check report_self_digest_embedded is false
+    if block.get("report_self_digest_embedded") is not False:
+        failures.append({"field": "report_self_digest_embedded", "claimed": block.get("report_self_digest_embedded"), "expected": False})
+
+    if failures:
+        return _check(
+            "report_finalization_matches_live_closeout",
+            "FAIL",
+            f"report_finalization does not match live closeout evidence ({len(failures)} mismatch(es))",
+            failures=failures,
+        )
+    detail_msg = (
+        "report_finalization matches live run_closeout_result evidence"
+        if not close_round_in_progress
+        else "report_finalization structurally valid (live match deferred to post-closeout)"
+    )
+    return _check(
+        "report_finalization_matches_live_closeout",
+        "PASS",
+        detail_msg,
+    )
+
+
+def _report_finalization_no_self_digest_check(
+    *,
+    decision_contract_block: dict[str, Any],
+    legacy_report_text: str,
+    neutral_report_text: str,
+    legacy_report_path: str,
+    neutral_report_path: str,
+) -> dict[str, Any]:
+    """Check that the report does not embed its own SHA-256.
+
+    This detects explicit self-referential digest patterns in the report text
+    (e.g. ``report_sha256=``, ``self_digest=``, ``own_sha256=``) and also
+    verifies that any ``report_finalization`` block has
+    ``report_self_digest_embedded: false``.
+    """
+    required = bool(decision_contract_block.get("no_self_referential_report_digest_required"))
+    if not required:
+        return _check(
+            "report_finalization_no_self_digest",
+            "PASS",
+            "report self-digest check not applicable (not required)",
+        )
+
+    _self_digest_patterns = [
+        re.compile(r"\breport_sha256\s*=\s*([0-9a-fA-F]{64})\b", re.IGNORECASE),
+        re.compile(r"\bself_digest\s*=\s*([0-9a-fA-F]{64})\b", re.IGNORECASE),
+        re.compile(r"\bown_sha256\s*=\s*([0-9a-fA-F]{64})\b", re.IGNORECASE),
+        re.compile(r"\breport_digest\s*=\s*([0-9a-fA-F]{64})\b", re.IGNORECASE),
+        re.compile(r"\bthis_report_sha256\s*=\s*([0-9a-fA-F]{64})\b", re.IGNORECASE),
+    ]
+
+    failures: list[dict[str, Any]] = []
+    for report_name, report_text, report_path in [
+        ("legacy", legacy_report_text, legacy_report_path),
+        ("neutral", neutral_report_text, neutral_report_path),
+    ]:
+        # Check for explicit self-referential digest patterns
+        for pattern in _self_digest_patterns:
+            for m in pattern.finditer(report_text):
+                failures.append({
+                    "report": report_name,
+                    "path": report_path,
+                    "pattern": pattern.pattern,
+                    "embedded_digest": m.group(1),
+                })
+
+        # Check report_finalization block for report_self_digest_embedded
+        block = _parse_report_finalization_block(report_text)
+        if block.get("found") and not block.get("parse_error"):
+            if block.get("report_self_digest_embedded") is not False:
+                failures.append({
+                    "report": report_name,
+                    "path": report_path,
+                    "field": "report_self_digest_embedded",
+                    "claimed": block.get("report_self_digest_embedded"),
+                    "expected": False,
+                })
+
+    if failures:
+        return _check(
+            "report_finalization_no_self_digest",
+            "FAIL",
+            "report embeds its own SHA-256 digest or claims self_digest_embedded=true",
+            failures=failures,
+        )
+    return _check(
+        "report_finalization_no_self_digest",
+        "PASS",
+        "report does not embed its own SHA-256 digest",
+    )
+
+
+def _final_report_archived_parity_check(
+    *,
+    round_id: str,
+    state_dir: Path,
+) -> dict[str, Any]:
+    """Check that archived reports match final live reports."""
+    round_dir = state_dir / "rounds" / round_id
+    if not round_dir.exists():
+        return _check(
+            "final_report_archived_parity",
+            "PASS",
+            "final report archived parity skipped (round archive not yet created)",
+        )
+
+    failures: list[dict[str, Any]] = []
+    for report_name, live_path in [
+        (LEGACY_EXECUTION_REPORT_NAME, state_dir / LEGACY_EXECUTION_REPORT_NAME),
+        (NEUTRAL_EXECUTION_REPORT_NAME, state_dir / NEUTRAL_EXECUTION_REPORT_NAME),
+    ]:
+        archived_path = round_dir / report_name
+        if not archived_path.exists():
+            # Only fail if live report exists but archived doesn't
+            if live_path.exists():
+                failures.append({"report": report_name, "live": str(live_path), "archived": str(archived_path), "failure_type": "archived_missing"})
+            continue
+        if not live_path.exists():
+            continue
+        live_digest = _sha256_path(live_path)
+        archived_digest = _sha256_path(archived_path)
+        if live_digest != archived_digest:
+            failures.append({
+                "report": report_name,
+                "live": str(live_path),
+                "archived": str(archived_path),
+                "live_sha256": live_digest,
+                "archived_sha256": archived_digest,
+                "failure_type": "digest_mismatch",
+            })
+
+    if failures:
+        return _check(
+            "final_report_archived_parity",
+            "FAIL",
+            f"archived reports do not match final live reports ({len(failures)} mismatch(es))",
+            failures=failures,
+        )
+    return _check(
+        "final_report_archived_parity",
+        "PASS",
+        "archived reports match final live reports",
+    )
+
+
+def _replace_or_append_fenced_json_block(
+    text: str,
+    block_name: str,
+    block_payload: dict[str, Any],
+) -> str:
+    """Replace an existing fenced JSON block or append a new one.
+
+    Finds the `````json block_name`` fenced block and replaces its body with
+    the JSON-serialised ``block_payload``.  If the block is not present, the
+    new block is appended at the end of ``text``.
+    """
+    lines = text.splitlines()
+    new_block_lines = [
+        f"```json {block_name}",
+        json.dumps(block_payload, ensure_ascii=True, indent=2),
+        "```",
+    ]
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("```"):
+            continue
+        info = stripped[3:].strip().split()
+        if "json" not in info or block_name not in info:
+            continue
+        # Found the block — find the closing ```
+        end_index = None
+        for j in range(index + 1, len(lines)):
+            if lines[j].strip().startswith("```"):
+                end_index = j
+                break
+        if end_index is None:
+            # Unterminated block — replace from index to end
+            return "\n".join(lines[:index] + new_block_lines) + "\n"
+        return "\n".join(lines[:index] + new_block_lines + lines[end_index + 1:])
+    # Block not found — append
+    result = text
+    if result and not result.endswith("\n"):
+        result += "\n"
+    if result and not result.endswith("\n\n"):
+        result += "\n"
+    result += "\n".join(new_block_lines) + "\n"
+    return result
+
+
+def _write_report_finalization_block(
+    *,
+    state_dir: Path,
+    decision_id: str,
+    round_id: str,
+    report_id: str,
+) -> None:
+    """Write/update the report_finalization block in both report aliases.
+
+    Reads the current ``run_closeout_result.json`` and writes a
+    ``report_finalization`` fenced JSON block into both
+    ``codex_execution_report.md`` and ``execution_report.md``.  If the file
+    does not exist yet (early in closeout), the block is not written.
+    """
+    closeout_path = state_dir / "gates" / "run_closeout_result.json"
+    if not closeout_path.exists():
+        return
+    closeout_data = _read_json(closeout_path) or {}
+    closeout_sha256 = _sha256_path(closeout_path)
+    closeout_generated_at = str(closeout_data.get("generated_at") or "")
+    closeout_status = str(closeout_data.get("closeout_status") or "")
+    close_round_result = closeout_data.get("close_round_result") or {}
+    embedded_close_status = str(close_round_result.get("close_status") or "")
+
+    # When the live file is IN_PROGRESS (during closeout), the block should
+    # claim the expected final values (PASSED / CLOSED) so that the
+    # close_round_in_progress validation accepts it.  After closeout finishes
+    # and the live file has PASSED, the block naturally matches.
+    if closeout_status == "IN_PROGRESS":
+        block_status = "PASSED"
+    else:
+        block_status = closeout_status
+
+    if not embedded_close_status or embedded_close_status == "IN_PROGRESS":
+        block_close_status = "CLOSED"
+    else:
+        block_close_status = embedded_close_status
+
+    block_payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report_id,
+        "basis": "post_closeout_live_artifacts",
+        "run_closeout_result_path": "project_state/gates/run_closeout_result.json",
+        "run_closeout_result_sha256": closeout_sha256,
+        "run_closeout_generated_at": closeout_generated_at,
+        "run_closeout_status": block_status,
+        "embedded_close_round_status": block_close_status,
+        "report_self_digest_embedded": False,
+    }
+
+    for report_name in (LEGACY_EXECUTION_REPORT_NAME, NEUTRAL_EXECUTION_REPORT_NAME):
+        report_path = state_dir / report_name
+        if not report_path.exists():
+            continue
+        text = _read_text(report_path)
+        updated = _replace_or_append_fenced_json_block(
+            text,
+            REPORT_FINALIZATION_BLOCK_NAME,
+            block_payload,
+        )
+        report_path.write_text(updated, encoding="utf-8", newline="\n")
+
+
 def _fenced_code_blocks(text: str) -> list[tuple[str, str]]:
     blocks: list[tuple[str, str]] = []
     lines = text.splitlines()
@@ -22218,7 +22957,11 @@ def final_check(
             write_result=True,
             refresh_context=True,
         )
-    if _early_contract.get("state_manifest_sync_required") or _early_contract.get("state_manifest_refresh_required"):
+    if (
+        _early_contract.get("state_manifest_sync_required")
+        or _early_contract.get("state_manifest_refresh_required")
+        or _early_contract.get("state_manifest_freshness_regression_preservation_required")
+    ):
         try:
             from .project_state_manifest import build_state_manifest
 
@@ -23560,6 +24303,72 @@ def final_check(
         )
     )
 
+    # Required Audit future completion claim and live metadata claim validation
+    # (post-closeout report truth checks).  These extend the existing
+    # required_audit_coverage check by rejecting future-tense completion claims
+    # and stale SHA-256/size assertions in accepted reports.
+    _legacy_report_text = _read_text(state_dir / LEGACY_EXECUTION_REPORT_NAME) if (state_dir / LEGACY_EXECUTION_REPORT_NAME).exists() else ""
+    _neutral_report_text = _read_text(state_dir / NEUTRAL_EXECUTION_REPORT_NAME) if (state_dir / NEUTRAL_EXECUTION_REPORT_NAME).exists() else ""
+    _primary_report_text = _neutral_report_text or _legacy_report_text or report_text
+
+    checks.append(
+        _required_audit_future_completion_claims_check(
+            decision_text=decision_text,
+            report_text=_primary_report_text,
+            report_status=report_status,
+        )
+    )
+    checks.append(
+        _required_audit_live_metadata_claims_check(
+            report_text=_primary_report_text,
+            report_status=report_status,
+            repo_root=repo_root,
+        )
+    )
+
+    # Post-closeout report finalization block checks
+    checks.append(
+        _report_finalization_present_check(
+            decision_contract_block=_early_contract,
+            legacy_report_text=_legacy_report_text,
+            neutral_report_text=_neutral_report_text,
+        )
+    )
+    checks.append(
+        _report_finalization_alias_parity_check(
+            decision_contract_block=_early_contract,
+            legacy_report_text=_legacy_report_text,
+            neutral_report_text=_neutral_report_text,
+        )
+    )
+    checks.append(
+        _report_finalization_matches_live_closeout_check(
+            decision_contract_block=_early_contract,
+            decision_id=decision_id,
+            round_id=round_id,
+            report_id=report_id,
+            legacy_report_text=_legacy_report_text,
+            neutral_report_text=_neutral_report_text,
+            state_dir=state_dir,
+            close_round_in_progress=close_round_in_progress,
+        )
+    )
+    checks.append(
+        _report_finalization_no_self_digest_check(
+            decision_contract_block=_early_contract,
+            legacy_report_text=_legacy_report_text,
+            neutral_report_text=_neutral_report_text,
+            legacy_report_path=LEGACY_EXECUTION_REPORT_PATH,
+            neutral_report_path=NEUTRAL_EXECUTION_REPORT_PATH,
+        )
+    )
+    checks.append(
+        _final_report_archived_parity_check(
+            round_id=round_id,
+            state_dir=state_dir,
+        )
+    )
+
     # state_hygiene_inventory_scope_complete
     # Only run this check when the decision contract requests bounded archive
     # directory inventory.  When no bounded dirs are requested, the check is
@@ -24614,7 +25423,11 @@ def final_check(
                 write_result=True,
                 refresh_context=True,
             )
-        if decision_contract.get("state_manifest_sync_required") or decision_contract.get("state_manifest_refresh_required"):
+        if (
+            decision_contract.get("state_manifest_sync_required")
+            or decision_contract.get("state_manifest_refresh_required")
+            or decision_contract.get("state_manifest_freshness_regression_preservation_required")
+        ):
             # Regenerate state_manifest after context sync so scoped_metadata
             # reflects the current context packet and gate artifacts.
             try:
@@ -32093,13 +32906,20 @@ def _refresh_codex_report_for_closeout(
             )
             # Use specialized generator output if it has real answers and
             # existing answers are placeholders (new round, same questions).
+            scaffold_alignment_failures = _required_audit_alignment_failures(
+                current_questions,
+                audit_scaffold,
+            )
             if not scaffold_placeholders and existing_placeholders and existing_covers_current_questions:
                 audit_section_to_use = audit_scaffold
             elif (
                 not scaffold_placeholders
                 and existing_covers_current_questions
                 and existing_alignment_failures
+                and len(scaffold_alignment_failures) < len(existing_alignment_failures)
             ):
+                # Only overwrite with scaffold if it has strictly fewer
+                # alignment failures than the existing answers.
                 audit_section_to_use = audit_scaffold
             elif (
                 not existing_placeholders
@@ -32163,6 +32983,20 @@ def _refresh_codex_report_for_closeout(
         _neutralize_report_markdown(report_text),
         encoding="utf-8",
         newline="\n",
+    )
+
+    # Write/update the report_finalization block in both report aliases.
+    # This reads the current run_closeout_result.json (which may be
+    # IN_PROGRESS during closeout) and writes the block with expected final
+    # values (PASSED/CLOSED).  When close_round_in_progress=True, the
+    # final-check validation accepts the structural form; after closeout
+    # finishes and the final result is written, _write_report_finalization_block
+    # is called again to update the SHA-256 to match the final file.
+    _write_report_finalization_block(
+        state_dir=state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        report_id=report_id,
     )
 
     # Synchronize the auto-summary with the freshly-written report so that
@@ -34231,6 +35065,17 @@ def run_closeout(
             stdout=_run_closeout_output_text(result),
             stderr="",
             exit_code=_run_closeout_exit_code(closeout_status),
+        )
+        # Now that the final run_closeout_result.json is written, update the
+        # report_finalization block in both reports with the correct SHA-256.
+        # This ensures the live reports (and the archived copies copied below)
+        # reference the actual final closeout evidence.
+        _report_id_for_finalization = _expected_report_id(requested_round_id) if requested_round_id else ""
+        _write_report_finalization_block(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=requested_round_id,
+            report_id=_report_id_for_finalization,
         )
         archive_dir = state_dir / "rounds" / requested_round_id
         if archive_dir.exists():

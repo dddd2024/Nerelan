@@ -30489,3 +30489,566 @@ def test_governance_operations_bundle_gate_generates_readiness_artifacts(tmp_pat
     assert result["web_runtime_started"] is False
     assert (state_dir / "gates" / "governance_operations_bundle_result.json").exists()
     assert (state_dir / "gates" / "state_hygiene_dashboard_feed.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# Required Audit future completion claim and live metadata claim validation
+# ---------------------------------------------------------------------------
+
+_ACCEPTED_REPORT_WITH_FUTURE_CLAIM = """# CODEX_EXECUTION_REPORT
+
+## Required Audit
+
+### 1. Is the gate valid?
+
+- Evidence: project_state/gates/final_gate_result.json
+- Status: PASS
+- Answer: The final gate will be PASSED after close-round completes.
+"""
+
+_ACCEPTED_REPORT_WITH_FUTURE_CLAIM_AND_DENIAL = """# CODEX_EXECUTION_REPORT
+
+## Required Audit
+
+### 1. Is the gate valid?
+
+- Evidence: project_state/gates/final_gate_result.json
+- Status: PASS
+- Answer: The final gate will be PASSED after close-round completes. No future-tense claims exist in this answer.
+"""
+
+_ACCEPTED_REPORT_WITHOUT_FUTURE_CLAIM = """# CODEX_EXECUTION_REPORT
+
+## Required Audit
+
+### 1. Is the gate valid?
+
+- Evidence: project_state/gates/final_gate_result.json gate_status=PASSED
+- Status: PASS
+- Answer: The final gate passed with current decision and round IDs.
+"""
+
+_BLOCKED_REPORT_WITH_FUTURE_CLAIM = """# CODEX_EXECUTION_REPORT
+
+## Required Audit
+
+### 1. Is the gate valid?
+
+- Evidence: project_state/gates/final_gate_result.json
+- Status: BLOCKED
+- Answer: The final gate will be PASSED after close-round completes.
+"""
+
+
+def test_future_completion_claim_check_fails_for_accepted_report_with_future_claim() -> None:
+    """Test 1: SUCCESS/ACCEPTED report with 'will be PASSED' in an Answer field fails."""
+    from reverse_agent.project_gate import _required_audit_future_completion_claims_check
+
+    result = _required_audit_future_completion_claims_check(
+        decision_text="## 5. Required Audit\n\n1. Is the gate valid?\n",
+        report_text=_ACCEPTED_REPORT_WITH_FUTURE_CLAIM,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "FAIL"
+    assert len(result["failures"]) >= 1
+
+
+def test_future_completion_claim_check_fails_for_will_match_after_final_check() -> None:
+    """Test 2: SUCCESS/ACCEPTED report with 'will match after final-check' fails."""
+    from reverse_agent.project_gate import _required_audit_future_completion_claims_check
+
+    report = """# REPORT
+
+## Required Audit
+
+### 1. Does the manifest match?
+
+- Evidence: project_state/state_manifest.json
+- Status: PASS
+- Answer: The manifest will match after final-check runs.
+"""
+    result = _required_audit_future_completion_claims_check(
+        decision_text="## 5. Required Audit\n\n1. Does the manifest match?\n",
+        report_text=report,
+        report_status="ACCEPTED",
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_future_completion_claim_check_fails_for_contradictory_denial() -> None:
+    """Test 3: A report that contains a future claim and later says 'no future-tense claims exist' fails."""
+    from reverse_agent.project_gate import _required_audit_future_completion_claims_check
+
+    result = _required_audit_future_completion_claims_check(
+        decision_text="## 5. Required Audit\n\n1. Is the gate valid?\n",
+        report_text=_ACCEPTED_REPORT_WITH_FUTURE_CLAIM_AND_DENIAL,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "FAIL"
+    assert result["failures"][0]["contradictory_no_future_claim"] is True
+
+
+def test_future_completion_claim_check_passes_for_truthful_answer() -> None:
+    """Test 4: A truthful completed answer does not falsely fail."""
+    from reverse_agent.project_gate import _required_audit_future_completion_claims_check
+
+    result = _required_audit_future_completion_claims_check(
+        decision_text="## 5. Required Audit\n\n1. Is the gate valid?\n",
+        report_text=_ACCEPTED_REPORT_WITHOUT_FUTURE_CLAIM,
+        report_status="SUCCESS",
+    )
+    assert result["status"] == "PASS"
+
+
+def test_future_completion_claim_check_passes_for_blocked_report() -> None:
+    """Test 16: BLOCKED/PARTIAL reports may describe unresolved next actions when status truthfully marks them unresolved."""
+    from reverse_agent.project_gate import _required_audit_future_completion_claims_check
+
+    result = _required_audit_future_completion_claims_check(
+        decision_text="## 5. Required Audit\n\n1. Is the gate valid?\n",
+        report_text=_BLOCKED_REPORT_WITH_FUTURE_CLAIM,
+        report_status="BLOCKED",
+    )
+    assert result["status"] == "PASS"
+
+
+def test_live_metadata_claim_check_fails_for_stale_sha256(tmp_path: Path) -> None:
+    """Test 5: SUCCESS/ACCEPTED report with an exact stale 64-character SHA-256 claim fails."""
+    from reverse_agent.project_gate import _required_audit_live_metadata_claims_check
+
+    # Create a fake artifact file
+    artifact_path = tmp_path / "project_state" / "gates" / "final_gate_result.json"
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_text('{"gate_status": "PASSED"}', encoding="utf-8")
+
+    stale_digest = "0" * 64  # definitely not the real digest
+    report = f"""# REPORT
+
+## Required Audit
+
+### 1. Is the gate correct?
+
+- Evidence: project_state/gates/final_gate_result.json sha256={stale_digest}
+- Status: PASS
+- Answer: The gate file has the claimed digest.
+"""
+    result = _required_audit_live_metadata_claims_check(
+        report_text=report,
+        report_status="SUCCESS",
+        repo_root=tmp_path,
+    )
+    assert result["status"] == "FAIL"
+    assert any(f["failure_type"] == "stale_sha256" for f in result["failures"])
+
+
+def test_live_metadata_claim_check_fails_for_stale_size(tmp_path: Path) -> None:
+    """Test 6: SUCCESS/ACCEPTED report with a stale size_bytes claim fails."""
+    from reverse_agent.project_gate import _required_audit_live_metadata_claims_check
+
+    artifact_path = tmp_path / "project_state" / "gates" / "final_gate_result.json"
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_text('{"gate_status": "PASSED"}', encoding="utf-8")
+    live_size = artifact_path.stat().st_size
+
+    report = f"""# REPORT
+
+## Required Audit
+
+### 1. Is the gate correct?
+
+- Evidence: project_state/gates/final_gate_result.json size_bytes={live_size + 999}
+- Status: PASS
+- Answer: The gate file has the claimed size.
+"""
+    result = _required_audit_live_metadata_claims_check(
+        report_text=report,
+        report_status="SUCCESS",
+        repo_root=tmp_path,
+    )
+    assert result["status"] == "FAIL"
+    assert any(f["failure_type"] == "stale_size" for f in result["failures"])
+
+
+def test_live_metadata_claim_check_fails_for_prefix_as_exact_equality() -> None:
+    """Test 7: A digest prefix described as exact SHA-256 equality fails."""
+    from reverse_agent.project_gate import _required_audit_live_metadata_claims_check
+
+    report = """# REPORT
+
+## Required Audit
+
+### 1. Is the gate correct?
+
+- Evidence: project_state/gates/final_gate_result.json sha256 is prefix=abcd1234
+- Status: PASS
+- Answer: The gate file digest equals the prefix.
+"""
+    result = _required_audit_live_metadata_claims_check(
+        report_text=report,
+        report_status="SUCCESS",
+        repo_root=Path("/tmp"),
+    )
+    assert result["status"] == "FAIL"
+    assert any(f["failure_type"] == "prefix_as_exact_equality" for f in result["failures"])
+
+
+def test_live_metadata_claim_check_passes_for_correct_digest_and_size(tmp_path: Path) -> None:
+    """Test 8: A correct full digest and size claim for a stable live artifact passes."""
+    from reverse_agent.project_gate import _required_audit_live_metadata_claims_check, _sha256_path
+
+    artifact_path = tmp_path / "project_state" / "gates" / "final_gate_result.json"
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_text('{"gate_status": "PASSED"}', encoding="utf-8")
+    live_digest = _sha256_path(artifact_path)
+    live_size = artifact_path.stat().st_size
+
+    report = f"""# REPORT
+
+## Required Audit
+
+### 1. Is the gate correct?
+
+- Evidence: project_state/gates/final_gate_result.json sha256={live_digest} size_bytes={live_size}
+- Status: PASS
+- Answer: The gate file has the correct digest and size.
+"""
+    result = _required_audit_live_metadata_claims_check(
+        report_text=report,
+        report_status="SUCCESS",
+        repo_root=tmp_path,
+    )
+    assert result["status"] == "PASS"
+
+
+def test_report_finalization_no_self_digest_check_fails_for_embedded_digest(tmp_path: Path) -> None:
+    """Test 9: A report that embeds its own SHA-256 fails."""
+    from reverse_agent.project_gate import _report_finalization_no_self_digest_check
+
+    fake_digest = "a" * 64
+    report_with_self_digest = f"# REPORT\n\nreport_sha256={fake_digest}\n"
+
+    result = _report_finalization_no_self_digest_check(
+        decision_contract_block={"no_self_referential_report_digest_required": True},
+        legacy_report_text=report_with_self_digest,
+        neutral_report_text=report_with_self_digest,
+        legacy_report_path="project_state/codex_execution_report.md",
+        neutral_report_path="project_state/execution_report.md",
+    )
+    assert result["status"] == "FAIL"
+    assert any(f.get("embedded_digest") == fake_digest for f in result["failures"])
+
+
+def test_report_finalization_present_check_fails_when_missing(tmp_path: Path) -> None:
+    """Test 10: A current decision requiring report_finalization fails when the block is missing."""
+    from reverse_agent.project_gate import _report_finalization_present_check
+
+    result = _report_finalization_present_check(
+        decision_contract_block={"post_closeout_report_finalization_required": True},
+        legacy_report_text="# REPORT\n\nNo finalization block here\n",
+        neutral_report_text="# REPORT\n\nNo finalization block here\n",
+    )
+    assert result["status"] == "FAIL"
+    assert "missing_in" in result
+
+
+def test_report_finalization_matches_live_closeout_fails_for_stale_sha256(tmp_path: Path) -> None:
+    """Test 11: report_finalization with a stale run_closeout_result SHA-256 fails."""
+    from reverse_agent.project_gate import _report_finalization_matches_live_closeout_check, _sha256_path
+
+    closeout_path = tmp_path / "project_state" / "gates" / "run_closeout_result.json"
+    closeout_path.parent.mkdir(parents=True, exist_ok=True)
+    closeout_data = {
+        "closeout_status": "PASSED",
+        "generated_at": "2026-07-10T08:00:00Z",
+        "close_round_result": {"close_status": "CLOSED"},
+    }
+    closeout_path.write_text(json.dumps(closeout_data), encoding="utf-8")
+
+    stale_digest = "0" * 64
+    report = f"""# REPORT
+
+```json report_finalization
+{{
+  "schema_version": 1,
+  "decision_id": "decision_test",
+  "round_id": "round_test",
+  "report_id": "codex_report_test",
+  "basis": "post_closeout_live_artifacts",
+  "run_closeout_result_path": "project_state/gates/run_closeout_result.json",
+  "run_closeout_result_sha256": "{stale_digest}",
+  "run_closeout_generated_at": "2026-07-10T08:00:00Z",
+  "run_closeout_status": "PASSED",
+  "embedded_close_round_status": "CLOSED",
+  "report_self_digest_embedded": false
+}}
+```
+"""
+    result = _report_finalization_matches_live_closeout_check(
+        decision_contract_block={"post_closeout_report_finalization_required": True},
+        decision_id="decision_test",
+        round_id="round_test",
+        report_id="codex_report_test",
+        legacy_report_text=report,
+        neutral_report_text=report,
+        state_dir=tmp_path / "project_state",
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_report_finalization_matches_live_closeout_fails_for_wrong_ids(tmp_path: Path) -> None:
+    """Test 12: report_finalization with wrong decision_id/round_id/report_id/status fails."""
+    from reverse_agent.project_gate import _report_finalization_matches_live_closeout_check, _sha256_path
+
+    closeout_path = tmp_path / "project_state" / "gates" / "run_closeout_result.json"
+    closeout_path.parent.mkdir(parents=True, exist_ok=True)
+    closeout_data = {
+        "closeout_status": "PASSED",
+        "generated_at": "2026-07-10T08:00:00Z",
+        "close_round_result": {"close_status": "CLOSED"},
+    }
+    closeout_path.write_text(json.dumps(closeout_data), encoding="utf-8")
+    live_digest = _sha256_path(closeout_path)
+
+    report = f"""# REPORT
+
+```json report_finalization
+{{
+  "schema_version": 1,
+  "decision_id": "wrong_decision",
+  "round_id": "wrong_round",
+  "report_id": "wrong_report",
+  "basis": "post_closeout_live_artifacts",
+  "run_closeout_result_path": "project_state/gates/run_closeout_result.json",
+  "run_closeout_result_sha256": "{live_digest}",
+  "run_closeout_generated_at": "2026-07-10T08:00:00Z",
+  "run_closeout_status": "PASSED",
+  "embedded_close_round_status": "CLOSED",
+  "report_self_digest_embedded": false
+}}
+```
+"""
+    result = _report_finalization_matches_live_closeout_check(
+        decision_contract_block={"post_closeout_report_finalization_required": True},
+        decision_id="decision_test",
+        round_id="round_test",
+        report_id="codex_report_test",
+        legacy_report_text=report,
+        neutral_report_text=report,
+        state_dir=tmp_path / "project_state",
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_report_finalization_alias_parity_check_fails_for_mismatch(tmp_path: Path) -> None:
+    """Test 13: Mismatched report_finalization blocks between report aliases fail."""
+    from reverse_agent.project_gate import _report_finalization_alias_parity_check
+
+    legacy_report = """# REPORT
+
+```json report_finalization
+{
+  "decision_id": "decision_test",
+  "round_id": "round_test",
+  "report_id": "codex_report_test",
+  "run_closeout_result_sha256": "aaa"
+}
+```
+"""
+    neutral_report = """# REPORT
+
+```json report_finalization
+{
+  "decision_id": "decision_test",
+  "round_id": "round_test",
+  "report_id": "codex_report_test",
+  "run_closeout_result_sha256": "bbb"
+}
+```
+"""
+    result = _report_finalization_alias_parity_check(
+        decision_contract_block={"post_closeout_report_finalization_required": True},
+        legacy_report_text=legacy_report,
+        neutral_report_text=neutral_report,
+    )
+    assert result["status"] == "FAIL"
+
+
+def test_report_finalization_passes_for_correct_block(tmp_path: Path) -> None:
+    """Test 14: A correct report_finalization block passes all checks."""
+    from reverse_agent.project_gate import (
+        _report_finalization_present_check,
+        _report_finalization_alias_parity_check,
+        _report_finalization_matches_live_closeout_check,
+        _report_finalization_no_self_digest_check,
+        _sha256_path,
+    )
+
+    closeout_path = tmp_path / "project_state" / "gates" / "run_closeout_result.json"
+    closeout_path.parent.mkdir(parents=True, exist_ok=True)
+    closeout_data = {
+        "closeout_status": "PASSED",
+        "generated_at": "2026-07-10T08:00:00Z",
+        "close_round_result": {"close_status": "CLOSED"},
+    }
+    closeout_path.write_text(json.dumps(closeout_data), encoding="utf-8")
+    live_digest = _sha256_path(closeout_path)
+
+    report = f"""# REPORT
+
+```json report_finalization
+{{
+  "schema_version": 1,
+  "decision_id": "decision_test",
+  "round_id": "round_test",
+  "report_id": "codex_report_test",
+  "basis": "post_closeout_live_artifacts",
+  "run_closeout_result_path": "project_state/gates/run_closeout_result.json",
+  "run_closeout_result_sha256": "{live_digest}",
+  "run_closeout_generated_at": "2026-07-10T08:00:00Z",
+  "run_closeout_status": "PASSED",
+  "embedded_close_round_status": "CLOSED",
+  "report_self_digest_embedded": false
+}}
+```
+"""
+    contract = {"post_closeout_report_finalization_required": True, "no_self_referential_report_digest_required": True}
+    state_dir = tmp_path / "project_state"
+
+    present = _report_finalization_present_check(
+        decision_contract_block=contract,
+        legacy_report_text=report,
+        neutral_report_text=report,
+    )
+    assert present["status"] == "PASS"
+
+    parity = _report_finalization_alias_parity_check(
+        decision_contract_block=contract,
+        legacy_report_text=report,
+        neutral_report_text=report,
+    )
+    assert parity["status"] == "PASS"
+
+    match = _report_finalization_matches_live_closeout_check(
+        decision_contract_block=contract,
+        decision_id="decision_test",
+        round_id="round_test",
+        report_id="codex_report_test",
+        legacy_report_text=report,
+        neutral_report_text=report,
+        state_dir=state_dir,
+    )
+    assert match["status"] == "PASS"
+
+    no_digest = _report_finalization_no_self_digest_check(
+        decision_contract_block=contract,
+        legacy_report_text=report,
+        neutral_report_text=report,
+        legacy_report_path="project_state/codex_execution_report.md",
+        neutral_report_path="project_state/execution_report.md",
+    )
+    assert no_digest["status"] == "PASS"
+
+
+def test_report_finalization_backward_compatible_without_contract_flag() -> None:
+    """Test 15: Earlier decisions without the new contract flag remain backward-compatible."""
+    from reverse_agent.project_gate import (
+        _report_finalization_present_check,
+        _report_finalization_alias_parity_check,
+        _report_finalization_matches_live_closeout_check,
+        _report_finalization_no_self_digest_check,
+    )
+
+    # No post_closeout_report_finalization_required flag
+    contract = {}
+    report = "# REPORT\n\nNo finalization block\n"
+
+    assert _report_finalization_present_check(
+        decision_contract_block=contract,
+        legacy_report_text=report,
+        neutral_report_text=report,
+    )["status"] == "PASS"
+    assert _report_finalization_alias_parity_check(
+        decision_contract_block=contract,
+        legacy_report_text=report,
+        neutral_report_text=report,
+    )["status"] == "PASS"
+    assert _report_finalization_matches_live_closeout_check(
+        decision_contract_block=contract,
+        decision_id="d",
+        round_id="r",
+        report_id="rp",
+        legacy_report_text=report,
+        neutral_report_text=report,
+        state_dir=Path("/tmp"),
+    )["status"] == "PASS"
+    assert _report_finalization_no_self_digest_check(
+        decision_contract_block={},
+        legacy_report_text=report,
+        neutral_report_text=report,
+        legacy_report_path="a",
+        neutral_report_path="b",
+    )["status"] == "PASS"
+
+
+def test_final_report_archived_parity_check_passes_when_no_archive(tmp_path: Path) -> None:
+    """Test: final_report_archived_parity passes when round archive not yet created."""
+    from reverse_agent.project_gate import _final_report_archived_parity_check
+
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    result = _final_report_archived_parity_check(
+        round_id="round_test",
+        state_dir=state_dir,
+    )
+    assert result["status"] == "PASS"
+
+
+def test_final_report_archived_parity_check_fails_for_mismatch(tmp_path: Path) -> None:
+    """Test 19: Final archive report digest equals the final live report digest."""
+    from reverse_agent.project_gate import _final_report_archived_parity_check
+
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    round_dir = state_dir / "rounds" / "round_test"
+    round_dir.mkdir(parents=True)
+
+    # Create live reports
+    live_legacy = state_dir / "codex_execution_report.md"
+    live_neutral = state_dir / "execution_report.md"
+    live_legacy.write_text("live content legacy", encoding="utf-8")
+    live_neutral.write_text("live content neutral", encoding="utf-8")
+
+    # Create archived reports with different content
+    (round_dir / "codex_execution_report.md").write_text("archived content legacy", encoding="utf-8")
+    (round_dir / "execution_report.md").write_text("archived content neutral", encoding="utf-8")
+
+    result = _final_report_archived_parity_check(
+        round_id="round_test",
+        state_dir=state_dir,
+    )
+    assert result["status"] == "FAIL"
+    assert any(f["failure_type"] == "digest_mismatch" for f in result["failures"])
+
+
+def test_final_report_archived_parity_check_passes_for_matching_digests(tmp_path: Path) -> None:
+    """Test: final_report_archived_parity passes when archived and live digests match."""
+    from reverse_agent.project_gate import _final_report_archived_parity_check
+
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    round_dir = state_dir / "rounds" / "round_test"
+    round_dir.mkdir(parents=True)
+
+    content_legacy = "same content legacy"
+    content_neutral = "same content neutral"
+
+    (state_dir / "codex_execution_report.md").write_text(content_legacy, encoding="utf-8")
+    (state_dir / "execution_report.md").write_text(content_neutral, encoding="utf-8")
+    (round_dir / "codex_execution_report.md").write_text(content_legacy, encoding="utf-8")
+    (round_dir / "execution_report.md").write_text(content_neutral, encoding="utf-8")
+
+    result = _final_report_archived_parity_check(
+        round_id="round_test",
+        state_dir=state_dir,
+    )
+    assert result["status"] == "PASS"
