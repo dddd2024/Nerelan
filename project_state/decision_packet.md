@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,34 +13,36 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260716_closeout_final_seal_and_publication_truth_rework_v2",
-  "follows_last_round_id": "round_20260716_closeout_final_seal_and_publication_truth_rework_v2",
+  "follows_last_decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "follows_last_round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
   "previous_audit_outcome": "REWORK_REQUIRED",
   "restart_mode": "explicit_new_round",
-  "restart_reason": "previous round ended with run_closeout PASSED and final_evidence_seal PASSED while final_gate_result FAILED",
-  "previous_artifacts_read_only": true,
+  "restart_reason": "the v3 branch exists and completed local validation, but the final report cites an obsolete command-plan lock, the observed chronology still places substantive commands before the final lock, a lifecycle-order mismatch was marked PASS, and all three remote PR checks failed during package installation",
+  "previous_round_artifacts_read_only": true,
   "required_profile": "full",
   "decision_branch_mode": "branch_local_authority",
   "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
   "base_branch": "main",
-  "decision_commit_must_precede_implementation": true,
+  "decision_commit_must_precede_v4_implementation": true,
   "decision_content_digest_lock_required": true,
   "command_plan_branch_binding_required": true,
   "command_plan_digest_lock_required": true,
   "command_plan_precedes_execution_required": true,
-  "final_status_propagation_required": true,
-  "final_check_stdout_atomicity_required": true,
-  "generated_artifact_inventory_freeze_required": true,
-  "required_audit_future_claim_policy_required": true,
+  "explicit_restart_segment_required": true,
+  "canonical_lock_snapshot_required": true,
+  "required_audit_lock_parity_required": true,
+  "startup_snapshot_order_required": true,
   "final_evidence_seal_required": true,
-  "seal_requires_final_gate_pass": true,
+  "remote_check_observation_required": true,
+  "remote_green_required_for_acceptance": true,
+  "workflow_mutation_allowed": false,
+  "packaging_mutation_allowed": false,
   "closeout_required": true,
   "close_round_required": true,
   "pytest_required": true,
   "explicit_pytest_command_required": true,
-  "state_manifest_freshness_regression_preservation_required": true,
   "context_packet_sync_required": true,
-  "post_final_evidence_sync_required": true,
+  "state_manifest_freshness_required": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py"
@@ -57,26 +59,39 @@
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
-    "project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/*"
+    "project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4/*"
   ],
   "read_only_evidence_files": [
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/*",
-    "project_state/gates/final_gate_result.json",
-    "project_state/gates/run_closeout_result.json",
+    "project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/*",
     "project_state/gates/final_evidence_seal.json",
     "project_state/gates/publication_result.json",
-    "project_state/gates/command_plan.json",
+    "project_state/gates/command_plan_lock.json",
+    "project_state/gates/decision_content_lock.json",
     "project_state/gates/execution_log.json",
+    "project_state/gates/final_gate_result.json",
+    "project_state/gates/run_closeout_result.json",
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
+    "project_state/roadmap/workstreams.json",
+    "project_state/current_state.json",
+    "project_state/task_packet.json",
+    "project_state/artifact_index.json",
+    "project_state/negative_results.json",
     ".codex-skills/registry.json",
     ".codex-skills/reverse-agent-iteration/SKILL.md",
-    "reverse_agent/project_runner_contract.py"
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/decision-preflight.yml",
+    "pyproject.toml"
   ],
   "forbidden_mutated_paths": [
     ".codex-skills/*",
     ".github/workflows/*",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "requirements*.txt",
     "frontend/*",
     "solve_reports/*",
     "training_materials/local_reverse/*",
@@ -105,6 +120,7 @@
     "granted_by_user": true,
     "allowed_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
     "base_branch": "main",
+    "reuse_existing_draft_pr_number": 5,
     "same_branch_for_decision_and_implementation": true,
     "multiple_commits_on_same_branch_allowed": true,
     "reuse_same_branch_for_review_fixes_allowed": true,
@@ -131,84 +147,100 @@
 
 ## 1. Goal
 
-Complete one bounded `project_governance` restart round on the same branch that contains this Decision. Repair only the terminal truth-chain defects left by the previous v2 execution:
-
-1. `final_gate_result.json=FAILED` did not propagate to `run_closeout_result.json`, report status, acceptance recommendation, and seal status;
-2. `final_evidence_seal.json` could remain `PASSED` while the final gate was `FAILED`;
-3. the final generated-artifact inventory was incomplete or frozen at the wrong lifecycle point;
-4. the final report still contained future-completion claims outside an explicit rework/limitations section;
-5. final-check stdout, exit code, and the persisted final-gate artifact were not derived atomically from one final result.
-
-This Decision uses branch-local authority. Codex must execute directly on:
+Complete one bounded `project_governance` rework round on the existing Draft PR branch:
 
 ```text
 agent/terminal-status-propagation-seal-restart-rework-v3
 ```
 
-The Decision commit on that branch must precede every implementation commit. The branch must remain the only execution and review-fix branch for this round.
+Do not create a second implementation branch or a second PR.
 
-Required lifecycle:
+The v3 implementation is not absent: it is present on Draft PR #5 and produced local tests, reports, closeout artifacts, a final gate, and a final evidence seal. This round must not repeat that implementation from zero. It must repair only the remaining evidence-convergence defects identified by independent branch-aware audit:
+
+1. `codex_execution_report.md` Required Audit cites an obsolete command-plan lock digest, lock timestamp, and restart count rather than the final sealed lock;
+2. the final `command_plan_lock.json` records `first_substantive_command_at` before its own final `command_plan_locked_at`, while the execution transcript still places `run-closeout` and pytest before command-plan generation;
+3. the system records restart counters and invalidation text but does not expose one canonical post-restart execution segment proving that the invalidated prefix was discarded;
+4. `startup_snapshot_immediate_after_startup_status` was marked `PASS` even though the observed sixth command was `run-closeout`, not `startup-snapshot`;
+5. the publication receipt stopped at `checks_observation=IN_PROGRESS`, while the final remote observation is that CI, State Gate, and Decision Preflight all failed at `Install package`;
+6. the current branch report self-recommends `ACCEPTED`, but remote checks are not green and the final report/lock evidence is internally inconsistent.
+
+Required v4 lifecycle:
 
 ```text
-fetch branch
-→ verify exact branch
-→ verify Decision commit is in branch history
-→ lock Decision digest
+fetch existing branch and PR
+→ verify exact branch and current HEAD
+→ verify v4 Decision commit is an ancestor of all v4 implementation/evidence commits
+→ lock v4 Decision digest
 → decision-lint
 → gate-profile
-→ generate branch-bound command-plan
-→ lock command-plan digest
-→ explicit restart snapshot
-→ implementation and tests
-→ generate all non-terminal gate artifacts
-→ freeze generated/referenced artifact inventory
-→ finalize reports
-→ final-check atomically writes artifact, stdout, and exit code
-→ propagate final status to closeout/report recommendation
-→ post-final context and state-manifest refresh
-→ generate seal only when final gate and terminal prerequisites pass
-→ push further commits to the same branch only when command-plan authorizes publication
+→ generate branch-bound v4 command-plan
+→ lock the exact v4 command-plan digest
+→ create restart_segment.json before any substantive v4 command
+→ capture startup snapshot and v4 round baseline
+→ implement only evidence-convergence checks
+→ run selected tests
+→ generate reports from canonical final artifacts
+→ verify report/lock/restart parity
+→ final-check
+→ close-round and archive
+→ post-final context/state-manifest sync
+→ final-evidence-seal
+→ push to the same branch
+→ observe Draft PR #5 remote checks to terminal state
 ```
+
+A green local pytest run is necessary but not sufficient. Final acceptance requires local evidence convergence and terminal remote check observation.
 
 ## 2. Current Evidence
 
-- Current task authority for this execution is the `project_state/decision_packet.md` at the HEAD of `agent/terminal-status-propagation-seal-restart-rework-v3`, not the copy currently merged on `main`.
-- `main` contains the v2 Decision through merge commit `5884cf2abb37945652ef166cf0e78fa24593b0d5`.
-- The user supplied the current local v2 execution facts: selected tests passed with `1551 passed in 450.12s`; the command-plan digest remained locked; no implementation branch push or new PR was attempted; publication was recorded as `NOT_OBSERVED / NOT_ATTEMPTED`.
-- The same local evidence reports a terminal contradiction: `run_closeout_result.json=PASSED`, `final_evidence_seal.json=PASSED`, and `final_gate_result.json=FAILED`.
-- The final gate failed on `generated_artifacts_cover_gate_artifacts`, `required_audit_future_completion_claims_absent`, and `final_check_stdout_matches_gate_status`.
-- The previous execution correctly stopped without editing sealed artifacts or claiming full success. Those previous v2 artifacts are read-only evidence and must not be repaired in place.
-- Current GitHub `main` does not contain the local v2 implementation artifacts. This Decision therefore treats the user-supplied local evidence as the restart basis, while requiring the new v3 branch to generate and publish its own current artifacts.
-- Existing foundations must be reused: command-plan locking, execution-log chronology, report-summary synthesis, final-check, run-closeout, close-round, state-manifest freshness, context sync, final seal, publication truth, policy-lint, and prompt-consistency.
-- Existing foundations are not to be reimplemented from zero. The missing work is terminal status propagation, final inventory ordering, report semantic cleanup, and final-check atomicity.
-- `reverse-agent-iteration@v2` is the selected repository Skill. Skill compatibility/drift hardening remains a separate future governance round and is not authorized here.
-- No reverse tool, runtime probe, model API, Runner dispatch, Web runtime, CI workflow modification, database, cleanup apply, or other mainline is authorized.
+- Current task authority after this Decision commit is the branch-local `project_state/decision_packet.md` on `agent/terminal-status-propagation-seal-restart-rework-v3`. `task_packet.json` remains background only.
+- Current mainline is `project_governance`.
+- The current workstream registry exists and explicitly states that roadmap entries are not execution authority. It contains existing Project State, CI/state-gate, User Solve, Web, Runner, reverse-solving, and tool-integration workstreams. This round must not modify the registry or activate another workstream.
+- The current context packet exists and identifies v3 as its sealed previous baseline. It confirms existing command-plan, execution-log, report-summary, final-check, run-closeout, archive, context-sync, state-manifest, policy-lint, prompt-consistency, Job, Runner-contract, Web-orchestrator, and state-hygiene foundations.
+- `current_state.json`, `task_packet.json`, and `artifact_index.json` still contain older sample-oriented facts. They are not authority for this governance round and remain read-only.
+- `negative_results.json` contains reverse-solving failures and the hard prohibition against committing full `solve_reports`. None of those directions is reopened or repeated.
+- Existing v3 local evidence includes `1555 passed`, a v3 final gate marked `PASSED`, run-closeout marked `PASSED`, and a final evidence seal marked `PASSED`.
+- Existing v3 report evidence is not internally converged: Required Audit cites lock digest `76c8d5a0...`, timestamp `2026-07-16T15:21:24.3340244Z`, and `restart_count=1`, while the final branch lock and seal bind digest `3b5c1b6d...`, timestamp `2026-07-16T15:56:17.7096176Z`, and `restart_count=2`.
+- Existing final lock records `first_substantive_command_at=2026-07-16T15:22:05.2192179Z`, which precedes its final lock time. The transcript also records `run-closeout` and pytest before command-plan generation.
+- Existing final-check records the startup-snapshot order check as `PASS`, despite its own observed command sequence showing `run-closeout` in the sixth position.
+- Draft PR #5 exists and remains open. Its current remote checks reached terminal failure: CI, State Gate, and Decision Preflight each failed at the package-install step before project tests or project gates ran.
+- The remote install failure is a current external blocker, but its root cause is not yet proven. This round may inspect logs and record the exact failure. It may not modify packaging or workflow files.
+- Existing v3 round archives, seal, publication receipt, reports, and execution evidence are historical inputs and must not be edited in place.
+- Artifact freshness for sample-solving artifacts is nonblocking because this is not a reverse-solving round.
+- Local deterministic Python and tests are allowed. Reverse tools, runtime probes, debuggers, model APIs, Runner dispatch, Web runtime, database creation, cleanup apply, and destructive operations are not allowed.
+- Closeout is allowed only after the current v4 Decision and command-plan locks exist and the restart segment proves all substantive v4 work occurred after the final lock.
+- This round does not duplicate command-plan, execution-log, report-summary, final-check, run-closeout, archive, or seal systems. It strengthens their parity and lifecycle validation.
 
 ## 3. Do Not Do
 
 Do not:
 
 - work on `main`, `master`, or any branch other than `agent/terminal-status-propagation-seal-restart-rework-v3`;
-- merge this branch or create a second implementation branch;
-- modify or regenerate the previous v2 round archive or previous v2 seal;
-- convert a previous `FAILED` final gate into `PASSED` by editing evidence files;
-- treat passing pytest as proof that final acceptance passed;
-- let `run-closeout` report `PASSED` when the terminal final gate is `FAILED`;
-- let an acceptance-type seal report `PASSED` when its bound final gate is not `PASSED`;
-- generate the final artifact inventory before all non-terminal gate artifacts exist;
-- generate additional current-round gate artifacts after the inventory and seal boundary unless they are explicitly excluded publication receipts;
-- suppress future-completion findings by globally disabling the check;
-- classify ordinary execution facts as future plans merely because words such as “will” appear inside quoted Decision text;
-- print a final-check status before the complete result is known;
-- produce stdout, exit code, and `final_gate_result.json` from separate calculations;
-- modify `.codex-skills/*`, `.github/workflows/*`, Runner, Job, frontend, User Solve, reverse-solving, roadmap, database, or cleanup modules;
+- create a new branch or new PR;
+- merge Draft PR #5;
+- modify or regenerate the v3 round archive or v3 seal;
+- edit v3 evidence to make the previous audit pass;
+- reuse v3 `SUCCESS`, `ACCEPTED`, or `PASSED` as proof of v4 acceptance;
+- treat `restart_count` alone as proof of a clean restart;
+- accept a report whose lock digest, lock time, restart count, Decision digest, branch, or HEAD differs from the canonical final lock artifacts;
+- accept a lifecycle-order check when the observed sequence contradicts the expected sequence;
+- classify a required ordering check as advisory merely to keep final-check green;
+- reorder transcript or execution-log entries;
+- discard or hide failed remote checks;
+- classify remote checks as green when they failed before project validation;
+- modify `.github/workflows/*`, `pyproject.toml`, `setup.py`, `setup.cfg`, or dependency files;
+- expand this round into a package-install or CI-workflow repair;
+- modify Skills, Runner, Job, frontend, User Solve, reverse-solving, tool integration, roadmap, database, or cleanup systems;
 - read the full `solve_reports/` tree or `PROJECT_PROGRESS_LOG.txt`;
-- use `git add -A`, force push, rebase, merge, tag mutation, workflow mutation, secret mutation, or direct push to `main`;
-- execute publication commands that are not present in the current branch-bound command-plan.
+- run reverse tools, runtime probes, debuggers, emulators, hooks, or model APIs;
+- use `git add -A`;
+- force-push, rebase, merge, tag, edit workflows or secrets, delete remote branches, or push directly to `main`;
+- execute commands absent from the current locked command-plan;
+- modify sealed artifacts after the v4 terminal seal.
 
 ## 4. Files To Inspect
 
-Required:
+Required current branch evidence:
 
 - `project_state/decision_packet.md`
 - `project_state/codex_execution_report.md`
@@ -216,9 +248,14 @@ Required:
 - `project_state/pytest_result.txt`
 - `project_state/state_manifest.json`
 - `project_state/context/current_context_packet.json`
+- `project_state/roadmap/workstreams.json`
+- `project_state/current_state.json`
+- `project_state/task_packet.json`
+- `project_state/artifact_index.json`
+- `project_state/negative_results.json`
 - `project_state/gates/command_plan.json`
-- `project_state/gates/gate_profile_plan.json`
-- `project_state/gates/preflight_result.json`
+- `project_state/gates/command_plan_lock.json`
+- `project_state/gates/decision_content_lock.json`
 - `project_state/gates/execution_log.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/run_closeout_result.json`
@@ -228,7 +265,7 @@ Required:
 - `project_state/gates/report_summary_synthesis.json`
 - `project_state/gates/post_final_evidence_sync_result.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/*`
+- `project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/*`
 - `reverse_agent/project_gate.py`
 - `reverse_agent/project_state.py`
 - `tests/test_project_gate.py`
@@ -236,248 +273,316 @@ Required:
 - `tests/test_project_state.py`
 - `.codex-skills/registry.json`
 
-Read-only context:
+Read-only CI context:
 
-- `.codex-skills/reverse-agent-iteration/SKILL.md`
-- `reverse_agent/project_runner_contract.py`
-- `git status --short`
+- `.github/workflows/ci.yml`
+- `.github/workflows/state-gate.yml`
+- `.github/workflows/decision-preflight.yml`
+- `pyproject.toml`
+- GitHub Actions logs for PR #5 runs:
+  - CI run `29522575928`
+  - State Gate run `29522575937`
+  - Decision Preflight run `29522576149`
+
+Required Git observations:
+
 - `git branch --show-current`
-- `git log --oneline --decorate -n 30`
-- `git merge-base --is-ancestor <decision_commit> HEAD`
+- `git status --short`
+- `git log --oneline --decorate -n 40`
+- `git merge-base --is-ancestor <v4_decision_commit> HEAD`
+- Draft PR #5 head/base/draft state
+- terminal status and failed step for each current remote check
 
 Do not inspect unrelated source trees unless a failing required test identifies a direct in-scope dependency and no Stop Condition is triggered.
 
 ## 5. Required Audit
 
-The final report must answer each item with a concrete path, field or observation, observed value, and conclusion.
+The final v4 report must answer each item separately with:
 
-1. Is the current branch exactly `agent/terminal-status-propagation-seal-restart-rework-v3`?
-2. Is the Decision commit an ancestor of every implementation and evidence commit?
-3. Is the branch-local Decision marked `APPROVED`, `project_governance`, and bound to `reverse-agent-iteration@v2`?
-4. Was the Decision content digest locked before implementation?
-5. Does the command-plan record the exact branch, Decision ID, round ID, Decision digest, and branch HEAD used at generation?
-6. Was the command-plan generated and locked before substantive execution?
-7. Did the command-plan digest remain unchanged, or was an explicit restart recorded?
-8. Is the previous v2 round identified as `REWORK_REQUIRED` and read-only?
-9. Does the new round record `restart_from_decision_id`, `restart_from_round_id`, and the previous terminal contradiction?
-10. If final-check fails, does `run-closeout` avoid `PASSED`?
-11. If final-check fails, does the report avoid `SUCCESS` and `ACCEPTED`?
-12. If final-check fails, does the seal avoid an acceptance-type `PASSED` status?
-13. Does the acceptance recommendation derive from the terminal final-gate status?
-14. Does closeout distinguish orchestration completion from acceptance success?
-15. Are all non-terminal gate artifacts generated before the final inventory is frozen?
-16. Does the frozen generated-artifact inventory cover all current gate artifacts used by final-check and reports?
-17. Are publication receipts and other explicitly post-seal artifacts excluded without altering accepted closeout facts?
-18. Are no required current artifacts generated after the seal boundary?
-19. Are future-completion claims absent from execution-fact sections?
-20. Are future plans allowed only in explicit `Limitations`, `Rework Required`, or `Next Decision` sections?
-21. Does the future-claim checker avoid flagging quoted Decision requirements or historical descriptions as current completion claims?
-22. Are final-check stdout, persisted JSON status, and exit code derived from one completed result object?
-23. Does `final_check_stdout_matches_gate_status` pass using the same invocation evidence?
-24. Does a failed final-check return the expected nonzero exit code?
-25. Does a passed final-check print and persist `PASSED` only after all checks complete?
-26. Does the seal bind the final gate artifact that actually determined terminal status?
-27. Does seal verification reject any digest, timestamp, or terminal-status mismatch?
-28. Are previous sealed v2 artifacts unchanged?
-29. Do report aliases and report summaries agree on status and recommendation?
-30. Do context, state manifest, round manifest, closeout, final gate, reports, and seal agree on one terminal recommendation?
-31. Did the selected pytest command pass and cover every changed test file?
-32. Were all modified source, test, state, and publication paths explicitly allowed?
-33. Were Skills, workflows, Runner, frontend, User Solve, reverse-solving, databases, and roadmap left untouched?
-34. If publication occurs, was the same execution branch reused and were all commands explicitly authorized?
-35. Were direct push to `main`, force push, rebase, merge, tag mutation, workflow mutation, secret mutation, remote branch deletion, and `git add -A` avoided?
+```text
+question_number
+artifact_path
+field_name_or_observation
+observed_value
+status
+item_specific_answer
+```
+
+Required questions:
+
+1. Is the execution branch exactly `agent/terminal-status-propagation-seal-restart-rework-v3`?
+2. Is Draft PR #5 still the only review surface and still unmerged?
+3. Is the v4 Decision commit an ancestor of every v4 implementation and evidence commit?
+4. Is the v4 Decision `APPROVED`, `project_governance`, and bound to active `reverse-agent-iteration@v2`?
+5. Is `task_packet.json` background only and `decision_packet.md` the sole task authority?
+6. Were the v3 round archive, v3 seal, and v3 publication receipt treated as read-only?
+7. Was the v4 Decision digest locked before command-plan generation?
+8. Does the v4 command-plan bind the exact Decision ID, round ID, branch, Decision digest, and branch HEAD?
+9. Was the final v4 command-plan digest locked before every substantive v4 command?
+10. Does one canonical `restart_segment.json` identify the invalidated prefix and the accepted post-restart segment?
+11. Does the restart segment include a unique restart ID, invalidated chain head, lock digest, lock time, startup snapshot time, first substantive command time, and accepted chain head?
+12. Is `first_substantive_command_after_restart_at` strictly later than the final lock time?
+13. Are all substantive v4 commands inside the accepted post-restart segment?
+14. Are invalidated pre-restart commands excluded from acceptance coverage rather than silently reordered?
+15. Did the command-plan remain unchanged after final lock, or was another explicit invalidation and restart recorded?
+16. Do report Required Audit values exactly match the canonical final Decision lock and command-plan lock?
+17. Does the report use the final lock digest `observed_value` rather than an earlier lock?
+18. Does the report use the final lock timestamp and final restart count?
+19. Does report-summary synthesis reject report/lock mismatch?
+20. Does final-check reject report/lock mismatch?
+21. Is startup snapshot recorded immediately after the permitted fixed startup/status sequence?
+22. Does a mismatch between expected and actual startup-snapshot position hard-fail when `startup_snapshot_order_required=true`?
+23. Are final-check status, persisted JSON, stdout, and exit code derived from one final result?
+24. Do execution log and pytest transcript preserve actual chronology?
+25. Do all changed source/test files remain within the Decision allowlist?
+26. Does the selected pytest command pass and cover every changed test file?
+27. Do report aliases and structured summaries agree semantically?
+28. Are current context and state manifest synchronized to v4 after the final gate?
+29. Do live and archived report and pytest aliases match?
+30. Does final seal bind the final v4 lock, final gate, report, context, state manifest, round manifest, and terminal execution boundary?
+31. Were any sealed artifacts modified after the seal?
+32. Does the publication receipt truthfully identify Draft PR #5, branch, implementation commit, and observation scope?
+33. Were CI, State Gate, and Decision Preflight observed to terminal status after the latest push?
+34. If any remote check failed, does the report avoid `ACCEPTED` and identify the exact workflow, job, and failed step?
+35. If all three remote checks are green, does the report record their terminal run IDs and conclusions?
+36. Were workflow, packaging, dependency, Skill, Runner, frontend, User Solve, reverse-solving, roadmap, database, and cleanup files left untouched?
+37. Were direct push to `main`, force push, rebase, merge, tag mutation, workflow mutation, secret mutation, remote branch deletion, and `git add -A` avoided?
+38. Do final-check, run-closeout, close-round, final seal, reports, context, state manifest, round manifest, publication receipt, and remote check observation agree on the final recommendation?
 
 ## 6. Implementation Scope
 
-### 6.1 Branch-local authority and explicit restart
+### 6.1 Preserve v3 as immutable evidence
 
-Add or validate branch-bound fields in the current Decision/command-plan evidence, including equivalents of:
+Create a new v4 round. Do not modify any path under:
 
 ```text
-execution_branch
-base_branch
-decision_commit_sha
+project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/
+```
+
+Do not overwrite the v3 seal. The v3 live artifacts may be superseded only through normal v4 generation after the v4 Decision and command-plan locks exist.
+
+### 6.2 Add a canonical restart segment
+
+Extend the existing gate system; do not create a second execution-log framework.
+
+Generate an additive artifact such as:
+
+```text
+project_state/gates/restart_segment.json
+```
+
+It must contain at least:
+
+```text
+schema_version
+decision_id
+round_id
+restart_id
+restart_reason
+invalidated_decision_id
+invalidated_round_id
+invalidated_command_plan_sha256
+invalidated_execution_chain_head
+accepted_command_plan_sha256
+accepted_command_plan_locked_at
+startup_snapshot_path
+startup_snapshot_generated_at
+first_substantive_command_after_restart_at
+accepted_execution_chain_head
+invalidated_prefix_excluded_from_acceptance
+restart_status
+```
+
+Hard-fail when:
+
+- the final lock time is not earlier than the first substantive accepted command;
+- the accepted segment contains commands before the final lock;
+- invalidated commands are counted as authorized accepted execution;
+- a restart counter exists without a concrete restart artifact;
+- report, execution log, command-plan lock, or seal references a different restart.
+
+### 6.3 Canonical lock snapshot parity
+
+Use `decision_content_lock.json`, `command_plan_lock.json`, and `restart_segment.json` as the canonical source for lock facts.
+
+Report generation, report-summary, final-check, closeout, and seal must consume the same final fields:
+
+```text
 decision_packet_sha256
 decision_locked_at
+command_plan_sha256
+command_plan_generated_at
+command_plan_locked_at
+restart_id
+restart_count
+first_substantive_command_after_restart_at
+execution_branch
 head_sha_at_plan_generation
-restart_from_decision_id
-restart_from_round_id
-previous_final_gate_status
-previous_seal_status
-restart_reason
-previous_artifacts_read_only
 ```
 
-Preflight must hard-fail when the current branch is `main`, when the branch does not match the Decision, or when the Decision commit is not an ancestor of HEAD.
+Reject stale or intermediate lock values in report prose or Required Audit answers.
 
-The current branch may already contain local uncommitted v2 implementation changes. Preserve them only if they are confined to allowed paths and do not modify the new Decision commit. If unrelated or conflicting changes exist, stop rather than stash, discard, or stage them silently.
+### 6.4 Make lifecycle ordering checks truthful
 
-### 6.2 Terminal status propagation
+Strengthen the existing startup-snapshot ordering check.
 
-Use one canonical terminal status computation.
-
-Required propagation:
+When `startup_snapshot_order_required=true`:
 
 ```text
-final_gate FAILED
-→ terminal_acceptance_status = REWORK_REQUIRED
-→ run_closeout cannot be PASSED as acceptance status
-→ report status cannot be SUCCESS
-→ acceptance_recommendation = REWORK_REQUIRED
-→ acceptance-type seal cannot be PASSED
+Set-Location
+→ Get-Location
+→ Test-Path
+→ git rev-parse
+→ git status
+→ Decision/plan lock lifecycle
+→ restart snapshot
+→ round baseline
+→ substantive execution
 ```
 
-If orchestration completed but acceptance failed, record two distinct concepts such as:
+The implementation may represent Decision/plan locking through explicit non-substantive lifecycle events, but it must not claim that `startup-snapshot` was immediate when observed chronology shows another substantive command.
+
+A check whose observed sequence contradicts its expected sequence must be `FAIL`, not `PASS` with `required=false`.
+
+### 6.5 Report and final-check convergence
+
+Update the existing report and final-check validators so that:
+
+- Required Audit concrete values are resolved after the final lock;
+- duplicate or stale lock answers fail;
+- `SUCCESS`/`ACCEPTED` cannot coexist with a required lifecycle or parity failure;
+- remote check failures prevent final `ACCEPTED` when `remote_green_required_for_acceptance=true`;
+- remote check observation is distinct from local pytest success.
+
+Do not create a second report format.
+
+### 6.6 Remote CI observation handoff
+
+Read the existing GitHub Actions logs and record:
 
 ```text
-workflow_execution_status = COMPLETED
-terminal_acceptance_status = REWORK_REQUIRED
+workflow_name
+run_id
+job_name
+job_id
+terminal_conclusion
+failed_step
+failure_summary
+observed_at
 ```
 
-Do not overload `PASSED` to mean both “commands ran” and “round accepted.”
+The current known observation is that all three workflows failed at `Install package`.
 
-### 6.3 Seal preconditions and restart semantics
-
-Before creating an acceptance-type seal, require:
-
-- final gate `PASSED`;
-- report status and recommendation support acceptance;
-- generated-artifact inventory complete;
-- report semantic checks passed;
-- stdout/status/exit-code parity passed;
-- context and state-manifest freshness passed;
-- no sealed artifact mutation after the boundary.
-
-When these conditions fail, either refuse to generate an acceptance seal or emit a clearly non-accepting seal status such as `FAILED` or `REWORK_REQUIRED`.
-
-Do not rewrite the previous v2 seal. The new round must reference it as historical read-only evidence.
-
-### 6.4 Generated-artifact inventory freeze
-
-Enforce this order:
+This round may classify the failure and prove whether it is:
 
 ```text
-generate all current non-terminal gate artifacts
-→ compute generated/referenced artifact inventory
-→ write finalized report aliases
-→ run final-check
-→ post-final context and state-manifest refresh
-→ generate terminal seal
+repository_packaging_failure
+workflow_environment_failure
+transient_external_failure
+unknown
 ```
 
-If final-check itself generates or changes artifacts that must appear in reports, redesign the inventory to include those deterministic terminal artifacts without requiring post-seal report mutation. Use an explicit terminal-artifact manifest if needed, but do not create a second unrelated artifact index system.
+It may not modify workflow or packaging files.
 
-### 6.5 Required Audit future-claim policy
+If correction requires `.github/workflows/*`, `pyproject.toml`, setup files, dependency files, runner image configuration, or secrets, stop and report `BLOCKED`. Generate a separate next Decision recommendation; do not expand this round.
 
-Make the check section-aware.
+### 6.7 Compatibility and bounded scope
 
-Execution-fact and Required Audit sections must describe only observed facts. Future or conditional work is allowed only in explicitly recognized sections such as:
-
-- `Limitations`;
-- `Rework Required`;
-- `Next Decision`.
-
-Quoted Decision requirements, test names, historical descriptions, and field values must not be misclassified as completion claims. Do not globally disable the check.
-
-### 6.6 Atomic final-check output
-
-Refactor final-check so that one complete result object controls:
-
-```text
-final_gate_result.json
-stdout status
-stderr diagnostics
-process exit code
-```
-
-Required sequence:
-
-```text
-collect all checks
-→ calculate terminal result
-→ persist result atomically
-→ print the same result
-→ return the matching exit code
-```
-
-No final `PASSED` text may be emitted before all checks finish.
-
-### 6.7 Compatibility and publication
-
-Preserve existing CLI names and legacy artifact readability where possible. Use additive fields or strict-mode checks rather than unrelated rewrites.
-
-All Decision, implementation, test, evidence, and review-fix commits remain on:
-
-```text
-agent/terminal-status-propagation-seal-restart-rework-v3
-```
-
-The same Draft PR remains open throughout the round. Codex must not merge it.
+- Preserve existing CLI names and legacy artifact readability.
+- Add fields and strict-mode validation rather than replacing existing schemas.
+- Reuse existing command-plan, execution-log, report-summary, final-check, closeout, archive, context, state-manifest, seal, and publication mechanisms.
+- Modify only explicitly allowed source, test, and v4 project-state paths.
+- Do not modify roadmap/workstream state in this round.
+- Do not add a database, queue, Scheduler, Runner dispatch, Web execution, reverse-tool provider, or sample-solving capability.
 
 ## 7. Tests
 
-After branch, Decision, and command-plan locks are established, run at least:
+The v4 Decision commit and v4 command-plan lock must exist before substantive tests.
+
+The selected command must include at least:
 
 ```text
 python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q
 ```
 
-The command-plan may authorize the existing broader governance regression suite.
+A broader command-plan-selected regression command may include:
 
-Add coverage for:
+```text
+tests/test_project_control_plane.py
+tests/test_project_context.py
+tests/test_project_state_manifest.py
+```
 
-1. execution on `main` fails branch preflight;
-2. wrong execution branch fails;
-3. implementation commit not descended from the Decision commit fails;
-4. Decision digest mutation after lock fails;
-5. branch-bound command-plan metadata mismatch fails;
-6. previous failed round can start only through an explicit new-round restart;
-7. previous seal remains read-only during restart;
-8. final gate `FAILED` forces terminal recommendation `REWORK_REQUIRED`;
-9. final gate `FAILED` prevents run-closeout acceptance `PASSED`;
-10. final gate `FAILED` prevents report `SUCCESS` and recommendation `ACCEPTED`;
-11. final gate `FAILED` prevents an acceptance-type seal `PASSED`;
-12. orchestration completion and acceptance status are represented separately;
-13. incomplete generated-artifact inventory fails;
-14. all required gate artifacts present before freeze passes;
-15. a new required artifact generated after inventory freeze fails;
-16. a sealed artifact modified after seal fails;
-17. future-completion text in execution-fact sections fails;
-18. future plans in an explicit `Next Decision` section pass;
-19. quoted Decision requirements are not false positives;
-20. stdout `PASSED` with artifact `FAILED` fails;
-21. exit code and artifact status mismatch fails;
-22. one complete result object produces matching stdout, JSON, and exit code;
-23. report aliases and summaries propagate `REWORK_REQUIRED` consistently;
-24. valid full lifecycle produces consistent `PASSED` artifacts;
-25. existing command-plan lock, publication truth, state-manifest freshness, archive parity, context sync, and legacy compatibility tests remain passing.
+Required regression coverage:
+
+1. a report citing an obsolete command-plan digest fails;
+2. a report citing an obsolete lock timestamp fails;
+3. a report citing an obsolete restart count fails;
+4. report-summary and final-check use the canonical final lock snapshot;
+5. `first_substantive_command_at < command_plan_locked_at` fails without a valid restart segment;
+6. restart count without `restart_segment.json` fails;
+7. restart segment with a missing invalidated chain head fails;
+8. restart segment with a mismatched accepted lock digest fails;
+9. invalidated commands cannot satisfy accepted command coverage;
+10. accepted post-restart commands must all occur after the final lock;
+11. transcript and execution log preserve actual order;
+12. startup-snapshot expected/actual mismatch fails under strict policy;
+13. a lifecycle-order check cannot report PASS when its own observed sequence contradicts the expected sequence;
+14. correct startup, lock, restart, baseline, test, report, closeout, and seal ordering passes;
+15. report Required Audit lock values match final lock artifacts;
+16. stale v3 artifacts remain readable but cannot support v4 current acceptance;
+17. final gate failure propagates to report, closeout, recommendation, and seal;
+18. remote checks marked failed prevent `ACCEPTED` when remote green is required;
+19. remote checks marked completed/success with concrete run IDs can support acceptance;
+20. `IN_PROGRESS` cannot be treated as terminal success;
+21. missing remote observation cannot be reported as green;
+22. workflow/package mutation remains prohibited;
+23. existing state-manifest freshness, context sync, archive parity, report alias parity, and final seal tests remain passing;
+24. legacy artifacts remain readable;
+25. the complete v4 lifecycle passes.
 
 Required generated evidence:
 
+- `project_state/gates/decision_content_lock.json`
+- `project_state/gates/command_plan.json`
+- `project_state/gates/command_plan_lock.json`
+- `project_state/gates/restart_segment.json`
+- `project_state/gates/execution_log.json`
+- `project_state/gates/remote_check_observation.json`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/run_closeout_result.json`
+- `project_state/gates/final_evidence_seal.json`
 - `project_state/pytest_result.txt`
 - `project_state/codex_execution_report.md`
 - `project_state/execution_report.md`
-- current branch-bound command-plan and lock evidence
-- current `project_state/gates/*.json` required by the selected profile
-- current final gate, closeout result, final seal, publication result, context packet, and state manifest
-- `project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/*`
+- `project_state/context/current_context_packet.json`
+- `project_state/state_manifest.json`
+- `project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4/round_manifest.json`
+- archived v4 report and pytest aliases.
 
 ## 8. Stop Conditions
 
-Stop and report `BLOCKED` or `REWORK_REQUIRED` if:
+Stop implementation and report `BLOCKED` or `REWORK_REQUIRED` as appropriate if:
 
-- Codex is not on the exact execution branch;
-- the Decision commit is not an ancestor of HEAD;
-- the Decision digest or branch-bound command-plan cannot be locked;
-- unrelated working-tree changes cannot be excluded safely;
-- current implementation requires editing the previous v2 seal or archive;
-- final status propagation still allows a failed final gate to coexist with accepted closeout, report, or seal states;
-- artifact inventory cannot reach a stable pre-seal boundary without self-reference;
-- stdout, exit code, and persisted final-gate status cannot be made atomic within the allowed modules;
+- the exact execution branch or Draft PR #5 cannot be verified;
+- the v4 Decision commit is not an ancestor of v4 implementation/evidence commits;
+- Decision lock, gate-profile, command-plan generation, or command-plan lock cannot validate v4 IDs and branch binding;
+- substantive v4 execution has already occurred before the final v4 lock and cannot be discarded through a new explicit restart segment;
+- the final lock digest changes without a recorded invalidation and restart;
+- the system cannot distinguish invalidated transcript prefixes from accepted post-restart execution;
+- report generation cannot be made to consume the canonical final lock snapshot;
+- lifecycle-order validation still marks contradictory expected/actual sequences as PASS;
 - required tests fail;
-- final-check, closeout, report, context, state manifest, round manifest, seal, or publication evidence disagree;
-- completing the fix requires changing Skills, workflows, Runner, Job, frontend, User Solve, reverse-solving, roadmap, databases, cleanup, or another mainline;
-- publication commands are missing from the current command-plan;
-- publishing would require direct push to `main`, force push, rebase, merge, workflow mutation, secret mutation, or staging unrelated files.
+- report, execution log, final gate, closeout, context, state manifest, round manifest, seal, or publication evidence disagree;
+- any v3 archived or sealed artifact must be modified;
+- any v4 sealed artifact must be modified after seal generation;
+- resolving GitHub Actions `Install package` failure requires changing workflows, packaging, dependency files, secrets, or another forbidden path;
+- remote check logs or terminal conclusions cannot be obtained;
+- remote checks remain failed after the latest authorized push;
+- completing the task requires Skill, Runner, Job, frontend, User Solve, reverse-solving, tool-integration, roadmap, database, cleanup, or another mainline work;
+- the working tree contains unrelated source/test changes that cannot be excluded from explicit staging;
+- publication commands are absent from command-plan;
+- publication requires direct push to `main`, force push, rebase, merge, workflow mutation, secret mutation, tag mutation, or branch deletion.
 
-Do not expand scope to resolve a Stop Condition. Preserve the current artifacts, write the exact blocker to the report, and keep all work on the same branch and Draft PR.
+Do not expand scope to solve a Stop Condition. Preserve current evidence and write a concrete next-Decision recommendation.
