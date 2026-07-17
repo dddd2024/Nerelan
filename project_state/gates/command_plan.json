@@ -2,47 +2,202 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
   "mainline": "project_governance",
   "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
   "base_branch": "main",
-  "decision_commit_sha": "0b4f00e5a4d943d60c495603807c7accc2910672",
-  "decision_packet_sha256": "7c7511b083f39cf54e30e0badeb1edadcc35e72535b5184460d9531963bf5944",
-  "head_sha_at_plan_generation": "0b4f00e5a4d943d60c495603807c7accc2910672",
-  "generated_at": "2026-07-17T03:40:17.581698Z",
+  "decision_commit_sha": "8a38700ddfa6952540b16b916673aa63620ba5ea",
+  "decision_packet_sha256": "b8a581eb9fc143943c0824e54369008db639f2e77f32d27a67c71648e02c27c6",
+  "head_sha_at_plan_generation": "8a38700ddfa6952540b16b916673aa63620ba5ea",
+  "generated_at": "2026-07-17T07:57:37.556188Z",
   "profile_meta": {
     "profile": "full",
-    "profile_reason": "bounded project_gate and project_state governance rework",
+    "profile_reason": "full profile explicitly selected",
     "closeout_allowed": true,
-    "required_command_kinds": ["startup", "preflight", "pytest", "report-summary", "execution-log", "final-check", "run-closeout", "close-round", "post-final-evidence-sync", "final-evidence-seal", "publication"]
+    "required_command_kinds": [
+      "startup",
+      "preflight",
+      "gate-profile",
+      "command-plan",
+      "run-round",
+      "pytest",
+      "doctor",
+      "lint-report",
+      "report-summary",
+      "final-check",
+      "close-round"
+    ]
   },
   "execution_order_policy": {
-    "mode": "strict_restart_segment_chronology",
-    "strict_wall_clock_order": true,
+    "mode": "coverage_expected_exit_not_strict_wall_clock",
+    "strict_wall_clock_order": false,
     "coverage_authority": true,
     "expected_exit_authority": true,
-    "invalidated_prefix_excluded_from_acceptance": true
+    "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
   },
   "omitted_commands": [],
   "commands": [
-    {"index": 1, "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state", "phase": "status", "kind": "startup-snapshot", "required": true, "expected_exit_codes": [0], "conditional_closeout": false, "records_stdout_stderr": true},
-    {"index": 2, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state", "phase": "preflight", "kind": "preflight", "required": true, "expected_exit_codes": [0], "conditional_closeout": false, "records_stdout_stderr": true},
-    {"index": 3, "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q", "phase": "test", "kind": "pytest", "required": true, "expected_exit_codes": [0], "conditional_closeout": false, "records_stdout_stderr": true},
-    {"index": 4, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state", "phase": "gate", "kind": "report-summary", "required": true, "expected_exit_codes": [0, 1], "conditional_closeout": false, "records_stdout_stderr": true},
-    {"index": 5, "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state", "phase": "gate", "kind": "execution-log", "required": true, "expected_exit_codes": [0, 1], "conditional_closeout": false, "records_stdout_stderr": true},
-    {"index": 6, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "final-check", "required": true, "expected_exit_codes": [0, 1], "conditional_closeout": false, "records_stdout_stderr": true},
-    {"index": 7, "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4", "phase": "gate", "kind": "run-closeout", "required": true, "expected_exit_codes": [0, 1], "conditional_closeout": true, "records_stdout_stderr": true},
-    {"index": 8, "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4", "phase": "gate", "kind": "close-round", "required": true, "expected_exit_codes": [0, 1], "conditional_closeout": true, "records_stdout_stderr": true},
-    {"index": 9, "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state", "phase": "gate", "kind": "post-final-evidence-sync", "required": true, "expected_exit_codes": [0, 1], "conditional_closeout": true, "records_stdout_stderr": true},
-    {"index": 10, "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4", "phase": "gate", "kind": "final-evidence-seal", "required": true, "expected_exit_codes": [0, 1], "conditional_closeout": true, "records_stdout_stderr": true},
-    {"index": 11, "command": "git add -- reverse_agent/project_gate.py reverse_agent/project_state.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py project_state/codex_execution_report.md project_state/execution_report.md project_state/pytest_result.txt project_state/state_manifest.json project_state/context/current_context_packet.json project_state/gates project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4", "phase": "publication", "kind": "git-stage-explicit", "required": false, "expected_exit_codes": [0], "conditional_closeout": true, "records_stdout_stderr": true},
-    {"index": 12, "command": "git commit -m \"governance: converge branch evidence restart truth\"", "phase": "publication", "kind": "git-commit", "required": false, "expected_exit_codes": [0], "conditional_closeout": true, "records_stdout_stderr": true},
-    {"index": 13, "command": "git push -u origin agent/terminal-status-propagation-seal-restart-rework-v3", "phase": "publication", "kind": "git-push", "required": false, "expected_exit_codes": [0], "conditional_closeout": true, "records_stdout_stderr": true},
-    {"index": 14, "command": "gh pr view 5 --json number,title,state,isDraft,headRefName,baseRefName,url,mergeStateStatus,statusCheckRollup", "phase": "publication", "kind": "github-pr-observation", "required": true, "expected_exit_codes": [0], "conditional_closeout": true, "records_stdout_stderr": true},
-    {"index": 15, "command": "gh pr checks 5 --watch --interval 10", "phase": "publication", "kind": "github-check-observation", "required": true, "expected_exit_codes": [0, 1], "conditional_closeout": true, "records_stdout_stderr": true}
+    {
+      "index": 1,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "phase": "preflight",
+      "kind": "preflight",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "preflight expected to exit 0"
+    },
+    {
+      "index": 2,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 3,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 4,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 5,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "phase": "gate",
+      "kind": "audit-inventory",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "audit-inventory expected to exit 0"
+    },
+    {
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+      "phase": "gate",
+      "kind": "audit-readiness-packet",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "audit-readiness-packet expected to exit 0"
+    },
+    {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+      "phase": "gate",
+      "kind": "current-handoff-packet",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "current-handoff-packet expected to exit 0"
+    },
+    {
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "phase": "gate",
+      "kind": "local-execution-bundle",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "local-execution-bundle expected to exit 0"
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "phase": "gate",
+      "kind": "codex-prompt-packet",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "codex-prompt-packet expected to exit 0"
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "phase": "gate",
+      "kind": "audit-precheck",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "audit-precheck expected to exit 0"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "phase": "gate",
+      "kind": "report-summary",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    }
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "create_restart_segment_then_execute_in_order"
+  "recommended_next_action": "record_and_follow_command_plan_manually"
 }

@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
+  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
   "mainline": "project_governance",
-  "generated_at": "2026-07-17T05:01:38.893518Z",
+  "generated_at": "2026-07-17T09:06:56.005537Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,14 +19,14 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-    "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
     "execution_order_policy": {
-      "mode": "strict_restart_segment_chronology",
-      "strict_wall_clock_order": true,
+      "mode": "coverage_expected_exit_not_strict_wall_clock",
+      "strict_wall_clock_order": false,
       "coverage_authority": true,
       "expected_exit_authority": true,
-      "invalidated_prefix_excluded_from_acceptance": true
+      "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
     }
   },
   "startup_contract": {
@@ -42,51 +42,18 @@
     "startup_snapshot_artifact": "project_state/gates/startup_snapshot.json"
   },
   "allowed_scope": {
-    "source_files": [
-      "reverse_agent/project_gate.py",
-      "reverse_agent/project_state.py"
-    ],
+    "source_files": [],
     "generated_or_updated_artifacts": []
   },
   "forbidden_scope": {
     "preserve_only_files": [],
-    "forbidden_mutated_paths": [
-      ".codex-skills/*",
-      ".github/workflows/*",
-      "pyproject.toml",
-      "setup.py",
-      "setup.cfg",
-      "requirements*.txt",
-      "frontend/*",
-      "solve_reports/*",
-      "training_materials/local_reverse/*",
-      "reverse_agent/project_state_manifest.py",
-      "reverse_agent/project_jobs.py",
-      "reverse_agent/project_runner_contract.py",
-      "reverse_agent/project_agent_runner.py",
-      "reverse_agent/orchestrator_api.py",
-      "reverse_agent/user_solve_*.py",
-      "project_state/current_state.json",
-      "project_state/task_packet.json",
-      "project_state/artifact_index.json",
-      "project_state/negative_results.json",
-      "project_state/roadmap/workstreams.json",
-      "project_state/domains/*",
-      "project_state/jobs/*",
-      "project_state/user_sessions/*",
-      "project_state/archives/*",
-      "project_state/deletions/*",
-      "project_state/blob_store/*",
-      "project_state/*.db",
-      "project_state/index.sqlite",
-      "docs/roadmap/*"
-    ],
+    "forbidden_mutated_paths": [],
     "non_dispatching": true,
     "remote_mutation_allowed": false
   },
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q"
     ],
     "includes_project_reports": true
   },
@@ -98,8 +65,8 @@
     "gate_artifacts": []
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-    "current_round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+    "current_decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "current_round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -107,18 +74,18 @@
     "artifact": "project_state/gates/audit_inventory_result.json",
     "gate_status": "PASSED",
     "inventory_validation_status": "PASSED",
-    "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-    "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-    "current": false
+    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "current": true
   },
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
     "gate_status": "PASSED",
     "readiness_status": "PENDING",
-    "recommendation": "REWORK_REQUIRED",
+    "recommendation": "NEEDS_REVIEW",
     "next_action": "complete_closeout_and_rerun_final_check",
-    "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-    "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
     "current": true
   },
   "closeout_expectations": {
@@ -126,7 +93,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260717_branch_evidence_convergence_rework_v4"
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,
@@ -174,9 +141,7 @@
   "executable": false,
   "can_execute": false,
   "mutates_state": false,
-  "warnings": [
-    "audit_inventory_result.json is missing or historical"
-  ],
+  "warnings": [],
   "errors": [],
   "generated_artifacts": [
     "project_state/gates/current_handoff_packet.json"

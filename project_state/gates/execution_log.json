@@ -2,17 +2,17 @@
   "schema_version": 1,
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
-  "gate_status": "WARN",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
-  "generated_at": "2026-07-17T05:12:23.396753Z",
-  "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "generated_at": "2026-07-17T09:56:27.303150Z",
+  "source": "hybrid_from_pytest_result_and_command_plan",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-    "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-    "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
+    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,19 +22,19 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "ae022adeb43b89f00103fc56001e3daf6ee838d514b21e73e8928b7deedaf94f",
-        "size_bytes": 45650,
-        "command_block_count": 14
+        "sha256": "7dbaa091dd0f113145a9a1ea2f8c26eecdc21260ed331ae577001deabfed73a8",
+        "size_bytes": 36861,
+        "command_block_count": 17
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "cf174a43fbc1434e6acb24c66e629e75698af48f76a246454f4b34b0e2f06126",
-        "size_bytes": 6001,
-        "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-        "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+        "sha256": "c907b30c5712d734109c961e9012d80d988356f4d158c0b5daa582727efa0d76",
+        "size_bytes": 6583,
+        "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+        "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
         "plan_status": "PASSED",
-        "command_count": 15
+        "command_count": 12
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
@@ -42,12 +42,11 @@
         "sha256": "9b29ba004a717c36257c260b80657a580065f810b1aba918f1ba27e3eda0c175",
         "size_bytes": 56538,
         "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-        "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-        "command_block_count": 13
+        "round_id": "round_20260717_branch_evidence_convergence_rework_v4"
       }
     },
-    "command_count": 14,
-    "command_digest": "8cf4e81b6b9beeae044d6e0146b710c8019a87ca995717d345ae5864cd6ad3d9"
+    "command_count": 17,
+    "command_digest": "2ec0a92d29edb130803640e9a0240ba48ba9b69dfbb0c92077c310d61eb4f770"
   },
   "commands": [
     {
@@ -97,29 +96,6 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
-      "kind": "run-closeout",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 1,
-      "status": "PASSED"
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "kind": "startup-snapshot",
-      "phase": "status",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 8,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight",
       "phase": "preflight",
@@ -130,20 +106,30 @@
       "status": "PASSED"
     },
     {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-      "kind": "post-final-evidence-sync",
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
       "phase": "gate",
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "exit_code": 0,
       "status": "PASSED"
     },
     {
-      "index": 10,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q",
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 9,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
       "expected_exit_codes": [
@@ -153,7 +139,73 @@
       "status": "PASSED"
     },
     {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
       "index": 11,
+      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+      "kind": "audit-readiness-packet",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+      "kind": "current-handoff-packet",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "kind": "local-execution-bundle",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "kind": "codex-prompt-packet",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "kind": "audit-precheck",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -165,33 +217,9 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 1,
-      "status": "PASSED"
-    },
-    {
-      "index": 13,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 1,
-      "status": "PASSED"
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
-      "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
         0,
@@ -234,70 +262,79 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
-      "kind": "run-closeout",
-      "exit_code": 1
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "kind": "startup-snapshot",
-      "exit_code": 0
-    },
-    {
-      "index": 8,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight",
       "exit_code": 0
     },
     {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-      "kind": "post-final-evidence-sync",
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
       "exit_code": 0
     },
     {
-      "index": 10,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q",
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "exit_code": 0
+    },
+    {
+      "index": 9,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest",
       "exit_code": 0
     },
     {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
+      "exit_code": 0
+    },
+    {
       "index": 11,
+      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+      "kind": "audit-readiness-packet",
+      "exit_code": 0
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+      "kind": "current-handoff-packet",
+      "exit_code": 0
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "kind": "local-execution-bundle",
+      "exit_code": 0
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "kind": "codex-prompt-packet",
+      "exit_code": 0
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "kind": "audit-precheck",
+      "exit_code": 0
+    },
+    {
+      "index": 16,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "exit_code": 1
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "exit_code": 1
-    },
-    {
-      "index": 13,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "exit_code": 1
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
-      "kind": "close-round",
-      "exit_code": 1
     }
   ],
-  "final_observed_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
-  "warnings": [
-    "command_plan has 6 optional command(s) not recorded in execution_log: gh pr checks 5 --watch --interval 10, gh pr view 5 --json number,title,state,isDraft,headRefName,baseRefName,url,mergeStateStatus,statusCheckRollup, git add -- reverse_agent/project_gate.py reverse_agent/project_state.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py project_state/codex_execution_report.md project_state/execution_report.md project_state/pytest_result.txt project_state/state_manifest.json project_state/context/current_context_packet.json project_state/gates project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4, git commit -m \"governance: converge branch evidence restart truth\", git push -u origin agent/terminal-status-propagation-seal-restart-rework-v3, python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4"
-  ],
+  "final_observed_command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+  "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "review_execution_log_warnings",
-  "terminal_event": {
-    "event_type": "terminal_final_evidence_seal",
-    "previous_chain_head": "8cf4e81b6b9beeae044d6e0146b710c8019a87ca995717d345ae5864cd6ad3d9",
-    "seal_path": "project_state/gates/final_evidence_seal.json",
-    "seal_sha256": "6adeb205b1c03221b3b0bcd26df6849c48e61d9651516f66538ad40a0650e9a3",
-    "recorded_at": "2026-07-17T05:16:30.569297Z"
-  }
+  "recommended_next_action": "no_action_required"
 }

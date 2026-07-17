@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "artifact_name": "decision_content_lock.json",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
   "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
   "base_branch": "main",
-  "decision_commit_sha": "0b4f00e5a4d943d60c495603807c7accc2910672",
-  "head_sha_at_lock": "0b4f00e5a4d943d60c495603807c7accc2910672",
-  "decision_packet_sha256": "7c7511b083f39cf54e30e0badeb1edadcc35e72535b5184460d9531963bf5944",
-  "decision_locked_at": "2026-07-17T03:39:47.0566015Z",
+  "decision_commit_sha": "8a38700ddfa6952540b16b916673aa63620ba5ea",
+  "head_sha_at_lock": "8a38700ddfa6952540b16b916673aa63620ba5ea",
+  "decision_packet_sha256": "b8a581eb9fc143943c0824e54369008db639f2e77f32d27a67c71648e02c27c6",
+  "decision_locked_at": "2026-07-17T08:01:46.719734Z",
   "lock_status": "LOCKED",
   "restart_mode": "explicit_new_round",
-  "restart_from_decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-  "restart_from_round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "restart_from_decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+  "restart_from_round_id": "round_20260717_branch_evidence_convergence_rework_v4",
   "previous_audit_outcome": "REWORK_REQUIRED",
   "previous_artifacts_read_only": true,
-  "restart_reason": "v3 lock parity, startup chronology, and remote check evidence did not converge"
+  "restart_reason": "v4 remote checks failed at Install package; CI packaging bootstrap and external attestation required"
 }

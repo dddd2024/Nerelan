@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
+  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
   "mainline": "project_governance",
-  "generated_at": "2026-07-17T05:01:38.899416Z",
+  "generated_at": "2026-07-17T09:06:56.263038Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-      "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-      "sha256": "7c0882e01e3bb2ba46a3ecc07740bf37edeafa99cd2fff4ae5e54a9fd6c77865"
+      "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+      "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+      "sha256": "f4d1cfad43b57359d8745099db3addbf86e29d034e2329619634d1ad6c760742"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-      "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-      "sha256": "34baea57e344964226d348db2e5748df95f75dbf22944bbae953140aeb3ba0a9"
+      "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+      "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+      "sha256": "79d0189d7b0df8be145ddb0694304e941ecbd6519aa3a00df46ddd134dfbdffb"
     }
   },
   "prompt_sections": {

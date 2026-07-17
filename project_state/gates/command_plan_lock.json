@@ -2,25 +2,15 @@
   "schema_version": 1,
   "artifact_name": "command_plan_lock.json",
   "command_plan_path": "project_state/gates/command_plan.json",
-  "command_plan_sha256": "cf174a43fbc1434e6acb24c66e629e75698af48f76a246454f4b34b0e2f06126",
-  "command_plan_generated_at": "2026-07-17T03:40:17.581698Z",
-  "command_plan_locked_at": "2026-07-17T03:41:45.5331255Z",
+  "command_plan_sha256": "c907b30c5712d734109c961e9012d80d988356f4d158c0b5daa582727efa0d76",
+  "command_plan_generated_at": "2026-07-17T07:57:37.556188Z",
+  "command_plan_locked_at": "2026-07-17T08:01:46.719734Z",
   "command_plan_lock_status": "LOCKED",
-  "command_plan_decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "command_plan_round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "command_plan_decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "command_plan_round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
   "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
   "base_branch": "main",
-  "decision_commit_sha": "0b4f00e5a4d943d60c495603807c7accc2910672",
-  "decision_packet_sha256": "7c7511b083f39cf54e30e0badeb1edadcc35e72535b5184460d9531963bf5944",
-  "head_sha_at_plan_generation": "0b4f00e5a4d943d60c495603807c7accc2910672",
-  "first_substantive_command_at": "2026-07-17T03:42:14.106151Z",
-  "restart_id": "restart_20260717_v4_01",
-  "restart_count": 1,
-  "invalidation": {
-    "previous_decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-    "previous_round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-    "invalidated_command_plan_sha256": "3b5c1b6dda652641f1a14e641ff4b818b8c353f2342212505e7fbb79fd227dbf",
-    "invalidated_execution_chain_head": "e3f8f89672078eaae1bb5711c483aa19208650c49c5b4730662808fd633d913e",
-    "reason": "v3 accepted evidence used stale lock values and contradictory startup chronology"
-  }
+  "decision_commit_sha": "8a38700ddfa6952540b16b916673aa63620ba5ea",
+  "decision_packet_sha256": "b8a581eb9fc143943c0824e54369008db639f2e77f32d27a67c71648e02c27c6",
+  "head_sha_at_plan_generation": "8a38700ddfa6952540b16b916673aa63620ba5ea"
 }

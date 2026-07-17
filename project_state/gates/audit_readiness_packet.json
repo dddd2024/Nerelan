@@ -3,10 +3,10 @@
   "artifact_name": "audit_readiness_packet.json",
   "gate_name": "audit-readiness-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
-  "generated_at": "2026-07-17T05:01:38.890146Z",
+  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "generated_at": "2026-07-17T09:20:45.493728Z",
   "readiness_status": "PENDING",
   "recommendation": "REWORK_REQUIRED",
   "evidence_only": true,
@@ -19,71 +19,37 @@
   },
   "required_audit_coverage": {
     "name": "required_audit_coverage",
-    "status": "FAIL",
-    "detail": "report has 1 of 30 Required Audit items with placeholder answers; substantive answers required regardless of report status",
-    "required_audit_items": [
-      "Is the branch exactly `agent/terminal-status-propagation-seal-restart-rework-v3`?",
-      "Is Draft PR #5 still the sole unmerged review surface?",
-      "Is the v4 Decision commit an ancestor of all v4 implementation and evidence commits?",
-      "Is the Decision `APPROVED`, `project_governance`, and bound to active `reverse-agent-iteration@v2`?",
-      "Is `decision_packet.md` the task authority and `task_packet.json` background only?",
-      "Were v3 archives and seal left read-only?",
-      "Was the v4 Decision digest locked before command-plan generation?",
-      "Does the v4 command-plan bind the exact IDs, branch, Decision digest, and HEAD?",
-      "Was the final command-plan locked before accepted substantive execution?",
-      "Does `restart_segment.json` identify the invalidated prefix and accepted post-restart segment?",
-      "Is the accepted first substantive timestamp later than the final lock timestamp?",
-      "Are invalidated commands excluded from acceptance coverage?",
-      "Do report lock digest, lock time, restart ID, and restart count match canonical final lock artifacts?",
-      "Do report-summary and final-check reject stale lock values?",
-      "Does startup-snapshot ordering match observed chronology?",
-      "Does an ordering contradiction hard-fail under strict policy?",
-      "Do execution log and pytest transcript preserve actual order?",
-      "Do changed source/test files remain within scope?",
-      "Did selected pytest pass and cover changed tests?",
-      "Do report aliases and summaries agree?",
-      "Are context and state manifest current after final gate?",
-      "Do live and archive aliases match?",
-      "Does the final seal bind the final lock, restart segment, report, final gate, context, state manifest, and round manifest?",
-      "Were sealed artifacts unchanged afterward?",
-      "Were PR #5 remote checks observed to terminal state?",
-      "If a remote check failed, does the report avoid `ACCEPTED` and record the exact workflow, job, and failed step?",
-      "If all remote checks passed, are their run IDs and conclusions recorded?",
-      "Were workflow, packaging, dependency, Skill, Runner, frontend, User Solve, reverse-solving, roadmap, database, and cleanup files untouched?",
-      "Were prohibited Git operations avoided?",
-      "Do final-check, closeout, seal, reports, context, state manifest, round manifest, publication receipt, and remote observations agree on the final recommendation?"
-    ],
+    "status": "PASS",
+    "detail": "decision has no Required Audit items; coverage check not applicable",
+    "required_audit_items": [],
     "missing_answers": [],
-    "placeholder_answers": [
-      "Do live and archive aliases match?"
-    ]
+    "placeholder_answers": []
   },
   "pytest_coverage": {
     "status": "PASSED",
-    "tests_ran_count": 15,
+    "tests_ran_count": 12,
     "includes_project_reports": true
   },
   "final_check_policy": {
     "accepted_requires_exit_zero": true,
     "final_gate_status": "FAILED",
-    "closeout_final_check_passed": true,
+    "closeout_final_check_passed": false,
     "final_gate_artifact": "project_state/gates/final_gate_result.json"
   },
   "closeout_status": {
-    "status": "FAILED",
+    "status": "PASSED",
     "artifact": "project_state/gates/run_closeout_result.json"
   },
   "artifact_taxonomy": {
-    "generated_or_updated_count": 31,
+    "generated_or_updated_count": 22,
     "referenced_count": 3,
-    "historical_nonblocking_count": 80,
+    "historical_nonblocking_count": 85,
     "archived_count": 0,
-    "report_summary_status": "FAILED"
+    "report_summary_status": "PASSED"
   },
   "limitations": [
     "report is not yet accepted",
-    "final-check has not passed for current IDs",
-    "closeout has not passed for current IDs"
+    "final-check has not passed for current IDs"
   ],
   "next_action": "complete_closeout_and_rerun_final_check",
   "inputs": {

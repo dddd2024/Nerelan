@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
+  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
   "mainline": "project_governance",
-  "generated_at": "2026-07-17T05:01:38.896375Z",
+  "generated_at": "2026-07-17T09:06:56.133799Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,14 +19,14 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-    "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
     "execution_order_policy": {
-      "mode": "strict_restart_segment_chronology",
-      "strict_wall_clock_order": true,
+      "mode": "coverage_expected_exit_not_strict_wall_clock",
+      "strict_wall_clock_order": false,
       "coverage_authority": true,
       "expected_exit_authority": true,
-      "invalidated_prefix_excluded_from_acceptance": true
+      "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
     }
   },
   "startup_contract": {
@@ -42,158 +42,104 @@
     "startup_snapshot_artifact": "project_state/gates/startup_snapshot.json"
   },
   "allowed_scope": {
-    "source_files": [
-      "reverse_agent/project_gate.py",
-      "reverse_agent/project_state.py"
-    ],
+    "source_files": [],
     "generated_or_updated_artifacts": []
   },
   "forbidden_scope": {
     "preserve_only_files": [],
-    "forbidden_mutated_paths": [
-      ".codex-skills/*",
-      ".github/workflows/*",
-      "pyproject.toml",
-      "setup.py",
-      "setup.cfg",
-      "requirements*.txt",
-      "frontend/*",
-      "solve_reports/*",
-      "training_materials/local_reverse/*",
-      "reverse_agent/project_state_manifest.py",
-      "reverse_agent/project_jobs.py",
-      "reverse_agent/project_runner_contract.py",
-      "reverse_agent/project_agent_runner.py",
-      "reverse_agent/orchestrator_api.py",
-      "reverse_agent/user_solve_*.py",
-      "project_state/current_state.json",
-      "project_state/task_packet.json",
-      "project_state/artifact_index.json",
-      "project_state/negative_results.json",
-      "project_state/roadmap/workstreams.json",
-      "project_state/domains/*",
-      "project_state/jobs/*",
-      "project_state/user_sessions/*",
-      "project_state/archives/*",
-      "project_state/deletions/*",
-      "project_state/blob_store/*",
-      "project_state/*.db",
-      "project_state/index.sqlite",
-      "docs/roadmap/*"
-    ],
+    "forbidden_mutated_paths": [],
     "no_runner_or_dispatcher": true,
     "remote_mutation_allowed": false
   },
   "required_commands_summary": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
-      "kind": "startup-snapshot",
-      "phase": "status",
-      "required": true
-    },
-    {
-      "index": 2,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight",
       "phase": "preflight",
       "required": true
     },
     {
+      "index": 2,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
+      "phase": "gate",
+      "required": true
+    },
+    {
       "index": 3,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q",
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 4,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
       "required": true
     },
     {
-      "index": 4,
+      "index": 5,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+      "kind": "audit-readiness-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+      "kind": "current-handoff-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "kind": "local-execution-bundle",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "kind": "codex-prompt-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 10,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "kind": "audit-precheck",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 11,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 5,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 6,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
-      "kind": "run-closeout",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 8,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
-      "kind": "close-round",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-      "kind": "post-final-evidence-sync",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
-      "kind": "final-evidence-seal",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 11,
-      "command": "git add -- reverse_agent/project_gate.py reverse_agent/project_state.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py project_state/codex_execution_report.md project_state/execution_report.md project_state/pytest_result.txt project_state/state_manifest.json project_state/context/current_context_packet.json project_state/gates project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4",
-      "kind": "git-stage-explicit",
-      "phase": "publication",
-      "required": false
-    },
-    {
-      "index": 12,
-      "command": "git commit -m \"governance: converge branch evidence restart truth\"",
-      "kind": "git-commit",
-      "phase": "publication",
-      "required": false
-    },
-    {
-      "index": 13,
-      "command": "git push -u origin agent/terminal-status-propagation-seal-restart-rework-v3",
-      "kind": "git-push",
-      "phase": "publication",
-      "required": false
-    },
-    {
-      "index": 14,
-      "command": "gh pr view 5 --json number,title,state,isDraft,headRefName,baseRefName,url,mergeStateStatus,statusCheckRollup",
-      "kind": "github-pr-observation",
-      "phase": "publication",
-      "required": true
-    },
-    {
-      "index": 15,
-      "command": "gh pr checks 5 --watch --interval 10",
-      "kind": "github-check-observation",
-      "phase": "publication",
       "required": true
     }
   ],
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q"
     ],
     "includes_project_reports": true
   },
@@ -214,11 +160,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-    "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "34baea57e344964226d348db2e5748df95f75dbf22944bbae953140aeb3ba0a9"
+    "sha256": "79d0189d7b0df8be145ddb0694304e941ecbd6519aa3a00df46ddd134dfbdffb"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -232,18 +178,18 @@
     "artifact": "project_state/gates/audit_inventory_result.json",
     "gate_status": "PASSED",
     "inventory_validation_status": "PASSED",
-    "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-    "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-    "current": false
+    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "current": true
   },
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
     "gate_status": "PASSED",
     "readiness_status": "PENDING",
-    "recommendation": "REWORK_REQUIRED",
+    "recommendation": "NEEDS_REVIEW",
     "next_action": "complete_closeout_and_rerun_final_check",
-    "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-    "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
     "current": true
   },
   "closeout_expectations": {
@@ -251,7 +197,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260717_branch_evidence_convergence_rework_v4"
+    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,
@@ -268,9 +214,7 @@
   "can_dispatch": false,
   "mutates_state": false,
   "remote_mutation_allowed": false,
-  "warnings": [
-    "audit_inventory_result.json is missing or historical"
-  ],
+  "warnings": [],
   "errors": [],
   "generated_artifacts": [
     "project_state/gates/local_execution_bundle.json"

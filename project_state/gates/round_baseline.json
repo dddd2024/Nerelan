@@ -1,55 +1,33 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "head_commit": "0b4f00e5a4d9",
+  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "head_commit": "8a38700ddfa6",
   "baseline_git_status_short": [
     " M project_state/gates/command_plan.json",
-    " M project_state/gates/command_plan_lock.json",
-    " M project_state/gates/decision_content_lock.json",
     " M project_state/gates/gate_profile_plan.json",
-    "?? project_state/gates/restart_segment.json",
-    "?? project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/codex_execution_report.md",
-    "?? project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/decision_packet.md",
-    "?? project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/execution_report.md",
-    "?? project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/pytest_result.txt",
-    "?? project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/round_manifest.json"
+    " M project_state/gates/preflight_result.json",
+    " M project_state/gates/round_baseline.json",
+    " M project_state/gates/run_round_result.json"
   ],
   "baseline_git_diff_name_only": [
     "project_state/gates/command_plan.json",
-    "project_state/gates/command_plan_lock.json",
-    "project_state/gates/decision_content_lock.json",
     "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/restart_segment.json",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/codex_execution_report.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/decision_packet.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/round_manifest.json"
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json",
+    "project_state/gates/run_round_result.json"
   ],
   "baseline_dirty_files": [
     "project_state/gates/command_plan.json",
-    "project_state/gates/command_plan_lock.json",
-    "project_state/gates/decision_content_lock.json",
     "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/restart_segment.json",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/codex_execution_report.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/decision_packet.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/round_manifest.json"
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/round_baseline.json",
+    "project_state/gates/run_round_result.json"
   ],
-  "baseline_untracked_files": [
-    "project_state/gates/restart_segment.json",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/codex_execution_report.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/decision_packet.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/round_manifest.json"
-  ],
+  "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-17T03:42:14.710323Z"
+  "generated_at": "2026-07-17T08:02:51.940634Z"
 }
