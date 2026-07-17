@@ -49,22 +49,7 @@ Do not inspect unrelated source trees unless a clean install or focused test ide
 
 ## 5. Required Audit
 
-The final report must separately verify:
-
-1. branch and PR identity;
-2. v5 Decision ancestry and digest lock;
-3. branch-bound command-plan and lock chronology;
-4. exact `Install package` error;
-5. minimal packaging fix and dependency provenance;
-6. Python 3.13 compatibility;
-7. clean editable installation and workflow import checks;
-8. focused pytest and changed-test coverage;
-9. changed-file scope and v4 immutability;
-10. report, execution log, context, state manifest, archive, and seal consistency;
-11. final validation commit `S` and absence of later branch mutations;
-12. terminal CI, State Gate, and Decision Preflight results for exact `S`;
-13. avoidance of direct main push, force push, merge, rebase, tag mutation, secret mutation, branch deletion, and `git add -A`;
-14. final recommendation consistency across local evidence and external audit.
+The final report must separately verify branch/PR identity; v5 Decision ancestry and locks; exact install error; minimal packaging fix; dependency provenance; Python 3.13 compatibility; clean editable install; workflow import checks; focused tests; changed-file scope; v4 immutability; report/log/context/state/archive/seal consistency; final commit `S`; absence of later branch mutations; terminal CI, State Gate, and Decision Preflight results for exact `S`; prohibited Git operations; and final recommendation consistency.
 
 Each answer must name the artifact or Git observation, field/step, concrete value, status, and item-specific conclusion.
 
