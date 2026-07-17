@@ -1,0 +1,54 @@
+{
+  "acceptance_recommendation": "REWORK_REQUIRED",
+  "archive_mode": "minimal",
+  "archive_refresh_basis": "final_live_report_copy_after_report_finalization",
+  "archive_refreshed_at": "2026-07-17T05:15:26.051862Z",
+  "archived_at": "2026-07-17T05:15:21Z",
+  "archived_report_sha256": "97c860c3263b4cc4be4f6d656ac13efc64052d80256eeb4f3d8258ab53596632",
+  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260717_branch_evidence_convergence_rework_v4\\codex_execution_report.md",
+      "sha256": "97c860c3263b4cc4be4f6d656ac13efc64052d80256eeb4f3d8258ab53596632",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260717_branch_evidence_convergence_rework_v4\\decision_packet.md",
+      "sha256": "7c7511b083f39cf54e30e0badeb1edadcc35e72535b5184460d9531963bf5944",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260717_branch_evidence_convergence_rework_v4\\pytest_result.txt",
+      "sha256": "aca51c1709e45c3ce8d11eb37a96ca750938a455da1d6c278b20c3f58804b9d5",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260717_branch_evidence_convergence_rework_v4\\execution_report.md",
+      "sha256": "ff9d63d576d41846b3ec4a2b93d81b6c2caab08a688f6cf6dcc54286c3561700",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "final_archive_refresh_status": "PASSED",
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "live_report_sha256_at_archive": "97c860c3263b4cc4be4f6d656ac13efc64052d80256eeb4f3d8258ab53596632",
+  "mainline": "project_governance",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_finalized_at": "2026-07-17T05:15:25.754976Z",
+  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
+  "report_status": "FAILED",
+  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "schema_version": 1,
+  "source_git_commit": "0b4f00e5a4d9",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

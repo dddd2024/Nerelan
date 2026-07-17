@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
   "mainline": "project_governance",
-  "generated_at": "2026-07-16T18:03:27.227106Z",
+  "generated_at": "2026-07-17T05:00:46.361276Z",
   "profile": "full",
   "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
   "risk_reasons": [

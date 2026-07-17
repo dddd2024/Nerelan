@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-  "report_id": "codex_report_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
   "mainline": "project_governance",
-  "generated_at": "2026-07-16T18:04:04.129633Z",
+  "generated_at": "2026-07-17T05:01:38.899416Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-      "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-      "sha256": "33e5451813cdd29c76eb631e607b9f98a9a4270f1e504bc52c23106480fd2f3b"
+      "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+      "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+      "sha256": "7c0882e01e3bb2ba46a3ecc07740bf37edeafa99cd2fff4ae5e54a9fd6c77865"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-      "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-      "sha256": "50e8f19c087905f05118825dbfbf4f6847709f9dfed762cf01719bed6a4eca63"
+      "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+      "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+      "sha256": "34baea57e344964226d348db2e5748df95f75dbf22944bbae953140aeb3ba0a9"
     }
   },
   "prompt_sections": {

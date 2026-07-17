@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "artifact_name": "remote_check_observation.json",
+  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "observation_status": "TERMINAL_FAILURE_OBSERVED_WITH_STEP_DETAIL_LIMITATION",
+  "observed_at": "2026-07-17T04:18:28.4505124Z",
+  "pr_number": 5,
+  "pr_state": "OPEN",
+  "is_draft": true,
+  "head_ref": "agent/terminal-status-propagation-seal-restart-rework-v3",
+  "base_ref": "main",
+  "head_sha": "0b4f00e5a4d943d60c495603807c7accc2910672",
+  "checks": [
+    {
+      "workflow_name": "CI",
+      "run_id": 29551859124,
+      "job_id": 87795907229,
+      "job_name": "baseline",
+      "status": "COMPLETED",
+      "conclusion": "failure",
+      "failed_step": "UNAVAILABLE_FROM_LATEST_RUN_DETAIL",
+      "failure_summary": "GitHub run summary reports process exit code 1; authenticated run-detail API timed out repeatedly. Prior same-branch run 29522575928 failed at Install package.",
+      "url": "https://github.com/dddd2024/reverse-agent/actions/runs/29551859124"
+    },
+    {
+      "workflow_name": "Decision Preflight",
+      "run_id": 29551859127,
+      "job_id": 87795907394,
+      "job_name": "decision-preflight",
+      "status": "COMPLETED",
+      "conclusion": "failure",
+      "failed_step": "UNAVAILABLE_FROM_LATEST_RUN_DETAIL",
+      "failure_summary": "GitHub run summary reports process exit code 1; authenticated run-detail API timed out repeatedly. Prior same-branch run 29522576149 failed at Install package.",
+      "url": "https://github.com/dddd2024/reverse-agent/actions/runs/29551859127"
+    },
+    {
+      "workflow_name": "State Gate",
+      "run_id": 29551859173,
+      "job_id": 87795907459,
+      "job_name": "state-gate",
+      "status": "COMPLETED",
+      "conclusion": "failure",
+      "failed_step": "UNAVAILABLE_FROM_LATEST_RUN_DETAIL",
+      "failure_summary": "GitHub run summary reports process exit code 1; authenticated run-detail API timed out repeatedly. Prior same-branch run 29522575937 failed at Install package.",
+      "url": "https://github.com/dddd2024/reverse-agent/actions/runs/29551859173"
+    }
+  ],
+  "acceptance_recommendation": "REWORK_REQUIRED",
+  "next_decision": "separate CI/package Decision required because workflow and packaging mutation are forbidden in this round"
+}

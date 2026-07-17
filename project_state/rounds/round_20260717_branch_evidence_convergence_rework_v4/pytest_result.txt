@@ -821,9 +821,3 @@ recommended_next_action: no_action_required
 ===== STDERR =====
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4 =====
-final-evidence-seal: REWORK_REQUIRED
-seal_sha256: 6adeb205b1c03221b3b0bcd26df6849c48e61d9651516f66538ad40a0650e9a3
-
-===== EXIT: 1 =====
-

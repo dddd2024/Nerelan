@@ -31232,9 +31232,9 @@ def test_required_audit_closeout_runtime_evidence_rejects_function_only_answers(
     assert {item["item"] for item in result["failures"]} == {25, 26}
 
 
-def test_closeout_order_provenance_generated_audit_is_semantically_aligned(tmp_path: Path) -> None:
+def test_current_branch_evidence_audit_is_semantically_aligned(tmp_path: Path) -> None:
     from reverse_agent.project_gate import (
-        _generate_terminal_status_restart_required_audit,
+        _generate_branch_evidence_convergence_required_audit,
         _required_audit_alignment_failures,
         parse_required_audit_questions,
     )
@@ -31243,10 +31243,12 @@ def test_closeout_order_provenance_generated_audit_is_semantically_aligned(tmp_p
     state_dir = tmp_path / "project_state"
     state_dir.mkdir()
     (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
-    body = _generate_terminal_status_restart_required_audit(decision_text, state_dir)
+    body = _generate_branch_evidence_convergence_required_audit(decision_text, state_dir)
     questions = parse_required_audit_questions(decision_text)
-    assert len(questions) == 35
+    assert len(questions) == 30
     assert _required_audit_alignment_failures(questions, body) == []
+
+
 def _make_locked_plan_fixture(tmp_path: Path) -> tuple[Path, str, str]:
     from reverse_agent.project_gate import COMMAND_PLAN_LOCK_RESULT_NAME, COMMAND_PLAN_RESULT_NAME, _sha256_path
 
@@ -31484,3 +31486,120 @@ def test_expected_exit_codes_ignore_unexecuted_optional_publication_commands() -
     expected = _expected_exit_codes_by_command(payload)
     assert "python -m pytest -q" in expected
     assert "git push -u origin agent/example" not in expected
+def test_restart_segment_validation_requires_post_lock_substantive_timestamp(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _restart_segment_validation, _sha256_path
+
+    state_dir = tmp_path / "project_state"
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True)
+    decision_id = "decision_v4"
+    round_id = "round_v4"
+    _write_json(gates / "command_plan.json", {"decision_id": decision_id, "round_id": round_id})
+    digest = _sha256_path(gates / "command_plan.json")
+    _write_json(gates / "command_plan_lock.json", {
+        "command_plan_locked_at": "2026-07-17T03:00:00Z",
+        "restart_id": "restart-1",
+        "restart_count": 1,
+    })
+    _write_json(gates / "startup_snapshot.json", {"generated_at": "2026-07-17T03:01:00Z"})
+    _write_json(gates / "restart_segment.json", {
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "restart_id": "restart-1",
+        "accepted_command_plan_sha256": digest,
+        "accepted_command_plan_locked_at": "2026-07-17T03:00:00Z",
+        "startup_snapshot_generated_at": "2026-07-17T03:01:00Z",
+        "first_substantive_command_after_restart_at": "2026-07-17T02:59:59Z",
+        "invalidated_prefix_excluded_from_acceptance": True,
+    })
+
+    result = _restart_segment_validation(state_dir=state_dir, decision_id=decision_id, round_id=round_id)
+    assert result["status"] == "FAIL"
+    assert any(item["field"] == "first_substantive_command_after_restart_at" for item in result["failures"])
+
+
+def test_restart_segment_validation_accepts_canonical_post_lock_segment(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _restart_segment_validation, _sha256_path
+
+    state_dir = tmp_path / "project_state"
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True)
+    decision_id = "decision_v4"
+    round_id = "round_v4"
+    _write_json(gates / "command_plan.json", {"decision_id": decision_id, "round_id": round_id})
+    digest = _sha256_path(gates / "command_plan.json")
+    _write_json(gates / "command_plan_lock.json", {
+        "command_plan_locked_at": "2026-07-17T03:00:00Z",
+        "restart_id": "restart-1",
+        "restart_count": 1,
+    })
+    _write_json(gates / "startup_snapshot.json", {"generated_at": "2026-07-17T03:01:00Z"})
+    _write_json(gates / "restart_segment.json", {
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "restart_id": "restart-1",
+        "accepted_command_plan_sha256": digest,
+        "accepted_command_plan_locked_at": "2026-07-17T03:00:00Z",
+        "startup_snapshot_generated_at": "2026-07-17T03:01:00Z",
+        "first_substantive_command_after_restart_at": "2026-07-17T03:01:00Z",
+        "invalidated_prefix_excluded_from_acceptance": True,
+    })
+
+    result = _restart_segment_validation(state_dir=state_dir, decision_id=decision_id, round_id=round_id)
+    assert result["status"] == "PASS"
+
+
+def test_restart_count_without_restart_segment_fails(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _restart_segment_validation
+
+    state_dir = tmp_path / "project_state"
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True)
+    _write_json(gates / "command_plan.json", {})
+    _write_json(gates / "command_plan_lock.json", {"restart_count": 1})
+    result = _restart_segment_validation(state_dir=state_dir, decision_id="d", round_id="r")
+    assert result["status"] == "FAIL"
+    assert any(item.get("reason") in {"missing", "counter_without_segment"} for item in result["failures"])
+
+
+def test_failed_remote_checks_reject_accepted_report(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _remote_check_observation_validation
+
+    state_dir = tmp_path / "project_state"
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True)
+    _write_json(gates / "remote_check_observation.json", {
+        "decision_id": "d",
+        "round_id": "r",
+        "checks": [{"workflow_name": "CI", "status": "COMPLETED", "conclusion": "failure"}],
+    })
+    result = _remote_check_observation_validation(
+        state_dir=state_dir,
+        decision_id="d",
+        round_id="r",
+        report={"status": "SUCCESS", "acceptance_recommendation": "ACCEPTED"},
+        required=True,
+    )
+    assert result["status"] == "FAIL"
+    assert any(item.get("reason") == "remote_failures_cannot_be_accepted" for item in result["failures"])
+
+
+def test_terminal_failed_remote_checks_are_valid_for_rework_report(tmp_path: Path) -> None:
+    from reverse_agent.project_gate import _remote_check_observation_validation
+
+    state_dir = tmp_path / "project_state"
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True)
+    _write_json(gates / "remote_check_observation.json", {
+        "decision_id": "d",
+        "round_id": "r",
+        "checks": [{"workflow_name": "CI", "status": "COMPLETED", "conclusion": "failure"}],
+    })
+    result = _remote_check_observation_validation(
+        state_dir=state_dir,
+        decision_id="d",
+        round_id="r",
+        report={"status": "FAILED", "acceptance_recommendation": "REWORK_REQUIRED"},
+        required=True,
+    )
+    assert result["status"] == "PASS"

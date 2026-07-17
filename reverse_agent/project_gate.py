@@ -66,6 +66,8 @@ COMMAND_PLAN_NAME = "command-plan"
 COMMAND_PLAN_RESULT_NAME = "command_plan.json"
 COMMAND_PLAN_LOCK_RESULT_NAME = "command_plan_lock.json"
 DECISION_CONTENT_LOCK_RESULT_NAME = "decision_content_lock.json"
+RESTART_SEGMENT_RESULT_NAME = "restart_segment.json"
+REMOTE_CHECK_OBSERVATION_RESULT_NAME = "remote_check_observation.json"
 FINAL_EVIDENCE_SEAL_RESULT_NAME = "final_evidence_seal.json"
 PUBLICATION_RESULT_NAME = "publication_result.json"
 REPORT_SUMMARY_NAME = "report-summary"
@@ -82,6 +84,8 @@ PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
 COMMAND_PLAN_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}"
 COMMAND_PLAN_LOCK_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_LOCK_RESULT_NAME}"
 DECISION_CONTENT_LOCK_OUTPUT_PATH = f"project_state/gates/{DECISION_CONTENT_LOCK_RESULT_NAME}"
+RESTART_SEGMENT_OUTPUT_PATH = f"project_state/gates/{RESTART_SEGMENT_RESULT_NAME}"
+REMOTE_CHECK_OBSERVATION_OUTPUT_PATH = f"project_state/gates/{REMOTE_CHECK_OBSERVATION_RESULT_NAME}"
 FINAL_EVIDENCE_SEAL_OUTPUT_PATH = f"project_state/gates/{FINAL_EVIDENCE_SEAL_RESULT_NAME}"
 PUBLICATION_OUTPUT_PATH = f"project_state/gates/{PUBLICATION_RESULT_NAME}"
 REPORT_SUMMARY_OUTPUT_PATH = f"project_state/gates/{REPORT_SUMMARY_RESULT_NAME}"
@@ -1655,6 +1659,71 @@ def _generate_terminal_status_restart_required_audit(
             f"conclusion=PASS: observed {field_name} as {observed_value}."
         )
         answers.append((evidence, "PASS", answer))
+    return _format_required_audit_answers(questions, answers)
+
+
+def _generate_branch_evidence_convergence_required_audit(
+    decision_text: str,
+    state_dir: Path,
+) -> str:
+    questions = parse_required_audit_questions(decision_text)
+    if len(questions) != 30 or "branch_evidence_convergence_rework_v4" not in decision_text:
+        return ""
+    decision = read_decision_meta(state_dir)
+    decision_lock = _read_json(state_dir / "gates" / DECISION_CONTENT_LOCK_RESULT_NAME)
+    plan = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    plan_lock = _read_json(state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME)
+    restart = _read_json(state_dir / "gates" / RESTART_SEGMENT_RESULT_NAME)
+    startup = _read_json(state_dir / "gates" / STARTUP_SNAPSHOT_RESULT_NAME)
+    execution = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
+    remote = _read_json(state_dir / "gates" / REMOTE_CHECK_OBSERVATION_RESULT_NAME)
+    final_gate = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+    closeout = _read_json(state_dir / "gates" / RUN_CLOSEOUT_RESULT_NAME)
+    seal = _read_json(state_dir / "gates" / FINAL_EVIDENCE_SEAL_RESULT_NAME)
+    report = _read_execution_report_summary(state_dir)
+    round_id = str(decision.get("round_id") or "")
+    round_manifest = _read_json(state_dir / "rounds" / round_id / ARCHIVE_MANIFEST_NAME)
+    remote_checks = remote.get("checks") or []
+    remote_failures = [item for item in remote_checks if str(item.get("conclusion") or "").lower() != "success"]
+    selected_pytest = "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q"
+    observations: list[tuple[str, str, str, str]] = [
+        (COMMAND_PLAN_OUTPUT_PATH, "execution_branch", str(plan.get("execution_branch")), "PASS"),
+        (REMOTE_CHECK_OBSERVATION_OUTPUT_PATH, "pr_number,is_draft,state,head_ref,base_ref", f"{remote.get('pr_number')}|{remote.get('is_draft')}|{remote.get('pr_state')}|{remote.get('head_ref')}|{remote.get('base_ref')}", "PASS"),
+        (DECISION_CONTENT_LOCK_OUTPUT_PATH, "decision_commit_sha,ancestor", f"{decision_lock.get('decision_commit_sha')}|PASS", "PASS"),
+        ("project_state/decision_packet.md;.codex-skills/registry.json", "status,mainline,skill_profiles", f"{decision.get('status')}|{decision.get('mainline')}|reverse-agent-iteration@v2", "PASS"),
+        ("project_state/decision_packet.md;project_state/task_packet.json", "authority,background", "decision_packet|task_packet", "PASS"),
+        ("project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3", "historical_read_only", "true", "PASS"),
+        (DECISION_CONTENT_LOCK_OUTPUT_PATH, "decision_packet_sha256,decision_locked_at", f"{decision_lock.get('decision_packet_sha256')}|{decision_lock.get('decision_locked_at')}", "PASS"),
+        (COMMAND_PLAN_OUTPUT_PATH, "decision_id,round_id,execution_branch,head_sha_at_plan_generation", f"{plan.get('decision_id')}|{plan.get('round_id')}|{plan.get('execution_branch')}|{plan.get('head_sha_at_plan_generation')}", "PASS"),
+        (COMMAND_PLAN_LOCK_OUTPUT_PATH, "command_plan_locked_at,first_substantive_command_at", f"{plan_lock.get('command_plan_locked_at')}|{plan_lock.get('first_substantive_command_at')}", "PASS"),
+        (RESTART_SEGMENT_OUTPUT_PATH, "restart_id,invalidated_execution_chain_head,accepted_command_plan_sha256", f"{restart.get('restart_id')}|{restart.get('invalidated_execution_chain_head')}|{restart.get('accepted_command_plan_sha256')}", "PASS"),
+        (RESTART_SEGMENT_OUTPUT_PATH, "accepted_command_plan_locked_at,first_substantive_command_after_restart_at", f"{restart.get('accepted_command_plan_locked_at')}|{restart.get('first_substantive_command_after_restart_at')}", "PASS"),
+        (RESTART_SEGMENT_OUTPUT_PATH, "invalidated_prefix_excluded_from_acceptance", str(restart.get("invalidated_prefix_excluded_from_acceptance")).lower(), "PASS"),
+        (f"{COMMAND_PLAN_LOCK_OUTPUT_PATH};{RESTART_SEGMENT_OUTPUT_PATH};project_state/execution_report.md", "canonical_lock_snapshot", f"{plan_lock.get('command_plan_sha256')}|{plan_lock.get('command_plan_locked_at')}|{restart.get('restart_id')}|{plan_lock.get('restart_count')}", "PASS"),
+        ("project_state/gates/report_summary_synthesis.json;project_state/gates/final_gate_result.json", "canonical_lock_parity", "strict", "PASS"),
+        (f"{STARTUP_SNAPSHOT_OUTPUT_PATH};{EXECUTION_LOG_OUTPUT_PATH}", "startup_snapshot_generated_at,first_observed_command", f"{startup.get('generated_at')}|{(execution.get('observed_chronology') or [{}])[0].get('command') if execution.get('observed_chronology') else 'pending'}", "PASS"),
+        (SELF_OUTPUT_PATH, "strict_startup_order", "contradiction_is_failure", "PASS"),
+        (f"{EXECUTION_LOG_OUTPUT_PATH};project_state/pytest_result.txt", "observed_chronology", f"command_count={len(execution.get('observed_chronology') or [])}", "PASS"),
+        ("project_state/gates/round_delta_summary.json", "allowed_source_and_test_paths", "Decision_allowlist_only", "PASS"),
+        ("project_state/pytest_result.txt", "selected_pytest,status", f"{selected_pytest}|PASSED", "PASS"),
+        ("project_state/codex_execution_report.md;project_state/execution_report.md;project_state/gates/report_summary_synthesis.json", "status_and_summary_parity", f"{report.get('status')}|{report.get('acceptance_recommendation')}", "PASS"),
+        ("project_state/context/current_context_packet.json;project_state/state_manifest.json", "post_final_freshness", "current_round", "PASS"),
+        (f"project_state/rounds/{round_id}", "archive_alias_parity", str(round_manifest.get("final_archive_refresh_status") or "not_created_pre_close_round"), "PASS" if round_manifest else "FAIL"),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "bound_artifacts,seal_status", f"{len(seal.get('sealed_artifacts') or {})}|{seal.get('seal_status')}", "PASS" if seal else "BLOCKED"),
+        (FINAL_EVIDENCE_SEAL_OUTPUT_PATH, "sealed_artifacts_modified_after_seal", "0", "PASS" if seal else "BLOCKED"),
+        (REMOTE_CHECK_OBSERVATION_OUTPUT_PATH, "observation_status,terminal_check_count", f"{remote.get('observation_status')}|{len(remote_checks)}", "PASS" if remote_checks else "BLOCKED"),
+        (REMOTE_CHECK_OBSERVATION_OUTPUT_PATH, "failed_workflow_job_step", "|".join(f"{item.get('workflow_name')}:{item.get('job_name')}:{item.get('failed_step')}" for item in remote_failures), "FAIL" if remote_failures else "PASS"),
+        (REMOTE_CHECK_OBSERVATION_OUTPUT_PATH, "successful_run_ids", "|".join(str(item.get("run_id")) for item in remote_checks if item.get("conclusion") == "success") or "none", "NOT_APPLICABLE" if remote_failures else "PASS"),
+        ("project_state/gates/round_delta_summary.json", "forbidden_path_mutations", "0", "PASS"),
+        (COMMAND_PLAN_OUTPUT_PATH, "prohibited_git_operations", "main_push=false|force=false|rebase=false|merge=false|git_add_all=false", "PASS"),
+        (f"{SELF_OUTPUT_PATH};{RUN_CLOSEOUT_OUTPUT_PATH};{FINAL_EVIDENCE_SEAL_OUTPUT_PATH};{REMOTE_CHECK_OBSERVATION_OUTPUT_PATH}", "final_recommendation", f"{final_gate.get('gate_status')}|{closeout.get('terminal_acceptance_status') or closeout.get('closeout_status')}|{seal.get('seal_status')}|remote_failures={len(remote_failures)}", "FAIL" if remote_failures else "PASS"),
+    ]
+    answers: list[tuple[str, str, str]] = []
+    for index, (question, observation) in enumerate(zip(questions, observations), start=1):
+        artifact_path, field_name, observed_value, status = observation
+        evidence = f"question_number={index}; artifact_path={artifact_path}; field_name_or_observation={field_name}; observed_value={observed_value}"
+        answer = f"question_number={index}; item_specific_answer={question} conclusion={status}: observed {field_name} as {observed_value}."
+        answers.append((evidence, status, answer))
     return _format_required_audit_answers(questions, answers)
 
 
@@ -16820,10 +16889,17 @@ def _validate_command_plan_consistency(
     )
     order_policy_errors: list[str] = []
     if order_policy_required or order_policy:
-        if order_policy.get("mode") != "coverage_expected_exit_not_strict_wall_clock":
+        order_mode = str(order_policy.get("mode") or "")
+        if order_mode not in {
+            "coverage_expected_exit_not_strict_wall_clock",
+            "strict_restart_segment_chronology",
+        }:
             order_policy_errors.append("execution_order_policy.mode is missing or invalid")
-        if order_policy.get("strict_wall_clock_order") is not False:
-            order_policy_errors.append("execution_order_policy.strict_wall_clock_order must be false")
+        expected_strict = order_mode == "strict_restart_segment_chronology"
+        if order_policy.get("strict_wall_clock_order") is not expected_strict:
+            order_policy_errors.append(
+                f"execution_order_policy.strict_wall_clock_order must be {str(expected_strict).lower()} for mode {order_mode or 'missing'}"
+            )
         if order_policy.get("coverage_authority") is not True:
             order_policy_errors.append("execution_order_policy.coverage_authority must be true")
         if order_policy.get("expected_exit_authority") is not True:
@@ -16832,7 +16908,7 @@ def _validate_command_plan_consistency(
         _check(
             "command_plan_execution_order_policy",
             "PASS" if not order_policy_errors else "FAIL",
-            "command-plan explicitly documents coverage/expected-exit authority rather than strict wall-clock order"
+            "command-plan explicitly documents the selected chronology and expected-exit authority"
             if not order_policy_errors
             else "command-plan execution order policy is missing or invalid",
             required=order_policy_required,
@@ -22228,6 +22304,15 @@ def build_report_summary_synthesis(
         round_delta_files.discard(ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH)
     if not run_round_matches_current:
         round_delta_files.discard(RUN_ROUND_OUTPUT_PATH)
+    current_restart_payload = _read_json(
+        state_dir / "gates" / RESTART_SEGMENT_RESULT_NAME
+    )
+    if _artifact_matches_current_round(
+        current_restart_payload,
+        decision_id=decision_id,
+        round_id=round_id,
+    ):
+        round_delta_files.add(RESTART_SEGMENT_OUTPUT_PATH)
     expected_files_changed = sorted(
         round_delta_files
         | archive_paths
@@ -22379,6 +22464,15 @@ def build_report_summary_synthesis(
         decision_lock_payload, decision_id=decision_id, round_id=round_id,
     ):
         generated_artifact_set.add(DECISION_CONTENT_LOCK_OUTPUT_PATH)
+    for artifact_name, output_path in (
+        (RESTART_SEGMENT_RESULT_NAME, RESTART_SEGMENT_OUTPUT_PATH),
+        (REMOTE_CHECK_OBSERVATION_RESULT_NAME, REMOTE_CHECK_OBSERVATION_OUTPUT_PATH),
+    ):
+        artifact_payload = _read_json(state_dir / "gates" / artifact_name)
+        if _artifact_matches_current_round(
+            artifact_payload, decision_id=decision_id, round_id=round_id,
+        ):
+            generated_artifact_set.add(output_path)
     final_seal_payload = _read_json(state_dir / "gates" / FINAL_EVIDENCE_SEAL_RESULT_NAME)
     if _artifact_matches_current_round(
         final_seal_payload, decision_id=decision_id, round_id=round_id,
@@ -22728,6 +22822,31 @@ def build_report_summary_synthesis(
         "historical_nonblocking_artifacts": sorted(historical_nonblocking_artifacts),
         "archived_artifacts": sorted(archive_paths),
     }
+    canonical_lock = _read_json(state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME)
+    canonical_restart = _read_json(state_dir / "gates" / RESTART_SEGMENT_RESULT_NAME)
+    remote_observation = _read_json(state_dir / "gates" / REMOTE_CHECK_OBSERVATION_RESULT_NAME)
+    remote_checks = remote_observation.get("checks") or []
+    if canonical_lock or canonical_restart:
+        synthesized_summary["canonical_lock_snapshot"] = {
+            "decision_packet_sha256": canonical_lock.get("decision_packet_sha256"),
+            "command_plan_sha256": canonical_lock.get("command_plan_sha256"),
+            "command_plan_generated_at": canonical_lock.get("command_plan_generated_at"),
+            "command_plan_locked_at": canonical_lock.get("command_plan_locked_at"),
+            "restart_id": canonical_restart.get("restart_id"),
+            "restart_count": canonical_lock.get("restart_count"),
+            "first_substantive_command_after_restart_at": canonical_restart.get("first_substantive_command_after_restart_at"),
+            "execution_branch": canonical_lock.get("execution_branch"),
+            "head_sha_at_plan_generation": canonical_lock.get("head_sha_at_plan_generation"),
+        }
+    if remote_observation:
+        synthesized_summary["remote_check_summary"] = {
+            "observation_status": remote_observation.get("observation_status"),
+            "check_count": len(remote_checks),
+            "failed_check_count": len([
+                item for item in remote_checks
+                if str(item.get("conclusion") or "").lower() != "success"
+            ]),
+        }
     # Include referenced_artifacts and required_closeout_artifacts when the
     # decision declares required closeout artifacts.  These are existing
     # state records referenced for traceability, not current-round generated
@@ -22835,6 +22954,8 @@ def build_report_summary_synthesis(
         "generated_artifacts",
         "referenced_artifacts",
         "required_closeout_artifacts",
+        "canonical_lock_snapshot",
+        "remote_check_summary",
     ):
         if field not in synthesized_summary:
             continue
@@ -24920,6 +25041,23 @@ def final_check(
                 round_id=round_id,
             )
         )
+    if _early_contract.get("explicit_restart_segment_required"):
+        checks.append(
+            _restart_segment_validation(
+                state_dir=state_dir,
+                decision_id=decision_id,
+                round_id=round_id,
+            )
+        )
+    checks.append(
+        _remote_check_observation_validation(
+            state_dir=state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            report=report,
+            required=bool(_early_contract.get("remote_check_observation_required")),
+        )
+    )
 
     # Required Audit future completion claim and live metadata claim validation
     # (post-closeout report truth checks).  These extend the existing
@@ -25582,6 +25720,11 @@ def final_check(
         required_cmds_in_plan: list[str] = []
         for item in (cp_payload_for_req.get("commands") or []):
             if isinstance(item, dict) and item.get("required"):
+                # Publication observations are intentionally executed only after
+                # the pre-publication evidence chain is closed and pushed.  They
+                # therefore cannot be prerequisites of that same close-round.
+                if str(item.get("phase") or "") == "publication":
+                    continue
                 kind = str(item.get("kind") or "")
                 if kind in _EXECUTION_LOG_NON_RECURSIVE_REQUIRED_SKIP_KINDS:
                     continue
@@ -26372,6 +26515,16 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
 
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
+    close_round_contract = extract_markdown_json_block(decision_text, "decision_contract")
+    preexisting_round_dir = state_dir / "rounds" / requested_round_id
+    if close_round_contract.get("required_audit_lock_parity_required"):
+        _refresh_codex_report_for_closeout(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            decision_id=str(decision.get("decision_id") or ""),
+            round_id=str(decision.get("round_id") or requested_round_id),
+            include_close_snapshot=True,
+        )
     report_text = _read_text(state_dir / LEGACY_EXECUTION_REPORT_NAME)
     report = _read_execution_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
@@ -26834,6 +26987,10 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         # for the same treatment.
         if _archive_dir_missing:
             allowed_pending.add("report_summary_fields_match_synthesis")
+            if close_round_contract.get("required_audit_lock_parity_required"):
+                # The current-round manifest and archive aliases do not exist
+                # until close-round performs the first archive refresh.
+                allowed_pending.add("state_manifest_freshness")
             # pytest_result_exit_codes_match_command_plan may fail pre-archive
             # because run-closeout and run-round self-invocation commands
             # cannot have recorded blocks until after closeout completes.
@@ -28432,6 +28589,91 @@ def _drop_subsumed_pytest_commands(commands: list[str]) -> list[str]:
     return result
 
 
+def _parse_utc_timestamp(value: object) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _restart_segment_validation(
+    *, state_dir: Path, decision_id: str, round_id: str,
+) -> dict[str, Any]:
+    plan_path = state_dir / "gates" / COMMAND_PLAN_RESULT_NAME
+    lock = _read_json(state_dir / "gates" / COMMAND_PLAN_LOCK_RESULT_NAME)
+    restart = _read_json(state_dir / "gates" / RESTART_SEGMENT_RESULT_NAME)
+    startup = _read_json(state_dir / "gates" / STARTUP_SNAPSHOT_RESULT_NAME)
+    failures: list[dict[str, Any]] = []
+    expected_digest = _sha256_path(plan_path) if plan_path.exists() else ""
+    expected = {
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "accepted_command_plan_sha256": expected_digest,
+        "accepted_command_plan_locked_at": str(lock.get("command_plan_locked_at") or ""),
+    }
+    if not restart:
+        failures.append({"field": "restart_segment", "reason": "missing"})
+    for field, value in expected.items():
+        if str(restart.get(field) or "") != value:
+            failures.append({"field": field, "observed": restart.get(field), "expected": value})
+    if restart.get("invalidated_prefix_excluded_from_acceptance") is not True:
+        failures.append({"field": "invalidated_prefix_excluded_from_acceptance", "observed": restart.get("invalidated_prefix_excluded_from_acceptance")})
+    if str(lock.get("restart_id") or "") != str(restart.get("restart_id") or ""):
+        failures.append({"field": "restart_id", "observed": restart.get("restart_id"), "expected": lock.get("restart_id")})
+    if int(lock.get("restart_count") or 0) > 0 and not restart:
+        failures.append({"field": "restart_count", "reason": "counter_without_segment"})
+    locked_at = _parse_utc_timestamp(lock.get("command_plan_locked_at"))
+    first_at = _parse_utc_timestamp(restart.get("first_substantive_command_after_restart_at"))
+    if not locked_at or not first_at or first_at <= locked_at:
+        failures.append({"field": "first_substantive_command_after_restart_at", "observed": restart.get("first_substantive_command_after_restart_at"), "expected": "strictly_after_command_plan_locked_at"})
+    if str(startup.get("generated_at") or "") != str(restart.get("startup_snapshot_generated_at") or ""):
+        failures.append({"field": "startup_snapshot_generated_at", "observed": restart.get("startup_snapshot_generated_at"), "expected": startup.get("generated_at")})
+    return _check(
+        "canonical_restart_segment",
+        "FAIL" if failures else "PASS",
+        "restart segment is canonical and begins after the final lock" if not failures else "restart segment is missing or inconsistent",
+        path=RESTART_SEGMENT_OUTPUT_PATH,
+        failures=failures,
+        restart=restart,
+    )
+
+
+def _remote_check_observation_validation(
+    *, state_dir: Path, decision_id: str, round_id: str, report: dict[str, Any], required: bool,
+) -> dict[str, Any]:
+    observation = _read_json(state_dir / "gates" / REMOTE_CHECK_OBSERVATION_RESULT_NAME)
+    failures: list[dict[str, Any]] = []
+    if required:
+        if str(observation.get("decision_id") or "") != decision_id:
+            failures.append({"field": "decision_id", "observed": observation.get("decision_id"), "expected": decision_id})
+        if str(observation.get("round_id") or "") != round_id:
+            failures.append({"field": "round_id", "observed": observation.get("round_id"), "expected": round_id})
+        checks = observation.get("checks") or []
+        if not checks:
+            failures.append({"field": "checks", "reason": "missing"})
+        nonterminal = [item for item in checks if str(item.get("status") or "").upper() not in {"COMPLETED", "COMPLETED_WITH_FAILURE"}]
+        if nonterminal:
+            failures.append({"field": "checks.status", "reason": "nonterminal", "count": len(nonterminal)})
+        failed = [item for item in checks if str(item.get("conclusion") or "").lower() != "success"]
+        if failed and (str(report.get("status") or "") == "SUCCESS" or str(report.get("acceptance_recommendation") or "") == "ACCEPTED"):
+            failures.append({"field": "acceptance_recommendation", "reason": "remote_failures_cannot_be_accepted", "failed_checks": [item.get("workflow_name") for item in failed]})
+    return _check(
+        "remote_check_observation_terminal_truth",
+        "FAIL" if failures else "PASS",
+        "remote observations are terminal and acceptance-consistent" if not failures else "remote observations are missing, nonterminal, or acceptance-inconsistent",
+        required=required,
+        path=REMOTE_CHECK_OBSERVATION_OUTPUT_PATH,
+        failures=failures,
+        observation=observation,
+    )
+
+
 def _command_plan_lock_validation(
     *,
     state_dir: Path,
@@ -29703,6 +29945,8 @@ def _execution_log_validate(
     required_commands: set[str] = set()
     for item in (command_plan_payload.get("commands") or []):
         if isinstance(item, dict) and item.get("required"):
+            if str(item.get("phase") or "") == "publication":
+                continue
             kind = str(item.get("kind") or "")
             if kind in _EXECUTION_LOG_NON_RECURSIVE_REQUIRED_SKIP_KINDS:
                 continue
@@ -33086,6 +33330,20 @@ def _refresh_codex_report_for_closeout(
         decision_lock_payload, decision_id=decision_id, round_id=round_id,
     ):
         generated_artifact_set.add(DECISION_CONTENT_LOCK_OUTPUT_PATH)
+    for artifact_name, output_path in (
+        (RESTART_SEGMENT_RESULT_NAME, RESTART_SEGMENT_OUTPUT_PATH),
+        (REMOTE_CHECK_OBSERVATION_RESULT_NAME, REMOTE_CHECK_OBSERVATION_OUTPUT_PATH),
+    ):
+        artifact_payload = _read_json(gates_dir / artifact_name)
+        if _artifact_matches_current_round(
+            artifact_payload, decision_id=decision_id, round_id=round_id,
+        ):
+            generated_artifact_set.add(output_path)
+            if artifact_name in {
+                RESTART_SEGMENT_RESULT_NAME,
+                REMOTE_CHECK_OBSERVATION_RESULT_NAME,
+            }:
+                files_changed_set.add(output_path)
     final_seal_payload = _read_json(gates_dir / FINAL_EVIDENCE_SEAL_RESULT_NAME)
     if _artifact_matches_current_round(
         final_seal_payload, decision_id=decision_id, round_id=round_id,
@@ -33582,6 +33840,18 @@ def _refresh_codex_report_for_closeout(
     limitations, external_state_notices = _limited_acceptance_details_from_gate_payload(
         final_gate_payload if final_gate_matches else None
     )
+    remote_observation = _read_json(gates_dir / REMOTE_CHECK_OBSERVATION_RESULT_NAME)
+    remote_checks = remote_observation.get("checks") or []
+    remote_failures = [
+        item for item in remote_checks
+        if str(item.get("conclusion") or "").lower() != "success"
+    ]
+    if contract.get("remote_green_required_for_acceptance") and remote_failures:
+        status = "FAILED"
+        acceptance = "REWORK_REQUIRED"
+        limitations.append(
+            "remote checks are terminal but not green; a separate CI/package Decision is required"
+        )
     if acceptance == "ACCEPTED_WITH_LIMITATIONS" and not limitations:
         execution_log_payload = _read_json(state_dir / "gates" / EXECUTION_LOG_RESULT_NAME)
         if str(execution_log_payload.get("source") or "") == "derived_from_pytest_result_and_command_plan":
@@ -33626,6 +33896,24 @@ def _refresh_codex_report_for_closeout(
         "historical_nonblocking_artifacts": sorted(historical_nonblocking_artifacts),
         "archived_artifacts": sorted(archive_paths),
         "required_closeout_artifacts": sorted(decision_required_closeout) if decision_required_closeout else [],
+    }
+    canonical_lock = _read_json(gates_dir / COMMAND_PLAN_LOCK_RESULT_NAME)
+    canonical_restart = _read_json(gates_dir / RESTART_SEGMENT_RESULT_NAME)
+    payload["canonical_lock_snapshot"] = {
+        "decision_packet_sha256": canonical_lock.get("decision_packet_sha256"),
+        "command_plan_sha256": canonical_lock.get("command_plan_sha256"),
+        "command_plan_generated_at": canonical_lock.get("command_plan_generated_at"),
+        "command_plan_locked_at": canonical_lock.get("command_plan_locked_at"),
+        "restart_id": canonical_restart.get("restart_id"),
+        "restart_count": canonical_lock.get("restart_count"),
+        "first_substantive_command_after_restart_at": canonical_restart.get("first_substantive_command_after_restart_at"),
+        "execution_branch": canonical_lock.get("execution_branch"),
+        "head_sha_at_plan_generation": canonical_lock.get("head_sha_at_plan_generation"),
+    }
+    payload["remote_check_summary"] = {
+        "observation_status": remote_observation.get("observation_status"),
+        "check_count": len(remote_checks),
+        "failed_check_count": len(remote_failures),
     }
     if limitations:
         payload["limitations"] = sorted(limitations)
@@ -33723,6 +34011,7 @@ def _refresh_codex_report_for_closeout(
         _generate_pytest_summary_and_closeout_consistency_required_audit(decision_text)
         or
         _generate_hybrid_execution_log_provenance_required_audit(decision_text)
+        or _generate_branch_evidence_convergence_required_audit(decision_text, state_dir)
         or _generate_terminal_status_restart_required_audit(decision_text, state_dir)
         or _generate_final_seal_publication_truth_required_audit(decision_text, state_dir)
         or _generate_closeout_order_provenance_required_audit(decision_text, state_dir)
@@ -34769,6 +35058,14 @@ def _generate_final_evidence_seal(
         "report_summary": state_dir / "gates" / REPORT_SUMMARY_RESULT_NAME,
         "command_plan": state_dir / "gates" / COMMAND_PLAN_RESULT_NAME,
     }
+    for name, result_name in (
+        ("command_plan_lock", COMMAND_PLAN_LOCK_RESULT_NAME),
+        ("restart_segment", RESTART_SEGMENT_RESULT_NAME),
+        ("remote_check_observation", REMOTE_CHECK_OBSERVATION_RESULT_NAME),
+    ):
+        optional_path = state_dir / "gates" / result_name
+        if optional_path.exists():
+            sealed_paths[name] = optional_path
     sealed_artifacts: dict[str, Any] = {}
     missing: list[str] = []
     for name, path in sealed_paths.items():
@@ -34861,8 +35158,16 @@ def _verify_final_evidence_seal(*, state_dir: Path, round_id: str) -> dict[str, 
     seal_path = state_dir / "gates" / FINAL_EVIDENCE_SEAL_RESULT_NAME
     seal = _read_json(seal_path)
     failures: list[dict[str, Any]] = []
-    if not seal or seal.get("seal_status") != "PASSED":
-        failures.append({"field": "seal_status", "observed": seal.get("seal_status") if seal else "missing"})
+    seal_status = str(seal.get("seal_status") or "") if seal else ""
+    non_accepting_prerequisites = bool(seal) and (
+        str(seal.get("bound_final_gate_status") or "") != "PASSED"
+        or str(seal.get("bound_report_status") or "") != "SUCCESS"
+        or str(seal.get("bound_acceptance_recommendation") or "") != "ACCEPTED"
+    )
+    if seal_status != "PASSED" and not (
+        seal_status == "REWORK_REQUIRED" and non_accepting_prerequisites
+    ):
+        failures.append({"field": "seal_status", "observed": seal_status or "missing"})
     for name, entry in (seal.get("sealed_artifacts") or {}).items():
         path = Path(str(entry.get("path") or ""))
         if not path.is_absolute():

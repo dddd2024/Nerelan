@@ -1,71 +1,83 @@
 {
   "schema_version": 1,
   "artifact_name": "final_evidence_seal.json",
-  "decision_id": "decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-  "round_id": "round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-  "report_id": "codex_report_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
-  "sealed_at": "2026-07-16T18:04:05.314425Z",
+  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
+  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
+  "sealed_at": "2026-07-17T05:16:30.569297Z",
   "sealed_artifacts": {
     "final_gate": {
       "path": "project_state/gates/final_gate_result.json",
-      "sha256": "048fca4b52f10dcd62c253258ef6a7514b704f4cca5cc6f026d899a355ee9a7e"
+      "sha256": "bbae81ab9c40e23660d90113c12fa963cf7f305397bc02da0450d6d10f57e223"
     },
     "run_closeout": {
       "path": "project_state/gates/run_closeout_result.json",
-      "sha256": "55ac9e2fb843d1707010f5ce295c5182c898aaa13ae55f2c1ce05a85694e67b7"
+      "sha256": "90f2988de4233deca02116543129202ca4718b257f040e14255acf89ed9b153c"
     },
     "context_packet": {
       "path": "project_state/context/current_context_packet.json",
-      "sha256": "124b4905f6ee4d8d9424cc02806cbfd047794ff87d29c1898267d62b178a43c8"
+      "sha256": "683c6c7303e3d34f6e975a9d72a5a77415eb418e1b1a683535c53f26d319aef2"
     },
     "state_manifest": {
       "path": "project_state/state_manifest.json",
-      "sha256": "097ce87569bd1308c2970a14f6c050d3b993315041d8d11ce14261a4fa392fd4"
+      "sha256": "551404b2567d2ff6e08241d29c893e0d4f9f7a56cbe76facd4e57a8d9bb46a51"
     },
     "round_manifest": {
-      "path": "project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/round_manifest.json",
-      "sha256": "99e88b6b4471e3bd70dd725c7cf4dc9245a983d921d3807d835813c2115e4c6c"
+      "path": "project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4/round_manifest.json",
+      "sha256": "16dc56b06b0acffc71ae2532b3dc01b8f8e5504fe54d1aeb761a919ec5f42976"
     },
     "live_report": {
       "path": "project_state/execution_report.md",
-      "sha256": "8a60af19a64812f8454d57502591f20e4a06c66438e1f2c518b574f2414bed55"
+      "sha256": "ff9d63d576d41846b3ec4a2b93d81b6c2caab08a688f6cf6dcc54286c3561700"
     },
     "archived_report": {
-      "path": "project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/execution_report.md",
-      "sha256": "8a60af19a64812f8454d57502591f20e4a06c66438e1f2c518b574f2414bed55"
+      "path": "project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4/execution_report.md",
+      "sha256": "ff9d63d576d41846b3ec4a2b93d81b6c2caab08a688f6cf6dcc54286c3561700"
     },
     "report_summary": {
       "path": "project_state/gates/report_summary_synthesis.json",
-      "sha256": "4b71ad7b33f17add7c1ad1e7f2ad02a1bd3ebe1c07b039b6b22bfd10e57445fc"
+      "sha256": "ec409f6b98b57a29dae5c2305f43038aaf50dc2463c8d59144e325051bf2be74"
     },
     "command_plan": {
       "path": "project_state/gates/command_plan.json",
-      "sha256": "3b5c1b6dda652641f1a14e641ff4b818b8c353f2342212505e7fbb79fd227dbf"
+      "sha256": "cf174a43fbc1434e6acb24c66e629e75698af48f76a246454f4b34b0e2f06126"
+    },
+    "command_plan_lock": {
+      "path": "project_state/gates/command_plan_lock.json",
+      "sha256": "58183cf826e293ae007088cc6cd9fdec1cad78968be33474007eaf9f4c8071a5"
+    },
+    "restart_segment": {
+      "path": "project_state/gates/restart_segment.json",
+      "sha256": "99df1e92af0f01898898206ba141ad48c1779be4442a105ab5920beeac995388"
+    },
+    "remote_check_observation": {
+      "path": "project_state/gates/remote_check_observation.json",
+      "sha256": "8933e7ca6b0e3d6984aaffa2346e7010debf6534acb04a194a6b2cd03f896816"
     }
   },
   "missing_artifacts": [],
   "command_plan_path": "project_state/gates/command_plan.json",
-  "command_plan_locked_sha256": "3b5c1b6dda652641f1a14e641ff4b818b8c353f2342212505e7fbb79fd227dbf",
-  "execution_event_chain_head_before_seal": "e3f8f89672078eaae1bb5711c483aa19208650c49c5b4730662808fd633d913e",
-  "pytest_transcript_prefix_sha256": "492401682a3ec624dead73aef07bc29786fa76b04326c5e33484d438a25df3f0",
+  "command_plan_locked_sha256": "cf174a43fbc1434e6acb24c66e629e75698af48f76a246454f4b34b0e2f06126",
+  "execution_event_chain_head_before_seal": "8cf4e81b6b9beeae044d6e0146b710c8019a87ca995717d345ae5864cd6ad3d9",
+  "pytest_transcript_prefix_sha256": "aca51c1709e45c3ce8d11eb37a96ca750938a455da1d6c278b20c3f58804b9d5",
   "live_pytest_path": "project_state/pytest_result.txt",
-  "archived_pytest_path": "project_state/rounds/round_20260716_terminal_status_propagation_and_seal_restart_rework_v3/pytest_result.txt",
-  "archive_pytest_prefix_sha256": "492401682a3ec624dead73aef07bc29786fa76b04326c5e33484d438a25df3f0",
+  "archived_pytest_path": "project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4/pytest_result.txt",
+  "archive_pytest_prefix_sha256": "aca51c1709e45c3ce8d11eb37a96ca750938a455da1d6c278b20c3f58804b9d5",
   "archive_parity_at_terminal_boundary": true,
-  "terminal_command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260716_terminal_status_propagation_and_seal_restart_rework_v3",
+  "terminal_command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4",
   "terminal_event_type": "terminal_final_evidence_seal",
   "self_digest_embedded": false,
   "ordering": {
-    "final_archive_refreshed_at": "2026-07-16T18:04:05.306939Z",
-    "final_gate_generated_at": "2026-07-16T18:04:04.949176Z",
-    "context_generated_at": "2026-07-16T18:04:05.045623Z",
-    "state_manifest_generated_at": "2026-07-16T18:04:05Z",
-    "sealed_at": "2026-07-16T18:04:05.314425Z"
+    "final_archive_refreshed_at": "2026-07-17T05:15:26.051862Z",
+    "final_gate_generated_at": "2026-07-17T05:15:25.445680Z",
+    "context_generated_at": "2026-07-17T05:06:55.433369Z",
+    "state_manifest_generated_at": "2026-07-17T05:15:24Z",
+    "sealed_at": "2026-07-17T05:16:30.569297Z"
   },
   "publication_receipt_outside_sealed_artifacts": true,
-  "bound_final_gate_status": "PASSED",
-  "bound_report_status": "SUCCESS",
-  "bound_acceptance_recommendation": "ACCEPTED",
-  "accepting_prerequisites_satisfied": true,
-  "seal_status": "PASSED"
+  "bound_final_gate_status": "WARN",
+  "bound_report_status": "FAILED",
+  "bound_acceptance_recommendation": "REWORK_REQUIRED",
+  "accepting_prerequisites_satisfied": false,
+  "seal_status": "REWORK_REQUIRED"
 }
