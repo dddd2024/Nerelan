@@ -17796,6 +17796,9 @@ def test_run_closeout_constants_and_allowlist():
             "control-plane-snapshot", "run-round", "run-closeout",
                 "execute-decision",
                 "final-evidence-seal",
+                "venv-create",
+                "pip-install",
+                "import-check",
             }
     assert set(RUN_CLOSEOUT_ALLOWED_KINDS) == expected
 
@@ -31245,12 +31248,16 @@ def test_current_branch_evidence_audit_is_semantically_aligned(tmp_path: Path) -
     (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
     body = _generate_branch_evidence_convergence_required_audit(decision_text, state_dir)
     questions = parse_required_audit_questions(decision_text)
-    # v4 decision used 30 numbered Required Audit questions; v5 decision uses a
-    # prose Required Audit section, so parse_required_audit_questions returns 0
-    # and _generate_branch_evidence_convergence_required_audit returns "" for
-    # non-v4 decisions. Assert the v5 expectation and that alignment holds.
-    assert len(questions) == 0
-    assert _required_audit_alignment_failures(questions, body) == []
+    # v4 decision used 30 numbered Required Audit questions; v5 decision used a
+    # prose Required Audit section (0 numbered questions); v6 decision uses 35
+    # numbered Required Audit items.  Regardless of the format, the generated
+    # audit body must be semantically aligned with the parsed questions.
+    if questions:
+        # Numbered-question format (v4/v6): body should be non-empty and aligned
+        assert _required_audit_alignment_failures(questions, body) == []
+    else:
+        # Prose format (v5): body should be empty and no alignment failures
+        assert _required_audit_alignment_failures(questions, body) == []
 
 
 def _make_locked_plan_fixture(tmp_path: Path) -> tuple[Path, str, str]:

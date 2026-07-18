@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "report_id": "codex_report_20260717_branch_evidence_convergence_rework_v4",
-  "generated_at": "2026-07-17T05:01:13.672915Z",
+  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "generated_at": "2026-07-18T14:26:55.632002Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -51,8 +51,7 @@
         "source artifacts are stale: ci_observation_schema, ci_observation_handoff, ci_run_evidence, local_ci_parity, ci_workflow_coverage, ci_workflow_readiness"
       ],
       "warnings": [
-        "external CI observation is still pending",
-        "execution_log is diagnostic and not yet converged"
+        "external CI observation is still pending"
       ]
     },
     "ci_artifact_manifest": {
@@ -139,17 +138,15 @@
       "artifact": "project_state/gates/execution_log.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "FAILED",
+      "gate_status": "WARN",
       "status": null,
       "close_round_status": null,
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [
-        "command_plan has 2 required command(s) not recorded in execution_log: gh pr checks 5 --watch --interval 10, gh pr view 5 --json number,title,state,isDraft,headRefName,baseRefName,url,mergeStateStatus,statusCheckRollup"
-      ],
+      "errors": [],
       "warnings": [
-        "command_plan has 4 optional command(s) not recorded in execution_log: git add -- reverse_agent/project_gate.py reverse_agent/project_state.py tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py project_state/codex_execution_report.md project_state/execution_report.md project_state/pytest_result.txt project_state/state_manifest.json project_state/context/current_context_packet.json project_state/gates project_state/rounds/round_20260717_branch_evidence_convergence_rework_v4, git commit -m \"governance: converge branch evidence restart truth\", git push -u origin agent/terminal-status-propagation-seal-restart-rework-v3, python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4"
+        "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6"
       ]
     },
     "final_check": {
@@ -163,20 +160,10 @@
       "acceptance_recommendation": "REWORK_REQUIRED",
       "recommendation": null,
       "errors": [
-        "state_manifest_freshness: state_manifest current artifact references are stale or invalid (21 errors across 9 current refs; manifest decision_id=decision_20260716_terminal_status_propagation_and_seal_restart_rework_v3 round_id=round_20260716_terminal_status_propagation_and_seal_restart_rework_v3 report_id=codex_report_20260716_terminal_status_propagation_and_seal_restart_rework_v3)",
-        "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
-        "report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
-        "required_audit_coverage: report has 1 of 30 Required Audit items with placeholder answers; substantive answers required regardless of report status",
-        "execution_log_required_commands_recorded: 2 required command(s) from command_plan not recorded in execution_log"
+        "state_manifest_freshness: state_manifest current artifact references are stale or invalid (12 errors across 9 current refs; manifest decision_id=decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6 round_id=round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6 report_id=codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6)"
       ],
       "warnings": [
-        "round_manifest_present: round manifest is missing",
-        "archived_report_matches_live_report: archived report differs from live report",
-        "archived_execution_report_alias_matches_live_alias: archived execution_report.md differs from live execution_report.md",
-        "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
-        "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
         "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking",
-        "closeout_active_warnings_clean: closeout result has active warnings",
         "closeout_nested_failures_absent: run_closeout_result.json contains nested FAIL/FAILED states from non-accepted round; non-blocking until round reaches acceptance"
       ]
     },
@@ -186,20 +173,13 @@
       "current_round": true,
       "gate_status": null,
       "status": "FAILED",
-      "close_round_status": "FAILED",
+      "close_round_status": "CLOSED",
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
       "errors": [
-        "step close-round exited 1, expected [0]: close_status=FAILED",
-        "executed step close-round failed: exit=1, expected=[0]",
-        "close-round close_status=FAILED",
-        "close-round report_status=FAILED",
-        "close-round blocking reason: report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary",
-        "close-round nested failure: close_round_result.report_status=FAILED",
-        "close-round nested failure: close_round_result.checks[37].status=FAIL (report_summary_fields_match_synthesis)",
-        "close-round nested failure: close_round_result.status_summary.report_status=FAILED",
-        "pytest_result.txt contains failed command block(s): python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260717_branch_evidence_convergence_rework_v4 (exit=1)"
+        "step final-check-after-close exited 1, expected [0]",
+        "executed step final-check-after-close failed: exit=1, expected=[0]"
       ],
       "warnings": []
     }
@@ -211,7 +191,6 @@
     "missing_sources": [],
     "external_observation_pending": true,
     "pending_diagnostic_sources": [
-      "execution_log",
       "final_check",
       "run_closeout"
     ]
@@ -219,8 +198,8 @@
   "post_closeout_status": {
     "final_check_gate_status": "FAILED",
     "run_closeout_status": "FAILED",
-    "close_round_status": "FAILED",
-    "execution_log_gate_status": "FAILED",
+    "close_round_status": "CLOSED",
+    "execution_log_gate_status": "WARN",
     "report_summary_status": null
   },
   "evidence_only": true,

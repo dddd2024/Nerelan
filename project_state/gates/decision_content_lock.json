@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "artifact_name": "decision_content_lock.json",
-  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
   "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
   "base_branch": "main",
-  "decision_commit_sha": "8a38700ddfa6952540b16b916673aa63620ba5ea",
-  "head_sha_at_lock": "8a38700ddfa6952540b16b916673aa63620ba5ea",
-  "decision_packet_sha256": "b8a581eb9fc143943c0824e54369008db639f2e77f32d27a67c71648e02c27c6",
-  "decision_locked_at": "2026-07-17T08:01:46.719734Z",
+  "decision_commit_sha": "6505a88df9ffc9b4ae48b8a50c28c180dc98acbb",
+  "head_sha_at_lock": "6505a88df9ffc9b4ae48b8a50c28c180dc98acbb",
+  "decision_packet_sha256": "115c78a2467ed1fab9e49d5989ca965635976c9b853b5cbd8275bf677e8c0aa7",
+  "decision_locked_at": "2026-07-17T11:20:44.166519Z",
   "lock_status": "LOCKED",
   "restart_mode": "explicit_new_round",
-  "restart_from_decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "restart_from_round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "restart_from_decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "restart_from_round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
   "previous_audit_outcome": "REWORK_REQUIRED",
   "previous_artifacts_read_only": true,
-  "restart_reason": "v4 remote checks failed at Install package; CI packaging bootstrap and external attestation required"
+  "restart_reason": "v5 State Gate and Decision Preflight failed; CI state hygiene and preflight parity rework required"
 }

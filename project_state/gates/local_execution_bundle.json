@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-17T09:06:56.133799Z",
+  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-18T14:27:49.989043Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+    "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -54,92 +54,212 @@
   "required_commands_summary": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "kind": "preflight",
-      "phase": "preflight",
+      "command": "Set-Location F:\\reverse-agent",
+      "kind": "set-location",
+      "phase": "status",
       "required": true
     },
     {
       "index": 2,
+      "command": "Get-Location",
+      "kind": "pwd",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 3,
+      "command": "Test-Path F:\\reverse-agent",
+      "kind": "test-path",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 4,
+      "command": "git rev-parse --show-toplevel",
+      "kind": "git rev-parse",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 5,
+      "command": "git status --short",
+      "kind": "git status",
+      "phase": "status",
+      "required": true
+    },
+    {
+      "index": 6,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 3,
+      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 4,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "index": 8,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
       "kind": "pytest",
       "phase": "test",
       "required": true
     },
     {
-      "index": 5,
+      "index": 9,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "kind": "preflight",
+      "phase": "preflight",
+      "required": true
+    },
+    {
+      "index": 10,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "kind": "audit-inventory",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 6,
-      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
-      "kind": "audit-readiness-packet",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
-      "kind": "current-handoff-packet",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 8,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "kind": "local-execution-bundle",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 9,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "kind": "codex-prompt-packet",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 10,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "kind": "audit-precheck",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 11,
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6 --dry-run",
+      "kind": "execute-decision",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 15,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 12,
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+      "kind": "execution-log",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+      "kind": "audit-readiness-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+      "kind": "current-handoff-packet",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 19,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+      "kind": "run-closeout",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+      "kind": "close-round",
+      "phase": "gate",
+      "required": false
+    },
+    {
+      "index": 22,
+      "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
+      "kind": "gate-profile",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 23,
+      "command": "python -m venv F:\\_reverse_agent_venv_v6",
+      "kind": "venv-create",
+      "phase": "unknown",
+      "required": true
+    },
+    {
+      "index": 24,
+      "command": "F:\\_reverse_agent_venv_v6\\Scripts\\python.exe -m pip install --upgrade pip",
+      "kind": "pip-install",
+      "phase": "unknown",
+      "required": true
+    },
+    {
+      "index": 25,
+      "command": "F:\\_reverse_agent_venv_v6\\Scripts\\python.exe -m pip install -e .",
+      "kind": "pip-install",
+      "phase": "unknown",
+      "required": true
+    },
+    {
+      "index": 26,
+      "command": "F:\\_reverse_agent_venv_v6\\Scripts\\python.exe -c \"import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight\"",
+      "kind": "import-check",
+      "phase": "unknown",
+      "required": true
+    },
+    {
+      "index": 27,
+      "command": "F:\\_reverse_agent_venv_v6\\Scripts\\python.exe -m pytest tests/test_packaging_metadata.py tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "required": true
+    },
+    {
+      "index": 28,
+      "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
+      "kind": "post-final-evidence-sync",
+      "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 29,
+      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+      "kind": "final-evidence-seal",
+      "phase": "unknown",
       "required": true
     }
   ],
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q"
+      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "F:\\_reverse_agent_venv_v6\\Scripts\\python.exe -m pytest tests/test_packaging_metadata.py tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q"
     ],
     "includes_project_reports": true
   },
@@ -160,11 +280,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+    "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "79d0189d7b0df8be145ddb0694304e941ecbd6519aa3a00df46ddd134dfbdffb"
+    "sha256": "bf550aa1ba7105e23dca235002f58ec8f224419d6d39c5c3e102a2162dbe85cb"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -178,18 +298,18 @@
     "artifact": "project_state/gates/audit_inventory_result.json",
     "gate_status": "PASSED",
     "inventory_validation_status": "PASSED",
-    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+    "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
     "current": true
   },
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
     "gate_status": "PASSED",
-    "readiness_status": "PENDING",
-    "recommendation": "NEEDS_REVIEW",
-    "next_action": "complete_closeout_and_rerun_final_check",
-    "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+    "readiness_status": "READY",
+    "recommendation": "ACCEPTED",
+    "next_action": "no_action_required",
+    "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+    "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
     "current": true
   },
   "closeout_expectations": {
@@ -197,7 +317,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5"
+    "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

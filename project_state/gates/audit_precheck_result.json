@@ -3,14 +3,14 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "generated_at": "2026-07-17T09:20:53.484895Z",
+  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "generated_at": "2026-07-18T14:27:50.002687Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "report is current SUCCESS/ACCEPTED"
     },
     {
@@ -27,7 +27,7 @@
     },
     {
       "name": "final_check_passed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "final-check is current and PASSED or only audit_precheck_valid remains pending"
     },
     {
@@ -37,25 +37,23 @@
     },
     {
       "name": "close_round_closed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "close-round is CLOSED"
     },
     {
       "name": "audit_readiness_ready",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "audit readiness is READY/ACCEPTED/no_action_required"
     },
     {
       "name": "current_handoff_packet_valid",
-      "status": "FAIL",
-      "detail": "current handoff packet is missing required current evidence or safety fields",
+      "status": "PASS",
+      "detail": "current handoff packet is current, command-plan aligned, evidence-only, and non-dispatching",
       "required": true,
       "artifact": "project_state/gates/current_handoff_packet.json",
-      "errors": [
-        "audit_readiness_status.recommendation does not match audit_readiness_packet.json"
-      ],
+      "errors": [],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+      "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,
@@ -79,14 +77,8 @@
       "errors": []
     }
   ],
-  "audit_recommendation": "DO_NOT_ACCEPT",
-  "blocking_reasons": [
-    "report_current_and_accepted: report is current SUCCESS/ACCEPTED",
-    "final_check_passed: final-check is current and PASSED or only audit_precheck_valid remains pending",
-    "close_round_closed: close-round is CLOSED",
-    "audit_readiness_ready: audit readiness is READY/ACCEPTED/no_action_required",
-    "current_handoff_packet_valid: current handoff packet is missing required current evidence or safety fields"
-  ],
+  "audit_recommendation": "READY_FOR_GPT_AUDIT",
+  "blocking_reasons": [],
   "warnings": [],
   "evidence_only": true,
   "executable": false,

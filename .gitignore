@@ -4,6 +4,12 @@ __pycache__/
 *.pyd
 .pytest_cache/
 
+# Editable-install metadata and build artifacts
+*.egg-info/
+*.egg-link
+build/
+dist/
+
 solve_reports/
 local_reverse_samples/
 gpt_context_pack.zip

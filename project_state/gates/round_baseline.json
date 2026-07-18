@@ -1,33 +1,15 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "head_commit": "8a38700ddfa6",
-  "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json",
-    " M project_state/gates/gate_profile_plan.json",
-    " M project_state/gates/preflight_result.json",
-    " M project_state/gates/round_baseline.json",
-    " M project_state/gates/run_round_result.json"
-  ],
-  "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/round_baseline.json",
-    "project_state/gates/run_round_result.json"
-  ],
-  "baseline_dirty_files": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/round_baseline.json",
-    "project_state/gates/run_round_result.json"
-  ],
+  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "head_commit": "6505a88df9ff",
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-17T08:02:51.940634Z"
+  "generated_at": "2026-07-17T11:05:18.008421Z"
 }

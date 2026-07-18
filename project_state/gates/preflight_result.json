@@ -2,11 +2,21 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-17T08:59:16.985348Z",
+  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-18T13:59:45.882682Z",
   "checks": [
+    {
+      "name": "branch_local_execution_authority",
+      "status": "PASS",
+      "detail": "branch-local Decision authority is valid",
+      "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
+      "expected_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
+      "decision_commit_sha": "6505a88df9ffc9b4ae48b8a50c28c180dc98acbb",
+      "decision_packet_sha256": "115c78a2467ed1fab9e49d5989ca965635976c9b853b5cbd8275bf677e8c0aa7",
+      "failures": []
+    },
     {
       "name": "startup_snapshot_artifact",
       "status": "PASS",
@@ -25,20 +35,8 @@
       "errors": [],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
-      "startup_dirty_files": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/run_round_result.json"
-      ],
-      "baseline_dirty_files": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/run_round_result.json"
-      ]
+      "startup_dirty_files": [],
+      "baseline_dirty_files": []
     },
     {
       "name": "decision_not_dirty_in_baseline",
@@ -59,7 +57,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is project_governance",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "project_governance",
@@ -88,9 +86,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5"
+      "detail": "decision consumption allowed for closeout",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -105,7 +103,13 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "reverse_agent/project_state.py"
+        "S2",
+        "engineering_branch",
+        "generate current v6 context, state manifest, closeout, round archive, and final seal through existing mechanisms;",
+        "make command-plan JSON stdout, execution-log, pytest metadata, report-summary, and final-check agree;",
+        "make command-plan generation capture Decision-required commands and omissions;",
+        "pyproject.toml",
+        "reverse_agent.egg-info/"
       ]
     },
     {
@@ -157,19 +161,13 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [
-      "project_state/gates/command_plan.json",
-      "project_state/gates/gate_profile_plan.json",
-      "project_state/gates/preflight_result.json",
-      "project_state/gates/round_baseline.json",
-      "project_state/gates/run_round_result.json"
-    ],
-    "head_commit": "8a38700ddfa6"
+    "baseline_dirty_files": [],
+    "head_commit": "6505a88df9ff"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

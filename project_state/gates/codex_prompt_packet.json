@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "report_id": "codex_report_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-17T09:06:56.263038Z",
+  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-18T14:27:49.991401Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-      "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-      "sha256": "f4d1cfad43b57359d8745099db3addbf86e29d034e2329619634d1ad6c760742"
+      "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+      "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+      "sha256": "0e4c359354dbaf31d6f83c9a5e9fb7a4b062c9996dee9611a80a464be32cb49c"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-      "round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-      "sha256": "79d0189d7b0df8be145ddb0694304e941ecbd6519aa3a00df46ddd134dfbdffb"
+      "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+      "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+      "sha256": "bf550aa1ba7105e23dca235002f58ec8f224419d6d39c5c3e102a2162dbe85cb"
     }
   },
   "prompt_sections": {

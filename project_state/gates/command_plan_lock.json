@@ -2,15 +2,15 @@
   "schema_version": 1,
   "artifact_name": "command_plan_lock.json",
   "command_plan_path": "project_state/gates/command_plan.json",
-  "command_plan_sha256": "c907b30c5712d734109c961e9012d80d988356f4d158c0b5daa582727efa0d76",
-  "command_plan_generated_at": "2026-07-17T07:57:37.556188Z",
-  "command_plan_locked_at": "2026-07-17T08:01:46.719734Z",
+  "command_plan_sha256": "8b0e98c4ddfd991d3d734791da8ef609d3ed0078eb053b8542e6be4501e81c63",
+  "command_plan_generated_at": "2026-07-17T13:30:51.982074Z",
+  "command_plan_locked_at": "2026-07-17T13:31:30.000000Z",
   "command_plan_lock_status": "LOCKED",
-  "command_plan_decision_id": "decision_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
-  "command_plan_round_id": "round_20260717_ci_packaging_bootstrap_and_external_attestation_rework_v5",
+  "command_plan_decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "command_plan_round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
   "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
   "base_branch": "main",
-  "decision_commit_sha": "8a38700ddfa6952540b16b916673aa63620ba5ea",
-  "decision_packet_sha256": "b8a581eb9fc143943c0824e54369008db639f2e77f32d27a67c71648e02c27c6",
-  "head_sha_at_plan_generation": "8a38700ddfa6952540b16b916673aa63620ba5ea"
+  "decision_commit_sha": "6505a88df9ffc9b4ae48b8a50c28c180dc98acbb",
+  "decision_packet_sha256": "115c78a2467ed1fab9e49d5989ca965635976c9b853b5cbd8275bf677e8c0aa7",
+  "head_sha_at_plan_generation": "6505a88df9ffc9b4ae48b8a50c28c180dc98acbb"
 }

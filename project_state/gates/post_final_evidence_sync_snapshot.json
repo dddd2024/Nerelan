@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "artifact_name": "post_final_evidence_sync_snapshot.json",
-  "decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "generated_at": "2026-07-17T05:06:55Z",
-  "before_context_decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "before_context_round_id": "round_20260717_branch_evidence_convergence_rework_v4",
-  "before_context_final_gate_status": "FAILED",
-  "after_context_decision_id": "decision_20260717_branch_evidence_convergence_rework_v4",
-  "after_context_round_id": "round_20260717_branch_evidence_convergence_rework_v4",
+  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "generated_at": "2026-07-18T13:59:46Z",
+  "before_context_decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "before_context_round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "before_context_final_gate_status": "PASSED",
+  "after_context_decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "after_context_round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
   "after_context_final_gate_status": "FAILED",
   "final_gate_status": "FAILED",
-  "stale_context_detected": false,
+  "stale_context_detected": true,
   "context_sync_basis": "timestamp_and_digest",
-  "final_gate_source_sha256": "84dd1c8e0919764f75db70950a4ad9a7e479fbab396b13e70c192f6154e93e4e"
+  "final_gate_source_sha256": "ce6e359f5b8103a908e045c45e75b99734786e82b7f48ff14023f2b545369ede"
 }

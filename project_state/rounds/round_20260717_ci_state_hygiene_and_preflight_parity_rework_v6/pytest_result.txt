@@ -901,9 +901,3 @@ blocking_reasons:
 
 ===== EXIT: 1 =====
 
-===== COMMAND: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6 =====
-final-evidence-seal: PASSED
-seal_sha256: f7040eed03c71e0b9e473c940c6603e8d43143cf5917aa3d5efda77af3e0f811
-
-===== EXIT: 0 =====
-
