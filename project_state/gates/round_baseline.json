@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "head_commit": "6505a88df9ff",
+  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "head_commit": "3017c88f4a9d",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
@@ -11,5 +11,5 @@
   "baseline_has_untracked_implementation_files": false,
   "derived_from_startup_snapshot": true,
   "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-17T11:05:18.008421Z"
+  "generated_at": "2026-07-18T15:35:10.022343Z"
 }

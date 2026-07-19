@@ -3,14 +3,14 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "generated_at": "2026-07-18T14:27:50.002687Z",
+  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "generated_at": "2026-07-19T12:16:09.818422Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "report is current SUCCESS/ACCEPTED"
     },
     {
@@ -27,22 +27,22 @@
     },
     {
       "name": "final_check_passed",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "final-check is current and PASSED or only audit_precheck_valid remains pending"
     },
     {
       "name": "run_closeout_passed",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "run-closeout is current and PASSED"
     },
     {
       "name": "close_round_closed",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "close-round is CLOSED"
     },
     {
       "name": "audit_readiness_ready",
-      "status": "PASS",
+      "status": "FAIL",
       "detail": "audit readiness is READY/ACCEPTED/no_action_required"
     },
     {
@@ -53,7 +53,7 @@
       "artifact": "project_state/gates/current_handoff_packet.json",
       "errors": [],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+      "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,
@@ -77,8 +77,14 @@
       "errors": []
     }
   ],
-  "audit_recommendation": "READY_FOR_GPT_AUDIT",
-  "blocking_reasons": [],
+  "audit_recommendation": "DO_NOT_ACCEPT",
+  "blocking_reasons": [
+    "report_current_and_accepted: report is current SUCCESS/ACCEPTED",
+    "final_check_passed: final-check is current and PASSED or only audit_precheck_valid remains pending",
+    "run_closeout_passed: run-closeout is current and PASSED",
+    "close_round_closed: close-round is CLOSED",
+    "audit_readiness_ready: audit readiness is READY/ACCEPTED/no_action_required"
+  ],
   "warnings": [],
   "evidence_only": true,
   "executable": false,

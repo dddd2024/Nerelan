@@ -29,6 +29,7 @@ from reverse_agent.project_gate import (
     _extract_bash_commands,
     _extract_unfenced_commands,
     _filter_missing_pytest_file_args,
+    _git_current_branch,
     _execution_log_missing_only_closeout_related,
     _historical_sample_limitations_only,
     _is_close_round_command,
@@ -9578,6 +9579,65 @@ class TestGitFetchCommandClassification:
         assert any("unknown kind" in w for w in result.get("warnings", []))
 
 
+class TestGitLogCommandClassification:
+    """Tests for git log command classification in command-plan.
+
+    Covers:
+    - _command_kind recognizes git log as a known kind
+    - _command_phase classifies git log as status phase
+    - command-plan with git log returns plan_status=PASSED when no other warnings
+    - git log is in RUN_CLOSEOUT_ALLOWED_KINDS
+    """
+
+    def test_command_kind_git_log_oneline_decorate(self) -> None:
+        assert _command_kind("git log --oneline --decorate -n 12") == "git log"
+
+    def test_command_kind_git_log_bare(self) -> None:
+        assert _command_kind("git log") == "git log"
+
+    def test_command_kind_git_log_oneline(self) -> None:
+        assert _command_kind("git log --oneline") == "git log"
+
+    def test_command_phase_git_log_is_status(self) -> None:
+        assert _command_phase("git log", archive_seen=False) == "status"
+
+    def test_git_log_in_run_closeout_allowed_kinds(self) -> None:
+        from reverse_agent.project_gate import RUN_CLOSEOUT_ALLOWED_KINDS
+        assert "git log" in RUN_CLOSEOUT_ALLOWED_KINDS
+
+    def test_command_plan_with_git_log_passes(self, tmp_path: Path) -> None:
+        """command-plan with git log returns plan_status=PASSED."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        decision_text = (
+            "```json decision_meta\n"
+            '{"schema_version":1,"decision_id":"d1","round_id":"r1",'
+            '"based_on_state_build_id":"s1","based_on_state_digest":"h1",'
+            '"status":"APPROVED","mainline":"engineering_branch",'
+            '"skill_profiles":["reverse-agent-iteration@v2"]}\n'
+            "```\n"
+            "# DECISION_PACKET\n"
+            "## 1. Goal\nTest.\n"
+            "## 2. Current Evidence\nNone.\n"
+            "## 3. Do Not Do\nNothing.\n"
+            "## 4. Files To Inspect\nNone.\n"
+            "## 5. Required Audit\nNone.\n"
+            "## 6. Implementation Scope\n"
+            "Allowed source changes:\n- reverse_agent/project_gate.py\n"
+            "## 7. Tests\n"
+            "```powershell\n"
+            "git log --oneline --decorate -n 12\n"
+            "git status --short\n"
+            "```\n"
+            "## 8. Stop Conditions\nNone.\n"
+        )
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+        result = command_plan(state_dir=state_dir, write_result=True)
+        assert result["plan_status"] == "PASSED", f"Expected PASSED, got {result['plan_status']}; warnings={result.get('warnings')}"
+
+
 class TestBaselineLifecycleCloseSnapshotAuthorization:
     """Tests for baseline lifecycle guard close snapshot authorization semantics.
 
@@ -9915,6 +9975,80 @@ class TestAllowedPathsHeaderGateProfileIntegration:
         result = classify_gate_profile(decision_text)
         assert result["profile"] == "standard"
         assert result["closeout_allowed"] is True
+
+
+class TestAllowedImplementationAndArtifactPathsHeader:
+    """Regression tests for _allowed_source_test_scope_paths recognizing
+    "Allowed implementation and artifact paths:" as a source/test scope header.
+
+    Previous bug: only "allowed implementation paths" (exact prefix) was
+    recognized.  The v7 decision_packet.md used the header
+    "### 6.5 Allowed implementation and artifact paths" which did NOT
+    match the prefix check due to the "and artifact" suffix, leaving
+    source_test_scope empty and causing baseline_lifecycle_guard to
+    flag reverse_agent/project_gate.py and tests/test_project_gate.py
+    as unauthorized source/test dirty files.
+    """
+
+    def test_allowed_implementation_and_artifact_header_parsed(self) -> None:
+        """'Allowed implementation and artifact paths:' header should be
+        recognized as a source/test scope trigger."""
+        from reverse_agent.project_gate import _allowed_source_test_scope_paths
+
+        scope_text = (
+            "### 6.5 Allowed implementation and artifact paths\n"
+            "- `reverse_agent/project_gate.py`\n"
+            "- `tests/test_project_gate.py`\n"
+            "- `.github/workflows/state-gate.yml`\n"
+            "- `project_state/pytest_result.txt`\n"
+        )
+        result = _allowed_source_test_scope_paths(scope_text)
+        assert "reverse_agent/project_gate.py" in result
+        assert "tests/test_project_gate.py" in result
+
+    def test_allowed_implementation_and_artifact_header_with_markdown_prefix(
+        self,
+    ) -> None:
+        """Header recognition should work with or without the leading
+        '### N.N ' markdown prefix."""
+        from reverse_agent.project_gate import _allowed_source_test_scope_paths
+
+        # Without markdown prefix
+        scope_text_a = (
+            "Allowed implementation and artifact paths:\n"
+            "- `reverse_agent/project_gate.py`\n"
+        )
+        result_a = _allowed_source_test_scope_paths(scope_text_a)
+        assert "reverse_agent/project_gate.py" in result_a
+
+        # With numbered markdown prefix
+        scope_text_b = (
+            "### 6.5 Allowed implementation and artifact paths\n"
+            "- `reverse_agent/project_gate.py`\n"
+        )
+        result_b = _allowed_source_test_scope_paths(scope_text_b)
+        assert "reverse_agent/project_gate.py" in result_b
+
+    def test_allowed_implementation_and_artifact_section_deactivates_on_next_header(
+        self,
+    ) -> None:
+        """Paths listed under a later sub-section must not leak into
+        source_test_scope."""
+        from reverse_agent.project_gate import _allowed_source_test_scope_paths
+
+        scope_text = (
+            "### 6.5 Allowed implementation and artifact paths\n"
+            "- `reverse_agent/project_gate.py`\n"
+            "- `tests/test_project_gate.py`\n"
+            "\n"
+            "### 6.6 Publication boundary\n"
+            "- Create one S3 commit; push and stop mutation.\n"
+        )
+        result = _allowed_source_test_scope_paths(scope_text)
+        assert "reverse_agent/project_gate.py" in result
+        assert "tests/test_project_gate.py" in result
+        # Prose from the next section must not be misclassified as a path
+        assert all(not p.startswith("Create") for p in result)
 
 
 class TestStatusPolicyHistoricalArtifactsOnly:
@@ -17759,7 +17893,7 @@ def test_run_closeout_constants_and_allowlist():
     # Allowlist must include the bounded closeout step kinds
     expected = {
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
-            "git diff", "preflight", "pytest", "command-plan", "report-summary",
+            "git diff", "git log", "preflight", "pytest", "command-plan", "report-summary",
                 "doctor", "final-check", "close-round", "decision-lint", "gate-profile",
             "execution-log", "report-auto-summary", "jobs-inventory",
             "job-orchestration", "job-lifecycle", "runner-contract", "agent-runner-dry-run",
@@ -31614,3 +31748,197 @@ def test_terminal_failed_remote_checks_are_valid_for_rework_report(tmp_path: Pat
         required=True,
     )
     assert result["status"] == "PASS"
+
+
+class _FakeCompletedProcess:
+    def __init__(self, returncode: int, stdout: str = "") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = ""
+
+
+def _patch_git_branch_show_current(
+    monkeypatch: pytest.MonkeyPatch,
+    stdout: str,
+    returncode: int = 0,
+) -> None:
+    """Patch subprocess.run so `git branch --show-current` returns the given stdout."""
+    def _fake_run(args: list[str], **_kwargs: object) -> _FakeCompletedProcess:
+        if args == ["git", "branch", "--show-current"]:
+            return _FakeCompletedProcess(returncode=returncode, stdout=stdout)
+        return _FakeCompletedProcess(returncode=1, stdout="")
+
+    monkeypatch.setattr("reverse_agent.project_gate.subprocess.run", _fake_run)
+
+
+def test_git_current_branch_prefers_symbolic_branch_when_non_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "agent/terminal-status-propagation-seal-restart-rework-v3")
+    monkeypatch.setenv("GITHUB_HEAD_REF", "feature/other-branch")
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/main")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == "agent/terminal-status-propagation-seal-restart-rework-v3"
+
+
+def test_git_current_branch_uses_github_head_ref_when_detached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Empty stdout from `git branch --show-current` simulates detached HEAD.
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.setenv("GITHUB_HEAD_REF", "agent/terminal-status-propagation-seal-restart-rework-v3")
+    monkeypatch.setenv("GITHUB_REF", "refs/pull/5/merge")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == "agent/terminal-status-propagation-seal-restart-rework-v3"
+
+
+def test_git_current_branch_uses_github_ref_refs_heads_when_no_head_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/agent/terminal-status-propagation-seal-restart-rework-v3")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == "agent/terminal-status-propagation-seal-restart-rework-v3"
+
+
+def test_git_current_branch_rejects_pull_merge_ref_without_head_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.setenv("GITHUB_REF", "refs/pull/5/merge")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == ""
+
+
+def test_git_current_branch_rejects_pull_head_ref_without_head_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.setenv("GITHUB_REF", "refs/pull/5/head")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == ""
+
+
+def test_git_current_branch_rejects_tag_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.setenv("GITHUB_REF", "refs/tags/v1.0")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == ""
+
+
+def test_git_current_branch_rejects_arbitrary_github_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.setenv("GITHUB_REF", "some-arbitrary-string")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == ""
+
+
+def test_git_current_branch_fails_closed_when_no_trustworthy_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.delenv("GITHUB_REF", raising=False)
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == ""
+
+
+def test_git_current_branch_head_ref_precedence_over_github_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.setenv("GITHUB_HEAD_REF", "agent/terminal-status-propagation-seal-restart-rework-v3")
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/main")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == "agent/terminal-status-propagation-seal-restart-rework-v3"
+
+
+def test_git_current_branch_handles_subprocess_oserror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _raise_oserror(*_args: object, **_kwargs: object) -> object:
+        raise OSError("simulated failure")
+
+    monkeypatch.setattr("reverse_agent.project_gate.subprocess.run", _raise_oserror)
+    monkeypatch.setenv("GITHUB_HEAD_REF", "agent/terminal-status-propagation-seal-restart-rework-v3")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == "agent/terminal-status-propagation-seal-restart-rework-v3"
+
+
+def test_git_current_branch_strips_whitespace_from_github_head_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.setenv("GITHUB_HEAD_REF", "  agent/terminal-status-propagation-seal-restart-rework-v3  ")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == "agent/terminal-status-propagation-seal-restart-rework-v3"
+
+
+def test_git_current_branch_rejects_empty_github_ref_heads_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_git_branch_show_current(monkeypatch, "")
+    monkeypatch.delenv("GITHUB_HEAD_REF", raising=False)
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/")
+
+    result = _git_current_branch(tmp_path)
+
+    assert result == ""
+
+
+def test_state_gate_workflow_checkout_uses_full_history() -> None:
+    """State Gate workflow must configure checkout with fetch-depth: 0 for ancestry proof."""
+    workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "state-gate.yml"
+    content = workflow_path.read_text(encoding="utf-8")
+
+    assert "actions/checkout@v4" in content
+    assert "fetch-depth: 0" in content
+
+
+def test_decision_preflight_workflow_checkout_uses_full_history() -> None:
+    """Decision Preflight workflow must configure checkout with fetch-depth: 0 for ancestry proof."""
+    workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "decision-preflight.yml"
+    content = workflow_path.read_text(encoding="utf-8")
+
+    assert "actions/checkout@v4" in content
+    assert "fetch-depth: 0" in content
+
+
+def test_ci_workflow_is_not_modified_for_v7_scope() -> None:
+    """CI workflow must remain unchanged per v7 decision (it already succeeds)."""
+    workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
+    content = workflow_path.read_text(encoding="utf-8")
+
+    # CI workflow should not have fetch-depth: 0 added in v7 scope.
+    assert "fetch-depth: 0" not in content

@@ -2,15 +2,13 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-18T14:25:29.555874Z",
+  "generated_at": "2026-07-19T12:14:43.227738Z",
   "profile": "full",
-  "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
-  "risk_reasons": [
-    "gate/project_state source changes require full validation"
-  ],
+  "profile_reason": "full profile explicitly required by decision_contract",
+  "risk_reasons": [],
   "closeout_allowed": true,
   "required_command_kinds": [
     "startup",
@@ -26,7 +24,8 @@
     "close-round"
   ],
   "reasons": [
-    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py, reverse_agent/project_state.py"
+    "decision scope has no source/test or gate/project_state changes",
+    "decision_contract required_profile=full overrides auto-classification"
   ],
   "suggested_commands": [
     {

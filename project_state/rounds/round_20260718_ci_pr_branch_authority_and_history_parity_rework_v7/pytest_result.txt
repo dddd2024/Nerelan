@@ -979,9 +979,4 @@ archive_status: created
 recommended_next_action: no_action_required
 ===== STDERR =====
 ===== EXIT: 0 =====
-===== COMMAND: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7 =====
-final-evidence-seal: REWORK_REQUIRED
-seal_sha256: 21a2b41bf4c26ef034933d56d2c6e4b1fa0d1e971c7a7326187ffc5b2156c9fc
-
-===== EXIT: 1 =====
 

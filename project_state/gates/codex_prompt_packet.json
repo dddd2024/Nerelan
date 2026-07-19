@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-18T14:27:49.991401Z",
+  "generated_at": "2026-07-19T12:16:09.802677Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-      "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-      "sha256": "0e4c359354dbaf31d6f83c9a5e9fb7a4b062c9996dee9611a80a464be32cb49c"
+      "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+      "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+      "sha256": "1b30805c56289fb2ea6dd88a57b4839f873ff43013a454ca4218ca97130f836e"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-      "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-      "sha256": "bf550aa1ba7105e23dca235002f58ec8f224419d6d39c5c3e102a2162dbe85cb"
+      "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+      "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+      "sha256": "cc62c3b499167c108080983888ed20c77c8e0ff90a0327eb7df5b9d256c2dbba"
     }
   },
   "prompt_sections": {

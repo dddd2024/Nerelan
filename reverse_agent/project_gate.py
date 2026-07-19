@@ -755,6 +755,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "git rev-parse",
     "startup-snapshot",
     "git diff",
+    "git log",
     "preflight",
     "pytest",
     "command-plan",
@@ -8607,7 +8608,7 @@ def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
             lowered.startswith("allowed source")
             or lowered.startswith("allowed tests")
             or lowered.startswith("allowed paths")
-            or lowered.startswith("allowed implementation paths")
+            or lowered.startswith("allowed implementation")
             or lowered.startswith("允许修改")
         ):
             active = True
@@ -9411,14 +9412,32 @@ def _git_head_commit(repo_root: Path) -> str:
 
 
 def _git_current_branch(repo_root: Path) -> str:
+    # 1. Prefer the normal Git symbolic branch result when non-empty and not detached.
     try:
         proc = subprocess.run(
             ["git", "branch", "--show-current"], cwd=repo_root, shell=False,
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return ""
-    return (proc.stdout or "").strip() if proc.returncode == 0 else ""
+        proc = None
+    if proc is not None and proc.returncode == 0:
+        symbolic = (proc.stdout or "").strip()
+        if symbolic:
+            return symbolic
+    # 2. When detached (or symbolic result empty), use GITHUB_HEAD_REF as the PR head branch.
+    head_ref = (os.environ.get("GITHUB_HEAD_REF") or "").strip()
+    if head_ref:
+        return head_ref
+    # 3. Otherwise parse GITHUB_REF only when it has the exact form refs/heads/<branch>.
+    github_ref = (os.environ.get("GITHUB_REF") or "").strip()
+    prefix = "refs/heads/"
+    if github_ref.startswith(prefix):
+        branch = github_ref[len(prefix):]
+        if branch:
+            return branch
+    # 4. Never treat refs/pull/*, refs/tags/*, arbitrary strings, or missing values as valid.
+    # 5. Preserve fail-closed behavior when no trustworthy branch identity exists.
+    return ""
 
 
 def _git_is_ancestor(repo_root: Path, ancestor: str) -> bool:
@@ -27926,6 +27945,8 @@ def _command_kind(command: str) -> str:
         return "git rev-parse"
     if lowered.startswith("git diff") or " git diff" in lowered:
         return "git diff"
+    if lowered.startswith("git log") or " git log" in lowered:
+        return "git log"
     if lowered.startswith("git fetch") or " git fetch" in lowered:
         return "git fetch"
     if lowered.startswith("git ls-files") or " git ls-files" in lowered:
@@ -27980,6 +28001,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         "git status",
         "git rev-parse",
         "git diff",
+        "git log",
         "git fetch",
         "git ls-files",
         "git rm",

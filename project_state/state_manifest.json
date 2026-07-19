@@ -33,72 +33,72 @@
         "path": "project_state/codex_execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "c7283c52c7ba4b10c774d6f3ae1d7606b407215307fbe46b1bc291a25d3ae7b3",
-        "size_bytes": 33805
+        "sha256": "9fc5e54414d3c2d48b739c402154c24dbaab8eef49fc277c20f106fc4a8d37c6",
+        "size_bytes": 25811
       },
       "command_plan": {
         "exists": true,
         "path": "project_state/gates/command_plan.json",
         "required": true,
         "role": "current",
-        "sha256": "8b0e98c4ddfd991d3d734791da8ef609d3ed0078eb053b8542e6be4501e81c63",
-        "size_bytes": 13664
+        "sha256": "c3f34fef87024bbb922006aa810a385deb7bd89e68add4e2a656615a48f9a976",
+        "size_bytes": 13157
       },
       "decision_packet": {
         "exists": true,
         "path": "project_state/decision_packet.md",
         "required": true,
         "role": "current",
-        "sha256": "115c78a2467ed1fab9e49d5989ca965635976c9b853b5cbd8275bf677e8c0aa7",
-        "size_bytes": 21560
+        "sha256": "fc68c6c95998e08a2431d12dcb9ac8b677b46819e90b774080a478f915fe79d1",
+        "size_bytes": 21374
       },
       "execution_log": {
         "exists": true,
         "path": "project_state/gates/execution_log.json",
         "required": false,
         "role": "current",
-        "sha256": "d9b6ec57cc36e7f665c565fbcdfebadec8c2579a1779cc6fd97219e0cf14aa67",
-        "size_bytes": 16595
+        "sha256": "0456bdfeea2d390c71b6eb51de21e11fa76d81b1d91d4fbc3986e9a1e12a8db6",
+        "size_bytes": 16630
       },
       "execution_report": {
         "exists": true,
         "path": "project_state/execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "1f5885c6e4dc34fa9183cb76212dc9370f29f71b168ece8dbc425b452af6fd3d",
-        "size_bytes": 33803
+        "sha256": "65e3ee4647f5fe9c9e0873b550c02263e941995e9341f2fa9216495e67594d8c",
+        "size_bytes": 25809
       },
       "final_check": {
         "exists": true,
         "path": "project_state/gates/final_gate_result.json",
         "required": false,
         "role": "current",
-        "sha256": "dd04400d7a3f18adb819d15787256a0589554219ef61bca0a65647590779befe",
-        "size_bytes": 92877
+        "sha256": "c3c7578b3e4936673ed2b5630496b36c8c5c8eb667e9aea9f3e986c81c56e4fc",
+        "size_bytes": 93864
       },
       "pytest_result": {
         "exists": true,
         "path": "project_state/pytest_result.txt",
         "required": false,
         "role": "current",
-        "sha256": "8e5f10aacdb4522b6a65a1f436a3be19c3965a45dcf79014b3adf6b3fddacaa5",
-        "size_bytes": 39226
+        "sha256": "40ee103b2472f72378018d70a98467c663fa3021701ecff08b41aee6583952df",
+        "size_bytes": 46528
       },
       "report_summary": {
         "exists": true,
         "path": "project_state/gates/report_summary_synthesis.json",
         "required": false,
         "role": "current",
-        "sha256": "d0b80592edde1a07759b592324652cd568869e06c6c0d46fdcf2bad6f073c102",
-        "size_bytes": 17876
+        "sha256": "a3c8df43ad1f9cbfd65b953aa4fc00fc5b71313613750e856905729da865999d",
+        "size_bytes": 17822
       },
       "run_closeout": {
         "exists": true,
         "path": "project_state/gates/run_closeout_result.json",
         "required": false,
         "role": "current",
-        "sha256": "7991184570dfcba664f9d05891698535f651642c4e3a8a70fa0dd34d0c776662",
-        "size_bytes": 47892
+        "sha256": "89aeca76942b9b5a226962a58533ce4e43f41e9fda5ab485c6e1c1a7335af0f0",
+        "size_bytes": 47081
       }
     },
     "generated_or_updated": {
@@ -219,12 +219,12 @@
         "path": "project_state/context/current_context_packet.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "30af12a96603e40fadd33ce24dea4d08b931eb244f7c026ff87cab0a47fb9ed0",
-        "size_bytes": 10979
+        "sha256": "48346e5937ffa83f827d24431d970a5792cbb30368d8789bfa40cb5d611ae709",
+        "size_bytes": 10994
       },
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260717_ci_state_hygiene_and_preflight_parity_rework_v6.json",
+        "path": "project_state/jobs/job_20260718_ci_pr_branch_authority_and_history_parity_rework_v7.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -339,16 +339,16 @@
         "path": "project_state/gates/post_final_evidence_sync_result.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "defc7850834c7f2c7e6805731078f9a2e1e2b1792fbba4537ecc01584f58b647",
-        "size_bytes": 1915
+        "sha256": "2c9b16a4282e4ebbc6880c4f6cded445ae2cf5dc79ad2bc1d6cb78c682b3dd0e",
+        "size_bytes": 1931
       },
       "post_final_evidence_sync_snapshot": {
         "exists": true,
         "path": "project_state/gates/post_final_evidence_sync_snapshot.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "a54653775f4fca10ea335eb3e85c29a8f9d7c48b9369e52ead8e6eab6fea322a",
-        "size_bytes": 993
+        "sha256": "5ffa63028bcebda0792a1ff0b1b53113f3823405eaa8481ca8f8282b7d8cf030",
+        "size_bytes": 1015
       },
       "project_governance_context_result": {
         "exists": true,
@@ -483,8 +483,8 @@
         "path": "project_state/state_manifest.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "83619d53d83390e8b1761d2bbb8335a4f1310d58a6f0cd6a9b47a299da205dda",
-        "size_bytes": 41239
+        "sha256": "fd9e610b9a7e1912faa2848cd3992f8fee4c2fda50a8aba45935c768edab73ff",
+        "size_bytes": 41270
       },
       "status_policy_reconcile": {
         "exists": true,
@@ -565,7 +565,7 @@
     "missing_optional": {
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260717_ci_state_hygiene_and_preflight_parity_rework_v6.json",
+        "path": "project_state/jobs/job_20260718_ci_pr_branch_authority_and_history_parity_rework_v7.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -584,16 +584,16 @@
     "project_state_files_remain_audit_fact_sources": true,
     "state_manifest_indexes_current_state_only": true
   },
-  "decision_id": "decision_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "generated_at": "2026-07-18T14:27:52Z",
+  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "generated_at": "2026-07-19T12:34:16Z",
   "latest_accepted_baseline": {
     "decision_id": "",
     "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
     "round_manifest": "project_state/rounds/round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6/round_manifest.json"
   },
   "mainline": "engineering_branch",
-  "report_id": "codex_report_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
-  "round_id": "round_20260717_ci_state_hygiene_and_preflight_parity_rework_v6",
+  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
   "schema_version": 1,
   "scoped_metadata": {
     "artifact_index_scope_coverage": {},
@@ -1022,7 +1022,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/jobs/job_20260717_ci_state_hygiene_and_preflight_parity_rework_v6.json": {
+      "project_state/jobs/job_20260718_ci_pr_branch_authority_and_history_parity_rework_v7.json": {
         "domain": "project_governance",
         "freshness": "current",
         "mainline": "project_governance",
@@ -1103,13 +1103,13 @@
   "state_build_id": "state_20260618_134029_d6bd033d2532",
   "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": {
-    "acceptance_recommendation": "ACCEPTED",
-    "closeout_status": "PASSED",
+    "acceptance_recommendation": "REWORK_REQUIRED",
+    "closeout_status": "FAILED",
     "command_plan_status": "PASSED",
     "decision_status": "APPROVED",
     "execution_log_status": "WARN",
-    "final_check_status": "PASSED",
+    "final_check_status": "WARN",
     "pytest_status": "PASSED",
-    "report_status": "SUCCESS"
+    "report_status": "FAILED"
   }
 }

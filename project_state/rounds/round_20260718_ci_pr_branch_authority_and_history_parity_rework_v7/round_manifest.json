@@ -1,0 +1,54 @@
+{
+  "acceptance_recommendation": "REWORK_REQUIRED",
+  "archive_mode": "minimal",
+  "archive_refresh_basis": "final_live_report_copy_after_report_finalization",
+  "archive_refreshed_at": "2026-07-19T12:21:53.338428Z",
+  "archived_at": "2026-07-19T12:21:45Z",
+  "archived_report_sha256": "9fc5e54414d3c2d48b739c402154c24dbaab8eef49fc277c20f106fc4a8d37c6",
+  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7\\codex_execution_report.md",
+      "sha256": "9fc5e54414d3c2d48b739c402154c24dbaab8eef49fc277c20f106fc4a8d37c6",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7\\decision_packet.md",
+      "sha256": "fc68c6c95998e08a2431d12dcb9ac8b677b46819e90b774080a478f915fe79d1",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7\\pytest_result.txt",
+      "sha256": "856f3e9cf504fa334142ca54bdc3bffa7ca52dcb87646ea512e70ea6e322baa6",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7\\execution_report.md",
+      "sha256": "65e3ee4647f5fe9c9e0873b550c02263e941995e9341f2fa9216495e67594d8c",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "final_archive_refresh_status": "PASSED",
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "live_report_sha256_at_archive": "9fc5e54414d3c2d48b739c402154c24dbaab8eef49fc277c20f106fc4a8d37c6",
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_finalized_at": "2026-07-19T12:21:52.910866Z",
+  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "report_status": "FAILED",
+  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "schema_version": 1,
+  "source_git_commit": "3017c88f4a9d",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}
