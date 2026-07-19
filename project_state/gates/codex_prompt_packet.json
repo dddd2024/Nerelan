@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-19T12:16:09.802677Z",
+  "generated_at": "2026-07-19T17:55:19.423768Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-      "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-      "sha256": "1b30805c56289fb2ea6dd88a57b4839f873ff43013a454ca4218ca97130f836e"
+      "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "sha256": "bcb8523715b1d82c61f50051406d9ca8bfac491f8690bfb75a52390c48c97d05"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-      "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-      "sha256": "cc62c3b499167c108080983888ed20c77c8e0ff90a0327eb7df5b9d256c2dbba"
+      "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "sha256": "d17c0a3c573277473814d05468be84967c717d93638056bac27f62270ffa54a9"
     }
   },
   "prompt_sections": {

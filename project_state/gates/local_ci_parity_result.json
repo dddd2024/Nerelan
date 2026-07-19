@@ -3,10 +3,10 @@
   "artifact_name": "local_ci_parity_result.json",
   "gate_name": "local-ci-parity",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260706_post_final_sync_job_preflight_big_step_v1",
-  "round_id": "round_20260706_post_final_sync_job_preflight_big_step_v1",
-  "report_id": "codex_report_20260706_post_final_sync_job_preflight_big_step_v1",
-  "generated_at": "2026-07-06T06:37:05.219993Z",
+  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "generated_at": "2026-07-19T17:45:49.106142Z",
   "evidence_only": true,
   "executable": false,
   "can_execute": false,
@@ -24,15 +24,15 @@
       "path": ".github/workflows/state-gate.yml",
       "exists": true,
       "read_only_input": true,
-      "sha256": "4935d8a2ada7b9b2b89bfaaf30f928f28064c365bf97277edaed9d625a031dfe",
-      "line_count": 120
+      "sha256": "e98fcda27300e83f6f32f7552c50ab29e07b835f6be2541eeded9d25be033f58",
+      "line_count": 122
     },
     {
       "path": ".github/workflows/decision-preflight.yml",
       "exists": true,
       "read_only_input": true,
-      "sha256": "55a5d6bafa6580b412a5654ea15ffe89c4befbfc3698fe89ab142a343b0caba8",
-      "line_count": 96
+      "sha256": "ec0b058c98fd87a2a01872952ee7720f80f80f23f6f4e042b5c8f445c85cd655",
+      "line_count": 98
     }
   ],
   "workflow_commands": [
@@ -40,7 +40,7 @@
       "workflow": ".github/workflows/ci.yml",
       "line": 26,
       "command": "python -m pip install -e .",
-      "kind": "unknown"
+      "kind": "pip-install"
     },
     {
       "workflow": ".github/workflows/ci.yml",
@@ -56,246 +56,252 @@
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 38,
+      "line": 40,
       "command": "python -m pip install -e .",
-      "kind": "unknown"
+      "kind": "pip-install"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 41,
+      "line": 43,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 44,
+      "line": 46,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 47,
+      "line": 49,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "kind": "post-final-evidence-sync"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 50,
+      "line": 52,
       "command": "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
       "kind": "job-lifecycle"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 53,
+      "line": 55,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "kind": "audit-inventory"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 56,
+      "line": 58,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 59,
+      "line": 61,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 62,
+      "line": 64,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "kind": "local-execution-bundle"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 65,
+      "line": 67,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "kind": "codex-prompt-packet"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 68,
+      "line": 70,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "kind": "audit-precheck"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 71,
+      "line": 73,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 74,
+      "line": 76,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 77,
+      "line": 79,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "kind": "ci-workflow-coverage"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 80,
+      "line": 82,
       "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
       "kind": "ci-workflow-readiness"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 83,
+      "line": 85,
       "command": "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
       "kind": "decision-preflight"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 86,
+      "line": 88,
       "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
       "kind": "ci-run-evidence"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 89,
+      "line": 91,
       "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
       "kind": "local-ci-parity"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 92,
+      "line": 94,
       "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
       "kind": "ci-observation-schema"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 95,
+      "line": 97,
       "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
       "kind": "ci-observation-handoff"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 98,
+      "line": 100,
       "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
       "kind": "ci-observation-reconcile"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 101,
+      "line": 103,
       "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
       "kind": "ci-artifact-manifest"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 104,
+      "line": 106,
       "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
       "kind": "ci-audit-handoff-bundle"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 107,
+      "line": 109,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 110,
+      "line": 112,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 44,
+      "line": 46,
       "command": "python -m pip install -e .",
-      "kind": "unknown"
+      "kind": "pip-install"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 47,
+      "line": 49,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 50,
+      "line": 52,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 53,
+      "line": 55,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "kind": "post-final-evidence-sync"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 56,
+      "line": 58,
       "command": "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
       "kind": "job-lifecycle"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 59,
+      "line": 61,
       "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
       "kind": "ci-workflow-readiness"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 62,
+      "line": 64,
       "command": "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
       "kind": "decision-preflight"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 65,
+      "line": 67,
       "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
       "kind": "ci-run-evidence"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 68,
+      "line": 70,
       "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
       "kind": "local-ci-parity"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 71,
+      "line": 73,
       "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
       "kind": "ci-observation-schema"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 74,
+      "line": 76,
       "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
       "kind": "ci-observation-handoff"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 77,
+      "line": 79,
       "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
       "kind": "ci-observation-reconcile"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 80,
+      "line": 82,
       "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
       "kind": "ci-artifact-manifest"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 83,
+      "line": 85,
       "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
       "kind": "ci-audit-handoff-bundle"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 86,
+      "line": 88,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest"
     }
   ],
   "required_workflow_commands": [
+    {
+      "workflow": ".github/workflows/ci.yml",
+      "line": 29,
+      "command": "python -c \"import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight\"",
+      "kind": "python-inline"
+    },
     {
       "workflow": ".github/workflows/ci.yml",
       "line": 32,
@@ -304,376 +310,244 @@
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 41,
+      "line": 43,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 44,
+      "line": 46,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 47,
+      "line": 49,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "kind": "post-final-evidence-sync"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 50,
+      "line": 52,
       "command": "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
       "kind": "job-lifecycle"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 53,
+      "line": 55,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "kind": "audit-inventory"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 56,
+      "line": 58,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 59,
+      "line": 61,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 62,
+      "line": 64,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "kind": "local-execution-bundle"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 65,
+      "line": 67,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "kind": "codex-prompt-packet"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 68,
+      "line": 70,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "kind": "audit-precheck"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 71,
+      "line": 73,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 74,
+      "line": 76,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 77,
+      "line": 79,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "kind": "ci-workflow-coverage"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 80,
+      "line": 82,
       "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
       "kind": "ci-workflow-readiness"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 83,
+      "line": 85,
       "command": "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
       "kind": "decision-preflight"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 86,
+      "line": 88,
       "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
       "kind": "ci-run-evidence"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 89,
+      "line": 91,
       "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
       "kind": "local-ci-parity"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 92,
+      "line": 94,
       "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
       "kind": "ci-observation-schema"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 95,
+      "line": 97,
       "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
       "kind": "ci-observation-handoff"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 98,
+      "line": 100,
       "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
       "kind": "ci-observation-reconcile"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 101,
+      "line": 103,
       "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
       "kind": "ci-artifact-manifest"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 104,
+      "line": 106,
       "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
       "kind": "ci-audit-handoff-bundle"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 107,
+      "line": 109,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest"
     },
     {
       "workflow": ".github/workflows/state-gate.yml",
-      "line": 110,
+      "line": 112,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 47,
+      "line": 49,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 50,
+      "line": 52,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 53,
+      "line": 55,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "kind": "post-final-evidence-sync"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 56,
+      "line": 58,
       "command": "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
       "kind": "job-lifecycle"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 59,
+      "line": 61,
       "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
       "kind": "ci-workflow-readiness"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 62,
+      "line": 64,
       "command": "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
       "kind": "decision-preflight"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 65,
+      "line": 67,
       "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
       "kind": "ci-run-evidence"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 68,
+      "line": 70,
       "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
       "kind": "local-ci-parity"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 71,
+      "line": 73,
       "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
       "kind": "ci-observation-schema"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 74,
+      "line": 76,
       "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
       "kind": "ci-observation-handoff"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 77,
+      "line": 79,
       "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
       "kind": "ci-observation-reconcile"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 80,
+      "line": 82,
       "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
       "kind": "ci-artifact-manifest"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 83,
+      "line": 85,
       "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
       "kind": "ci-audit-handoff-bundle"
     },
     {
       "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 86,
+      "line": 88,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest"
     }
   ],
   "required_parity_gaps": [],
-  "local_transcript_gaps": [
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 56,
-      "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 59,
-      "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 62,
-      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 65,
-      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 68,
-      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 71,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 89,
-      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 92,
-      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 95,
-      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 98,
-      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 101,
-      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 104,
-      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/state-gate.yml",
-      "line": 110,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 68,
-      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 71,
-      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 74,
-      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 77,
-      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 80,
-      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    },
-    {
-      "workflow": ".github/workflows/decision-preflight.yml",
-      "line": 83,
-      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-      "pytest_result_recorded": false,
-      "execution_log_recorded": false
-    }
-  ],
-  "transcript_completeness_status": "DIAGNOSTIC_GAPS_RECORDED",
+  "ci_command_contract_errors": [],
+  "ci_only_command_count": 25,
+  "local_transcript_gaps": [],
+  "transcript_completeness_status": "COMPLETE",
   "command_plan_artifact": "project_state/gates/command_plan.json",
   "pytest_result_artifact": "project_state/pytest_result.txt",
   "execution_log_artifact": "project_state/gates/execution_log.json",
-  "command_plan_command_count": 37,
-  "pytest_result_command_count": 22,
-  "execution_log_command_count": 22,
+  "command_plan_command_count": 41,
+  "pytest_result_command_count": 21,
+  "execution_log_command_count": 21,
   "recommendation": "NO_ACTION_REQUIRED",
   "errors": [],
   "generated_artifacts": [

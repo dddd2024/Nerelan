@@ -2,17 +2,17 @@
   "schema_version": 1,
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "generated_at": "2026-07-19T12:15:31.633081Z",
-  "handoff_status": "REWORK_REQUIRED",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "generated_at": "2026-07-19T17:46:24.905253Z",
+  "handoff_status": "PENDING_DIAGNOSTIC_EVIDENCE",
   "source_artifacts": {
     "ci_observation_schema": {
       "artifact": "project_state/gates/ci_observation_schema_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -25,7 +25,7 @@
     "ci_observation_handoff": {
       "artifact": "project_state/gates/ci_observation_handoff_packet.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "AWAITING_EXTERNAL_OBSERVATION",
       "close_round_status": null,
@@ -41,24 +41,21 @@
       "artifact": "project_state/gates/ci_observation_reconcile_result.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "FAILED",
+      "gate_status": "PASSED",
       "status": "AWAITING_EXTERNAL_OBSERVATION",
       "close_round_status": null,
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [
-        "source artifacts are stale: ci_observation_schema, ci_observation_handoff, ci_run_evidence, local_ci_parity, ci_workflow_coverage, ci_workflow_readiness"
-      ],
+      "errors": [],
       "warnings": [
-        "external CI observation is still pending",
-        "execution_log is diagnostic and not yet converged"
+        "external CI observation is still pending"
       ]
     },
     "ci_artifact_manifest": {
       "artifact": "project_state/gates/ci_artifact_manifest_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "READY",
       "close_round_status": null,
@@ -71,7 +68,7 @@
     "ci_run_evidence": {
       "artifact": "project_state/gates/ci_run_evidence_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "NOT_OBSERVED",
       "close_round_status": null,
@@ -86,7 +83,7 @@
     "local_ci_parity": {
       "artifact": "project_state/gates/local_ci_parity_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -99,7 +96,7 @@
     "ci_workflow_coverage": {
       "artifact": "project_state/gates/ci_workflow_coverage_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -112,7 +109,7 @@
     "ci_workflow_readiness": {
       "artifact": "project_state/gates/ci_workflow_readiness_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "READY",
       "close_round_status": null,
@@ -139,17 +136,15 @@
       "artifact": "project_state/gates/execution_log.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "FAILED",
+      "gate_status": "WARN",
       "status": null,
       "close_round_status": null,
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [
-        "command_plan has 2 required command(s) not recorded in execution_log: git diff --check, git log --oneline --decorate -n 12"
-      ],
+      "errors": [],
       "warnings": [
-        "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7"
+        "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8"
       ]
     },
     "final_check": {
@@ -163,15 +158,9 @@
       "acceptance_recommendation": "REWORK_REQUIRED",
       "recommendation": null,
       "errors": [
-        "state_manifest_freshness: state_manifest current artifact references are stale or invalid (13 errors across 9 current refs; manifest decision_id=decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7 round_id=round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7 report_id=codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7)",
-        "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
-        "execution_log_required_commands_recorded: 2 required command(s) from command_plan not recorded in execution_log"
+        "state_manifest_freshness: state_manifest current artifact references are stale or invalid (12 errors across 9 current refs; manifest decision_id=decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 round_id=round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 report_id=codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8)"
       ],
       "warnings": [
-        "round_manifest_present: round manifest is missing",
-        "archived_report_matches_live_report: archived report differs from live report",
-        "archived_execution_report_alias_matches_live_alias: archived execution_report.md differs from live execution_report.md",
-        "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
         "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking",
         "closeout_nested_failures_absent: run_closeout_result.json contains nested FAIL/FAILED states from non-accepted round; non-blocking until round reaches acceptance"
       ]
@@ -182,34 +171,22 @@
       "current_round": true,
       "gate_status": null,
       "status": "FAILED",
-      "close_round_status": "FAILED",
+      "close_round_status": "CLOSED",
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
       "errors": [
-        "step close-round exited 1, expected [0]: close_status=FAILED",
-        "executed step close-round failed: exit=1, expected=[0]",
-        "close-round close_status=FAILED",
-        "close-round report_status=FAILED",
-        "close-round blocking reason: final_check_before_archive: ['execution_log_required_commands_recorded']",
-        "close-round action final_check_before_archive failed: status=FAILED, gate_status=FAILED",
-        "close-round nested failure: close_round_result.report_status=FAILED",
-        "close-round nested failure: close_round_result.actions[0].status=FAILED (final_check_before_archive)",
-        "close-round nested failure: close_round_result.actions[0].gate_status=FAILED (final_check_before_archive)",
-        "close-round nested failure: close_round_result.status_summary.report_status=FAILED",
-        "pytest_result.txt contains failed command block(s): python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7 (exit=1)"
+        "step final-check-after-close exited 1, expected [0]",
+        "executed step final-check-after-close failed: exit=1, expected=[0]"
       ],
       "warnings": []
     }
   },
   "audit_summary": {
-    "failed_sources": [
-      "ci_observation_reconcile"
-    ],
+    "failed_sources": [],
     "missing_sources": [],
     "external_observation_pending": true,
     "pending_diagnostic_sources": [
-      "execution_log",
       "final_check",
       "run_closeout"
     ]
@@ -217,8 +194,8 @@
   "post_closeout_status": {
     "final_check_gate_status": "FAILED",
     "run_closeout_status": "FAILED",
-    "close_round_status": "FAILED",
-    "execution_log_gate_status": "FAILED",
+    "close_round_status": "CLOSED",
+    "execution_log_gate_status": "WARN",
     "report_summary_status": null
   },
   "evidence_only": true,
@@ -229,8 +206,6 @@
   "generated_artifacts": [
     "project_state/gates/ci_audit_handoff_bundle.json"
   ],
-  "errors": [
-    "source artifact gate failures: ci_observation_reconcile"
-  ],
+  "errors": [],
   "warnings": []
 }

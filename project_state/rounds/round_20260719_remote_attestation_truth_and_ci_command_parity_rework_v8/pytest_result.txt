@@ -1604,9 +1604,3 @@ blocking_reasons:
 - state_manifest_freshness: state_manifest current artifact references are stale or invalid (12 errors across 9 current refs; manifest decision_id=decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 round_id=round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 report_id=codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8)
 
 ===== EXIT: 1 =====
-===== COMMAND: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 =====
-final-evidence-seal: PASSED
-seal_sha256: de7c2ad73f1e79a9d59f8fd60fe054d83e3645bf81c8686ffd2a6ca29c541715
-
-===== EXIT: 0 =====
-

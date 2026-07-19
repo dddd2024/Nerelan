@@ -3,15 +3,15 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "generated_at": "2026-07-19T12:16:09.818422Z",
+  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "generated_at": "2026-07-19T17:55:19.429898Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
-      "status": "FAIL",
-      "detail": "report is current SUCCESS/ACCEPTED"
+      "status": "PASS",
+      "detail": "report is current SUCCESS/ACCEPTED or SUCCESS/PENDING_EXTERNAL under an explicit external-attestation boundary"
     },
     {
       "name": "pytest_result_present_and_matching",
@@ -27,22 +27,22 @@
     },
     {
       "name": "final_check_passed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "final-check is current and PASSED or only audit_precheck_valid remains pending"
     },
     {
       "name": "run_closeout_passed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "run-closeout is current and PASSED"
     },
     {
       "name": "close_round_closed",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "close-round is CLOSED"
     },
     {
       "name": "audit_readiness_ready",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "audit readiness is READY/ACCEPTED/no_action_required"
     },
     {
@@ -53,7 +53,7 @@
       "artifact": "project_state/gates/current_handoff_packet.json",
       "errors": [],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+      "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,
@@ -77,14 +77,8 @@
       "errors": []
     }
   ],
-  "audit_recommendation": "DO_NOT_ACCEPT",
-  "blocking_reasons": [
-    "report_current_and_accepted: report is current SUCCESS/ACCEPTED",
-    "final_check_passed: final-check is current and PASSED or only audit_precheck_valid remains pending",
-    "run_closeout_passed: run-closeout is current and PASSED",
-    "close_round_closed: close-round is CLOSED",
-    "audit_readiness_ready: audit readiness is READY/ACCEPTED/no_action_required"
-  ],
+  "audit_recommendation": "READY_FOR_GPT_AUDIT",
+  "blocking_reasons": [],
   "warnings": [],
   "evidence_only": true,
   "executable": false,

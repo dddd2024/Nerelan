@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-19T11:34:19.939871Z",
+  "generated_at": "2026-07-19T17:11:07.118946Z",
   "checks": [
     {
       "name": "branch_local_execution_authority",
@@ -13,8 +13,8 @@
       "detail": "branch-local Decision authority is valid",
       "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
       "expected_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
-      "decision_commit_sha": "3017c88f4a9d8abbf11f1bb8ed0fbcf5b853377b",
-      "decision_packet_sha256": "fc68c6c95998e08a2431d12dcb9ac8b677b46819e90b774080a478f915fe79d1",
+      "decision_commit_sha": "d2807e0f976bc4a1304331c9947c327b8a92d93f",
+      "decision_packet_sha256": "2ab85a3398d55ff4b03fdab837c731f005c081b5c478c0034062f062b0817cbc",
       "failures": []
     },
     {
@@ -88,7 +88,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7"
+      "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -103,20 +103,38 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        ".github/workflows/ci.yml",
-        ".github/workflows/decision-preflight.yml",
-        ".github/workflows/state-gate.yml",
-        "Decision commit ancestor success with sufficient history;",
-        "GITHUB_HEAD_REF",
-        "GITHUB_REF=refs/heads/...",
-        "State Gate and Decision Preflight checkout history configuration.",
-        "do not replace ancestry proof with an environment-only assertion;",
+        "CI-only commands are recorded by exact workflow evidence, not fabricated into the local transcript.",
+        "CI-only commands that are authorized for exact workflow files and require remote workflow evidence;",
+        "Decision ancestry checks;",
+        "Do not add a general workflow engine or redesign unrelated lifecycle states.",
+        "Existing Decisions that do not opt into this contract retain current status behavior.",
+        "It does not mean any remote workflow has succeeded.",
+        "It means all required local implementation, tests, report, execution-log, final-check, closeout, archive, context, state-manifest, and seal prerequisites have passed.",
+        "PASS",
+        "PENDING_EXTERNAL",
+        "State Gate and Decision Preflight can validate the commit's local readiness and command authority;",
+        "a terminal event may reference the seal but cannot replace the command record;",
+        "actions/checkout",
+        "actions/checkout@v4",
+        "all required local commands are represented in execution order;",
+        "branch authority checks;",
+        "evidence artifact upload.",
+        "exact command string;",
+        "execution surface;",
+        "existing failing-step visibility;",
+        "expected exit codes;",
+        "external audit can later use exact-head GitHub observations without a repository mutation.",
         "fetch-depth: 0",
-        "invalid expected branch remaining rejected;",
-        "missing environment rejection;",
-        "missing/shallow history producing a blocking diagnostic rather than a false pass;",
-        "normal checked-out branch;",
-        "tag ref rejection;"
+        "final-evidence-seal",
+        "kind;",
+        "local artifacts do not claim future remote success;",
+        "local commands that require local transcript evidence;",
+        "required/optional status;",
+        "run-closeout and close-round do not report success while a required local command is missing;",
+        "the immutable final commit contains truthful local evidence;",
+        "whether local transcript is required;",
+        "whether remote execution evidence is required.",
+        "workflow path;"
       ]
     },
     {
@@ -169,7 +187,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "3017c88f4a9d"
+    "head_commit": "d2807e0f976b"
   },
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",

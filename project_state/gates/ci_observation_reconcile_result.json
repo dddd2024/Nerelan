@@ -2,22 +2,20 @@
   "schema_version": 1,
   "artifact_name": "ci_observation_reconcile_result.json",
   "gate_name": "ci-observation-reconcile",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "generated_at": "2026-07-19T12:15:31.627448Z",
-  "reconcile_status": "REWORK_REQUIRED",
-  "final_consistency_status": "REWORK_REQUIRED",
-  "pending_diagnostic_sources": [
-    "execution_log"
-  ],
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "generated_at": "2026-07-19T17:46:24.901566Z",
+  "reconcile_status": "RECONCILED",
+  "final_consistency_status": "FINAL_CONSISTENT",
+  "pending_diagnostic_sources": [],
   "observation_state": "AWAITING_EXTERNAL_OBSERVATION",
   "source_artifacts": {
     "ci_observation_schema": {
       "artifact": "project_state/gates/ci_observation_schema_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -30,7 +28,7 @@
     "ci_observation_handoff": {
       "artifact": "project_state/gates/ci_observation_handoff_packet.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "AWAITING_EXTERNAL_OBSERVATION",
       "close_round_status": null,
@@ -45,7 +43,7 @@
     "ci_run_evidence": {
       "artifact": "project_state/gates/ci_run_evidence_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "NOT_OBSERVED",
       "close_round_status": null,
@@ -60,7 +58,7 @@
     "local_ci_parity": {
       "artifact": "project_state/gates/local_ci_parity_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -73,7 +71,7 @@
     "ci_workflow_coverage": {
       "artifact": "project_state/gates/ci_workflow_coverage_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": null,
       "close_round_status": null,
@@ -86,7 +84,7 @@
     "ci_workflow_readiness": {
       "artifact": "project_state/gates/ci_workflow_readiness_result.json",
       "exists": true,
-      "current_round": false,
+      "current_round": true,
       "gate_status": "PASSED",
       "status": "READY",
       "close_round_status": null,
@@ -113,17 +111,15 @@
       "artifact": "project_state/gates/execution_log.json",
       "exists": true,
       "current_round": true,
-      "gate_status": "FAILED",
+      "gate_status": "WARN",
       "status": null,
       "close_round_status": null,
       "report_status": null,
       "acceptance_recommendation": null,
       "recommendation": null,
-      "errors": [
-        "command_plan has 2 required command(s) not recorded in execution_log: git diff --check, git log --oneline --decorate -n 12"
-      ],
+      "errors": [],
       "warnings": [
-        "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7"
+        "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8"
       ]
     },
     "report_summary": {
@@ -148,11 +144,8 @@
   "generated_artifacts": [
     "project_state/gates/ci_observation_reconcile_result.json"
   ],
-  "errors": [
-    "source artifacts are stale: ci_observation_schema, ci_observation_handoff, ci_run_evidence, local_ci_parity, ci_workflow_coverage, ci_workflow_readiness"
-  ],
+  "errors": [],
   "warnings": [
-    "external CI observation is still pending",
-    "execution_log is diagnostic and not yet converged"
+    "external CI observation is still pending"
   ]
 }

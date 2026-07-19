@@ -17,22 +17,22 @@
     "context_generated_after_final_gate": true,
     "context_sync_basis": "timestamp_and_digest",
     "final_gate_current": true,
-    "final_gate_decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-    "final_gate_generated_at": "2026-07-19T12:21:52.435454Z",
-    "final_gate_report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-    "final_gate_round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+    "final_gate_decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+    "final_gate_generated_at": "2026-07-19T17:05:32.612866Z",
+    "final_gate_report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+    "final_gate_round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
     "final_gate_source_path": "project_state/gates/final_gate_result.json",
-    "final_gate_source_sha256": "cf951ec4b2f0b770f124d6e28c9c8235f61e10f637c34580482fbd7f89e8ef32",
-    "final_gate_status": "PASSED",
+    "final_gate_source_sha256": "0d1ddbb82906b8540695dfb6d48b621f8f740535bc05ee2c8418097b4797a2c2",
+    "final_gate_status": "FAILED",
     "final_gate_status_source": "current_final_gate_result",
     "governance_artifacts_are_fact_source_replacements": false,
     "large_sources_omitted": [
       "solve_reports/**",
       "full PROJECT_PROGRESS_LOG.txt"
     ],
-    "post_final_sync_evaluated_at": "2026-07-19T12:22:06Z",
+    "post_final_sync_evaluated_at": "2026-07-19T17:11:07Z",
     "post_final_sync_status": "CURRENT_POST_FINAL_SYNCED",
-    "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+    "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
     "required_governance_artifacts": [
       "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
@@ -82,7 +82,7 @@
     "timestamp_precision_policy": "precise_parsed_with_digest_fallback"
   },
   "bounded": true,
-  "decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
   "do_not_assume": [
     "missing sample artifacts are current blockers for this governance round",
     "roadmap workstreams grant execution authority",
@@ -123,7 +123,7 @@
   "external_analysis_tool_invocation": false,
   "forbidden_capabilities": [],
   "forbidden_mutated_paths": [],
-  "generated_at": "2026-07-19T12:22:06.010055Z",
+  "generated_at": "2026-07-19T17:11:07.269196Z",
   "mainline": "engineering_branch",
   "model_api_invocation": false,
   "negative_results_constraints": [
@@ -192,40 +192,40 @@
     "task_authority": "project_state/decision_packet.md",
     "task_packet_role": "background_only"
   },
-  "report_id": "codex_report_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
+  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
   "runner_dispatch": false,
   "schema_version": 1,
   "source_files": {
     "codex_execution_report.md": {
       "exists": true,
       "path": "project_state/codex_execution_report.md",
-      "sha256": "9fc5e54414d3c2d48b739c402154c24dbaab8eef49fc277c20f106fc4a8d37c6",
-      "size_bytes": 25811
+      "sha256": "5a34c401b54fd1b50219f102ade8be40acae0508afee344e0085b702d111cabc",
+      "size_bytes": 34640
     },
     "decision_packet.md": {
       "exists": true,
       "path": "project_state/decision_packet.md",
-      "sha256": "fc68c6c95998e08a2431d12dcb9ac8b677b46819e90b774080a478f915fe79d1",
-      "size_bytes": 21374
+      "sha256": "2ab85a3398d55ff4b03fdab837c731f005c081b5c478c0034062f062b0817cbc",
+      "size_bytes": 29851
     },
     "gates/command_plan.json": {
       "exists": true,
       "path": "project_state/gates/command_plan.json",
-      "sha256": "c3f34fef87024bbb922006aa810a385deb7bd89e68add4e2a656615a48f9a976",
-      "size_bytes": 13157
+      "sha256": "aecf63a7ed7dddc11d49a445d1315ccafba095602fddb6c82bae8f8e9d9d064c",
+      "size_bytes": 29038
     },
     "gates/final_gate_result.json": {
       "exists": true,
       "path": "project_state/gates/final_gate_result.json",
-      "sha256": "cf951ec4b2f0b770f124d6e28c9c8235f61e10f637c34580482fbd7f89e8ef32",
-      "size_bytes": 92742
+      "sha256": "0d1ddbb82906b8540695dfb6d48b621f8f740535bc05ee2c8418097b4797a2c2",
+      "size_bytes": 96403
     },
     "gates/report_summary_synthesis.json": {
       "exists": true,
       "path": "project_state/gates/report_summary_synthesis.json",
-      "sha256": "4e42653fb0c65402f232c885d4b777b369d24013c52100b6b9756c50d64e4705",
-      "size_bytes": 17926
+      "sha256": "c4d9afe5a11b8226c1ac3f3d0924f0e54c2723f82ce5bf685c48af3f8cc9219e",
+      "size_bytes": 19791
     },
     "negative_results.json": {
       "exists": true,
@@ -236,8 +236,8 @@
     "pytest_result.txt": {
       "exists": true,
       "path": "project_state/pytest_result.txt",
-      "sha256": "856f3e9cf504fa334142ca54bdc3bffa7ca52dcb87646ea512e70ea6e322baa6",
-      "size_bytes": 46209
+      "sha256": "520f59ab18e24ab6258c7597c5f9f6280b42eab7153bb1eddd8d70de13ce948b",
+      "size_bytes": 7172
     }
   },
   "stop_conditions": []

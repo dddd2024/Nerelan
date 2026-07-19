@@ -31,6 +31,7 @@ from reverse_agent.project_gate import (
     _filter_missing_pytest_file_args,
     _git_current_branch,
     _execution_log_missing_only_closeout_related,
+    _external_attestation_pending,
     _historical_sample_limitations_only,
     _is_close_round_command,
     _is_descriptive_backtick_line,
@@ -27410,6 +27411,16 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
                 "expected_exit_codes": [0, 1],
             },
             {
+                "command": "git log --oneline --decorate -n 12",
+                "kind": "git log",
+                "expected_exit_codes": [0],
+            },
+            {
+                "command": "git diff --check",
+                "kind": "git diff",
+                "expected_exit_codes": [0],
+            },
+            {
                 "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
                 "kind": "doctor",
                 "expected_exit_codes": [0, 1],
@@ -27443,6 +27454,9 @@ def test_build_closeout_steps_include_current_plan_runner_commands() -> None:
     assert "python -m pytest tests/test_project_state.py -q" in commands
     assert "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_gate --mode execute" in commands
     assert "python -m reverse_agent.project_gate execution-log --state-dir project_state" in commands
+    assert "git log --oneline --decorate -n 12" in commands
+    assert "git diff --check" in commands
+    assert commands.index("git diff --check") < commands.index("python -m reverse_agent.project_gate execution-log --state-dir project_state")
     assert "python -m reverse_agent.project_state doctor --state-dir project_state" in commands
     assert "python -m reverse_agent.project_gate governance-fix --state-dir project_state" in commands
     assert "python -m reverse_agent.project_gate cleanup-apply-safety --state-dir project_state" in commands
@@ -29349,6 +29363,7 @@ def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tm
     state_dir = _make_ci_coverage_state(tmp_path)
     _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
     commands = [
+        "python -c \"import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight\"",
         "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
@@ -29405,6 +29420,104 @@ def test_local_ci_parity_accepts_workflow_commands_authorized_by_command_plan(tm
     assert payload["required_parity_gaps"] == []
     assert check["status"] == "PASS"
     assert (state_dir / "gates" / "local_ci_parity_result.json").exists()
+
+
+def test_local_ci_parity_accepts_ci_only_commands_without_local_transcript(tmp_path: Path) -> None:
+    state_dir = _make_ci_coverage_state(tmp_path)
+    workflow_command = "python -m reverse_agent.project_gate preflight --state-dir project_state"
+    _write_ci_coverage_workflows(
+        tmp_path,
+        ci_body="name: CI\njobs:\n  baseline:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m pip install -e .\n",
+        state_gate_body=(
+            "name: State Gate\njobs:\n  state-gate:\n    runs-on: ubuntu-latest\n    steps:\n"
+            f"      - run: {workflow_command}\n"
+        ),
+        decision_preflight_body="name: Decision Preflight\njobs:\n  preflight:\n    runs-on: ubuntu-latest\n    steps: []\n",
+    )
+    _write_json(
+        state_dir / "gates" / "command_plan.json",
+        {
+            "schema_version": 1,
+            "decision_id": "decision_ci_workflow_coverage",
+            "round_id": "round_ci_workflow_coverage",
+            "commands": [],
+            "ci_commands": [
+                {
+                    "command": workflow_command,
+                    "kind": "preflight",
+                    "workflow_paths": [".github/workflows/state-gate.yml"],
+                    "execution_surface": "ci_only",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                    "local_transcript_required": False,
+                    "remote_execution_evidence_required": True,
+                }
+            ],
+        },
+    )
+
+    payload = local_ci_parity(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+
+    assert payload["gate_status"] == "PASSED"
+    assert payload["required_parity_gaps"] == []
+    assert payload["local_transcript_gaps"] == []
+    assert payload["ci_only_command_count"] == 1
+
+
+def test_pending_external_requires_explicit_opt_in_and_immutable_boundary(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_contract\n"
+        + json.dumps(
+            {
+                "external_remote_attestation_required": True,
+                "pre_attestation_recommendation": "PENDING_EXTERNAL",
+                "post_attestation_commit_allowed": False,
+            }
+        )
+        + "\n```\n",
+        encoding="utf-8",
+    )
+
+    assert _external_attestation_pending(state_dir) is True
+
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_contract\n"
+        + json.dumps({"external_remote_attestation_required": False})
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    assert _external_attestation_pending(state_dir) is False
+
+
+def test_command_plan_generates_ci_only_authority_from_workflows(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_ci_command_authority",
+        round_id="round_ci_command_authority",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\n```json decision_contract\n"
+        + json.dumps({"workflow_commands_must_be_command_plan_authorized": True})
+        + "\n```\n\n## Tests\n\n```powershell\nGet-Location\n```\n",
+        encoding="utf-8",
+    )
+    _write_ci_coverage_workflows(tmp_path, state_gate_body=_full_state_gate_workflow())
+
+    payload = command_plan(state_dir=state_dir, write_result=False)
+
+    ci_commands = {item["command"]: item for item in payload["ci_commands"]}
+    preflight_command = "python -m reverse_agent.project_gate preflight --state-dir project_state"
+    assert ci_commands[preflight_command]["execution_surface"] == "ci_only"
+    assert ci_commands[preflight_command]["local_transcript_required"] is False
+    assert ci_commands[preflight_command]["remote_execution_evidence_required"] is True
+    setup_steps = {item["step"] for item in payload["workflow_setup_steps"]}
+    assert "actions/checkout@v4" in setup_steps
+    assert "python -m pip install -e ." in setup_steps
 
 
 def test_command_plan_adds_superset_pytest_for_local_ci_parity(tmp_path: Path) -> None:
