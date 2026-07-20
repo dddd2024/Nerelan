@@ -1,28 +1,35 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:32:05.570465Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260720_selective_capability_integration_v2",
+  "round_id": "round_20260720_selective_capability_integration_v2",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-20T09:12:47.606097Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
-      "status": "PASS",
-      "detail": "startup snapshot is current and source/test clean",
+      "status": "FAIL",
+      "detail": "startup snapshot is missing current clean source/test evidence",
       "required": false,
       "artifact": "project_state/gates/startup_snapshot.json",
-      "errors": [],
+      "errors": [
+        "decision_id or round_id mismatch"
+      ],
       "source_test_dirty_files": [],
       "gate_status": "PASSED"
     },
     {
       "name": "round_baseline_derived_from_startup_snapshot",
-      "status": "PASS",
-      "detail": "round baseline is derived from the current startup snapshot",
+      "status": "FAIL",
+      "detail": "round baseline is not derived from current startup snapshot evidence",
       "required": false,
-      "errors": [],
+      "errors": [
+        "startup snapshot is missing or not current",
+        "round baseline is not marked as derived_from_startup_snapshot",
+        "baseline git status does not match startup snapshot",
+        "baseline dirty files do not match startup snapshot"
+      ],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
       "startup_dirty_files": [
@@ -34,8 +41,11 @@
       "baseline_dirty_files": [
         "project_state/gates/command_plan.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+        "reverse_agent.egg-info/PKG-INFO",
+        "reverse_agent.egg-info/SOURCES.txt",
+        "reverse_agent.egg-info/dependency_links.txt",
+        "reverse_agent.egg-info/requires.txt",
+        "reverse_agent.egg-info/top_level.txt"
       ]
     },
     {
@@ -57,7 +67,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is project_governance",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "project_governance",
@@ -87,7 +97,7 @@
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+      "decision_execution_state": "READY_FOR_EXECUTION",
       "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1"
     },
     {
@@ -103,16 +113,27 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "Derive final-command conclusions from the raw observed transcript.",
-        "Do not migrate unrelated state files.",
-        "Do not modify modules outside the explicit allowlist.",
-        "Generated artifacts are limited to current gate/report/context/state-manifest files and the current round archive.",
-        "Hard-fail when transcript, execution log, and final-gate order claims disagree.",
-        "Keep command-plan coverage and expected-exit policy separate from runtime chronology.",
-        "Keep legacy artifacts readable.",
-        "Preserve existing public fields and CLI behavior unless a new optional provenance field is required.",
-        "execution_log.json",
-        "pytest_result.txt"
+        ".github/workflows/ci.yml",
+        ".gitignore",
+        "declare only dependencies required by existing clean-checkout workflow execution;",
+        "do not commit remote receipts.",
+        "do not reuse PR #5, #6, or #7;",
+        "inspect exact-head workflow and job-step results externally;",
+        "main",
+        "pip install -e .",
+        "project_state*",
+        "publish one final integration head;",
+        "pyproject.toml",
+        "reject speculative dependencies;",
+        "requests",
+        "retain existing strict/consumed preflight tests unchanged unless a test-only assertion is necessary.",
+        "reverse-agent",
+        "reverse_agent*",
+        "set the tested supported Python baseline;",
+        "stop branch mutation when remote evidence begins;",
+        "use setuptools as the build backend;",
+        "verify State Gate and Decision Preflight contain only the required checkout/preflight compatibility text;",
+        "verify build backend, project identity, Python baseline, package inclusion/exclusion, and bounded dependencies;"
       ]
     },
     {
@@ -126,9 +147,7 @@
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
       "matched_terms": [],
-      "matched_paths": [
-        "Keep command-plan coverage and expected-exit policy separate from runtime chronology."
-      ]
+      "matched_paths": []
     },
     {
       "name": "artifact_freshness_policy",
@@ -151,35 +170,47 @@
       "status": "PASS",
       "detail": "no source/test files are dirty at startup baseline",
       "unauthorized_source_test_dirty": [],
-      "allowed_inherited_dirty_baseline_files": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py"
-      ],
+      "allowed_inherited_dirty_baseline_files": [],
       "baseline_source_test_dirty": []
     },
     {
       "name": "decision_command_plan_conflict",
-      "status": "PASS",
-      "detail": "decision Tests/closeout expectations do not conflict with command-plan",
-      "conflicts": []
+      "status": "FAIL",
+      "detail": "decision Tests/closeout expectations conflict with command-plan; stop before implementation",
+      "conflicts": [
+        {
+          "kind": "closeout_forbidden",
+          "severity": "hard",
+          "command": null,
+          "command_kind": null,
+          "reason": "decision requires closeout (run-closeout/close-round in Tests, contract close_round_required=true, or rounds/ artifacts in scope) but gate profile has closeout_allowed=false"
+        }
+      ]
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "startup_snapshot_artifact: startup snapshot is missing current clean source/test evidence",
+    "round_baseline_derived_from_startup_snapshot: round baseline is not derived from current startup snapshot evidence",
+    "decision_command_plan_conflict: decision Tests/closeout expectations conflict with command-plan; stop before implementation"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
       "project_state/gates/command_plan.json",
       "project_state/gates/gate_profile_plan.json",
-      "project_state/gates/preflight_result.json",
-      "project_state/gates/round_baseline.json"
+      "reverse_agent.egg-info/PKG-INFO",
+      "reverse_agent.egg-info/SOURCES.txt",
+      "reverse_agent.egg-info/dependency_links.txt",
+      "reverse_agent.egg-info/requires.txt",
+      "reverse_agent.egg-info/top_level.txt"
     ],
-    "head_commit": "8076ccf00531"
+    "head_commit": "e7a7ae44eec7"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-    "decision_report_id_match": true,
+    "decision_execution_state": "READY_FOR_EXECUTION",
+    "decision_report_id_match": false,
     "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",

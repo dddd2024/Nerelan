@@ -1,30 +1,40 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "head_commit": "8076ccf00531",
+  "decision_id": "decision_20260720_selective_capability_integration_v2",
+  "round_id": "round_20260720_selective_capability_integration_v2",
+  "head_commit": "e7a7ae44eec7",
   "baseline_git_status_short": [
     " M project_state/gates/command_plan.json",
     " M project_state/gates/gate_profile_plan.json",
-    " M project_state/gates/preflight_result.json",
-    " M project_state/gates/round_baseline.json"
+    "?? reverse_agent.egg-info/PKG-INFO",
+    "?? reverse_agent.egg-info/SOURCES.txt",
+    "?? reverse_agent.egg-info/dependency_links.txt",
+    "?? reverse_agent.egg-info/requires.txt",
+    "?? reverse_agent.egg-info/top_level.txt"
   ],
   "baseline_git_diff_name_only": [
     "project_state/gates/command_plan.json",
-    "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/round_baseline.json"
+    "project_state/gates/gate_profile_plan.json"
   ],
   "baseline_dirty_files": [
     "project_state/gates/command_plan.json",
     "project_state/gates/gate_profile_plan.json",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/round_baseline.json"
+    "reverse_agent.egg-info/PKG-INFO",
+    "reverse_agent.egg-info/SOURCES.txt",
+    "reverse_agent.egg-info/dependency_links.txt",
+    "reverse_agent.egg-info/requires.txt",
+    "reverse_agent.egg-info/top_level.txt"
   ],
-  "baseline_untracked_files": [],
+  "baseline_untracked_files": [
+    "reverse_agent.egg-info/PKG-INFO",
+    "reverse_agent.egg-info/SOURCES.txt",
+    "reverse_agent.egg-info/dependency_links.txt",
+    "reverse_agent.egg-info/requires.txt",
+    "reverse_agent.egg-info/top_level.txt"
+  ],
   "baseline_has_untracked_implementation_files": false,
-  "derived_from_startup_snapshot": true,
-  "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
-  "generated_at": "2026-07-16T11:10:06.546258Z"
+  "derived_from_startup_snapshot": false,
+  "startup_snapshot_path": "",
+  "generated_at": "2026-07-20T09:12:47.601598Z"
 }
