@@ -3,10 +3,10 @@
   "artifact_name": "local_ci_parity_result.json",
   "gate_name": "local-ci-parity",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "generated_at": "2026-07-19T17:45:49.106142Z",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "report_id": "codex_report_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "generated_at": "2026-07-20T05:36:00.074539Z",
   "evidence_only": true,
   "executable": false,
   "can_execute": false,
@@ -24,14 +24,14 @@
       "path": ".github/workflows/state-gate.yml",
       "exists": true,
       "read_only_input": true,
-      "sha256": "e98fcda27300e83f6f32f7552c50ab29e07b835f6be2541eeded9d25be033f58",
+      "sha256": "55317641b418fd0b049e704b6bfcc03deb7b84e8929521fc04ba72daec1606da",
       "line_count": 122
     },
     {
       "path": ".github/workflows/decision-preflight.yml",
       "exists": true,
       "read_only_input": true,
-      "sha256": "ec0b058c98fd87a2a01872952ee7720f80f80f23f6f4e042b5c8f445c85cd655",
+      "sha256": "dbf97a4e15331ea97dade98fce37d1e4b6bb3927ed5f2ebf3717a90bc46b282b",
       "line_count": 98
     }
   ],
@@ -63,7 +63,7 @@
     {
       "workflow": ".github/workflows/state-gate.yml",
       "line": 43,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight"
     },
     {
@@ -213,7 +213,7 @@
     {
       "workflow": ".github/workflows/decision-preflight.yml",
       "line": 49,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight"
     },
     {
@@ -311,7 +311,7 @@
     {
       "workflow": ".github/workflows/state-gate.yml",
       "line": 43,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight"
     },
     {
@@ -455,7 +455,7 @@
     {
       "workflow": ".github/workflows/decision-preflight.yml",
       "line": 49,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight"
     },
     {

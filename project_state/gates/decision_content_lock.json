@@ -1,20 +1,24 @@
 {
   "schema_version": 1,
   "artifact_name": "decision_content_lock.json",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
   "execution_branch": "agent/terminal-status-propagation-seal-restart-rework-v3",
   "base_branch": "main",
-  "decision_commit_sha": "d2807e0f976bc4a1304331c9947c327b8a92d93f",
-  "head_sha_at_lock": "d2807e0f976bc4a1304331c9947c327b8a92d93f",
-  "decision_packet_sha256": "2ab85a3398d55ff4b03fdab837c731f005c081b5c478c0034062f062b0817cbc",
-  "decision_locked_at": "2026-07-19T13:44:28.015866Z",
+  "decision_commit_sha": "ba4752aa2efa718844187d5570c1cfcae3d7005d",
+  "head_sha_at_lock": "ba4752aa2efa718844187d5570c1cfcae3d7005d",
+  "decision_packet_sha256": "c5a90aa4405d34a958a43c6ef858546df5551cdd73e8a45062b9eb6c92cf0a4e",
+  "decision_locked_at": "2026-07-20T02:33:26.1973765Z",
   "lock_status": "LOCKED",
-  "restart_mode": "explicit_new_round_after_remote_stop_condition",
+  "restart_mode": "explicit_new_round_after_bootstrap_deadlock",
   "restart_authorized_by_user": true,
-  "restart_from_decision_id": "decision_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "restart_from_round_id": "round_20260718_ci_pr_branch_authority_and_history_parity_rework_v7",
-  "previous_audit_outcome": "REWORK_REQUIRED",
+  "restart_from_decision_id": "decision_20260720_ci_consumed_decision_preflight_parity_rework_v9",
+  "restart_from_round_id": "round_20260720_ci_consumed_decision_preflight_parity_rework_v9",
+  "previous_round_outcome": "BLOCKED",
   "previous_artifacts_read_only": true,
-  "restart_reason": "v7 exact-head State Gate failed at report-summary and Decision Preflight failed at local-ci-parity"
+  "restart_reason": "bootstrap_deadlock_between_final_command_plan_lock_and_future_ci_command_authorization",
+  "pre_bootstrap_workflow_sha256": {
+    ".github/workflows/state-gate.yml": "e98fcda27300e83f6f32f7552c50ab29e07b835f6be2541eeded9d25be033f58",
+    ".github/workflows/decision-preflight.yml": "ec0b058c98fd87a2a01872952ee7720f80f80f23f6f4e042b5c8f445c85cd655"
+  }
 }

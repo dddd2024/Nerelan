@@ -2,15 +2,13 @@
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-19T17:45:46.664937Z",
+  "generated_at": "2026-07-20T05:35:58.359683Z",
   "profile": "full",
-  "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
-  "risk_reasons": [
-    "gate/project_state source changes require full validation"
-  ],
+  "profile_reason": "full profile explicitly required by decision_contract",
+  "risk_reasons": [],
   "closeout_allowed": true,
   "required_command_kinds": [
     "startup",
@@ -26,7 +24,8 @@
     "close-round"
   ],
   "reasons": [
-    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py"
+    "decision scope has no source/test or gate/project_state changes",
+    "decision_contract required_profile=full overrides auto-classification"
   ],
   "suggested_commands": [
     {

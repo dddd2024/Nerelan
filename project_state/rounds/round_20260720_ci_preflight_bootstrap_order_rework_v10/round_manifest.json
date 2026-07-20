@@ -1,0 +1,54 @@
+{
+  "acceptance_recommendation": "PENDING_EXTERNAL",
+  "archive_mode": "minimal",
+  "archive_refresh_basis": "final_live_report_copy_after_report_finalization",
+  "archive_refreshed_at": "2026-07-20T05:41:31.481828Z",
+  "archived_at": "2026-07-20T05:36:06Z",
+  "archived_report_sha256": "b6ce3f854c0e6a2ab0d3dda03e8016aefc0a2cc03e8f23f25877dd0a9db72b48",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260720_ci_preflight_bootstrap_order_rework_v10\\codex_execution_report.md",
+      "sha256": "b6ce3f854c0e6a2ab0d3dda03e8016aefc0a2cc03e8f23f25877dd0a9db72b48",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260720_ci_preflight_bootstrap_order_rework_v10\\decision_packet.md",
+      "sha256": "c5a90aa4405d34a958a43c6ef858546df5551cdd73e8a45062b9eb6c92cf0a4e",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260720_ci_preflight_bootstrap_order_rework_v10\\pytest_result.txt",
+      "sha256": "489fc4c2b690d6964990f4c5807288f6f9261512962f4a63273ce63d5f03d139",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260720_ci_preflight_bootstrap_order_rework_v10\\execution_report.md",
+      "sha256": "cae5755ce62db87c3d57e4204f11242b496ab9e2ddb38e6d4000b4ecd901f1fd",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "final_archive_refresh_status": "PASSED",
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "live_report_sha256_at_archive": "b6ce3f854c0e6a2ab0d3dda03e8016aefc0a2cc03e8f23f25877dd0a9db72b48",
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_finalized_at": "2026-07-20T05:41:31.145438Z",
+  "report_id": "codex_report_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "schema_version": 1,
+  "source_git_commit": "ba4752aa2efa",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

@@ -3,10 +3,10 @@
   "artifact_name": "ci_workflow_readiness_result.json",
   "gate_name": "ci-workflow-readiness",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "generated_at": "2026-07-19T17:45:48.205151Z",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "report_id": "codex_report_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "generated_at": "2026-07-20T05:35:59.471131Z",
   "readiness_status": "READY",
   "recommendation": "NO_ACTION_REQUIRED",
   "required_workflows": [
@@ -28,18 +28,18 @@
       "path": ".github/workflows/state-gate.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": false,
-      "sha256": "e98fcda27300e83f6f32f7552c50ab29e07b835f6be2541eeded9d25be033f58",
-      "size_bytes": 4447,
+      "modified": true,
+      "sha256": "55317641b418fd0b049e704b6bfcc03deb7b84e8929521fc04ba72daec1606da",
+      "size_bytes": 4464,
       "line_count": 122
     },
     {
       "path": ".github/workflows/decision-preflight.yml",
       "exists": true,
       "read_only_input": true,
-      "modified": false,
-      "sha256": "ec0b058c98fd87a2a01872952ee7720f80f80f23f6f4e042b5c8f445c85cd655",
-      "size_bytes": 3606,
+      "modified": true,
+      "sha256": "dbf97a4e15331ea97dade98fce37d1e4b6bb3927ed5f2ebf3717a90bc46b282b",
+      "size_bytes": 3623,
       "line_count": 98
     }
   ],
@@ -47,7 +47,10 @@
   "coverage_recommendation": "NO_ACTION_REQUIRED",
   "missing_coverage": [],
   "unsafe_patterns_found": [],
-  "workflow_files_dirty": [],
+  "workflow_files_dirty": [
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml"
+  ],
   "evidence_only": true,
   "executable": false,
   "can_execute": false,

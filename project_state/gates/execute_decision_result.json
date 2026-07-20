@@ -5,10 +5,10 @@
   "gate_status": "PASSED",
   "run_status": "PASSED",
   "status": "PASSED",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-19T17:45:47.357771Z",
+  "generated_at": "2026-07-20T05:35:58.884865Z",
   "mode": "plan-validation",
   "contract_mode": "plan_validation_only",
   "entrypoint": "execute-decision",
@@ -16,11 +16,11 @@
   "command_source": "project_state/gates/command_plan.json",
   "command_plan": {
     "path": "project_state/gates/command_plan.json",
-    "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-    "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+    "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+    "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
     "plan_status": "PASSED",
-    "generated_at": "2026-07-19T13:45:13.713740Z",
-    "command_count": 39
+    "generated_at": "2026-07-20T02:35:47.904009Z",
+    "command_count": 40
   },
   "commands": [
     {
@@ -90,240 +90,6 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 9,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
-      "phase": "gate",
-      "kind": "ci-workflow-coverage",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "ci-workflow-coverage expected to exit 0"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
-      "phase": "gate",
-      "kind": "ci-workflow-readiness",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "ci-workflow-readiness expected to exit 0"
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
-      "phase": "gate",
-      "kind": "ci-run-evidence",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "ci-run-evidence expected to exit 0"
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-      "phase": "gate",
-      "kind": "local-ci-parity",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "local-ci-parity expected to exit 0"
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-      "phase": "gate",
-      "kind": "ci-observation-schema",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "ci-observation-schema expected to exit 0"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-      "phase": "gate",
-      "kind": "ci-observation-handoff",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "ci-observation-handoff expected to exit 0"
-    },
-    {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-      "phase": "gate",
-      "kind": "ci-observation-reconcile",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "ci-observation-reconcile expected to exit 0"
-    },
-    {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-      "phase": "gate",
-      "kind": "ci-artifact-manifest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "ci-artifact-manifest expected to exit 0"
-    },
-    {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-      "phase": "gate",
-      "kind": "ci-audit-handoff-bundle",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "ci-audit-handoff-bundle expected to exit 0"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
-      "phase": "gate",
-      "kind": "audit-inventory",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "audit-inventory expected to exit 0"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
-      "phase": "gate",
-      "kind": "local-execution-bundle",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "local-execution-bundle expected to exit 0"
-    },
-    {
-      "index": 21,
-      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
-      "phase": "gate",
-      "kind": "codex-prompt-packet",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "codex-prompt-packet expected to exit 0"
-    },
-    {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
-      "phase": "gate",
-      "kind": "audit-precheck",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "audit-precheck expected to exit 0"
-    },
-    {
-      "index": 23,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 24,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
@@ -336,8 +102,268 @@
       "notes": "preflight expected to exit 0"
     },
     {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 9,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 10,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-workflow-coverage",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-workflow-coverage expected to exit 0"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-workflow-readiness",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-workflow-readiness expected to exit 0"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-run-evidence",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-run-evidence expected to exit 0"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+      "phase": "gate",
+      "kind": "local-ci-parity",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "local-ci-parity expected to exit 0"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-observation-schema",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-observation-schema expected to exit 0"
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-observation-handoff",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-observation-handoff expected to exit 0"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-observation-reconcile",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-observation-reconcile expected to exit 0"
+    },
+    {
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-artifact-manifest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-artifact-manifest expected to exit 0"
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+      "phase": "gate",
+      "kind": "ci-audit-handoff-bundle",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "ci-audit-handoff-bundle expected to exit 0"
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "phase": "gate",
+      "kind": "audit-inventory",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "audit-inventory expected to exit 0"
+    },
+    {
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "phase": "gate",
+      "kind": "local-execution-bundle",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "local-execution-bundle expected to exit 0"
+    },
+    {
+      "index": 22,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "phase": "gate",
+      "kind": "codex-prompt-packet",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "codex-prompt-packet expected to exit 0"
+    },
+    {
+      "index": 23,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "phase": "gate",
+      "kind": "audit-precheck",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "audit-precheck expected to exit 0"
+    },
+    {
+      "index": 24,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
       "index": 25,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 --dry-run",
+      "command": "git log --oneline --decorate -n 12",
+      "phase": "status",
+      "kind": "git log",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "git log expected to exit 0"
+    },
+    {
+      "index": 26,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "phase": "preflight",
+      "kind": "preflight",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "preflight expected to exit 0"
+    },
+    {
+      "index": 27,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 --dry-run",
       "phase": "gate",
       "kind": "execute-decision",
       "required": true,
@@ -349,7 +375,7 @@
       "notes": "execute-decision expected to exit 0"
     },
     {
-      "index": 26,
+      "index": 28,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -363,7 +389,7 @@
       "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 27,
+      "index": 29,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "phase": "gate",
       "kind": "execution-log",
@@ -377,7 +403,7 @@
       "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 28,
+      "index": 30,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "phase": "gate",
       "kind": "audit-readiness-packet",
@@ -390,7 +416,7 @@
       "notes": "audit-readiness-packet expected to exit 0"
     },
     {
-      "index": 29,
+      "index": 31,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "phase": "gate",
       "kind": "current-handoff-packet",
@@ -403,7 +429,7 @@
       "notes": "current-handoff-packet expected to exit 0"
     },
     {
-      "index": 30,
+      "index": 32,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -417,48 +443,33 @@
       "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
-      "index": 31,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 33,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "phase": "gate",
       "kind": "run-closeout",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "run-closeout diagnostic after final-check failed; exit 1 is expected"
-    },
-    {
-      "index": 32,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-      "phase": "gate",
-      "kind": "close-round",
-      "required": false,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": true,
-      "records_stdout_stderr": true,
-      "notes": "close-round diagnostic after final-check failed; exit 1 is expected"
-    },
-    {
-      "index": 33,
-      "command": "git log --oneline --decorate -n 12",
-      "phase": "status",
-      "kind": "git log",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "conditional_closeout": false,
       "records_stdout_stderr": true,
-      "notes": "git log expected to exit 0"
+      "notes": "run-closeout expected exit 0 after final-check passed"
     },
     {
       "index": 34,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
+      "phase": "gate",
+      "kind": "close-round",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": true,
+      "records_stdout_stderr": true,
+      "notes": "close-round closeout expected exit 0 after final-check passed"
+    },
+    {
+      "index": 35,
       "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "phase": "gate",
       "kind": "decision-lint",
@@ -471,7 +482,7 @@
       "notes": "decision-lint expected to exit 0"
     },
     {
-      "index": 35,
+      "index": 36,
       "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
       "phase": "gate",
       "kind": "gate-profile",
@@ -484,7 +495,7 @@
       "notes": "gate-profile expected to exit 0"
     },
     {
-      "index": 36,
+      "index": 37,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -497,7 +508,7 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 37,
+      "index": 38,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "phase": "gate",
       "kind": "post-final-evidence-sync",
@@ -510,8 +521,8 @@
       "notes": "post-final-evidence-sync expected to exit 0"
     },
     {
-      "index": 38,
-      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 39,
+      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "phase": "unknown",
       "kind": "final-evidence-seal",
       "required": true,
@@ -523,7 +534,7 @@
       "notes": "final-evidence-seal expected to exit 0"
     },
     {
-      "index": 39,
+      "index": 40,
       "command": "git diff --check",
       "phase": "status",
       "kind": "git diff",
@@ -542,6 +553,7 @@
     "Test-Path F:\\reverse-agent",
     "git rev-parse --show-toplevel",
     "git status --short",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
@@ -560,21 +572,21 @@
     "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
     "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
     "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-    "python -m reverse_agent.project_gate preflight --state-dir project_state",
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 --dry-run",
+    "git log --oneline --decorate -n 12",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 --dry-run",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate execution-log --state-dir project_state",
     "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
     "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-    "git log --oneline --decorate -n 12",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
     "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
     "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
     "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
     "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-    "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+    "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
     "git diff --check"
   ],
   "command_exit_codes": [
@@ -635,204 +647,6 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 9,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
-      "kind": "ci-workflow-coverage",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
-      "kind": "ci-workflow-readiness",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
-      "kind": "ci-run-evidence",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-      "kind": "local-ci-parity",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-      "kind": "ci-observation-schema",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-      "kind": "ci-observation-handoff",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-      "kind": "ci-observation-reconcile",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-      "kind": "ci-artifact-manifest",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-      "kind": "ci-audit-handoff-bundle",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
-      "kind": "audit-inventory",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
-      "kind": "local-execution-bundle",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 21,
-      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
-      "kind": "codex-prompt-packet",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
-      "kind": "audit-precheck",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 23,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 24,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight",
       "phase": "preflight",
@@ -843,8 +657,228 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 9,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 10,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
+      "kind": "ci-workflow-coverage",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+      "kind": "ci-workflow-readiness",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+      "kind": "ci-run-evidence",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+      "kind": "local-ci-parity",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+      "kind": "ci-observation-schema",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+      "kind": "ci-observation-handoff",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+      "kind": "ci-observation-reconcile",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+      "kind": "ci-artifact-manifest",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+      "kind": "ci-audit-handoff-bundle",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "kind": "local-execution-bundle",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 22,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "kind": "codex-prompt-packet",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 23,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "kind": "audit-precheck",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 24,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
       "index": 25,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 --dry-run",
+      "command": "git log --oneline --decorate -n 12",
+      "kind": "git log",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 26,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 27,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -854,7 +888,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 26,
+      "index": 28,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -866,7 +900,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 27,
+      "index": 29,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -878,7 +912,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 28,
+      "index": 30,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -889,7 +923,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 29,
+      "index": 31,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet",
       "phase": "gate",
@@ -900,7 +934,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 30,
+      "index": 32,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -912,34 +946,10 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 31,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 33,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "run-closeout",
       "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 32,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-      "kind": "close-round",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 33,
-      "command": "git log --oneline --decorate -n 12",
-      "kind": "git log",
-      "phase": "status",
       "expected_exit_codes": [
         0
       ],
@@ -948,6 +958,17 @@
     },
     {
       "index": 34,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
+      "kind": "close-round",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 35,
       "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "kind": "decision-lint",
       "phase": "gate",
@@ -958,7 +979,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 35,
+      "index": 36,
       "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
       "kind": "gate-profile",
       "phase": "gate",
@@ -969,7 +990,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 36,
+      "index": 37,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -980,7 +1001,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 37,
+      "index": 38,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "kind": "post-final-evidence-sync",
       "phase": "gate",
@@ -991,8 +1012,8 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 38,
-      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 39,
+      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "final-evidence-seal",
       "phase": "unknown",
       "expected_exit_codes": [
@@ -1002,7 +1023,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 39,
+      "index": 40,
       "command": "git diff --check",
       "kind": "git diff",
       "phase": "status",
@@ -1071,204 +1092,6 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 9,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
-      "kind": "ci-workflow-coverage",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
-      "kind": "ci-workflow-readiness",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
-      "kind": "ci-run-evidence",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-      "kind": "local-ci-parity",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-      "kind": "ci-observation-schema",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-      "kind": "ci-observation-handoff",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-      "kind": "ci-observation-reconcile",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-      "kind": "ci-artifact-manifest",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-      "kind": "ci-audit-handoff-bundle",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
-      "kind": "audit-inventory",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
-      "kind": "local-execution-bundle",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 21,
-      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
-      "kind": "codex-prompt-packet",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 22,
-      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
-      "kind": "audit-precheck",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 23,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 24,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "kind": "preflight",
       "phase": "preflight",
@@ -1279,8 +1102,228 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 8,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "kind": "command-plan",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 9,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 10,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
+      "kind": "ci-workflow-coverage",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+      "kind": "ci-workflow-readiness",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+      "kind": "ci-run-evidence",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+      "kind": "local-ci-parity",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+      "kind": "ci-observation-schema",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+      "kind": "ci-observation-handoff",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+      "kind": "ci-observation-reconcile",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+      "kind": "ci-artifact-manifest",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+      "kind": "ci-audit-handoff-bundle",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+      "kind": "audit-inventory",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 21,
+      "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+      "kind": "local-execution-bundle",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 22,
+      "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+      "kind": "codex-prompt-packet",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 23,
+      "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+      "kind": "audit-precheck",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 24,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
       "index": 25,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 --dry-run",
+      "command": "git log --oneline --decorate -n 12",
+      "kind": "git log",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 26,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 27,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -1290,7 +1333,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 26,
+      "index": 28,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -1302,7 +1345,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 27,
+      "index": 29,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -1314,7 +1357,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 28,
+      "index": 30,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -1325,7 +1368,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 29,
+      "index": 31,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet",
       "phase": "gate",
@@ -1336,7 +1379,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 30,
+      "index": 32,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -1348,34 +1391,10 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 31,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 33,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "run-closeout",
       "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 32,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-      "kind": "close-round",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": null,
-      "status": "NOT_RUN_PLAN_ONLY"
-    },
-    {
-      "index": 33,
-      "command": "git log --oneline --decorate -n 12",
-      "kind": "git log",
-      "phase": "status",
       "expected_exit_codes": [
         0
       ],
@@ -1384,6 +1403,17 @@
     },
     {
       "index": 34,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
+      "kind": "close-round",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": null,
+      "status": "NOT_RUN_PLAN_ONLY"
+    },
+    {
+      "index": 35,
       "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "kind": "decision-lint",
       "phase": "gate",
@@ -1394,7 +1424,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 35,
+      "index": 36,
       "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
       "kind": "gate-profile",
       "phase": "gate",
@@ -1405,7 +1435,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 36,
+      "index": 37,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -1416,7 +1446,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 37,
+      "index": 38,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "kind": "post-final-evidence-sync",
       "phase": "gate",
@@ -1427,8 +1457,8 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 38,
-      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 39,
+      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "final-evidence-seal",
       "phase": "unknown",
       "expected_exit_codes": [
@@ -1438,7 +1468,7 @@
       "status": "NOT_RUN_PLAN_ONLY"
     },
     {
-      "index": 39,
+      "index": 40,
       "command": "git diff --check",
       "kind": "git diff",
       "phase": "status",
@@ -1479,16 +1509,16 @@
     "gate_name": "run-round",
     "gate_status": "PASSED",
     "run_status": "PASSED",
-    "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-    "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+    "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+    "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
     "mainline": "engineering_branch",
-    "generated_at": "2026-07-19T17:45:47.357499Z",
+    "generated_at": "2026-07-20T05:35:58.884619Z",
     "mode": "dry-run",
     "phases": [
       "status",
+      "preflight",
       "gate",
       "test",
-      "preflight",
       "unknown"
     ],
     "authorized_commands": [
@@ -1497,6 +1527,7 @@
       "Test-Path F:\\reverse-agent",
       "git rev-parse --show-toplevel",
       "git status --short",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
@@ -1515,27 +1546,28 @@
       "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 --dry-run",
+      "git log --oneline --decorate -n 12",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 --dry-run",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-      "git log --oneline --decorate -n 12",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-      "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "git diff --check"
     ],
     "omitted_commands": [],
     "would_run_commands": [
       "git rev-parse --show-toplevel",
       "git status --short",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
@@ -1554,22 +1586,22 @@
       "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "git log --oneline --decorate -n 12",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-      "git log --oneline --decorate -n 12",
+      "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
       "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
       "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
-      "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "git diff --check"
     ],
-    "command_count": 39,
+    "command_count": 40,
     "commands": [
       {
         "index": 1,
@@ -1638,240 +1670,6 @@
       },
       {
         "index": 6,
-        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "phase": "gate",
-        "kind": "command-plan",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "command-plan expected to exit 0"
-      },
-      {
-        "index": 7,
-        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-        "phase": "gate",
-        "kind": "command-plan",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "command-plan expected to exit 0"
-      },
-      {
-        "index": 8,
-        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-        "phase": "test",
-        "kind": "pytest",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "pytest expected to exit 0"
-      },
-      {
-        "index": 9,
-        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
-        "phase": "test",
-        "kind": "pytest",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "pytest expected to exit 0"
-      },
-      {
-        "index": 10,
-        "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
-        "phase": "gate",
-        "kind": "ci-workflow-coverage",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "ci-workflow-coverage expected to exit 0"
-      },
-      {
-        "index": 11,
-        "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
-        "phase": "gate",
-        "kind": "ci-workflow-readiness",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "ci-workflow-readiness expected to exit 0"
-      },
-      {
-        "index": 12,
-        "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
-        "phase": "gate",
-        "kind": "ci-run-evidence",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "ci-run-evidence expected to exit 0"
-      },
-      {
-        "index": 13,
-        "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
-        "phase": "gate",
-        "kind": "local-ci-parity",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "local-ci-parity expected to exit 0"
-      },
-      {
-        "index": 14,
-        "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
-        "phase": "gate",
-        "kind": "ci-observation-schema",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "ci-observation-schema expected to exit 0"
-      },
-      {
-        "index": 15,
-        "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
-        "phase": "gate",
-        "kind": "ci-observation-handoff",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "ci-observation-handoff expected to exit 0"
-      },
-      {
-        "index": 16,
-        "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
-        "phase": "gate",
-        "kind": "ci-observation-reconcile",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "ci-observation-reconcile expected to exit 0"
-      },
-      {
-        "index": 17,
-        "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
-        "phase": "gate",
-        "kind": "ci-artifact-manifest",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "ci-artifact-manifest expected to exit 0"
-      },
-      {
-        "index": 18,
-        "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
-        "phase": "gate",
-        "kind": "ci-audit-handoff-bundle",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "ci-audit-handoff-bundle expected to exit 0"
-      },
-      {
-        "index": 19,
-        "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
-        "phase": "gate",
-        "kind": "audit-inventory",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "audit-inventory expected to exit 0"
-      },
-      {
-        "index": 20,
-        "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
-        "phase": "gate",
-        "kind": "local-execution-bundle",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "local-execution-bundle expected to exit 0"
-      },
-      {
-        "index": 21,
-        "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
-        "phase": "gate",
-        "kind": "codex-prompt-packet",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "codex-prompt-packet expected to exit 0"
-      },
-      {
-        "index": 22,
-        "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
-        "phase": "gate",
-        "kind": "audit-precheck",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "audit-precheck expected to exit 0"
-      },
-      {
-        "index": 23,
-        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-        "phase": "test",
-        "kind": "pytest",
-        "required": true,
-        "expected_exit_codes": [
-          0
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "pytest expected to exit 0"
-      },
-      {
-        "index": 24,
         "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "phase": "preflight",
         "kind": "preflight",
@@ -1884,8 +1682,268 @@
         "notes": "preflight expected to exit 0"
       },
       {
+        "index": 7,
+        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "phase": "gate",
+        "kind": "command-plan",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "command-plan expected to exit 0"
+      },
+      {
+        "index": 8,
+        "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "phase": "gate",
+        "kind": "command-plan",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "command-plan expected to exit 0"
+      },
+      {
+        "index": 9,
+        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+        "phase": "test",
+        "kind": "pytest",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "pytest expected to exit 0"
+      },
+      {
+        "index": 10,
+        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
+        "phase": "test",
+        "kind": "pytest",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "pytest expected to exit 0"
+      },
+      {
+        "index": 11,
+        "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
+        "phase": "gate",
+        "kind": "ci-workflow-coverage",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "ci-workflow-coverage expected to exit 0"
+      },
+      {
+        "index": 12,
+        "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+        "phase": "gate",
+        "kind": "ci-workflow-readiness",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "ci-workflow-readiness expected to exit 0"
+      },
+      {
+        "index": 13,
+        "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+        "phase": "gate",
+        "kind": "ci-run-evidence",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "ci-run-evidence expected to exit 0"
+      },
+      {
+        "index": 14,
+        "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+        "phase": "gate",
+        "kind": "local-ci-parity",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "local-ci-parity expected to exit 0"
+      },
+      {
+        "index": 15,
+        "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+        "phase": "gate",
+        "kind": "ci-observation-schema",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "ci-observation-schema expected to exit 0"
+      },
+      {
+        "index": 16,
+        "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+        "phase": "gate",
+        "kind": "ci-observation-handoff",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "ci-observation-handoff expected to exit 0"
+      },
+      {
+        "index": 17,
+        "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+        "phase": "gate",
+        "kind": "ci-observation-reconcile",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "ci-observation-reconcile expected to exit 0"
+      },
+      {
+        "index": 18,
+        "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+        "phase": "gate",
+        "kind": "ci-artifact-manifest",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "ci-artifact-manifest expected to exit 0"
+      },
+      {
+        "index": 19,
+        "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+        "phase": "gate",
+        "kind": "ci-audit-handoff-bundle",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "ci-audit-handoff-bundle expected to exit 0"
+      },
+      {
+        "index": 20,
+        "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+        "phase": "gate",
+        "kind": "audit-inventory",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "audit-inventory expected to exit 0"
+      },
+      {
+        "index": 21,
+        "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+        "phase": "gate",
+        "kind": "local-execution-bundle",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "local-execution-bundle expected to exit 0"
+      },
+      {
+        "index": 22,
+        "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+        "phase": "gate",
+        "kind": "codex-prompt-packet",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "codex-prompt-packet expected to exit 0"
+      },
+      {
+        "index": 23,
+        "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+        "phase": "gate",
+        "kind": "audit-precheck",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "audit-precheck expected to exit 0"
+      },
+      {
+        "index": 24,
+        "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+        "phase": "test",
+        "kind": "pytest",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "pytest expected to exit 0"
+      },
+      {
         "index": 25,
-        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 --dry-run",
+        "command": "git log --oneline --decorate -n 12",
+        "phase": "status",
+        "kind": "git log",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "git log expected to exit 0"
+      },
+      {
+        "index": 26,
+        "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+        "phase": "preflight",
+        "kind": "preflight",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": false,
+        "records_stdout_stderr": true,
+        "notes": "preflight expected to exit 0"
+      },
+      {
+        "index": 27,
+        "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 --dry-run",
         "phase": "gate",
         "kind": "execute-decision",
         "required": true,
@@ -1897,7 +1955,7 @@
         "notes": "execute-decision expected to exit 0"
       },
       {
-        "index": 26,
+        "index": 28,
         "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
         "phase": "gate",
         "kind": "report-summary",
@@ -1911,7 +1969,7 @@
         "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
       },
       {
-        "index": 27,
+        "index": 29,
         "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
         "phase": "gate",
         "kind": "execution-log",
@@ -1925,7 +1983,7 @@
         "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
       },
       {
-        "index": 28,
+        "index": 30,
         "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
         "phase": "gate",
         "kind": "audit-readiness-packet",
@@ -1938,7 +1996,7 @@
         "notes": "audit-readiness-packet expected to exit 0"
       },
       {
-        "index": 29,
+        "index": 31,
         "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
         "phase": "gate",
         "kind": "current-handoff-packet",
@@ -1951,7 +2009,7 @@
         "notes": "current-handoff-packet expected to exit 0"
       },
       {
-        "index": 30,
+        "index": 32,
         "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
         "phase": "gate",
         "kind": "final-check",
@@ -1965,48 +2023,33 @@
         "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
       },
       {
-        "index": 31,
-        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+        "index": 33,
+        "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
         "phase": "gate",
         "kind": "run-closeout",
-        "required": true,
-        "expected_exit_codes": [
-          0,
-          1
-        ],
-        "conditional_closeout": false,
-        "records_stdout_stderr": true,
-        "notes": "run-closeout diagnostic after final-check failed; exit 1 is expected"
-      },
-      {
-        "index": 32,
-        "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-        "phase": "gate",
-        "kind": "close-round",
-        "required": false,
-        "expected_exit_codes": [
-          0,
-          1
-        ],
-        "conditional_closeout": true,
-        "records_stdout_stderr": true,
-        "notes": "close-round diagnostic after final-check failed; exit 1 is expected"
-      },
-      {
-        "index": 33,
-        "command": "git log --oneline --decorate -n 12",
-        "phase": "status",
-        "kind": "git log",
         "required": true,
         "expected_exit_codes": [
           0
         ],
         "conditional_closeout": false,
         "records_stdout_stderr": true,
-        "notes": "git log expected to exit 0"
+        "notes": "run-closeout expected exit 0 after final-check passed"
       },
       {
         "index": 34,
+        "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
+        "phase": "gate",
+        "kind": "close-round",
+        "required": true,
+        "expected_exit_codes": [
+          0
+        ],
+        "conditional_closeout": true,
+        "records_stdout_stderr": true,
+        "notes": "close-round closeout expected exit 0 after final-check passed"
+      },
+      {
+        "index": 35,
         "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
         "phase": "gate",
         "kind": "decision-lint",
@@ -2019,7 +2062,7 @@
         "notes": "decision-lint expected to exit 0"
       },
       {
-        "index": 35,
+        "index": 36,
         "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
         "phase": "gate",
         "kind": "gate-profile",
@@ -2032,7 +2075,7 @@
         "notes": "gate-profile expected to exit 0"
       },
       {
-        "index": 36,
+        "index": 37,
         "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
         "phase": "test",
         "kind": "pytest",
@@ -2045,7 +2088,7 @@
         "notes": "pytest expected to exit 0"
       },
       {
-        "index": 37,
+        "index": 38,
         "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
         "phase": "gate",
         "kind": "post-final-evidence-sync",
@@ -2058,8 +2101,8 @@
         "notes": "post-final-evidence-sync expected to exit 0"
       },
       {
-        "index": 38,
-        "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+        "index": 39,
+        "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
         "phase": "unknown",
         "kind": "final-evidence-seal",
         "required": true,
@@ -2071,7 +2114,7 @@
         "notes": "final-evidence-seal expected to exit 0"
       },
       {
-        "index": 39,
+        "index": 40,
         "command": "git diff --check",
         "phase": "status",
         "kind": "git diff",

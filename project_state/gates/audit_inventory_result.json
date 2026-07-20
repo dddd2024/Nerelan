@@ -3,10 +3,10 @@
   "artifact_name": "audit_inventory_result.json",
   "gate_name": "audit-inventory",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-19T17:45:47.183962Z",
+  "generated_at": "2026-07-20T05:35:58.779379Z",
   "inventory_validation_status": "PASSED",
   "audit_count": 4,
   "outcome_counts": {

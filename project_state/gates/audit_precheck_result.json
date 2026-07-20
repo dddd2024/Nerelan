@@ -3,10 +3,10 @@
   "artifact_name": "audit_precheck_result.json",
   "gate_name": "audit-precheck",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "generated_at": "2026-07-19T17:55:19.429898Z",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "report_id": "codex_report_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "generated_at": "2026-07-20T05:41:31.496173Z",
   "checks": [
     {
       "name": "report_current_and_accepted",
@@ -53,7 +53,7 @@
       "artifact": "project_state/gates/current_handoff_packet.json",
       "errors": [],
       "gate_status": "PASSED",
-      "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "report_id": "codex_report_20260720_ci_preflight_bootstrap_order_rework_v10",
       "evidence_only": true,
       "executable": false,
       "can_execute": false,

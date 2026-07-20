@@ -46,7 +46,7 @@ jobs:
         run: python -m pip install -e .
 
       - name: Project gate preflight
-        run: python -m reverse_agent.project_gate preflight --state-dir project_state
+        run: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed
 
       - name: Project gate command plan
         run: python -m reverse_agent.project_gate command-plan --state-dir project_state

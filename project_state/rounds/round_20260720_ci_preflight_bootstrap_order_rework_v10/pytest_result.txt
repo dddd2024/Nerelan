@@ -1630,9 +1630,3 @@ blocking_reasons:
 - state_manifest_freshness: state_manifest current artifact references are stale or invalid (12 errors across 9 current refs; manifest decision_id=decision_20260720_ci_preflight_bootstrap_order_rework_v10 round_id=round_20260720_ci_preflight_bootstrap_order_rework_v10 report_id=codex_report_20260720_ci_preflight_bootstrap_order_rework_v10)
 
 ===== EXIT: 1 =====
-===== COMMAND: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 =====
-final-evidence-seal: PASSED
-seal_sha256: d8063604f7e3da83d5f795d9b69c70a100591df9c6e66ace69eca211c23992d4
-
-===== EXIT: 0 =====
-

@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "generated_at": "2026-07-19T17:46:24.905253Z",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "report_id": "codex_report_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "generated_at": "2026-07-20T05:36:26.583340Z",
   "handoff_status": "PENDING_DIAGNOSTIC_EVIDENCE",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -144,7 +144,7 @@
       "recommendation": null,
       "errors": [],
       "warnings": [
-        "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8"
+        "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10"
       ]
     },
     "final_check": {
@@ -158,7 +158,7 @@
       "acceptance_recommendation": "REWORK_REQUIRED",
       "recommendation": null,
       "errors": [
-        "state_manifest_freshness: state_manifest current artifact references are stale or invalid (12 errors across 9 current refs; manifest decision_id=decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 round_id=round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 report_id=codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8)"
+        "state_manifest_freshness: state_manifest current artifact references are stale or invalid (12 errors across 9 current refs; manifest decision_id=decision_20260720_ci_preflight_bootstrap_order_rework_v10 round_id=round_20260720_ci_preflight_bootstrap_order_rework_v10 report_id=codex_report_20260720_ci_preflight_bootstrap_order_rework_v10)"
       ],
       "warnings": [
         "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking",

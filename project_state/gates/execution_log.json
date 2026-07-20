@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "WARN",
-  "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-  "generated_at": "2026-07-19T17:55:18.917013Z",
+  "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "report_id": "codex_report_20260720_ci_preflight_bootstrap_order_rework_v10",
+  "generated_at": "2026-07-20T05:41:31.066929Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-    "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-    "report_id": "codex_report_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+    "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+    "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
+    "report_id": "codex_report_20260720_ci_preflight_bootstrap_order_rework_v10",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "4c9488416f29cb73f8007dd2712696638c67fa85c8e72164cf5e33baff716a56",
-        "size_bytes": 66382,
-        "command_block_count": 38
+        "sha256": "489fc4c2b690d6964990f4c5807288f6f9261512962f4a63273ce63d5f03d139",
+        "size_bytes": 66462,
+        "command_block_count": 39
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "aecf63a7ed7dddc11d49a445d1315ccafba095602fddb6c82bae8f8e9d9d064c",
-        "size_bytes": 29038,
-        "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-        "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+        "sha256": "05dbf36ba124816ac0b2465c1a183039a9edc6ac1733957d52e63b2f0a7920ab",
+        "size_bytes": 30494,
+        "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+        "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
         "plan_status": "PASSED",
-        "command_count": 39
+        "command_count": 40
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "c6c72c097c84c57d65c8090ae606f02c3472419c0f60acb57b810ea538d6bb84",
-        "size_bytes": 88343,
-        "decision_id": "decision_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-        "round_id": "round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
-        "command_block_count": 34
+        "sha256": "39844dc500de8bd4817b16987c48160610587f0f99267e49297f3d2f56cbacae",
+        "size_bytes": 88055,
+        "decision_id": "decision_20260720_ci_preflight_bootstrap_order_rework_v10",
+        "round_id": "round_20260720_ci_preflight_bootstrap_order_rework_v10",
+        "command_block_count": 35
       }
     },
-    "command_count": 38,
-    "command_digest": "6bf5f62e81a8427a58b0694160814da79826546f046902264597a15e1c3cbc97",
+    "command_count": 39,
+    "command_digest": "87b4ea26b9eb2d117ee03565f395fbcd0ca3103cd9572aa4b6654ccd021d774a",
     "normal_final_seal_command_recorded": true
   },
   "commands": [
@@ -108,12 +108,11 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "exit_code": 0,
       "status": "PASSED"
@@ -142,6 +141,17 @@
     },
     {
       "index": 9,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "phase": "preflight",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 10,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "kind": "post-final-evidence-sync",
       "phase": "gate",
@@ -152,7 +162,7 @@
       "status": "PASSED"
     },
     {
-      "index": 10,
+      "index": 11,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -163,7 +173,7 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
+      "index": 12,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -174,7 +184,7 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
+      "index": 13,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -185,7 +195,7 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
+      "index": 14,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "kind": "pytest",
       "phase": "test",
@@ -196,7 +206,7 @@
       "status": "PASSED"
     },
     {
-      "index": 14,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
       "kind": "gate-profile",
       "phase": "gate",
@@ -207,7 +217,7 @@
       "status": "PASSED"
     },
     {
-      "index": 15,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "phase": "gate",
@@ -218,7 +228,7 @@
       "status": "PASSED"
     },
     {
-      "index": 16,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "phase": "gate",
@@ -229,7 +239,7 @@
       "status": "PASSED"
     },
     {
-      "index": 17,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "kind": "audit-inventory",
       "phase": "gate",
@@ -240,8 +250,8 @@
       "status": "PASSED"
     },
     {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 --dry-run",
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "expected_exit_codes": [
@@ -251,7 +261,7 @@
       "status": "PASSED"
     },
     {
-      "index": 19,
+      "index": 20,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "kind": "ci-workflow-coverage",
       "phase": "gate",
@@ -262,7 +272,7 @@
       "status": "PASSED"
     },
     {
-      "index": 20,
+      "index": 21,
       "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
       "kind": "ci-workflow-readiness",
       "phase": "gate",
@@ -273,7 +283,7 @@
       "status": "PASSED"
     },
     {
-      "index": 21,
+      "index": 22,
       "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
       "kind": "ci-run-evidence",
       "phase": "gate",
@@ -284,7 +294,7 @@
       "status": "PASSED"
     },
     {
-      "index": 22,
+      "index": 23,
       "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
       "kind": "local-ci-parity",
       "phase": "gate",
@@ -295,7 +305,7 @@
       "status": "PASSED"
     },
     {
-      "index": 23,
+      "index": 24,
       "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
       "kind": "ci-observation-schema",
       "phase": "gate",
@@ -306,7 +316,7 @@
       "status": "PASSED"
     },
     {
-      "index": 24,
+      "index": 25,
       "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
       "kind": "ci-observation-handoff",
       "phase": "gate",
@@ -317,7 +327,7 @@
       "status": "PASSED"
     },
     {
-      "index": 25,
+      "index": 26,
       "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
       "kind": "ci-observation-reconcile",
       "phase": "gate",
@@ -328,7 +338,7 @@
       "status": "PASSED"
     },
     {
-      "index": 26,
+      "index": 27,
       "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
       "kind": "ci-artifact-manifest",
       "phase": "gate",
@@ -339,7 +349,7 @@
       "status": "PASSED"
     },
     {
-      "index": 27,
+      "index": 28,
       "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
       "kind": "ci-audit-handoff-bundle",
       "phase": "gate",
@@ -350,7 +360,7 @@
       "status": "PASSED"
     },
     {
-      "index": 28,
+      "index": 29,
       "command": "git log --oneline --decorate -n 12",
       "kind": "git log",
       "phase": "status",
@@ -361,7 +371,7 @@
       "status": "PASSED"
     },
     {
-      "index": 29,
+      "index": 30,
       "command": "git diff --check",
       "kind": "git diff",
       "phase": "status",
@@ -372,7 +382,7 @@
       "status": "PASSED"
     },
     {
-      "index": 30,
+      "index": 31,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -384,7 +394,7 @@
       "status": "PASSED"
     },
     {
-      "index": 31,
+      "index": 32,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "phase": "gate",
@@ -395,7 +405,7 @@
       "status": "PASSED"
     },
     {
-      "index": 32,
+      "index": 33,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet",
       "phase": "gate",
@@ -406,7 +416,7 @@
       "status": "PASSED"
     },
     {
-      "index": 33,
+      "index": 34,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "kind": "local-execution-bundle",
       "phase": "gate",
@@ -417,7 +427,7 @@
       "status": "PASSED"
     },
     {
-      "index": 34,
+      "index": 35,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "kind": "codex-prompt-packet",
       "phase": "gate",
@@ -428,7 +438,7 @@
       "status": "PASSED"
     },
     {
-      "index": 35,
+      "index": 36,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "kind": "audit-precheck",
       "phase": "gate",
@@ -439,7 +449,7 @@
       "status": "PASSED"
     },
     {
-      "index": 36,
+      "index": 37,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -451,19 +461,18 @@
       "status": "PASSED"
     },
     {
-      "index": 37,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 38,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "exit_code": 0,
       "status": "PASSED"
     },
     {
-      "index": 38,
+      "index": 39,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
@@ -475,8 +484,8 @@
       "status": "PASSED"
     },
     {
-      "index": 39,
-      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 40,
+      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "final-evidence-seal",
       "phase": "gate",
       "expected_exit_codes": [
@@ -521,7 +530,7 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "run-closeout",
       "exit_code": 0
     },
@@ -539,204 +548,210 @@
     },
     {
       "index": 9,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
+      "kind": "preflight",
+      "exit_code": 0
+    },
+    {
+      "index": 10,
       "command": "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
       "kind": "post-final-evidence-sync",
       "exit_code": 0
     },
     {
-      "index": 10,
+      "index": 11,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "kind": "pytest",
       "exit_code": 0
     },
     {
-      "index": 11,
+      "index": 12,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_project_state.py tests/test_project_ci.py -q",
       "kind": "pytest",
       "exit_code": 0
     },
     {
-      "index": 12,
+      "index": 13,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
       "kind": "pytest",
       "exit_code": 0
     },
     {
-      "index": 13,
+      "index": 14,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_decision_preflight.py tests/test_post_final_evidence_sync.py tests/test_project_state.py tests/test_project_jobs.py -q",
       "kind": "pytest",
       "exit_code": 0
     },
     {
-      "index": 14,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
       "kind": "gate-profile",
       "exit_code": 0
     },
     {
-      "index": 15,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "kind": "command-plan",
       "exit_code": 0
     },
     {
-      "index": 16,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "kind": "command-plan",
       "exit_code": 0
     },
     {
-      "index": 17,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "kind": "audit-inventory",
       "exit_code": 0
     },
     {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8 --dry-run",
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10 --dry-run",
       "kind": "execute-decision",
       "exit_code": 0
     },
     {
-      "index": 19,
+      "index": 20,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "kind": "ci-workflow-coverage",
       "exit_code": 0
     },
     {
-      "index": 20,
+      "index": 21,
       "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
       "kind": "ci-workflow-readiness",
       "exit_code": 0
     },
     {
-      "index": 21,
+      "index": 22,
       "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
       "kind": "ci-run-evidence",
       "exit_code": 0
     },
     {
-      "index": 22,
+      "index": 23,
       "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
       "kind": "local-ci-parity",
       "exit_code": 0
     },
     {
-      "index": 23,
+      "index": 24,
       "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
       "kind": "ci-observation-schema",
       "exit_code": 0
     },
     {
-      "index": 24,
+      "index": 25,
       "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
       "kind": "ci-observation-handoff",
       "exit_code": 0
     },
     {
-      "index": 25,
+      "index": 26,
       "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
       "kind": "ci-observation-reconcile",
       "exit_code": 0
     },
     {
-      "index": 26,
+      "index": 27,
       "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
       "kind": "ci-artifact-manifest",
       "exit_code": 0
     },
     {
-      "index": 27,
+      "index": 28,
       "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
       "kind": "ci-audit-handoff-bundle",
       "exit_code": 0
     },
     {
-      "index": 28,
+      "index": 29,
       "command": "git log --oneline --decorate -n 12",
       "kind": "git log",
       "exit_code": 0
     },
     {
-      "index": 29,
+      "index": 30,
       "command": "git diff --check",
       "kind": "git diff",
       "exit_code": 0
     },
     {
-      "index": 30,
+      "index": 31,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "exit_code": 0
     },
     {
-      "index": 31,
+      "index": 32,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "kind": "audit-readiness-packet",
       "exit_code": 0
     },
     {
-      "index": 32,
+      "index": 33,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "kind": "current-handoff-packet",
       "exit_code": 0
     },
     {
-      "index": 33,
+      "index": 34,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "kind": "local-execution-bundle",
       "exit_code": 0
     },
     {
-      "index": 34,
+      "index": 35,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "kind": "codex-prompt-packet",
       "exit_code": 0
     },
     {
-      "index": 35,
+      "index": 36,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "kind": "audit-precheck",
       "exit_code": 0
     },
     {
-      "index": 36,
+      "index": 37,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "exit_code": 0
     },
     {
-      "index": 37,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 38,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "close-round",
       "exit_code": 0
     },
     {
-      "index": 38,
+      "index": 39,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "exit_code": 1
     },
     {
-      "index": 39,
-      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+      "index": 40,
+      "command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
       "kind": "final-evidence-seal",
       "exit_code": 0,
       "stdout_provenance": "project_state/gates/final_evidence_seal.json",
       "stderr_provenance": "none"
     }
   ],
-  "final_observed_command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8",
+  "final_observed_command": "python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10",
   "warnings": [
-    "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260719_remote_attestation_truth_and_ci_command_parity_rework_v8"
+    "command_plan has 1 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate final-evidence-seal --state-dir project_state --round-id round_20260720_ci_preflight_bootstrap_order_rework_v10"
   ],
   "blocking_reasons": [],
   "recommended_next_action": "review_execution_log_warnings",
   "terminal_event": {
     "event_type": "terminal_final_evidence_seal",
-    "previous_chain_head": "6bf5f62e81a8427a58b0694160814da79826546f046902264597a15e1c3cbc97",
+    "previous_chain_head": "87b4ea26b9eb2d117ee03565f395fbcd0ca3103cd9572aa4b6654ccd021d774a",
     "seal_path": "project_state/gates/final_evidence_seal.json",
-    "seal_sha256": "de7c2ad73f1e79a9d59f8fd60fe054d83e3645bf81c8686ffd2a6ca29c541715",
-    "recorded_at": "2026-07-19T17:55:20.548250Z"
+    "seal_sha256": "d8063604f7e3da83d5f795d9b69c70a100591df9c6e66ace69eca211c23992d4",
+    "recorded_at": "2026-07-20T05:41:32.376889Z"
   }
 }
