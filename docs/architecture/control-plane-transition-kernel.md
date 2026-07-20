@@ -25,10 +25,16 @@ evidence, but they cannot authorize a transition.
 ## Compatibility and rollback
 
 Transition mode is opt-in through `decision_contract.transition_kernel_required`.
-Legacy Decisions continue through the existing project-gate functions. Rolling
-back the transition path means removing the new CLI routing and modules; no
-legacy artifact or command needs to be rewritten.
+Legacy Decisions continue through the existing project-gate functions. The
+`control-plane-mode` command reads only the named Decision metadata and contract
+blocks and prints exactly `legacy` or `transition`. Missing or malformed blocks,
+or a non-boolean transition flag, fail nonzero instead of silently choosing a
+pipeline.
 
-The next bounded round is Workflow transition cutover: it may switch the State
-Gate and Decision Preflight workflows to the new CLI only after this kernel is
-independently accepted.
+State Gate and Decision Preflight use that token to run exactly one authority
+path. Rolling back the Workflow cutover means restoring their previous routing
+while leaving the kernel modules intact; no legacy artifact or command needs to
+be rewritten.
+
+The next bounded workstream is independent audit and hardening of the accepted
+transition surface. It is not started by this cutover round.

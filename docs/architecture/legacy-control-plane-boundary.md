@@ -18,4 +18,15 @@ The compatibility adapter has only three responsibilities:
   legacy validator unchanged for every other Decision.
 
 It does not copy legacy gate logic or treat legacy acceptance artifacts as
-transition prerequisites. No workflow is changed during the kernel round.
+transition prerequisites.
+
+## Workflow boundary
+
+Valid Decisions without `transition_kernel_required=true` produce the `legacy`
+mode token. Governance workflows retain every legacy step, command, and order,
+with explicit legacy-only conditions. Transition Decisions run transition lint,
+command-plan validation, and transition preflight instead; the legacy acceptance
+chain is skipped. Malformed Decisions do not fall back to either path.
+
+The exact rollback is to restore unconditional legacy workflow routing while
+leaving the transition kernel and mode detector installed.

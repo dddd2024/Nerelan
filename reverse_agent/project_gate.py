@@ -8,6 +8,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import Any, Callable, Mapping
 
 from .control_plane.command_authority import validate_command_plan as validate_transition_command_plan
 from .control_plane.legacy_adapter import (
+    detect_control_plane_mode,
     is_transition_decision,
     load_legacy_command_plan,
     load_transition_decision,
@@ -35849,6 +35851,9 @@ TRANSITION_PREFLIGHT_RESULT_NAME = "transition_preflight_result.json"
 TRANSITION_EXPECTED_BRANCH = "codex/control-plane-transition-kernel-v1"
 TRANSITION_ALLOWED_PATHS = (
     ".gitignore",
+    ".github/workflows/ci.yml",
+    ".github/workflows/state-gate.yml",
+    ".github/workflows/decision-preflight.yml",
     "pyproject.toml",
     "reverse_agent/control_plane/**",
     "reverse_agent/project_gate.py",
@@ -35871,9 +35876,9 @@ TRANSITION_ALLOWED_PATHS = (
     "docs/architecture/control-plane-transition-kernel.md",
     "docs/architecture/legacy-control-plane-boundary.md",
     "docs/architecture/transition-command-authority.md",
+    "docs/architecture/workflow-transition-cutover.md",
 )
 TRANSITION_FORBIDDEN_PATHS = (
-    ".github/workflows/**",
     "frontend/**",
     "solve_reports/**",
     "local_reverse_samples/**",
@@ -35974,6 +35979,8 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
         }
     plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
     branch = _transition_git(repo_root, "branch", "--show-current")
+    if not branch:
+        branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME") or ""
     base_sha = _transition_git(repo_root, "rev-parse", "origin/main")
     merge_base = _transition_git(repo_root, "merge-base", "HEAD", "origin/main")
     decision_commit = _transition_git(repo_root, "log", "-1", "--format=%H", "--", "project_state/decision_packet.md")
@@ -36255,8 +36262,18 @@ def main(argv: list[str] | None = None) -> int:
     transition_preflight_parser = subparsers.add_parser("transition-preflight", help="Run independent transition preflight.")
     transition_preflight_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     transition_preflight_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
+    control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
     args = parser.parse_args(argv)
+    if args.command == "control-plane-mode":
+        try:
+            mode = detect_control_plane_mode(Path(args.state_dir) / "decision_packet.md")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            print(f"control-plane-mode: ERROR: {exc}", file=sys.stderr)
+            return 2
+        print(mode)
+        return 0
     if args.command == "transition-lint":
         result = transition_lint(state_dir=Path(args.state_dir))
         if args.json:

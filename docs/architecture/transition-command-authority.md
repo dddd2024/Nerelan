@@ -20,3 +20,8 @@ the same schema directly.
 CI-only commands remain distinct from commands approved for local execution.
 This prevents a remote-only operation from becoming locally executable merely
 because its text appears in an evidence document.
+
+The Workflow cutover contract is the named `workflow_contract` JSON block in
+the active Decision. It separately reviews the remote install, mode detection,
+transition authority, and focused-test commands. Local Codex execution remains
+bound to the generated local command plan.

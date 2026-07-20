@@ -32,6 +32,26 @@ def is_transition_decision(contract: Mapping[str, Any]) -> bool:
     return contract.get("transition_kernel_required") is True
 
 
+def detect_control_plane_mode(path: Path) -> str:
+    """Return one deterministic mode token, rejecting malformed authority."""
+
+    decision, contract = load_transition_decision(path)
+    if not decision.decision_id:
+        raise ValueError("missing_decision_id")
+    if not decision.round_id:
+        raise ValueError("missing_round_id")
+    if not decision.status:
+        raise ValueError("missing_decision_status")
+    if not decision.mainline:
+        raise ValueError("missing_mainline")
+    if not decision.skill_profiles:
+        raise ValueError("missing_skill_profiles")
+    flag = contract.get("transition_kernel_required", False)
+    if not isinstance(flag, bool):
+        raise ValueError("transition_kernel_required_must_be_boolean")
+    return "transition" if flag else "legacy"
+
+
 def load_legacy_command_plan(path: Path) -> TransitionCommandPlan:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):

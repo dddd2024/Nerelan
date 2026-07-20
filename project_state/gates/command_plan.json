@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260720_control_plane_transition_kernel_cutover_v1",
-  "round_id": "round_20260720_control_plane_transition_kernel_cutover_v1",
+  "decision_id": "decision_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
+  "round_id": "round_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-20T09:41:11.291770Z",
+  "generated_at": "2026-07-20T12:50:00.509675Z",
   "profile_meta": {
     "profile": "full",
     "profile_reason": "full profile explicitly selected",
@@ -61,6 +61,19 @@
     },
     {
       "index": 3,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 4,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
@@ -73,7 +86,7 @@
       "notes": "preflight expected to exit 0"
     },
     {
-      "index": 4,
+      "index": 5,
       "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -86,7 +99,7 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 5,
+      "index": 6,
       "command": "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
       "phase": "gate",
       "kind": "ci-workflow-coverage",
@@ -99,7 +112,7 @@
       "notes": "ci-workflow-coverage expected to exit 0"
     },
     {
-      "index": 6,
+      "index": 7,
       "command": "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
       "phase": "gate",
       "kind": "ci-workflow-readiness",
@@ -112,7 +125,7 @@
       "notes": "ci-workflow-readiness expected to exit 0"
     },
     {
-      "index": 7,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
       "phase": "gate",
       "kind": "ci-run-evidence",
@@ -125,7 +138,7 @@
       "notes": "ci-run-evidence expected to exit 0"
     },
     {
-      "index": 8,
+      "index": 9,
       "command": "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
       "phase": "gate",
       "kind": "local-ci-parity",
@@ -138,7 +151,7 @@
       "notes": "local-ci-parity expected to exit 0"
     },
     {
-      "index": 9,
+      "index": 10,
       "command": "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
       "phase": "gate",
       "kind": "ci-observation-schema",
@@ -151,7 +164,7 @@
       "notes": "ci-observation-schema expected to exit 0"
     },
     {
-      "index": 10,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
       "phase": "gate",
       "kind": "ci-observation-handoff",
@@ -164,7 +177,7 @@
       "notes": "ci-observation-handoff expected to exit 0"
     },
     {
-      "index": 11,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
       "phase": "gate",
       "kind": "ci-observation-reconcile",
@@ -177,7 +190,7 @@
       "notes": "ci-observation-reconcile expected to exit 0"
     },
     {
-      "index": 12,
+      "index": 13,
       "command": "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
       "phase": "gate",
       "kind": "ci-artifact-manifest",
@@ -190,7 +203,7 @@
       "notes": "ci-artifact-manifest expected to exit 0"
     },
     {
-      "index": 13,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
       "phase": "gate",
       "kind": "ci-audit-handoff-bundle",
@@ -203,7 +216,7 @@
       "notes": "ci-audit-handoff-bundle expected to exit 0"
     },
     {
-      "index": 14,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
       "phase": "gate",
       "kind": "audit-inventory",
@@ -216,7 +229,7 @@
       "notes": "audit-inventory expected to exit 0"
     },
     {
-      "index": 15,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
       "phase": "gate",
       "kind": "audit-readiness-packet",
@@ -229,7 +242,7 @@
       "notes": "audit-readiness-packet expected to exit 0"
     },
     {
-      "index": 16,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
       "phase": "gate",
       "kind": "current-handoff-packet",
@@ -242,7 +255,7 @@
       "notes": "current-handoff-packet expected to exit 0"
     },
     {
-      "index": 17,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
       "phase": "gate",
       "kind": "local-execution-bundle",
@@ -255,7 +268,7 @@
       "notes": "local-execution-bundle expected to exit 0"
     },
     {
-      "index": 18,
+      "index": 19,
       "command": "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
       "phase": "gate",
       "kind": "codex-prompt-packet",
@@ -268,7 +281,7 @@
       "notes": "codex-prompt-packet expected to exit 0"
     },
     {
-      "index": 19,
+      "index": 20,
       "command": "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
       "phase": "gate",
       "kind": "audit-precheck",
@@ -279,20 +292,6 @@
       "conditional_closeout": false,
       "records_stdout_stderr": true,
       "notes": "audit-precheck expected to exit 0"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
     },
     {
       "index": 21,
@@ -310,7 +309,34 @@
     },
     {
       "index": 22,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
+    },
+    {
+      "index": 23,
       "command": "git diff --check",
+      "phase": "status",
+      "kind": "git diff",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "conditional_closeout": false,
+      "records_stdout_stderr": true,
+      "notes": "git diff expected to exit 0"
+    },
+    {
+      "index": 24,
+      "command": "git diff --name-only",
       "phase": "status",
       "kind": "git diff",
       "required": true,
@@ -324,5 +350,5 @@
   ],
   "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_control_plane_transition_kernel_cutover_v1"
+  "recommended_next_action": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1"
 }

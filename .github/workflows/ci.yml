@@ -23,7 +23,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install package
-        run: python -m pip install -e .
+        run: python -m pip install -e ".[test]"
 
       - name: Import check
         run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight"

@@ -31469,8 +31469,9 @@ def test_transition_schemas_are_independent_and_fail_closed() -> None:
 
 
 def test_transition_packaging_and_workflow_boundary() -> None:
-    import hashlib
     import tomllib
+
+    from reverse_agent.control_plane.legacy_adapter import extract_json_block
 
     repo_root = Path(__file__).resolve().parents[1]
     with (repo_root / "pyproject.toml").open("rb") as handle:
@@ -31485,14 +31486,165 @@ def test_transition_packaging_and_workflow_boundary() -> None:
     assert finder["exclude"] == ["tests*", "project_state*", "docs*"]
     ignores = (repo_root / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert all(item in ignores for item in ("*.egg-info/", "*.egg-link", "build/", "dist/"))
-    expected = {
-        "ci.yml": "967a147c20441869f2bc90ce8712c6b58c97c5749297ed077b54874f6fef463b",
-        "state-gate.yml": "4935d8a2ada7b9b2b89bfaaf30f928f28064c365bf97277edaed9d625a031dfe",
-        "decision-preflight.yml": "55a5d6bafa6580b412a5654ea15ffe89c4befbfc3698fe89ab142a343b0caba8",
+    decision_text = (repo_root / "project_state" / "decision_packet.md").read_text(encoding="utf-8")
+    contract = extract_json_block(decision_text, "workflow_contract")
+    workflows = {
+        name: (repo_root / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        for name in ("ci.yml", "state-gate.yml", "decision-preflight.yml")
     }
-    for name, digest in expected.items():
-        payload = (repo_root / ".github" / "workflows" / name).read_bytes()
-        assert hashlib.sha256(payload).hexdigest() == digest
+    for text in workflows.values():
+        assert f"run: {contract['install_command']}" in text
+    ci = workflows["ci.yml"]
+    assert "fetch-depth:" not in ci
+    assert [line.strip() for line in ci.splitlines() if line.strip().startswith("- name:")] == [
+        "- name: Checkout",
+        "- name: Set up Python",
+        "- name: Install package",
+        "- name: Import check",
+        "- name: Focused tests",
+    ]
+    assert f"run: {contract['focused_test_command']}" in ci
+
+    legacy_commands = {
+        "state-gate.yml": (
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+            "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
+            "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
+            "python -m reverse_agent.project_gate audit-inventory --state-dir project_state",
+            "python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state",
+            "python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state",
+            "python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state",
+            "python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state",
+            "python -m reverse_agent.project_gate audit-precheck --state-dir project_state",
+            "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+            "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+            "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+            "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        ),
+        "decision-preflight.yml": (
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+            "python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state",
+            "python -m reverse_agent.project_gate job-lifecycle --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state",
+            "python -m reverse_agent.project_gate decision-preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state",
+            "python -m reverse_agent.project_gate local-ci-parity --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state",
+            "python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state",
+        ),
+    }
+    for name, commands in legacy_commands.items():
+        text = workflows[name]
+        assert "fetch-depth: 0" in text
+        assert f"control-plane-mode --state-dir project_state" in text
+        for command in contract["transition_commands"]:
+            block = next(block for block in text.split("\n\n") if f"run: {command}" in block)
+            assert "if: steps.control_plane.outputs.mode == 'transition'" in block
+        positions = []
+        for command in commands:
+            block = next(block for block in text.split("\n\n") if f"run: {command}" in block)
+            assert "if: steps.control_plane.outputs.mode == 'legacy'" in block
+            positions.append(text.index(f"run: {command}"))
+        assert positions == sorted(positions)
+        focused = contract["focused_test_command"]
+        assert text.index(f"run: {focused}") > text.index("run: python -m reverse_agent.project_gate transition-preflight")
+        upload = next(block for block in text.split("\n\n") if "uses: actions/upload-artifact@v4" in block)
+        assert "if: always()" in upload
+
+
+def _write_control_plane_mode_decision(
+    state_dir: Path,
+    *,
+    flag: object = False,
+    include_flag: bool = True,
+) -> None:
+    contract = {"transition_kernel_required": flag} if include_flag else {}
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{{
+  "schema_version": 1,
+  "decision_id": "decision_mode",
+  "round_id": "round_mode",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}}
+```
+
+```json decision_contract
+{json.dumps(contract)}
+```
+""",
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    ("flag", "include_flag", "expected"),
+    [(True, True, "transition"), (False, True, "legacy"), (False, False, "legacy")],
+)
+def test_control_plane_mode_cli_outputs_exact_token(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    flag: bool,
+    include_flag: bool,
+    expected: str,
+) -> None:
+    import reverse_agent.project_gate as project_gate_module
+
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_control_plane_mode_decision(state_dir, flag=flag, include_flag=include_flag)
+    assert project_gate_module.main(["control-plane-mode", "--state-dir", str(state_dir)]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == f"{expected}\n"
+    assert captured.err == ""
+
+
+@pytest.mark.parametrize("invalid", ["yes", 1, None, [], {}])
+def test_control_plane_mode_cli_rejects_non_boolean_flag(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    invalid: object,
+) -> None:
+    import reverse_agent.project_gate as project_gate_module
+
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_control_plane_mode_decision(state_dir, flag=invalid)
+    assert project_gate_module.main(["control-plane-mode", "--state-dir", str(state_dir)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "transition_kernel_required_must_be_boolean" in captured.err
+
+
+def test_control_plane_mode_cli_rejects_malformed_decision(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import reverse_agent.project_gate as project_gate_module
+
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "decision_packet.md").write_text("```json decision_meta\n{broken}\n```", encoding="utf-8")
+    assert project_gate_module.main(["control-plane-mode", "--state-dir", str(state_dir)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("control-plane-mode: ERROR:")
 
 
 def test_transition_project_gate_cli_routes_without_legacy_artifacts(
@@ -31558,7 +31710,7 @@ def test_transition_project_gate_cli_routes_without_legacy_artifacts(
     def fake_git(_repo_root: Path, *args: str, check: bool = True) -> str:
         del check
         if args == ("branch", "--show-current"):
-            return "codex/control-plane-transition-kernel-v1"
+            return ""
         if args == ("rev-parse", "origin/main"):
             return base_sha
         if args == ("merge-base", "HEAD", "origin/main"):
@@ -31570,6 +31722,7 @@ def test_transition_project_gate_cli_routes_without_legacy_artifacts(
         raise AssertionError(args)
 
     monkeypatch.setattr(project_gate_module, "_transition_git", fake_git)
+    monkeypatch.setenv("GITHUB_HEAD_REF", "codex/control-plane-transition-kernel-v1")
     monkeypatch.setattr(
         project_gate_module.subprocess,
         "run",
