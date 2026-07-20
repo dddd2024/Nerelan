@@ -13,6 +13,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from .control_plane.command_authority import validate_command_plan as validate_transition_command_plan
+from .control_plane.legacy_adapter import (
+    is_transition_decision,
+    load_legacy_command_plan,
+    load_transition_decision,
+)
+from .control_plane.models import TransitionAuthority
+from .control_plane.transition import validate_transition
+
 from .project_ci import (
     build_artifact_manifest_artifact,
     build_audit_handoff_bundle_artifact,
@@ -35835,6 +35844,173 @@ def _preflight_exit_code(gate_status: object) -> int:
     return 1 if gate_status in {"BLOCKED", "FAILED"} else 0
 
 
+TRANSITION_COMMAND_PLAN_PREVIEW_NAME = "transition_command_plan_preview.json"
+TRANSITION_PREFLIGHT_RESULT_NAME = "transition_preflight_result.json"
+TRANSITION_EXPECTED_BRANCH = "codex/control-plane-transition-kernel-v1"
+TRANSITION_ALLOWED_PATHS = (
+    ".gitignore",
+    "pyproject.toml",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/project_gate.py",
+    "project_state/decision_packet.md",
+    "project_state/pytest_result.txt",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/execution_log.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/schemas/transition_*.schema.json",
+    "project_state/schemas/execution_envelope.schema.json",
+    "tests/test_project_gate.py",
+    "tests/test_project_control_plane.py",
+    "tests/test_decision_preflight.py",
+    "tests/test_project_reports.py",
+    "tests/test_project_state.py",
+    "tests/test_control_plane_transition.py",
+    "docs/architecture/control-plane-transition-kernel.md",
+    "docs/architecture/legacy-control-plane-boundary.md",
+    "docs/architecture/transition-command-authority.md",
+)
+TRANSITION_FORBIDDEN_PATHS = (
+    ".github/workflows/**",
+    "frontend/**",
+    "solve_reports/**",
+    "local_reverse_samples/**",
+)
+TRANSITION_FORBIDDEN_OPERATIONS = (
+    "direct_push_main",
+    "force_push",
+    "merge",
+    "rebase",
+    "destructive",
+    "secret_change",
+    "runner_dispatch",
+    "model_api",
+    "reverse_tool",
+)
+
+
+def _transition_git(repo_root: Path, *args: str, check: bool = True) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if check and completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or f"git {' '.join(args)} failed")
+    return completed.stdout.strip()
+
+
+def _active_transition_skills(repo_root: Path) -> tuple[str, ...]:
+    registry = _read_json(repo_root / ".codex-skills" / "registry.json")
+    skills = registry.get("skills") if isinstance(registry.get("skills"), dict) else {}
+    active: list[str] = []
+    for name, payload in skills.items():
+        if not isinstance(payload, dict) or payload.get("status") != "active":
+            continue
+        version = payload.get("version")
+        active.append(f"{name}@v{version}" if version is not None else str(name))
+    return tuple(sorted(active))
+
+
+def transition_lint(*, state_dir: Path) -> dict[str, Any]:
+    repo_root = _derive_repo_root(state_dir)
+    decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+    plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    def check(name: str, passed: bool, detail: str) -> dict[str, str]:
+        return {"name": name, "status": "PASS" if passed else "FAIL", "detail": detail}
+
+    plan_errors = validate_transition_command_plan(plan)
+    checks = [
+        check("transition_contract", is_transition_decision(contract), "transition kernel is explicitly selected"),
+        check("decision_approved", decision.status == "APPROVED", f"status={decision.status}"),
+        check("active_skills", all(skill in _active_transition_skills(repo_root) for skill in decision.skill_profiles), f"skills={list(decision.skill_profiles)}"),
+        check("command_plan_identity", plan.decision_id == decision.decision_id and plan.round_id == decision.round_id, f"plan={plan.decision_id}/{plan.round_id}"),
+        check("command_plan_contract", not plan_errors, f"errors={list(plan_errors)}"),
+    ]
+    blocking = [f"{item['name']}: {item['detail']}" for item in checks if item["status"] == "FAIL"]
+    return {
+        "schema_version": 1,
+        "gate_name": "transition-lint",
+        "gate_status": "PASSED" if not blocking else "BLOCKED",
+        "decision_id": decision.decision_id,
+        "round_id": decision.round_id,
+        "checks": checks,
+        "blocking_reasons": blocking,
+    }
+
+
+def transition_command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    errors = validate_transition_command_plan(plan)
+    payload = plan.to_dict()
+    payload.update({
+        "plan_name": "transition-command-plan",
+        "plan_status": "PASSED" if not errors else "BLOCKED",
+        "blocking_reasons": list(errors),
+    })
+    if write_result:
+        path = state_dir / "gates" / TRANSITION_COMMAND_PLAN_PREVIEW_NAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return payload
+
+
+def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+    if not is_transition_decision(contract):
+        return {
+            "schema_version": 1,
+            "gate_name": "transition-preflight",
+            "gate_status": "BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "checks": [],
+            "blocking_reasons": ["transition kernel is not selected by the active Decision"],
+        }
+    plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    branch = _transition_git(repo_root, "branch", "--show-current")
+    base_sha = _transition_git(repo_root, "rev-parse", "origin/main")
+    merge_base = _transition_git(repo_root, "merge-base", "HEAD", "origin/main")
+    decision_commit = _transition_git(repo_root, "log", "-1", "--format=%H", "--", "project_state/decision_packet.md")
+    ancestry = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", decision_commit, "HEAD"],
+        cwd=repo_root,
+        check=False,
+    ).returncode == 0
+    committed = _transition_git(repo_root, "diff", "--name-only", "origin/main...HEAD")
+    working = _transition_git(repo_root, "diff", "--name-only")
+    observed_paths = tuple(dict.fromkeys(line for line in f"{committed}\n{working}".splitlines() if line))
+    authority = TransitionAuthority(
+        decision=decision,
+        command_plan=plan,
+        expected_decision_id=decision.decision_id,
+        expected_round_id=decision.round_id,
+        active_skills=_active_transition_skills(repo_root),
+        legal_mainlines=("engineering_branch",),
+        expected_branch=TRANSITION_EXPECTED_BRANCH,
+        actual_branch=branch,
+        base_sha=base_sha,
+        merge_base_sha=merge_base,
+        decision_commit_sha=decision_commit,
+        decision_is_ancestor=ancestry,
+        observed_paths=observed_paths,
+        allowed_paths=TRANSITION_ALLOWED_PATHS,
+        forbidden_paths=TRANSITION_FORBIDDEN_PATHS,
+        forbidden_operations=TRANSITION_FORBIDDEN_OPERATIONS,
+    )
+    result = validate_transition(authority).to_dict()
+    if write_result:
+        path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return result
+
+
 def _close_round_exit_code(close_status: object) -> int:
     if close_status == "INVALID":
         return 2
@@ -36070,8 +36246,44 @@ def main(argv: list[str] | None = None) -> int:
     naming_hygiene_parser = subparsers.add_parser("naming-hygiene", help="Generate naming migration plan and state hygiene inventory.")
     naming_hygiene_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     naming_hygiene_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    transition_lint_parser = subparsers.add_parser("transition-lint", help="Lint explicit transition authority without legacy closeout state.")
+    transition_lint_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    transition_lint_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    transition_command_plan_parser = subparsers.add_parser("transition-command-plan", help="Materialize typed transition command authority.")
+    transition_command_plan_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    transition_command_plan_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    transition_preflight_parser = subparsers.add_parser("transition-preflight", help="Run independent transition preflight.")
+    transition_preflight_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    transition_preflight_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
+    if args.command == "transition-lint":
+        result = transition_lint(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+        return 0 if result.get("gate_status") == "PASSED" else 1
+    if args.command == "transition-command-plan":
+        result = transition_command_plan(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            print(f"transition-command-plan: {result.get('plan_status')}")
+            print(f"decision_id: {result.get('decision_id')}")
+            print(f"round_id: {result.get('round_id')}")
+            print(f"commands: {len(result.get('commands') or [])}")
+            print(f"artifact: project_state/gates/{TRANSITION_COMMAND_PLAN_PREVIEW_NAME}")
+        return 0 if result.get("plan_status") == "PASSED" else 1
+    if args.command == "transition-preflight":
+        state_dir = Path(args.state_dir)
+        result = transition_preflight(state_dir=state_dir, repo_root=_derive_repo_root(state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print(f"artifact: project_state/gates/{TRANSITION_PREFLIGHT_RESULT_NAME}")
+        return 0 if result.get("gate_status") == "PASSED" else 1
     if args.command == "final-check":
         result = final_check(state_dir=Path(args.state_dir), repo_root=_derive_repo_root(Path(args.state_dir)))
         if args.json:

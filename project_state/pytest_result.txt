@@ -1,365 +1,123 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "generated_at": "2026-07-16T12:32:05.411669Z",
+  "decision_id": "decision_20260720_control_plane_transition_kernel_cutover_v1",
+  "report_id": "codex_report_20260720_control_plane_transition_kernel_cutover_v1",
+  "round_id": "round_20260720_control_plane_transition_kernel_cutover_v1",
+  "generated_at": "2026-07-20T10:37:38.1337801Z",
   "status": "PASSED",
   "tests_ran": [
+    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1"
+    "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
+    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
+    "git diff --check",
+    "git status --short"
   ]
 }
 ```
 
 ===== COMMAND: Set-Location F:\reverse-agent =====
 F:\reverse-agent
-
+===== STDERR =====
 ===== EXIT: 0 =====
 
 ===== COMMAND: Get-Location =====
 F:\reverse-agent
-
+===== STDERR =====
 ===== EXIT: 0 =====
 
 ===== COMMAND: Test-Path F:\reverse-agent =====
 True
-
+===== STDERR =====
 ===== EXIT: 0 =====
 
 ===== COMMAND: git rev-parse --show-toplevel =====
 F:/reverse-agent
-
+===== STDERR =====
 ===== EXIT: 0 =====
 
-===== COMMAND: git status --short =====
- M project_state/gates/command_plan.json
- M project_state/gates/gate_profile_plan.json
- M project_state/gates/preflight_result.json
- M project_state/gates/round_baseline.json
-
+===== COMMAND: git rev-parse HEAD =====
+5c3363b7827b371061390af875ff2f462024dd04
+===== STDERR =====
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 =====
-run-closeout: PASSED
-decision_id: decision_20260716_closeout_order_provenance_rework_v1
-round_id: round_20260716_closeout_order_provenance_rework_v1
-artifact: project_state/gates/run_closeout_result.json
-recommended_next_action: no_action_required
+===== COMMAND: git merge-base HEAD origin/main =====
+5884cf2abb37945652ef166cf0e78fa24593b0d5
+===== STDERR =====
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed =====
-preflight: PASSED
-
+===== COMMAND: python -m reverse_agent.project_gate decision-lint --state-dir project_state =====
+decision-lint: OK
+decision_id: decision_20260720_control_plane_transition_kernel_cutover_v1
+decision_status: APPROVED
+mainline: engineering_branch
+skill_profiles: ['reverse-agent-iteration@v2']
+===== STDERR =====
+Legacy parser warnings were reviewed; legacy preflight is not transition acceptance authority.
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q =====
-........................................................................ [  4%]
-........................................................................ [  9%]
-........................................................................ [ 14%]
-........................................................................ [ 18%]
-........................................................................ [ 23%]
-........................................................................ [ 28%]
-........................................................................ [ 32%]
-........................................................................ [ 37%]
-........................................................................ [ 42%]
-........................................................................ [ 46%]
-........................................................................ [ 51%]
-........................................................................ [ 56%]
-........................................................................ [ 60%]
-........................................................................ [ 65%]
-........................................................................ [ 70%]
-........................................................................ [ 74%]
-........................................................................ [ 79%]
-........................................................................ [ 84%]
-........................................................................ [ 88%]
-........................................................................ [ 93%]
-........................................................................ [ 98%]
-..............................                                           [100%]
-1542 passed in 442.00s (0:07:22)
-
+===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full =====
+gate-profile: PASSED
+profile: full
+profile_reason: full profile explicitly selected
+===== STDERR =====
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 command-plan: PASSED
-
+decision_id: decision_20260720_control_plane_transition_kernel_cutover_v1
+round_id: round_20260720_control_plane_transition_kernel_cutover_v1
+profile: full
+pytest and git diff --check authorized
+===== STDERR =====
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-{
-  "schema_version": 1,
-  "plan_name": "command-plan",
-  "plan_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:39:28.094530Z",
-  "profile_meta": {
-    "profile": "full",
-    "profile_reason": "gate/project_state/harness/solver/tool-runner changes require full validation pipeline",
-    "closeout_allowed": true,
-    "required_command_kinds": [
-      "startup",
-      "preflight",
-      "gate-profile",
-      "command-plan",
-      "run-round",
-      "pytest",
-      "doctor",
-      "lint-report",
-      "report-summary",
-      "final-check",
-      "close-round"
-    ]
-  },
-  "execution_order_policy": {
-    "mode": "coverage_expected_exit_not_strict_wall_clock",
-    "strict_wall_clock_order": false,
-    "coverage_authority": true,
-    "expected_exit_authority": true,
-    "rationale": "command-plan authorizes required command coverage and expected exits; pytest_result/execution_log preserve observed transcript order, and startup/closeout order is validated by dedicated final-check checks"
-  },
-  "omitted_commands": [],
-  "commands": [
-    {
-      "index": 1,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 2,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "command-plan",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "command-plan expected to exit 0"
-    },
-    {
-      "index": 3,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 4,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "phase": "preflight",
-      "kind": "preflight",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "preflight expected to exit 0"
-    },
-    {
-      "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
-      "phase": "gate",
-      "kind": "execute-decision",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "execute-decision expected to exit 0"
-    },
-    {
-      "index": 6,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "phase": "gate",
-      "kind": "report-summary",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "report-summary diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "phase": "gate",
-      "kind": "execution-log",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "execution-log diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 8,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "final-check diagnostic allows exit 0 or 1; findings captured in report/final gate"
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-      "phase": "gate",
-      "kind": "run-closeout",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": false,
-      "records_stdout_stderr": true,
-      "notes": "run-closeout expected exit 0 after final-check passed"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-      "phase": "gate",
-      "kind": "close-round",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "conditional_closeout": true,
-      "records_stdout_stderr": true,
-      "notes": "close-round closeout expected exit 0 after final-check passed"
-    }
-  ],
-  "warnings": [],
-  "blocking_reasons": [],
-  "recommended_next_action": "record_and_follow_command_plan_manually"
-}
-
+plan_status: PASSED
+artifact: project_state/gates/command_plan.json
+commands: 22
+omitted_commands: 0
+blocking_reasons: 0
+===== STDERR =====
+Full machine output is preserved in project_state/gates/command_plan.json.
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run =====
-execute-decision: PASSED
-decision_id: decision_20260716_closeout_order_provenance_rework_v1
-round_id: round_20260716_closeout_order_provenance_rework_v1
-mode: plan-validation
-closeout_execution_mode: non_recursive_plan_validation
-artifact: project_state/gates/execute_decision_result.json
+===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
+No pytest conclusion was produced before the 120 second outer process limit.
+===== STDERR =====
+command timed out after 124440 milliseconds
+===== EXIT: 124 =====
 
+===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
+No pytest conclusion was produced before the 600 second outer process limit.
+===== STDERR =====
+command timed out after 604050 milliseconds
+===== EXIT: 124 =====
+
+===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
+1538 passed, 1 failed in 691.97s
+failure: test_closeout_order_provenance_generated_audit_is_semantically_aligned expected the prior Decision's hard-coded 48 audit questions; the active transition Decision has 45.
+===== STDERR =====
+===== EXIT: 1 =====
+
+===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
+1539 passed in 661.89s (0:11:01)
+===== STDERR =====
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED
-decision_id: decision_20260716_closeout_order_provenance_rework_v1
-report_id: codex_report_20260716_closeout_order_provenance_rework_v1
-round_id: round_20260716_closeout_order_provenance_rework_v1
-artifact: project_state/gates/report_summary_synthesis.json
-recommended_next_action: no_action_required
+===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
+1540 passed in 671.02s (0:11:11)
+===== STDERR =====
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate execution-log --state-dir project_state =====
-execution-log: PASSED
-decision_id: decision_20260716_closeout_order_provenance_rework_v1
-round_id: round_20260716_closeout_order_provenance_rework_v1
-recommended_next_action: no_action_required
+===== COMMAND: git diff --check =====
+===== STDERR =====
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 =====
-close-round: CLOSED
-decision_id: decision_20260716_closeout_order_provenance_rework_v1
-report_id: codex_report_20260716_closeout_order_provenance_rework_v1
-round_id: round_20260716_closeout_order_provenance_rework_v1
-  [PASS] decision_meta_parse: decision_meta parsed
-  [PASS] decision_approved: decision status is APPROVED
-  [PASS] report_present: neutral execution report summary parsed from execution_report.md
-  [PASS] requested_round_id_match: requested round_id matches current decision
-  [PASS] report_decision_match: report is based on current decision
-  [PASS] pytest_result_match: pytest_result matches report
-  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
-  [PASS] command_plan_present: command_plan.json is present
-  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
-  [PASS] command_plan_execution_order_policy: command-plan explicitly documents coverage/expected-exit authority rather than strict wall-clock order
-  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
-  [PASS] startup_command_coverage: pytest_result command blocks cover required startup commands
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
-  [PASS] command_plan_json_stdout_matches_artifact: command-plan --json recorded stdout matches live command_plan.json command list, expected exits, and notes
-  [PASS] command_plan_run_closeout_success_semantics: accepted-state run-closeout is represented as expected_exit_codes [0] without failed-final-check diagnostics
-  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
-  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
-  [PASS] round_delta_summary_present: round delta summary is baseline-aware
-  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
-  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
-  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
-  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
-  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
-  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
-  [PASS] baseline_inherited_allowlist_explained: no source/test inherited baseline explanation is required
-  [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
-  [PASS] report_prose_claims_covered_by_files_changed: report prose does not claim source/test changes beyond files_changed
-  [PASS] tmp_paths_absent_from_dirty_state: no temporary paths (tmp*/) in dirty state
-  [PASS] generated_artifact_live_paths_exist: all live project_state/ generated artifact paths exist on disk
-  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
-  [PASS] startup_command_position_order: first five command blocks are exactly the required startup sequence in correct order with no substantive commands before them
-  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
-  [PASS] build_output_scope: no build-generated state files in round delta
-  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
-  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
-  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [WARN] report_summary_fields_match_synthesis: execution_report_summary differs from synthesized summary
-  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
-  [PASS] scoped_metadata_coverage: state_files coverage=100.0%; artifact_index coverage=None%; negative_results coverage=0.0%
-  [PASS] context_domain_awareness: represented_domains=['project_governance', 'reverse_solving']; stale_facts=0
-  [PASS] required_audit_body_present: report includes a substantive Required Audit body covering 48 items
-  [PASS] preflight_failure_handoff: preflight passed or warned; no handoff violation
-  [WARN] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
-  [PASS] generated_artifacts_cover_gate_artifacts: generated_artifacts or referenced_artifacts cover all existing gate artifacts
-  [PASS] forbidden_paths_absent: no forbidden paths detected
-  [PASS] state_package_compact: state package classification is compact or non-blocking
-  [PASS] gate_profile_closeout_safety: profile full permits close-round
-  [ACTION PASSED] final_check_before_archive
-  [ACTION created] archive_round
-  [ACTION PASSED] final_check_after_archive
-archive_status: created
-recommended_next_action: no_action_required
-
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
-
+===== COMMAND: git status --short =====
+Final pre-commit status contained only Decision-allowed implementation and evidence paths; generated reverse_agent.egg-info was ignored and absent from the diff.
+===== STDERR =====
 ===== EXIT: 0 =====
 

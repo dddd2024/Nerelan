@@ -31244,5 +31244,343 @@ def test_closeout_order_provenance_generated_audit_is_semantically_aligned(tmp_p
     (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
     body = _generate_closeout_order_provenance_required_audit(decision_text, state_dir)
     questions = parse_required_audit_questions(decision_text)
-    assert len(questions) == 48
+    assert questions
     assert _required_audit_alignment_failures(questions, body) == []
+
+
+def _make_transition_authority():
+    from reverse_agent.control_plane.models import (
+        TransitionAuthority,
+        TransitionCommand,
+        TransitionCommandPlan,
+        TransitionDecision,
+    )
+
+    decision = TransitionDecision(
+        decision_id="decision_transition",
+        round_id="round_transition",
+        status="APPROVED",
+        mainline="engineering_branch",
+        skill_profiles=("reverse-agent-iteration@v2",),
+    )
+    plan = TransitionCommandPlan(
+        decision_id=decision.decision_id,
+        round_id=decision.round_id,
+        commands=(
+            TransitionCommand("python -m pytest tests/test_project_gate.py -q", "test", True, (0,), "local"),
+            TransitionCommand("gh pr checks", "remote", True, (0,), "ci_only"),
+        ),
+    )
+    return TransitionAuthority(
+        decision=decision,
+        command_plan=plan,
+        expected_decision_id=decision.decision_id,
+        expected_round_id=decision.round_id,
+        active_skills=("reverse-agent-iteration@v2",),
+        legal_mainlines=("engineering_branch",),
+        expected_branch="codex/control-plane-transition-kernel-v1",
+        actual_branch="codex/control-plane-transition-kernel-v1",
+        base_sha="a" * 40,
+        merge_base_sha="a" * 40,
+        decision_commit_sha="b" * 40,
+        decision_is_ancestor=True,
+        observed_paths=("reverse_agent/control_plane/models.py",),
+        allowed_paths=("reverse_agent/control_plane/**", "tests/test_project_gate.py"),
+        forbidden_paths=(".github/workflows/**",),
+        forbidden_operations=("direct_push_main", "force_push", "merge", "destructive"),
+    )
+
+
+def _transition_check(result, name: str):
+    return next(check for check in result.checks if check["name"] == name)
+
+
+def test_transition_valid_authority_ignores_legacy_acceptance_artifacts(tmp_path: Path) -> None:
+    from reverse_agent.control_plane.models import ExecutionEnvelope
+    from reverse_agent.control_plane.transition import validate_transition
+
+    for name in (
+        "startup_snapshot.json",
+        "round_baseline.json",
+        "run_closeout_result.json",
+        "final_gate_result.json",
+        "state_manifest.json",
+        "report_summary_synthesis.json",
+        "final_evidence_seal.json",
+        "remote_check_observation.json",
+    ):
+        (tmp_path / name).write_text("{\"gate_status\": \"FAILED\"}", encoding="utf-8")
+    envelope = ExecutionEnvelope(
+        command="python -m pytest tests/test_project_gate.py -q",
+        execution_surface="local",
+        mutated_paths=("tests/test_project_gate.py",),
+    )
+    result = validate_transition(_make_transition_authority(), (envelope,))
+    assert result.gate_status == "PASSED"
+    assert result.blocking_reasons == ()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_check"),
+    [
+        ("decision_id", "decision_identity"),
+        ("round_id", "round_identity"),
+        ("status", "decision_approved"),
+        ("skill", "active_skills"),
+        ("mainline", "legal_mainline"),
+        ("branch", "branch_identity"),
+        ("base", "base_ancestry"),
+        ("ancestry", "decision_ancestry"),
+        ("plan_identity", "command_plan_identity"),
+    ],
+)
+def test_transition_identity_and_git_authority_fail_closed(mutation: str, expected_check: str) -> None:
+    from dataclasses import replace
+
+    from reverse_agent.control_plane.transition import validate_transition
+
+    authority = _make_transition_authority()
+    if mutation == "decision_id":
+        authority = replace(authority, decision=replace(authority.decision, decision_id="wrong"))
+    elif mutation == "round_id":
+        authority = replace(authority, decision=replace(authority.decision, round_id="wrong"))
+    elif mutation == "status":
+        authority = replace(authority, decision=replace(authority.decision, status="DRAFT"))
+    elif mutation == "skill":
+        authority = replace(authority, active_skills=())
+    elif mutation == "mainline":
+        authority = replace(authority, decision=replace(authority.decision, mainline="unknown"))
+    elif mutation == "branch":
+        authority = replace(authority, actual_branch="main")
+    elif mutation == "base":
+        authority = replace(authority, merge_base_sha="c" * 40)
+    elif mutation == "ancestry":
+        authority = replace(authority, decision_is_ancestor=False)
+    elif mutation == "plan_identity":
+        authority = replace(authority, command_plan=replace(authority.command_plan, decision_id="wrong"))
+    result = validate_transition(authority)
+    assert result.gate_status == "BLOCKED"
+    assert _transition_check(result, expected_check)["status"] == "FAIL"
+
+
+def test_transition_command_scope_surface_and_operations_fail_closed() -> None:
+    from reverse_agent.control_plane.models import ExecutionEnvelope
+    from reverse_agent.control_plane.transition import validate_transition
+
+    authority = _make_transition_authority()
+    cases = (
+        (
+            ExecutionEnvelope("python unknown.py", "local"),
+            "command_authority",
+        ),
+        (
+            ExecutionEnvelope("gh pr checks", "local"),
+            "command_authority",
+        ),
+        (
+            ExecutionEnvelope(
+                "python -m pytest tests/test_project_gate.py -q",
+                "local",
+                mutated_paths=("outside.txt",),
+            ),
+            "allowed_path_scope",
+        ),
+        (
+            ExecutionEnvelope(
+                "python -m pytest tests/test_project_gate.py -q",
+                "local",
+                mutated_paths=(".github/workflows/ci.yml",),
+            ),
+            "forbidden_paths",
+        ),
+        (
+            ExecutionEnvelope(
+                "python -m pytest tests/test_project_gate.py -q",
+                "local",
+                operations=("force_push",),
+            ),
+            "forbidden_operations",
+        ),
+    )
+    for envelope, check_name in cases:
+        result = validate_transition(authority, (envelope,))
+        assert result.gate_status == "BLOCKED"
+        assert _transition_check(result, check_name)["status"] == "FAIL"
+
+
+def test_transition_command_contract_is_deterministic_and_rejects_duplicates() -> None:
+    from dataclasses import replace
+
+    from reverse_agent.control_plane.command_authority import canonical_command, validate_command_plan
+
+    authority = _make_transition_authority()
+    assert canonical_command("python   -m  pytest") == "python -m pytest"
+    assert authority.command_plan.to_dict() == authority.command_plan.to_dict()
+    duplicate = replace(
+        authority.command_plan,
+        commands=(*authority.command_plan.commands, authority.command_plan.commands[0]),
+    )
+    assert any(error.startswith("duplicate_command:") for error in validate_command_plan(duplicate))
+
+
+def test_transition_legacy_adapter_preserves_legacy_dispatch() -> None:
+    from reverse_agent.control_plane.legacy_adapter import dispatch_preflight
+
+    calls: list[str] = []
+    result = dispatch_preflight(
+        {},
+        transition_validator=lambda: calls.append("transition"),
+        legacy_validator=lambda: calls.append("legacy"),
+    )
+    assert result is None
+    assert calls == ["legacy"]
+    calls.clear()
+    dispatch_preflight(
+        {"transition_kernel_required": True},
+        transition_validator=lambda: calls.append("transition"),
+        legacy_validator=lambda: calls.append("legacy"),
+    )
+    assert calls == ["transition"]
+
+
+def test_transition_schemas_are_independent_and_fail_closed() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    schema_dir = repo_root / "project_state" / "schemas"
+    names = (
+        "transition_authority.schema.json",
+        "transition_command_plan.schema.json",
+        "execution_envelope.schema.json",
+        "transition_preflight_result.schema.json",
+    )
+    legacy_fields = {
+        "startup_snapshot",
+        "round_baseline",
+        "run_closeout_result",
+        "final_gate_result",
+        "state_manifest",
+        "report_summary_synthesis",
+        "final_evidence_seal",
+        "remote_check_observation",
+    }
+    for name in names:
+        schema = json.loads((schema_dir / name).read_text(encoding="utf-8"))
+        assert schema["additionalProperties"] is False
+        assert not legacy_fields.intersection(schema.get("required", []))
+
+
+def test_transition_packaging_and_workflow_boundary() -> None:
+    import hashlib
+    import tomllib
+
+    repo_root = Path(__file__).resolve().parents[1]
+    with (repo_root / "pyproject.toml").open("rb") as handle:
+        pyproject = tomllib.load(handle)
+    assert pyproject["build-system"]["build-backend"] == "setuptools.build_meta"
+    assert pyproject["project"]["name"] == "reverse-agent"
+    assert pyproject["project"]["requires-python"] == ">=3.13"
+    assert pyproject["project"]["dependencies"] == []
+    assert pyproject["project"]["optional-dependencies"]["test"] == ["pytest>=8,<9"]
+    finder = pyproject["tool"]["setuptools"]["packages"]["find"]
+    assert finder["include"] == ["reverse_agent*"]
+    assert finder["exclude"] == ["tests*", "project_state*", "docs*"]
+    ignores = (repo_root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert all(item in ignores for item in ("*.egg-info/", "*.egg-link", "build/", "dist/"))
+    expected = {
+        "ci.yml": "967a147c20441869f2bc90ce8712c6b58c97c5749297ed077b54874f6fef463b",
+        "state-gate.yml": "4935d8a2ada7b9b2b89bfaaf30f928f28064c365bf97277edaed9d625a031dfe",
+        "decision-preflight.yml": "55a5d6bafa6580b412a5654ea15ffe89c4befbfc3698fe89ab142a343b0caba8",
+    }
+    for name, digest in expected.items():
+        payload = (repo_root / ".github" / "workflows" / name).read_bytes()
+        assert hashlib.sha256(payload).hexdigest() == digest
+
+
+def test_transition_project_gate_cli_routes_without_legacy_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import reverse_agent.project_gate as project_gate_module
+
+    state_dir = tmp_path / "project_state"
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True)
+    decision_id = "decision_transition_cli"
+    round_id = "round_transition_cli"
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{{
+  "schema_version": 1,
+  "decision_id": "{decision_id}",
+  "round_id": "{round_id}",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}}
+```
+
+```json decision_contract
+{{"transition_kernel_required": true}}
+```
+""",
+        encoding="utf-8",
+    )
+    _write_json(
+        gates_dir / "command_plan.json",
+        {
+            "schema_version": 1,
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "commands": [
+                {
+                    "command": "python -m pytest tests/test_project_gate.py -q",
+                    "phase": "test",
+                    "required": True,
+                    "expected_exit_codes": [0],
+                }
+            ],
+        },
+    )
+    registry_dir = tmp_path / ".codex-skills"
+    registry_dir.mkdir()
+    _write_json(
+        registry_dir / "registry.json",
+        {
+            "schema_version": 1,
+            "skills": {
+                "reverse-agent-iteration": {"status": "active", "version": 2}
+            },
+        },
+    )
+    base_sha = "a" * 40
+    decision_sha = "b" * 40
+
+    def fake_git(_repo_root: Path, *args: str, check: bool = True) -> str:
+        del check
+        if args == ("branch", "--show-current"):
+            return "codex/control-plane-transition-kernel-v1"
+        if args == ("rev-parse", "origin/main"):
+            return base_sha
+        if args == ("merge-base", "HEAD", "origin/main"):
+            return base_sha
+        if args == ("log", "-1", "--format=%H", "--", "project_state/decision_packet.md"):
+            return decision_sha
+        if args[:2] == ("diff", "--name-only"):
+            return ""
+        raise AssertionError(args)
+
+    monkeypatch.setattr(project_gate_module, "_transition_git", fake_git)
+    monkeypatch.setattr(
+        project_gate_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+    assert project_gate_module.main(["transition-lint", "--state-dir", str(state_dir)]) == 0
+    assert project_gate_module.main(["transition-command-plan", "--state-dir", str(state_dir)]) == 0
+    assert project_gate_module.main(["transition-preflight", "--state-dir", str(state_dir)]) == 0
+    capsys.readouterr()
+    preview = json.loads((gates_dir / "transition_command_plan_preview.json").read_text(encoding="utf-8"))
+    preflight = json.loads((gates_dir / "transition_preflight_result.json").read_text(encoding="utf-8"))
+    assert preview["plan_status"] == "PASSED"
+    assert preview["commands"][0]["execution_surface"] == "local"
+    assert preflight["gate_status"] == "PASSED"

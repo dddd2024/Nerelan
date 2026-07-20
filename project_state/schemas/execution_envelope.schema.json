@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "execution_envelope.schema.json",
+  "title": "Execution Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["command", "execution_surface", "mutated_paths", "operations"],
+  "properties": {
+    "command": {"type": "string", "minLength": 1},
+    "execution_surface": {"enum": ["local", "ci_only"]},
+    "mutated_paths": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "operations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}
