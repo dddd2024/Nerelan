@@ -1,14 +1,18 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "based_on_decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
+  "report_id": "codex_report_20260720_legacy_control_plane_transition_disposition_v1",
+  "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+  "based_on_decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "status": "FAILED",
+  "acceptance_recommendation": "REWORK_REQUIRED",
   "files_changed": [
+    "docs/architecture/framework-authority-matrix.md",
+    "docs/architecture/legacy-control-plane-disposition.md",
+    "docs/roadmap/framework-transition-phases.md",
     "project_state/codex_execution_report.md",
-    "project_state/context/current_context_packet.json",
+    "project_state/context/framework_transition_packet.json",
+    "project_state/decision_packet.md",
     "project_state/execution_report.md",
     "project_state/gates/audit_precheck_result.json",
     "project_state/gates/audit_readiness_packet.json",
@@ -16,48 +20,49 @@
     "project_state/gates/ci_observation_reconcile_result.json",
     "project_state/gates/codex_prompt_packet.json",
     "project_state/gates/codex_report_auto_summary.json",
+    "project_state/gates/command_plan.json",
     "project_state/gates/current_handoff_packet.json",
-    "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
+    "project_state/gates/framework_authority_matrix.json",
+    "project_state/gates/gate_profile_plan.json",
     "project_state/gates/local_execution_bundle.json",
-    "project_state/gates/post_final_evidence_sync_result.json",
-    "project_state/gates/post_final_evidence_sync_snapshot.json",
+    "project_state/gates/policy_lint_result.json",
+    "project_state/gates/pr5_capability_inventory.json",
+    "project_state/gates/pr5_migration_disposition.json",
+    "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
-    "project_state/gates/run_round_result.json",
-    "project_state/gates/startup_snapshot.json",
+    "project_state/gates/selective_migration_manifest.json",
+    "project_state/gates/transition_baseline_recommendation.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json",
-    "project_state/state_manifest.json",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py"
+    "project_state/roadmap/workstreams.json",
+    "project_state/schemas/framework_transition_packet.schema.json",
+    "project_state/schemas/pr5_capability_inventory.schema.json",
+    "project_state/schemas/pr5_migration_disposition.schema.json",
+    "tests/test_framework_transition_artifacts.py"
   ],
   "tests_ran": [
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-    "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+    "git diff --name-only",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1"
+    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate policy-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate prompt-consistency --state-dir project_state",
+    "python -m pytest tests/test_framework_transition_artifacts.py tests/test_project_state.py tests/test_project_context.py -q",
+    "python -m reverse_agent.project_gate execution-log --state-dir project_state",
+    "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_legacy_control_plane_transition_disposition_v1",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_legacy_control_plane_transition_disposition_v1",
+    "git diff --check"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
-    "project_state/context/current_context_packet.json",
     "project_state/execution_report.md",
     "project_state/gates/audit_precheck_result.json",
     "project_state/gates/audit_readiness_packet.json",
@@ -67,33 +72,22 @@
     "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/current_handoff_packet.json",
-    "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/local_execution_bundle.json",
-    "project_state/gates/post_final_evidence_sync_result.json",
-    "project_state/gates/post_final_evidence_sync_snapshot.json",
+    "project_state/gates/policy_lint_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
-    "project_state/gates/run_round_result.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json"
+    "project_state/pytest_result.txt"
   ],
   "generated_or_updated_artifacts": [
     "project_state/codex_execution_report.md",
-    "project_state/context/current_context_packet.json",
     "project_state/execution_report.md",
     "project_state/gates/audit_precheck_result.json",
     "project_state/gates/audit_readiness_packet.json",
@@ -103,33 +97,23 @@
     "project_state/gates/codex_report_auto_summary.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/current_handoff_packet.json",
-    "project_state/gates/execute_decision_result.json",
     "project_state/gates/execution_log.json",
     "project_state/gates/execution_report_auto_summary.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/local_execution_bundle.json",
-    "project_state/gates/post_final_evidence_sync_result.json",
-    "project_state/gates/post_final_evidence_sync_snapshot.json",
+    "project_state/gates/policy_lint_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_closeout_execution_log.json",
     "project_state/gates/run_closeout_result.json",
-    "project_state/gates/run_round_result.json",
-    "project_state/gates/startup_snapshot.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json"
+    "project_state/pytest_result.txt"
   ],
   "referenced_artifacts": [
     "project_state/gates/audit_inventory_result.json",
-    "project_state/gates/policy_lint_result.json"
+    "project_state/gates/run_round_result.json"
   ],
   "historical_nonblocking_artifacts": [
     "project_state/gates/agent_runner_dry_run_result.json",
@@ -164,6 +148,7 @@
     "project_state/gates/deletion_manifest_validation_result.json",
     "project_state/gates/doctor_backlog_split_result.json",
     "project_state/gates/evidence_lock_manifest.json",
+    "project_state/gates/execute_decision_result.json",
     "project_state/gates/governance_fix_result.json",
     "project_state/gates/governance_operations_bundle_result.json",
     "project_state/gates/governance_operations_bundle_snapshot.json",
@@ -178,16 +163,20 @@
     "project_state/gates/naming_migration_plan.json",
     "project_state/gates/phase1_completion_result.json",
     "project_state/gates/policy_impact_audit.json",
-    "project_state/gates/policy_lint_result.json",
+    "project_state/gates/post_final_evidence_sync_result.json",
+    "project_state/gates/post_final_evidence_sync_snapshot.json",
     "project_state/gates/prework_provenance_result.json",
     "project_state/gates/project_governance_context_result.json",
     "project_state/gates/project_governance_context_snapshot.json",
     "project_state/gates/retention_policy_validation.json",
     "project_state/gates/rollback_handoff_plan.json",
+    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_compaction_dry_run.json",
     "project_state/gates/round_compaction_manifest_dry_run.json",
     "project_state/gates/round_compaction_plan.json",
+    "project_state/gates/run_round_result.json",
     "project_state/gates/runner_contract_result.json",
+    "project_state/gates/startup_snapshot.json",
     "project_state/gates/state_governance_bundle_result.json",
     "project_state/gates/state_governance_bundle_snapshot.json",
     "project_state/gates/state_hygiene_dashboard_feed.json",
@@ -209,13 +198,7 @@
     "project_state/gates/user_solve_workbench_result.json",
     "project_state/gates/user_solve_workbench_snapshot.json"
   ],
-  "archived_artifacts": [
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json"
-  ],
+  "archived_artifacts": [],
   "required_closeout_artifacts": [],
   "external_state_notices": [
     "historical sample artifacts missing; non-blocking for current non-sample evidence policy"
@@ -227,316 +210,206 @@
 
 ## Status
 
-SUCCESS
-
-## Allowed Changed Source/Test Files
-
-- reverse_agent/project_gate.py
-- reverse_agent/project_state.py
+FAILED
 
 ## Required Audit
 
-### 1. Is `decision_meta` valid JSON with `schema_version=1`?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### 1. Was this packet promoted to `project_state/decision_packet.md` before execution?
+
+- Evidence: project_state/decision_packet.md; git commit 1092f3bc794151895db8650bb44e15c7f32d7a19.
 - Status: PASS
-- Answer: Is `decision_meta` valid JSON with `schema_version=1`? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: The promoted packet was committed as the first branch commit before command-plan generation or artifact work.
 
-### 2. Is status `APPROVED` and mainline `project_governance`?
+### 2. Was execution started from a fresh branch based on current `main` rather than PR #5 or PR #6?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/pytest_result.txt startup Git records.
 - Status: PASS
-- Answer: Is status `APPROVED` and mainline `project_governance`? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: Branch codex/legacy-control-plane-transition-disposition-v1 has parent and merge-base 5884cf2abb37945652ef166cf0e78fa24593b0d5, the activation-time main.
 
-### 3. Is `reverse-agent-iteration@v2` active in `.codex-skills/registry.json`?
+### 3. Was v10 recorded as `REWORK_REQUIRED` and strategically superseded rather than accepted?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/pr5_migration_disposition.json fields v10_audit_outcome and legacy_micro_rework_authorized.
 - Status: PASS
-- Answer: Is `reverse-agent-iteration@v2` active in `.codex-skills/registry.json`? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: v10_audit_outcome is REWORK_REQUIRED and legacy_micro_rework_authorized is false.
 
-### 4. Is `decision_packet.md` treated as the sole current task authority and `task_packet.json` as background only?
+### 4. Did PR #5 remain unchanged and frozen at the audited head?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/pr5_capability_inventory.json fields pr5_state and pr5_audited_head_sha.
 - Status: PASS
-- Answer: Is `decision_packet.md` treated as the sole current task authority and `task_packet.json` as background only? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: PR #5 is FROZEN_MIGRATION_EVIDENCE at 6a2867467c90cf37929787be3ba6061fcbb81312; no PR #5 mutation was made.
 
-### 5. Is the previous independent audit outcome recorded as `REWORK_REQUIRED`?
+### 5. Was PR #5 compared against the activation-time `main`?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/pr5_capability_inventory.json comparison_command.
 - Status: PASS
-- Answer: Is the previous independent audit outcome recorded as `REWORK_REQUIRED`? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: The recorded comparison is 5884cf2abb37945652ef166cf0e78fa24593b0d5..6a2867467c90cf37929787be3ba6061fcbb81312.
 
-### 6. Was the stale previous-round command-plan rejected and regenerated for this decision and round?
+### 6. Does the capability inventory cover every material changed file in PR #5?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/pr5_capability_inventory.json; tests/test_framework_transition_artifacts.py.
 - Status: PASS
-- Answer: Was the stale previous-round command-plan rejected and regenerated for this decision and round? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: The 88 unique Git-diff paths exactly equal the union of capability pr5_files.
 
-### 7. Does the regenerated command-plan carry the current decision ID and round ID?
+### 7. Are capabilities grouped by function rather than by historical round alone?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/pr5_capability_inventory.json capabilities.
 - Status: PASS
-- Answer: Does the regenerated command-plan carry the current decision ID and round ID? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: Records are grouped into packaging, CI, authorization, policy, GitHub truth, closeout, context, planning, runtime, workbench, and Trust Layer functions.
 
-### 8. Does the regenerated command-plan explicitly authorize every executed command and preserve omitted-command restrictions?
+### 8. Does every capability identify implementation files, tests, artifacts, dependencies, and current-main overlap?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/schemas/pr5_capability_inventory.schema.json and inventory records.
 - Status: PASS
-- Answer: Does the regenerated command-plan explicitly authorize every executed command and preserve omitted-command restrictions? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: All 12 capability records contain the required evidence and overlap fields.
 
-### 9. Were any unauthorized or omitted commands executed?
+### 9. Does every capability have exactly one primary disposition category?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/pr5_migration_disposition.json; focused test output.
 - Status: PASS
-- Answer: Were any unauthorized or omitted commands executed? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: There is one scalar allowed primary_disposition for each of the 12 unique capability IDs.
 
-### 10. Is the round limited to closeout chronology and provenance repair?
+### 10. Are useful v10 Workflow changes classified independently from legacy report/closeout machinery?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: pr5_migration_disposition.json records ci-history-and-consumed-preflight and legacy-report-closeout-seal.
 - Status: PASS
-- Answer: Is the round limited to closeout chronology and provenance repair? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: Workflow compatibility is KEEP_AND_ADAPT while legacy report/closeout/seal is ARCHIVE_ONLY.
 
-### 11. Were the existing closeout, report-summary, execution-log, final-check, archive, state-manifest, and post-final-sync mechanisms reused rather than duplicated?
+### 11. Are existing command-plan, execution-log, report-summary, closeout, policy-lint, prompt-consistency, jobs, Runner, User Solve, CI, context, manifest, and evidence capabilities explicitly inventoried?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/pr5_capability_inventory.json.
 - Status: PASS
-- Answer: Were the existing closeout, report-summary, execution-log, final-check, archive, state-manifest, and post-final-sync mechanisms reused rather than duplicated? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: Each named foundation appears in a dedicated capability or an explicit implementation/test/artifact reference.
 
-### 12. Does `pytest_result.txt` preserve the observed command order?
+### 12. Does the authority matrix assign BMAD only to SDLC/planning responsibilities?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/framework_authority_matrix.json; test_authority_matrix_has_one_owner_and_one_runtime.
 - Status: PASS
-- Answer: Does `pytest_result.txt` preserve the observed command order? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: BMAD owns only product_discovery_and_prd and architecture_and_story_definition.
 
-### 13. Does `execution_log.json` preserve the observed transcript chronology without reordering?
+### 13. Does it assign one primary runtime candidate and prohibit dual-primary runtime architecture?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/framework_authority_matrix.json.
 - Status: PASS
-- Answer: Does `execution_log.json` preserve the observed transcript chronology without reordering? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: single_primary_runtime is LANGGRAPH and dual_primary_runtime_prohibited is true.
 
-### 14. Do `pytest_result.txt` and `execution_log.json` agree on the final lifecycle-mutating command?
+### 14. Does it assign GitHub as the source of truth for branch, commit, PR, review, CI, merge, and release facts?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/framework_authority_matrix.json.
 - Status: PASS
-- Answer: Do `pytest_result.txt` and `execution_log.json` agree on the final lifecycle-mutating command? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: GITHUB owns branch_commit_pr_review and ci_and_release_truth; engineering_work_item is also GitHub-owned.
 
-### 15. Does `final_gate_result.json` derive its command-order conclusion from the observed transcript?
+### 15. Does it reserve high-risk authorization and binary-analysis trust semantics for reverse-agent?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/framework_authority_matrix.json.
 - Status: PASS
-- Answer: Does `final_gate_result.json` derive its command-order conclusion from the observed transcript? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: REVERSE_AGENT_TRUST_LAYER owns high_risk_authorization, command_allowlist, binary_observation, claim_and_counterevidence, and validation_status.
 
-### 16. Does final-check fail when the transcript proves a command occurred after the claimed final close-round?
+### 16. Does the migration disposition identify capabilities that are self-maintenance of the legacy control plane?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/pr5_capability_inventory.json legacy_self_maintenance flags.
 - Status: PASS
-- Answer: Does final-check fail when the transcript proves a command occurred after the claimed final close-round? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: GitHub fact mirrors, report/closeout/seal, historical ledger, and monolithic planning are explicitly marked as legacy self-maintenance.
 
-### 17. Is stable run-closeout evidence generated before report finalization?
+### 17. Does the selective migration manifest provide file-level keep/adapt/archive/drop instructions?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/selective_migration_manifest.json.
 - Status: PASS
-- Answer: Is stable run-closeout evidence generated before report finalization? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: Every manifest entry names a capability, concrete path, action, and migration instruction.
 
-### 18. Does report finalization identify the live `run_closeout_result.json` path?
+### 18. Does the baseline recommendation explicitly choose `CURRENT_MAIN`, `PR5`, or `SELECTIVE_INTEGRATION_BASELINE` and justify the choice?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/transition_baseline_recommendation.json.
 - Status: PASS
-- Answer: Does report finalization identify the live `run_closeout_result.json` path? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: Selection is SELECTIVE_INTEGRATION_BASELINE; CURRENT_MAIN and PR5 are separately rejected with reasons.
 
-### 19. Does report finalization contain the full live run-closeout SHA-256?
+### 19. Does the baseline recommendation include rollback and compatibility implications?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/gates/transition_baseline_recommendation.json rollback_path and compatibility_implications.
 - Status: PASS
-- Answer: Does report finalization contain the full live run-closeout SHA-256? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: It specifies independent commit reverts, immutable PR #5 evidence, and temporary R2/R3 manual compatibility.
 
-### 20. Does report finalization match the live run-closeout `generated_at` and status?
+### 20. Does the transition packet define the first follow-on implementation Decision with exact scope and non-goals?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/context/framework_transition_packet.json first_implementation_decision.
 - Status: PASS
-- Answer: Does report finalization match the live run-closeout `generated_at` and status? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: decision_20260720_selective_capability_integration_v1 is bounded to packaging and two workflow hunks, with framework/runtime/archive non-goals.
 
-### 21. Does report finalization record an observed `report_finalized_at`?
+### 21. Are roadmap/workstream entries updated without becoming execution authority?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/roadmap/workstreams.json authority_policy and transition entries.
 - Status: PASS
-- Answer: Does report finalization record an observed `report_finalized_at`? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: Seven ordered workstreams exist, only disposition is ACTIVE_ROUND, and roadmap entries are not execution authority.
 
-### 22. Is `report_finalized_at` later than or equal to the referenced stable closeout evidence time?
+### 22. Were no frameworks installed and no product/runtime code changed?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: Git changed-file list in codex_report_summary.
 - Status: PASS
-- Answer: Is `report_finalized_at` later than or equal to the referenced stable closeout evidence time? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: No reverse_agent/**, .github/workflows/**, frontend, framework dependency, or runtime implementation path changed.
 
-### 23. Does the final archive refresh occur after report finalization?
+### 23. Were targeted tests actually run and recorded in `pytest_result.txt`?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/pytest_result.txt.
 - Status: PASS
-- Answer: Does the final archive refresh occur after report finalization? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: The focused suite passed 7 tests and the combined transition/project-state/context suite passed 339 tests.
 
-### 24. Does the final round manifest or equivalent closeout artifact record `archive_refreshed_at`?
+### 24. Does the final report list actual changed files based on Git diff rather than a hand-written incomplete list?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: codex_report_summary.files_changed; Git diff/status inspection after failed closeout.
 - Status: PASS
-- Answer: Does the final round manifest or equivalent closeout artifact record `archive_refreshed_at`? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
+- Answer: files_changed lists all 38 activation, implementation, test, report, and generated gate paths; unrelated reverse_agent.egg-info is excluded.
 
-### 25. Is `archive_refreshed_at >= report_finalized_at` proven by current artifact fields?
+### 25. Are all Required Audit answers question-specific rather than template repetition?
 
-- Evidence: project_state/gates/run_closeout_result.json generated_at; project_state/execution_report.md report_finalization.report_finalized_at; project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json archive_refreshed_at.
+- Evidence: This Required Audit section.
 - Status: PASS
-- Answer: Observed report_finalized_at=2026-07-16T12:40:05.575754Z and archive_refreshed_at=2026-07-16T12:40:06.025507Z; the manifest comparison proves archive_refreshed_at >= report_finalized_at.
+- Answer: Every item names a concrete artifact, observed field or value, and an item-specific conclusion.
 
-### 26. Does the final archive provenance record its basis and status?
+### 26. Did local final-check and closeout run, or was any legacy-only failure explicitly recorded without spawning another repair round?
 
-- Evidence: project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json archive_refresh_basis and final_archive_refresh_status.
+- Evidence: project_state/gates/final_gate_result.json, run_closeout_result.json, and close-round stdout in pytest_result.txt.
+- Status: FAIL
+- Answer: final-check, run-closeout, and close-round were executed. They failed on late legacy baseline/startup expectations, absent prompt-consistency CLI, and plan transcript constraints; no legacy repair round was created.
+
+### 27. Was no remote State Gate success claimed or required?
+
+- Evidence: decision_contract remote_attestation_required=false and report status REWORK_REQUIRED.
 - Status: PASS
-- Answer: The runtime manifest records archive_refresh_basis=final_live_report_copy_after_report_finalization and final_archive_refresh_status=PASSED.
+- Answer: No remote State Gate success was required or claimed.
 
-### 27. Does the archived report digest match the final live report digest at archive time?
+### 28. Is the next action a concrete implementation Decision rather than “continue improving”?
 
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
+- Evidence: project_state/context/framework_transition_packet.json and transition_baseline_recommendation.json.
 - Status: PASS
-- Answer: Does the archived report digest match the final live report digest at archive time? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 28. Do archived and live `codex_execution_report.md` match?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Do archived and live `codex_execution_report.md` match? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 29. Do archived and live `execution_report.md` match?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Do archived and live `execution_report.md` match? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 30. Do archived and live `pytest_result.txt` match?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Do archived and live `pytest_result.txt` match? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 31. Does the round manifest match the final decision, report, pytest, and closeout state?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Does the round manifest match the final decision, report, pytest, and closeout state? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 32. Do both report aliases carry semantically identical summary and report-finalization fields?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Do both report aliases carry semantically identical summary and report-finalization fields? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 33. Does `report_summary_synthesis.json` match both final report aliases?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Does `report_summary_synthesis.json` match both final report aliases? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 34. Does final-check include and pass chronology, report-finalization, archive-refresh, and archived/live parity checks?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Does final-check include and pass chronology, report-finalization, archive-refresh, and archived/live parity checks? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 35. Does final-check preserve `state_manifest_freshness=PASS`?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Does final-check preserve `state_manifest_freshness=PASS`? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 36. Does `current_context_packet.json` match the current decision and round after post-final sync?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Does `current_context_packet.json` match the current decision and round after post-final sync? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 37. Does post-final evidence sync prove that context was generated after the final gate state it references?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Does post-final evidence sync prove that context was generated after the final gate state it references? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 38. Does the final Required Audit body avoid placeholders, generic claims, contradictions, and future-tense completion claims?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Does the final Required Audit body avoid placeholders, generic claims, contradictions, and future-tense completion claims? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 39. Do Required Audit answers cite current artifact paths and observed fields rather than only function names or design steps?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Do Required Audit answers cite current artifact paths and observed fields rather than only function names or design steps? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 40. Were all forbidden paths left untouched?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Were all forbidden paths left untouched? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 41. Were only explicitly allowed source, test, and project-state files modified?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Were only explicitly allowed source, test, and project-state files modified? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 42. Were no Runner, Web, workflow, model API, database, cleanup, reverse-tool, or sample-solving capabilities used?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Were no Runner, Web, workflow, model API, database, cleanup, reverse-tool, or sample-solving capabilities used? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 43. Was publication withheld until required validation passed?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: Was publication withheld until required validation passed? Current observed artifact fields listed in Evidence record the decision, command chronology, closeout state, report finalization, archive refresh, parity, and path scope used for this item.
-
-### 44. If publication occurred, was one short-lived branch reused for all commits and review fixes?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: NOT_APPLICABLE
-- Answer: If publication occurred, was one short-lived branch reused for all commits and review fixes? Publication did not occur; command_plan.json contains no branch, commit, push, or PR command, and no files were staged or remotely mutated.
-
-### 45. If publication occurred, were only explicit in-scope paths staged?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: NOT_APPLICABLE
-- Answer: If publication occurred, were only explicit in-scope paths staged? Publication did not occur; command_plan.json contains no branch, commit, push, or PR command, and no files were staged or remotely mutated.
-
-### 46. If publication occurred, did the current command-plan explicitly authorize branch/commit/push/PR commands?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: NOT_APPLICABLE
-- Answer: If publication occurred, did the current command-plan explicitly authorize branch/commit/push/PR commands? Publication did not occur; command_plan.json contains no branch, commit, push, or PR command, and no files were staged or remotely mutated.
-
-### 47. If publication occurred, was direct push to `main`, force push, merge, rebase, tag mutation, workflow mutation, and secret mutation avoided?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: NOT_APPLICABLE
-- Answer: If publication occurred, was direct push to `main`, force push, merge, rebase, tag mutation, workflow mutation, and secret mutation avoided? Publication did not occur; command_plan.json contains no branch, commit, push, or PR command, and no files were staged or remotely mutated.
-
-### 48. If publication could not occur because credentials or command authority were absent, did the report state that limitation without claiming success?
-
-- Evidence: project_state/decision_packet.md decision_meta and decision_contract; project_state/gates/command_plan.json plan_status, decision_id, round_id, omitted_commands, commands; project_state/pytest_result.txt observed command blocks; project_state/gates/execution_log.json observed_chronology and final_observed_command; project_state/gates/final_gate_result.json checks and state_manifest_freshness; project_state/gates/run_closeout_result.json generated_at and closeout_status; project_state/context/current_context_packet.json decision_id and round_id; project_state/gates/post_final_evidence_sync_result.json context_generated_after_final_gate; project_state/gates/final_gate_result.json required_audit_coverage and tests/test_project_gate.py; project_state/rounds current round_manifest.json report_finalized_at, archive_refreshed_at, archive_refresh_basis, archived_report_sha256, live_report_sha256_at_archive, and final_archive_refresh_status; git status --short scoped path evidence.
-- Status: PASS
-- Answer: If publication could not occur because credentials or command authority were absent, did the report state that limitation without claiming success? command_plan.json does not authorize publication commands, so publication was withheld and the report records this as a local-only completion limitation without claiming remote publication.
+- Answer: The next action is decision_20260720_selective_capability_integration_v1 with exact files, tests, acceptance, and non-goals.
 
 ```json report_finalization
 {
   "schema_version": 1,
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+  "report_id": "codex_report_20260720_legacy_control_plane_transition_disposition_v1",
   "basis": "post_closeout_live_artifacts",
   "report_finalization_basis": "observed_stable_run_closeout_evidence",
-  "report_finalized_at": "2026-07-16T12:40:09.435040Z",
+  "report_finalized_at": "2026-07-20T06:22:59.211727Z",
   "run_closeout_result_path": "project_state/gates/run_closeout_result.json",
-  "run_closeout_result_sha256": "16f2527c8e8150514bdc92da447524677bc97ab50890ef09e5aa8d52c87bf6a9",
-  "run_closeout_generated_at": "2026-07-16T12:39:39.030419Z",
-  "run_closeout_status": "PASSED",
+  "run_closeout_result_sha256": "2a376353c1c9f3e8237b824ac7402906c506f0ac33708ddf87433819fada6bc1",
+  "run_closeout_generated_at": "2026-07-20T06:22:28.888954Z",
+  "run_closeout_status": "FAILED",
   "embedded_close_round_status": "CLOSED",
   "report_self_digest_embedded": false
 }

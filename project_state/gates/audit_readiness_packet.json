@@ -3,12 +3,12 @@
   "artifact_name": "audit_readiness_packet.json",
   "gate_name": "audit-readiness-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "generated_at": "2026-07-16T12:40:09.839038Z",
-  "readiness_status": "READY",
-  "recommendation": "ACCEPTED",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+  "report_id": "codex_report_20260720_legacy_control_plane_transition_disposition_v1",
+  "generated_at": "2026-07-20T06:22:59.710454Z",
+  "readiness_status": "PENDING",
+  "recommendation": "REWORK_REQUIRED",
   "evidence_only": true,
   "executable": false,
   "can_execute": false,
@@ -19,86 +19,452 @@
   },
   "required_audit_coverage": {
     "name": "required_audit_coverage",
-    "status": "PASS",
-    "detail": "report covers all 48 Required Audit items with substantive aligned answers",
+    "status": "FAIL",
+    "detail": "report has 23 Required Audit answer/question alignment issue(s)",
     "required_audit_items": [
-      "Is `decision_meta` valid JSON with `schema_version=1`?",
-      "Is status `APPROVED` and mainline `project_governance`?",
-      "Is `reverse-agent-iteration@v2` active in `.codex-skills/registry.json`?",
-      "Is `decision_packet.md` treated as the sole current task authority and `task_packet.json` as background only?",
-      "Is the previous independent audit outcome recorded as `REWORK_REQUIRED`?",
-      "Was the stale previous-round command-plan rejected and regenerated for this decision and round?",
-      "Does the regenerated command-plan carry the current decision ID and round ID?",
-      "Does the regenerated command-plan explicitly authorize every executed command and preserve omitted-command restrictions?",
-      "Were any unauthorized or omitted commands executed?",
-      "Is the round limited to closeout chronology and provenance repair?",
-      "Were the existing closeout, report-summary, execution-log, final-check, archive, state-manifest, and post-final-sync mechanisms reused rather than duplicated?",
-      "Does `pytest_result.txt` preserve the observed command order?",
-      "Does `execution_log.json` preserve the observed transcript chronology without reordering?",
-      "Do `pytest_result.txt` and `execution_log.json` agree on the final lifecycle-mutating command?",
-      "Does `final_gate_result.json` derive its command-order conclusion from the observed transcript?",
-      "Does final-check fail when the transcript proves a command occurred after the claimed final close-round?",
-      "Is stable run-closeout evidence generated before report finalization?",
-      "Does report finalization identify the live `run_closeout_result.json` path?",
-      "Does report finalization contain the full live run-closeout SHA-256?",
-      "Does report finalization match the live run-closeout `generated_at` and status?",
-      "Does report finalization record an observed `report_finalized_at`?",
-      "Is `report_finalized_at` later than or equal to the referenced stable closeout evidence time?",
-      "Does the final archive refresh occur after report finalization?",
-      "Does the final round manifest or equivalent closeout artifact record `archive_refreshed_at`?",
-      "Is `archive_refreshed_at >= report_finalized_at` proven by current artifact fields?",
-      "Does the final archive provenance record its basis and status?",
-      "Does the archived report digest match the final live report digest at archive time?",
-      "Do archived and live `codex_execution_report.md` match?",
-      "Do archived and live `execution_report.md` match?",
-      "Do archived and live `pytest_result.txt` match?",
-      "Does the round manifest match the final decision, report, pytest, and closeout state?",
-      "Do both report aliases carry semantically identical summary and report-finalization fields?",
-      "Does `report_summary_synthesis.json` match both final report aliases?",
-      "Does final-check include and pass chronology, report-finalization, archive-refresh, and archived/live parity checks?",
-      "Does final-check preserve `state_manifest_freshness=PASS`?",
-      "Does `current_context_packet.json` match the current decision and round after post-final sync?",
-      "Does post-final evidence sync prove that context was generated after the final gate state it references?",
-      "Does the final Required Audit body avoid placeholders, generic claims, contradictions, and future-tense completion claims?",
-      "Do Required Audit answers cite current artifact paths and observed fields rather than only function names or design steps?",
-      "Were all forbidden paths left untouched?",
-      "Were only explicitly allowed source, test, and project-state files modified?",
-      "Were no Runner, Web, workflow, model API, database, cleanup, reverse-tool, or sample-solving capabilities used?",
-      "Was publication withheld until required validation passed?",
-      "If publication occurred, was one short-lived branch reused for all commits and review fixes?",
-      "If publication occurred, were only explicit in-scope paths staged?",
-      "If publication occurred, did the current command-plan explicitly authorize branch/commit/push/PR commands?",
-      "If publication occurred, was direct push to `main`, force push, merge, rebase, tag mutation, workflow mutation, and secret mutation avoided?",
-      "If publication could not occur because credentials or command authority were absent, did the report state that limitation without claiming success?"
+      "Was this packet promoted to `project_state/decision_packet.md` before execution?",
+      "Was execution started from a fresh branch based on current `main` rather than PR #5 or PR #6?",
+      "Was v10 recorded as `REWORK_REQUIRED` and strategically superseded rather than accepted?",
+      "Did PR #5 remain unchanged and frozen at the audited head?",
+      "Was PR #5 compared against the activation-time `main`?",
+      "Does the capability inventory cover every material changed file in PR #5?",
+      "Are capabilities grouped by function rather than by historical round alone?",
+      "Does every capability identify implementation files, tests, artifacts, dependencies, and current-main overlap?",
+      "Does every capability have exactly one primary disposition category?",
+      "Are useful v10 Workflow changes classified independently from legacy report/closeout machinery?",
+      "Are existing command-plan, execution-log, report-summary, closeout, policy-lint, prompt-consistency, jobs, Runner, User Solve, CI, context, manifest, and evidence capabilities explicitly inventoried?",
+      "Does the authority matrix assign BMAD only to SDLC/planning responsibilities?",
+      "Does it assign one primary runtime candidate and prohibit dual-primary runtime architecture?",
+      "Does it assign GitHub as the source of truth for branch, commit, PR, review, CI, merge, and release facts?",
+      "Does it reserve high-risk authorization and binary-analysis trust semantics for reverse-agent?",
+      "Does the migration disposition identify capabilities that are self-maintenance of the legacy control plane?",
+      "Does the selective migration manifest provide file-level keep/adapt/archive/drop instructions?",
+      "Does the baseline recommendation explicitly choose `CURRENT_MAIN`, `PR5`, or `SELECTIVE_INTEGRATION_BASELINE` and justify the choice?",
+      "Does the baseline recommendation include rollback and compatibility implications?",
+      "Does the transition packet define the first follow-on implementation Decision with exact scope and non-goals?",
+      "Are roadmap/workstream entries updated without becoming execution authority?",
+      "Were no frameworks installed and no product/runtime code changed?",
+      "Were targeted tests actually run and recorded in `pytest_result.txt`?",
+      "Does the final report list actual changed files based on Git diff rather than a hand-written incomplete list?",
+      "Are all Required Audit answers question-specific rather than template repetition?",
+      "Did local final-check and closeout run, or was any legacy-only failure explicitly recorded without spawning another repair round?",
+      "Was no remote State Gate success claimed or required?",
+      "Is the next action a concrete implementation Decision rather than \u201ccontinue improving\u201d?"
     ],
     "missing_answers": [],
     "placeholder_answers": [],
-    "alignment_failures": []
+    "alignment_failures": [
+      {
+        "question": "Was execution started from a fresh branch based on current `main` rather than PR #5 or PR #6?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "execution",
+          "started",
+          "fresh",
+          "branch",
+          "based",
+          "current",
+          "main",
+          "rather"
+        ],
+        "matched_entities": [
+          "current"
+        ]
+      },
+      {
+        "question": "Was v10 recorded as `REWORK_REQUIRED` and strategically superseded rather than accepted?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "recorded",
+          "rework",
+          "required",
+          "strategically",
+          "superseded",
+          "rather",
+          "accepted"
+        ],
+        "matched_entities": [
+          "required"
+        ]
+      },
+      {
+        "question": "Did PR #5 remain unchanged and frozen at the audited head?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "remain",
+          "unchanged",
+          "frozen",
+          "audited",
+          "head"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Was PR #5 compared against the activation-time `main`?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "compared",
+          "against",
+          "activation",
+          "time",
+          "main"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Does the capability inventory cover every material changed file in PR #5?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "capability",
+          "inventory",
+          "cover",
+          "every",
+          "material",
+          "changed",
+          "file"
+        ],
+        "matched_entities": [
+          "cover"
+        ]
+      },
+      {
+        "question": "Are capabilities grouped by function rather than by historical round alone?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "capabilities",
+          "grouped",
+          "function",
+          "rather",
+          "historical",
+          "round",
+          "alone"
+        ],
+        "matched_entities": [
+          "round"
+        ]
+      },
+      {
+        "question": "Does every capability identify implementation files, tests, artifacts, dependencies, and current-main overlap?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "every",
+          "capability",
+          "identify",
+          "implementation",
+          "files",
+          "tests",
+          "artifacts",
+          "dependencies",
+          "current",
+          "main",
+          "overlap"
+        ],
+        "matched_entities": [
+          "current"
+        ]
+      },
+      {
+        "question": "Does every capability have exactly one primary disposition category?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "every",
+          "capability",
+          "have",
+          "exactly",
+          "primary",
+          "disposition",
+          "category"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Are useful v10 Workflow changes classified independently from legacy report/closeout machinery?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "useful",
+          "workflow",
+          "changes",
+          "classified",
+          "independently",
+          "legacy",
+          "report",
+          "closeout",
+          "machinery"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Are existing command-plan, execution-log, report-summary, closeout, policy-lint, prompt-consistency, jobs, Runner, User Solve, CI, context, manifest, and evidence capabilities explicitly inventoried?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "existing",
+          "command",
+          "plan",
+          "execution",
+          "report",
+          "summary",
+          "closeout",
+          "policy",
+          "lint",
+          "prompt",
+          "consistency",
+          "jobs",
+          "runner",
+          "user",
+          "solve",
+          "context",
+          "manifest",
+          "evidence",
+          "capabilities",
+          "explicitly",
+          "inventoried"
+        ],
+        "matched_entities": [
+          "evidence"
+        ]
+      },
+      {
+        "question": "Does the authority matrix assign BMAD only to SDLC/planning responsibilities?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "authority",
+          "matrix",
+          "assign",
+          "bmad",
+          "sdlc",
+          "planning",
+          "responsibilities"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Does it assign one primary runtime candidate and prohibit dual-primary runtime architecture?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "assign",
+          "primary",
+          "runtime",
+          "candidate",
+          "prohibit",
+          "dual",
+          "architecture"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Does it assign GitHub as the source of truth for branch, commit, PR, review, CI, merge, and release facts?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "assign",
+          "github",
+          "source",
+          "truth",
+          "branch",
+          "commit",
+          "review",
+          "merge",
+          "release",
+          "facts"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Does it reserve high-risk authorization and binary-analysis trust semantics for reverse-agent?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "reserve",
+          "high",
+          "risk",
+          "authorization",
+          "binary",
+          "analysis",
+          "trust",
+          "semantics",
+          "reverse",
+          "agent"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Does the migration disposition identify capabilities that are self-maintenance of the legacy control plane?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "migration",
+          "disposition",
+          "identify",
+          "capabilities",
+          "that",
+          "self",
+          "maintenance",
+          "legacy",
+          "control",
+          "plane"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Does the selective migration manifest provide file-level keep/adapt/archive/drop instructions?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "selective",
+          "migration",
+          "manifest",
+          "provide",
+          "file",
+          "level",
+          "keep",
+          "adapt",
+          "archive",
+          "drop",
+          "instructions"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Does the baseline recommendation explicitly choose `CURRENT_MAIN`, `PR5`, or `SELECTIVE_INTEGRATION_BASELINE` and justify the choice?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "baseline",
+          "recommendation",
+          "explicitly",
+          "choose",
+          "current",
+          "main",
+          "selective",
+          "integration",
+          "justify",
+          "choice"
+        ],
+        "matched_entities": [
+          "current"
+        ]
+      },
+      {
+        "question": "Does the baseline recommendation include rollback and compatibility implications?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "baseline",
+          "recommendation",
+          "include",
+          "rollback",
+          "compatibility",
+          "implications"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Are roadmap/workstream entries updated without becoming execution authority?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "roadmap",
+          "workstream",
+          "entries",
+          "updated",
+          "without",
+          "becoming",
+          "execution",
+          "authority"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Were no frameworks installed and no product/runtime code changed?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "were",
+          "frameworks",
+          "installed",
+          "product",
+          "runtime",
+          "code",
+          "changed"
+        ],
+        "matched_entities": []
+      },
+      {
+        "question": "Were targeted tests actually run and recorded in `pytest_result.txt`?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "were",
+          "targeted",
+          "tests",
+          "actually",
+          "recorded",
+          "pytest",
+          "result"
+        ],
+        "matched_entities": [
+          "result"
+        ]
+      },
+      {
+        "question": "Does the final report list actual changed files based on Git diff rather than a hand-written incomplete list?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "final",
+          "report",
+          "list",
+          "actual",
+          "changed",
+          "files",
+          "based",
+          "diff",
+          "rather",
+          "hand",
+          "written",
+          "incomplete"
+        ],
+        "matched_entities": [
+          "final"
+        ]
+      },
+      {
+        "question": "Is the next action a concrete implementation Decision rather than \u201ccontinue improving\u201d?",
+        "reason": "semantic_mismatch",
+        "required_entities": [
+          "next",
+          "action",
+          "concrete",
+          "implementation",
+          "decision",
+          "rather",
+          "continue",
+          "improving"
+        ],
+        "matched_entities": [
+          "decision"
+        ]
+      }
+    ]
   },
   "pytest_coverage": {
     "status": "PASSED",
-    "tests_ran_count": 10,
-    "includes_project_reports": true
+    "tests_ran_count": 13,
+    "includes_project_reports": false
   },
   "final_check_policy": {
     "accepted_requires_exit_zero": true,
-    "final_gate_status": "PASSED",
-    "closeout_final_check_passed": true,
+    "final_gate_status": "FAILED",
+    "closeout_final_check_passed": false,
     "final_gate_artifact": "project_state/gates/final_gate_result.json"
   },
   "closeout_status": {
-    "status": "PASSED",
+    "status": "FAILED",
     "artifact": "project_state/gates/run_closeout_result.json"
   },
   "artifact_taxonomy": {
-    "generated_or_updated_count": 34,
+    "generated_or_updated_count": 23,
     "referenced_count": 2,
-    "historical_nonblocking_count": 76,
-    "archived_count": 5,
-    "report_summary_status": "PASSED"
+    "historical_nonblocking_count": 81,
+    "archived_count": 0,
+    "report_summary_status": "FAILED"
   },
-  "limitations": [],
-  "next_action": "no_action_required",
+  "limitations": [
+    "report is not yet accepted",
+    "final-check has not passed for current IDs",
+    "closeout has not passed for current IDs"
+  ],
+  "next_action": "complete_closeout_and_rerun_final_check",
   "inputs": {
     "decision_packet": "project_state/decision_packet.md",
     "report": "project_state/codex_execution_report.md",

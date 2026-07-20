@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "artifact_name": "framework_transition_packet.json",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+  "baseline": "SELECTIVE_INTEGRATION_BASELINE",
+  "activation_main_sha": "5884cf2abb37945652ef166cf0e78fa24593b0d5",
+  "frozen_pr5_head_sha": "6a2867467c90cf37929787be3ba6061fcbb81312",
+  "authority_matrix": "project_state/gates/framework_authority_matrix.json",
+  "capability_inventory": "project_state/gates/pr5_capability_inventory.json",
+  "migration_disposition": "project_state/gates/pr5_migration_disposition.json",
+  "selective_migration_manifest": "project_state/gates/selective_migration_manifest.json",
+  "compatibility_path": {"name": "manual Decision/Codex", "status": "TEMPORARY_R2_R3_ONLY", "universal_planning_authority": false},
+  "ordered_workstreams": [
+    {"workstream_id": "legacy-control-plane-disposition", "order": 1, "depends_on": [], "status": "ACTIVE_ROUND"},
+    {"workstream_id": "selective-capability-integration", "order": 2, "depends_on": ["legacy-control-plane-disposition"], "status": "READY_FOR_DECISION"},
+    {"workstream_id": "trust-layer-schema-foundation", "order": 3, "depends_on": ["selective-capability-integration"], "status": "ROADMAP_ACCEPTED"},
+    {"workstream_id": "github-truth-adapter", "order": 4, "depends_on": ["trust-layer-schema-foundation"], "status": "ROADMAP_ACCEPTED"},
+    {"workstream_id": "bmad-planning-adapter", "order": 5, "depends_on": ["selective-capability-integration"], "status": "ROADMAP_ACCEPTED"},
+    {"workstream_id": "langgraph-shadow-runtime", "order": 6, "depends_on": ["trust-layer-schema-foundation", "github-truth-adapter"], "status": "ROADMAP_ACCEPTED"},
+    {"workstream_id": "web-workbench-transition", "order": 7, "depends_on": ["langgraph-shadow-runtime", "bmad-planning-adapter"], "status": "ROADMAP_ACCEPTED"}
+  ],
+  "first_implementation_decision": {
+    "decision_id": "decision_20260720_selective_capability_integration_v1",
+    "workstream_id": "selective-capability-integration",
+    "exact_scope": ["minimal packaging files", "two narrow GitHub workflow compatibility hunks", "focused packaging/preflight/workflow tests"],
+    "non_goals": ["no framework installation", "no project_gate wholesale transplant", "no PR5 round archive migration", "no runtime dispatch"]
+  },
+  "prohibitions": {"framework_installation": true, "legacy_micro_rework": true, "dual_primary_runtime": true, "roadmap_as_execution_authority": true},
+  "next_action": "activate decision_20260720_selective_capability_integration_v1 on a fresh branch after this disposition round is reviewed"
+}

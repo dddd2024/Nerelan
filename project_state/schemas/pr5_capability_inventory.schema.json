@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reverse-agent://schemas/pr5_capability_inventory.schema.json",
+  "title": "PR5 Capability Inventory",
+  "type": "object",
+  "required": ["schema_version", "decision_id", "activation_main_sha", "pr5_audited_head_sha", "material_changed_files", "capabilities"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "activation_main_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "pr5_audited_head_sha": {"const": "6a2867467c90cf37929787be3ba6061fcbb81312"},
+    "material_changed_files": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["capability_id", "name", "category", "summary", "pr5_files", "main_files", "pr5_only_files", "tests", "artifacts", "dependencies", "current_main_overlap", "legacy_self_maintenance", "risk_if_dropped", "evidence_refs"],
+        "properties": {"capability_id": {"type": "string", "minLength": 1}, "legacy_self_maintenance": {"type": "boolean"}}
+      }
+    }
+  }
+}

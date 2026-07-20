@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "artifact_name": "selective_migration_manifest.json",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "source_head": "6a2867467c90cf37929787be3ba6061fcbb81312",
+  "target_base": "5884cf2abb37945652ef166cf0e78fa24593b0d5",
+  "entries": [
+    {"capability_id": "packaging-metadata", "path": ".gitignore", "action": "KEEP", "instruction": "apply only editable-install/build ignore lines"},
+    {"capability_id": "packaging-metadata", "path": "pyproject.toml", "action": "KEEP", "instruction": "transplant exact minimal metadata, then review dependency classification"},
+    {"capability_id": "packaging-metadata", "path": "tests/test_packaging_metadata.py", "action": "KEEP", "instruction": "transplant and retain focused assertions"},
+    {"capability_id": "ci-history-and-consumed-preflight", "path": ".github/workflows/state-gate.yml", "action": "ADAPT", "instruction": "apply only fetch-depth: 0 and --allow-consumed hunks"},
+    {"capability_id": "ci-history-and-consumed-preflight", "path": ".github/workflows/decision-preflight.yml", "action": "ADAPT", "instruction": "apply only fetch-depth: 0 and --allow-consumed hunks"},
+    {"capability_id": "command-authority-and-risk-gates", "path": "reverse_agent/project_gate.py", "action": "ADAPT", "instruction": "do not transplant wholesale; extract only later-approved R2/R3 trust contracts"},
+    {"capability_id": "legacy-report-closeout-seal", "path": "project_state/gates/final_evidence_seal.json", "action": "ARCHIVE", "instruction": "retain in PR5/Git history only"},
+    {"capability_id": "historical-round-ledger", "path": "project_state/rounds", "action": "ARCHIVE", "instruction": "retain PR5 round directories in frozen branch history only"},
+    {"capability_id": "github-ci-publication-truth", "path": "project_state/gates/remote_check_observation.json", "action": "DROP", "instruction": "replace authority with GitHub adapter; a cache may use a new schema"},
+    {"capability_id": "legacy-sdlc-planning", "path": "project_state/next_round_plan_20260717_ci_repair_preparation.md", "action": "ARCHIVE", "instruction": "do not promote as execution authority"}
+  ]
+}

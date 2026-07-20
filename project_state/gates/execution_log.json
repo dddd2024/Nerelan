@@ -2,17 +2,17 @@
   "schema_version": 1,
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "generated_at": "2026-07-16T12:40:04.102343Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+  "report_id": "codex_report_20260720_legacy_control_plane_transition_disposition_v1",
+  "generated_at": "2026-07-20T06:22:48.250180Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-    "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+    "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+    "report_id": "codex_report_20260720_legacy_control_plane_transition_disposition_v1",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "931cd3c435059bfb0f6bac84d6c8cc8583a8a9339226a322cf8fda98a875afbc",
-        "size_bytes": 17604,
-        "command_block_count": 15
+        "sha256": "9c998697f3a10f66fbb96c4a36b71fef73f3ef35eb2fc5812230d7140dff2eb6",
+        "size_bytes": 4918,
+        "command_block_count": 7
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "3c2ef6a4ad483d3abdddb63ac96794f024c0a81f139cf8ca1a9bd4546ecf8a45",
-        "size_bytes": 5705,
-        "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-        "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+        "sha256": "1f70c5cf87370e8bf52c92482bba3e8619cd9eb67296ceb570d517a639c04e21",
+        "size_bytes": 6529,
+        "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+        "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
         "plan_status": "PASSED",
-        "command_count": 10
+        "command_count": 13
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "cf00891fa82f2af4f1d159040fe61355c523a3a89c1d0ea6a0dd9cea425cd4ef",
-        "size_bytes": 45278,
-        "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-        "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-        "command_block_count": 13
+        "sha256": "0b37e35c942a4b215478b2a15bad9c3ae786646d318f62aff2e16d6780988f69",
+        "size_bytes": 2970,
+        "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+        "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+        "command_block_count": 3
       }
     },
-    "command_count": 15,
-    "command_digest": "78ada790cf1edc1c3f64fe4f00f42cf5a883af001bf817fceddd8cbf05689ec2"
+    "command_count": 7,
+    "command_digest": "8f260255a947a0d7a44eecb8df2c61873e2832afa24d16d2b212b2f396bcf3b4"
   },
   "commands": [
     {
@@ -97,113 +97,22 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_legacy_control_plane_transition_disposition_v1",
       "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
       ],
-      "exit_code": 0,
-      "status": "PASSED"
+      "exit_code": 1,
+      "status": "FAILED"
     },
     {
       "index": 7,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "phase": "preflight",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
+      "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
+      "kind": "decision-lint",
       "phase": "gate",
       "expected_exit_codes": [
         0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
-      "kind": "execute-decision",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-      "kind": "close-round",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
       ],
       "exit_code": 0,
       "status": "PASSED"
@@ -242,67 +151,23 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260720_legacy_control_plane_transition_disposition_v1",
       "kind": "run-closeout",
-      "exit_code": 0
+      "exit_code": 1
     },
     {
       "index": 7,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "exit_code": 0
-    },
-    {
-      "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "exit_code": 0
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "exit_code": 0
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "exit_code": 0
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
-      "kind": "execute-decision",
-      "exit_code": 0
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "exit_code": 0
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "exit_code": 0
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-      "kind": "close-round",
-      "exit_code": 0
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
+      "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
+      "kind": "decision-lint",
       "exit_code": 0
     }
   ],
-  "final_observed_command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-  "warnings": [],
-  "blocking_reasons": [],
-  "recommended_next_action": "no_action_required"
+  "final_observed_command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
+  "warnings": [
+    "command_plan has 2 optional command(s) not recorded in execution_log: python -m reverse_agent.project_gate execution-log --state-dir project_state, python -m reverse_agent.project_gate final-check --state-dir project_state"
+  ],
+  "blocking_reasons": [
+    "command_plan has 9 required command(s) not recorded in execution_log: git diff --check, git diff --name-only, python -m pytest tests/test_framework_transition_artifacts.py tests/test_project_state.py tests/test_project_context.py -q, python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260720_legacy_control_plane_transition_disposition_v1, python -m reverse_agent.project_gate command-plan --state-dir project_state, python -m reverse_agent.project_gate command-plan --state-dir project_state --json, python -m reverse_agent.project_gate policy-lint --state-dir project_state, python -m reverse_agent.project_gate prompt-consistency --state-dir project_state, python -m reverse_agent.project_gate report-summary --state-dir project_state"
+  ],
+  "recommended_next_action": "fix_execution_log_mismatches"
 }

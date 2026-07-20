@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+  "report_id": "codex_report_20260720_legacy_control_plane_transition_disposition_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:40:09.840966Z",
+  "generated_at": "2026-07-20T06:22:59.713711Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+    "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -42,49 +42,20 @@
     "startup_snapshot_artifact": "project_state/gates/startup_snapshot.json"
   },
   "allowed_scope": {
-    "source_files": [
-      "reverse_agent/project_gate.py",
-      "reverse_agent/project_state.py"
-    ],
+    "source_files": [],
     "generated_or_updated_artifacts": []
   },
   "forbidden_scope": {
     "preserve_only_files": [],
-    "forbidden_mutated_paths": [
-      ".codex-skills/*",
-      ".github/workflows/*",
-      "frontend/*",
-      "solve_reports/*",
-      "training_materials/local_reverse/*",
-      "reverse_agent/project_state_manifest.py",
-      "reverse_agent/project_jobs.py",
-      "reverse_agent/project_runner_contract.py",
-      "reverse_agent/project_agent_runner.py",
-      "reverse_agent/orchestrator_api.py",
-      "reverse_agent/user_solve_*.py",
-      "project_state/current_state.json",
-      "project_state/task_packet.json",
-      "project_state/artifact_index.json",
-      "project_state/negative_results.json",
-      "project_state/roadmap/workstreams.json",
-      "project_state/domains/*",
-      "project_state/jobs/*",
-      "project_state/user_sessions/*",
-      "project_state/archives/*",
-      "project_state/deletions/*",
-      "project_state/blob_store/*",
-      "project_state/*.db",
-      "project_state/index.sqlite",
-      "docs/roadmap/*"
-    ],
+    "forbidden_mutated_paths": [],
     "non_dispatching": true,
     "remote_mutation_allowed": false
   },
   "required_tests": {
     "pytest_commands": [
-      "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q"
+      "python -m pytest tests/test_framework_transition_artifacts.py tests/test_project_state.py tests/test_project_context.py -q"
     ],
-    "includes_project_reports": true
+    "includes_project_reports": false
   },
   "expected_artifacts": {
     "current_handoff_packet": "project_state/gates/current_handoff_packet.json",
@@ -94,8 +65,8 @@
     "gate_artifacts": []
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "current_round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "current_decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+    "current_round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -110,11 +81,11 @@
   "audit_readiness_status": {
     "artifact": "project_state/gates/audit_readiness_packet.json",
     "gate_status": "PASSED",
-    "readiness_status": "READY",
-    "recommendation": "ACCEPTED",
-    "next_action": "no_action_required",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "readiness_status": "PENDING",
+    "recommendation": "REWORK_REQUIRED",
+    "next_action": "complete_closeout_and_rerun_final_check",
+    "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+    "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
     "current": true
   },
   "closeout_expectations": {
@@ -122,7 +93,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1"
+    "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

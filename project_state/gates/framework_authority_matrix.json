@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "artifact_name": "framework_authority_matrix.json",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "single_primary_runtime": "LANGGRAPH",
+  "dual_primary_runtime_prohibited": true,
+  "authorities": [
+    {"fact_class": "product_discovery_and_prd", "primary_owner": "BMAD", "adapters": ["reverse-agent planning import"], "rationale": "SDLC planning only"},
+    {"fact_class": "architecture_and_story_definition", "primary_owner": "BMAD", "adapters": ["GitHub issue export"], "rationale": "SDLC planning only"},
+    {"fact_class": "engineering_work_item", "primary_owner": "GITHUB", "adapters": ["BMAD story link"], "rationale": "implementation status and review live with code"},
+    {"fact_class": "workflow_runtime_state", "primary_owner": "LANGGRAPH", "adapters": ["reverse-agent domain state projection"], "rationale": "single Python runtime"},
+    {"fact_class": "checkpoint_and_resume", "primary_owner": "LANGGRAPH", "adapters": ["reverse-agent risk interrupt"], "rationale": "no parallel custom scheduler"},
+    {"fact_class": "branch_commit_pr_review", "primary_owner": "GITHUB", "adapters": ["read-only project_state cache"], "rationale": "repository fact source"},
+    {"fact_class": "ci_and_release_truth", "primary_owner": "GITHUB", "adapters": ["immutable-head observation cache"], "rationale": "Actions and release source"},
+    {"fact_class": "high_risk_authorization", "primary_owner": "REVERSE_AGENT_TRUST_LAYER", "adapters": ["LangGraph interrupt"], "rationale": "domain safety boundary"},
+    {"fact_class": "command_allowlist", "primary_owner": "REVERSE_AGENT_TRUST_LAYER", "adapters": ["manual Decision compatibility"], "rationale": "R2/R3 command authority"},
+    {"fact_class": "binary_observation", "primary_owner": "REVERSE_AGENT_TRUST_LAYER", "adapters": ["tool adapter"], "rationale": "binary provenance"},
+    {"fact_class": "claim_and_counterevidence", "primary_owner": "REVERSE_AGENT_TRUST_LAYER", "adapters": ["LangGraph state reference"], "rationale": "domain epistemic status"},
+    {"fact_class": "validation_status", "primary_owner": "REVERSE_AGENT_TRUST_LAYER", "adapters": ["GitHub check summary link"], "rationale": "binary validation is not generic CI"},
+    {"fact_class": "audit_history", "primary_owner": "GIT_HISTORY", "adapters": ["trust-layer audit record", "GitHub PR link"], "rationale": "immutable repository history"}
+  ],
+  "non_primary_frameworks": {
+    "MICROSOFT_AGENT_FRAMEWORK": "future adapter alternative only",
+    "METAGPT": "reference design only",
+    "CHATDEV": "reference design only"
+  }
+}

@@ -1,28 +1,35 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:32:05.570465Z",
+  "generated_at": "2026-07-20T06:22:28.887823Z",
   "checks": [
     {
       "name": "startup_snapshot_artifact",
-      "status": "PASS",
-      "detail": "startup snapshot is current and source/test clean",
+      "status": "FAIL",
+      "detail": "startup snapshot is missing current clean source/test evidence",
       "required": false,
       "artifact": "project_state/gates/startup_snapshot.json",
-      "errors": [],
+      "errors": [
+        "decision_id or round_id mismatch"
+      ],
       "source_test_dirty_files": [],
       "gate_status": "PASSED"
     },
     {
       "name": "round_baseline_derived_from_startup_snapshot",
-      "status": "PASS",
-      "detail": "round baseline is derived from the current startup snapshot",
+      "status": "FAIL",
+      "detail": "round baseline is not derived from current startup snapshot evidence",
       "required": false,
-      "errors": [],
+      "errors": [
+        "startup snapshot is missing or not current",
+        "round baseline is not marked as derived_from_startup_snapshot",
+        "baseline git status does not match startup snapshot",
+        "baseline dirty files do not match startup snapshot"
+      ],
       "startup_snapshot_path": "project_state/gates/startup_snapshot.json",
       "round_baseline_path": "project_state/gates/round_baseline.json",
       "startup_dirty_files": [
@@ -32,10 +39,36 @@
         "project_state/gates/round_baseline.json"
       ],
       "baseline_dirty_files": [
+        "docs/architecture/framework-authority-matrix.md",
+        "docs/architecture/legacy-control-plane-disposition.md",
+        "docs/roadmap/framework-transition-phases.md",
+        "project_state/codex_execution_report.md",
+        "project_state/context/framework_transition_packet.json",
+        "project_state/execution_report.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/execution_log.json",
+        "project_state/gates/framework_authority_matrix.json",
         "project_state/gates/gate_profile_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json"
+        "project_state/gates/policy_lint_result.json",
+        "project_state/gates/pr5_capability_inventory.json",
+        "project_state/gates/pr5_migration_disposition.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_closeout_execution_log.json",
+        "project_state/gates/run_closeout_result.json",
+        "project_state/gates/selective_migration_manifest.json",
+        "project_state/gates/transition_baseline_recommendation.json",
+        "project_state/pytest_result.txt",
+        "project_state/roadmap/workstreams.json",
+        "project_state/schemas/framework_transition_packet.schema.json",
+        "project_state/schemas/pr5_capability_inventory.schema.json",
+        "project_state/schemas/pr5_migration_disposition.schema.json",
+        "reverse_agent.egg-info/PKG-INFO",
+        "reverse_agent.egg-info/SOURCES.txt",
+        "reverse_agent.egg-info/dependency_links.txt",
+        "reverse_agent.egg-info/requires.txt",
+        "reverse_agent.egg-info/top_level.txt",
+        "tests/test_framework_transition_artifacts.py"
       ]
     },
     {
@@ -86,9 +119,9 @@
     {
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-      "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1"
+      "detail": "decision consumption allowed for closeout",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260720_legacy_control_plane_transition_disposition_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -103,16 +136,7 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "Derive final-command conclusions from the raw observed transcript.",
-        "Do not migrate unrelated state files.",
-        "Do not modify modules outside the explicit allowlist.",
-        "Generated artifacts are limited to current gate/report/context/state-manifest files and the current round archive.",
-        "Hard-fail when transcript, execution log, and final-gate order claims disagree.",
-        "Keep command-plan coverage and expected-exit policy separate from runtime chronology.",
-        "Keep legacy artifacts readable.",
-        "Preserve existing public fields and CLI behavior unless a new optional provenance field is required.",
-        "execution_log.json",
-        "pytest_result.txt"
+        "reverse_agent/project_state.py"
       ]
     },
     {
@@ -126,9 +150,7 @@
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
       "matched_terms": [],
-      "matched_paths": [
-        "Keep command-plan coverage and expected-exit policy separate from runtime chronology."
-      ]
+      "matched_paths": []
     },
     {
       "name": "artifact_freshness_policy",
@@ -148,39 +170,96 @@
     },
     {
       "name": "source_test_clean_start",
-      "status": "PASS",
-      "detail": "no source/test files are dirty at startup baseline",
-      "unauthorized_source_test_dirty": [],
-      "allowed_inherited_dirty_baseline_files": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py"
+      "status": "FAIL",
+      "detail": "source/test files are dirty at startup baseline without explicit decision allowlist; stop before implementation",
+      "unauthorized_source_test_dirty": [
+        "project_state/context/framework_transition_packet.json",
+        "project_state/roadmap/workstreams.json",
+        "project_state/schemas/framework_transition_packet.schema.json",
+        "project_state/schemas/pr5_capability_inventory.schema.json",
+        "project_state/schemas/pr5_migration_disposition.schema.json",
+        "tests/test_framework_transition_artifacts.py"
       ],
-      "baseline_source_test_dirty": []
+      "allowed_inherited_dirty_baseline_files": [],
+      "baseline_source_test_dirty": [
+        "project_state/context/framework_transition_packet.json",
+        "project_state/roadmap/workstreams.json",
+        "project_state/schemas/framework_transition_packet.schema.json",
+        "project_state/schemas/pr5_capability_inventory.schema.json",
+        "project_state/schemas/pr5_migration_disposition.schema.json",
+        "tests/test_framework_transition_artifacts.py"
+      ]
     },
     {
       "name": "decision_command_plan_conflict",
-      "status": "PASS",
-      "detail": "decision Tests/closeout expectations do not conflict with command-plan",
-      "conflicts": []
+      "status": "FAIL",
+      "detail": "decision Tests/closeout expectations conflict with command-plan; stop before implementation",
+      "conflicts": [
+        {
+          "kind": "omitted_command",
+          "severity": "hard",
+          "command": "python -m pytest tests/test_framework_transition_artifacts.py -q",
+          "command_kind": "pytest",
+          "reason": "decision Tests require command kind 'pytest' but fast profile omits it from required_command_kinds"
+        },
+        {
+          "kind": "closeout_forbidden",
+          "severity": "hard",
+          "command": null,
+          "command_kind": null,
+          "reason": "decision requires closeout (run-closeout/close-round in Tests, contract close_round_required=true, or rounds/ artifacts in scope) but gate profile has closeout_allowed=false"
+        }
+      ]
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "startup_snapshot_artifact: startup snapshot is missing current clean source/test evidence",
+    "round_baseline_derived_from_startup_snapshot: round baseline is not derived from current startup snapshot evidence",
+    "source_test_clean_start: source/test files are dirty at startup baseline without explicit decision allowlist; stop before implementation",
+    "decision_command_plan_conflict: decision Tests/closeout expectations conflict with command-plan; stop before implementation"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
+      "docs/architecture/framework-authority-matrix.md",
+      "docs/architecture/legacy-control-plane-disposition.md",
+      "docs/roadmap/framework-transition-phases.md",
+      "project_state/codex_execution_report.md",
+      "project_state/context/framework_transition_packet.json",
+      "project_state/execution_report.md",
       "project_state/gates/command_plan.json",
+      "project_state/gates/execution_log.json",
+      "project_state/gates/framework_authority_matrix.json",
       "project_state/gates/gate_profile_plan.json",
-      "project_state/gates/preflight_result.json",
-      "project_state/gates/round_baseline.json"
+      "project_state/gates/policy_lint_result.json",
+      "project_state/gates/pr5_capability_inventory.json",
+      "project_state/gates/pr5_migration_disposition.json",
+      "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_delta_summary.json",
+      "project_state/gates/run_closeout_execution_log.json",
+      "project_state/gates/run_closeout_result.json",
+      "project_state/gates/selective_migration_manifest.json",
+      "project_state/gates/transition_baseline_recommendation.json",
+      "project_state/pytest_result.txt",
+      "project_state/roadmap/workstreams.json",
+      "project_state/schemas/framework_transition_packet.schema.json",
+      "project_state/schemas/pr5_capability_inventory.schema.json",
+      "project_state/schemas/pr5_migration_disposition.schema.json",
+      "reverse_agent.egg-info/PKG-INFO",
+      "reverse_agent.egg-info/SOURCES.txt",
+      "reverse_agent.egg-info/dependency_links.txt",
+      "reverse_agent.egg-info/requires.txt",
+      "reverse_agent.egg-info/top_level.txt",
+      "tests/test_framework_transition_artifacts.py"
     ],
-    "head_commit": "8076ccf00531"
+    "head_commit": "1092f3bc7941"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
-    "decision_consumed_by_report": false,
+    "decision_consumed_by_report": true,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260618_134029"

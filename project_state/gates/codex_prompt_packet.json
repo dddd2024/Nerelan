@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+  "report_id": "codex_report_20260720_legacy_control_plane_transition_disposition_v1",
   "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:40:09.844030Z",
+  "generated_at": "2026-07-20T06:22:59.716941Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-      "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-      "sha256": "573cac79267ff04b6df824dd8095c97ba279845522100b6dc49b736740571f3e"
+      "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+      "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "sha256": "9fdbdf745096ce193b0fd25bdf197ad2e80291c7a6ea5d7fd503f336dd19d6f0"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-      "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-      "sha256": "d0830033385df59dbb07826ecfb83ae835697e40592ab588f5f26a90ce63b00f"
+      "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+      "round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "sha256": "0b523a96d65c74d8283899df47337238398206e0bb605ba359ac1a39ad895f77"
     }
   },
   "prompt_sections": {

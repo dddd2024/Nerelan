@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "artifact_name": "transition_baseline_recommendation.json",
+  "decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+  "selection": "SELECTIVE_INTEGRATION_BASELINE",
+  "base_sha": "5884cf2abb37945652ef166cf0e78fa24593b0d5",
+  "evidence_source_sha": "6a2867467c90cf37929787be3ba6061fcbb81312",
+  "rationale": "Current main is the clean execution base; PR5 is frozen evidence. Only independent packaging and narrowly reviewed CI compatibility changes should cross the boundary.",
+  "rejected_alternatives": [
+    {"selection": "CURRENT_MAIN", "reason": "would discard useful packaging and CI compatibility work"},
+    {"selection": "PR5", "reason": "would import seven legacy repair rounds and the self-referential report/closeout chain"}
+  ],
+  "migration_cost": {"class": "LOW_TO_MEDIUM", "drivers": ["three packaging files", "two workflow hunks", "focused tests", "no historical round copy"]},
+  "rollback_path": "Revert each selective integration commit independently; PR5 remains immutable evidence and current main remains the recovery baseline.",
+  "compatibility_implications": ["manual Decision/Codex remains temporary for R2/R3", "legacy reports remain read-only", "no runtime framework is installed by baseline integration"],
+  "first_implementation_round": {
+    "decision_id": "decision_20260720_selective_capability_integration_v1",
+    "workstream_id": "selective-capability-integration",
+    "scope": ["transplant .gitignore packaging ignores", "transplant pyproject.toml", "transplant tests/test_packaging_metadata.py", "apply fetch-depth: 0 and --allow-consumed as reviewed hunks to State Gate and Decision Preflight", "run packaging, preflight, and workflow parity tests"],
+    "non_goals": ["no PR5 round artifacts", "no project_gate.py wholesale transplant", "no framework installation", "no legacy closeout repair", "no runtime or User Solve changes"],
+    "acceptance": ["editable install passes", "wrong consumed-decision identities still fail", "both workflow checks pass on the exact integration head"]
+  }
+}

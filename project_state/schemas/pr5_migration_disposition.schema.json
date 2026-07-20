@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reverse-agent://schemas/pr5_migration_disposition.schema.json",
+  "title": "PR5 Migration Disposition",
+  "type": "object",
+  "required": ["schema_version", "decision_id", "v10_audit_outcome", "legacy_micro_rework_authorized", "records"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "v10_audit_outcome": {"const": "REWORK_REQUIRED"},
+    "legacy_micro_rework_authorized": {"const": false},
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["capability_id", "primary_disposition", "rationale", "target_owner", "files_to_keep", "files_to_adapt", "files_to_archive", "files_to_drop", "compatibility_requirement", "follow_on_workstream", "acceptance_evidence"],
+        "properties": {
+          "primary_disposition": {"enum": ["KEEP_AS_IS", "KEEP_AND_ADAPT", "REPLACE_WITH_BMAD", "REPLACE_WITH_LANGGRAPH", "REPLACE_WITH_GITHUB", "MOVE_TO_TRUST_LAYER", "ARCHIVE_ONLY", "DROP"]}
+        }
+      }
+    }
+  }
+}

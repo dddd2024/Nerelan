@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reverse-agent://schemas/framework_transition_packet.schema.json",
+  "title": "Framework Transition Packet",
+  "type": "object",
+  "required": ["schema_version", "decision_id", "baseline", "authority_matrix", "ordered_workstreams", "first_implementation_decision", "prohibitions"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "baseline": {"enum": ["CURRENT_MAIN", "PR5", "SELECTIVE_INTEGRATION_BASELINE"]},
+    "ordered_workstreams": {
+      "type": "array",
+      "items": {"type": "object", "required": ["workstream_id", "order", "depends_on", "status"]}
+    },
+    "prohibitions": {
+      "type": "object",
+      "required": ["framework_installation", "legacy_micro_rework", "dual_primary_runtime"]
+    }
+  }
+}

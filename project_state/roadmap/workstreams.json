@@ -47,8 +47,8 @@
       "workstream_id": "governance_operations_bundle"
     },
     {
-      "active_decision_id": "decision_20260708_state_domain_taxonomy_foundation_v1",
-      "active_round_id": "round_20260708_state_domain_taxonomy_foundation_v1",
+      "active_decision_id": "",
+      "active_round_id": "",
       "baseline_round_id": "",
       "execution_authority": "project_state/decision_packet.md",
       "family": "project_governance",
@@ -64,16 +64,16 @@
         "DEFERRED",
         "REJECTED"
       ],
-      "notes": "Active foundation round for Project State Domain Taxonomy. Phase A metadata (scope/domain/mainline/role/freshness on state_manifest, artifact_index, negative_results) is reused from prior rounds. This round adds Phase B domain skeleton README files under project_state/domains/*, context packet domain awareness via project_context.py, and final-check context_domain_awareness warnings. No files moved, deleted, or migrated; no current_state.json or task_packet.json modified.",
+      "notes": "Accepted foundation retained as a non-active dependency. The transition-disposition round is the sole active workstream.",
       "phases": [
         {"id": "phase_a", "name": "metadata_foundation", "status": "ACCEPTED", "scope": "add scope/domain/mainline/role/freshness metadata; warn on legacy gaps"},
-        {"id": "phase_b", "name": "domain_skeleton", "status": "ACTIVE_ROUND", "scope": "create project_state/domains/* skeleton README files without moving files"},
+        {"id": "phase_b", "name": "domain_skeleton", "status": "ACCEPTED", "scope": "create project_state/domains/* skeleton README files without moving files"},
         {"id": "phase_c", "name": "reverse_solving_current_state_copy", "status": "ROADMAP_ACCEPTED", "scope": "copy reverse_solving current_state into domain scope"},
         {"id": "phase_d", "name": "negative_results_split", "status": "ROADMAP_ACCEPTED", "scope": "split negative_results into domain-specific files"},
         {"id": "phase_e", "name": "top_level_current_state_summary", "status": "ROADMAP_ACCEPTED", "scope": "turn top-level current_state.json into a global summary"},
         {"id": "phase_f", "name": "final_check_hardening", "status": "ROADMAP_ACCEPTED", "scope": "harden final-check to require scope metadata on new records"}
       ],
-      "status": "ACTIVE_ROUND",
+      "status": "ACCEPTED",
       "workstream_id": "project_state_domain_taxonomy"
     },
     {
@@ -361,6 +361,68 @@
       "notes": "Schema-only read-index readiness exists; database creation remains out of scope.",
       "status": "READY_FOR_DECISION",
       "workstream_id": "sqlite_query_index"
+    },
+    {
+      "active_decision_id": "decision_20260720_legacy_control_plane_transition_disposition_v1",
+      "active_round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "baseline_round_id": "",
+      "execution_authority": "project_state/decision_packet.md",
+      "family": "framework_transition",
+      "is_execution_authority": false,
+      "lifecycle": ["IDEA", "CANDIDATE", "ROADMAP_ACCEPTED", "READY_FOR_DECISION", "ACTIVE_ROUND", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS", "DEFERRED", "REJECTED"],
+      "notes": "Sole active workstream: classify PR5 capabilities and select the migration baseline; no framework installation or runtime implementation.",
+      "status": "ACTIVE_ROUND",
+      "transition_order": 1,
+      "depends_on": [],
+      "workstream_id": "legacy-control-plane-disposition"
+    },
+    {
+      "active_decision_id": "", "active_round_id": "", "baseline_round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "execution_authority": "project_state/decision_packet.md", "family": "framework_transition", "is_execution_authority": false,
+      "lifecycle": ["IDEA", "CANDIDATE", "ROADMAP_ACCEPTED", "READY_FOR_DECISION", "ACTIVE_ROUND", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS", "DEFERRED", "REJECTED"],
+      "notes": "First follow-on: minimal packaging and two reviewed CI workflow compatibility hunks only.",
+      "status": "READY_FOR_DECISION", "transition_order": 2, "depends_on": ["legacy-control-plane-disposition"],
+      "workstream_id": "selective-capability-integration"
+    },
+    {
+      "active_decision_id": "", "active_round_id": "", "baseline_round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "execution_authority": "project_state/decision_packet.md", "family": "framework_transition", "is_execution_authority": false,
+      "lifecycle": ["IDEA", "CANDIDATE", "ROADMAP_ACCEPTED", "READY_FOR_DECISION", "ACTIVE_ROUND", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS", "DEFERRED", "REJECTED"],
+      "notes": "Define binary evidence, claims, counterevidence, validation, ToolAction, and R2/R3 authorization schemas.",
+      "status": "ROADMAP_ACCEPTED", "transition_order": 3, "depends_on": ["selective-capability-integration"],
+      "workstream_id": "trust-layer-schema-foundation"
+    },
+    {
+      "active_decision_id": "", "active_round_id": "", "baseline_round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "execution_authority": "project_state/decision_packet.md", "family": "framework_transition", "is_execution_authority": false,
+      "lifecycle": ["IDEA", "CANDIDATE", "ROADMAP_ACCEPTED", "READY_FOR_DECISION", "ACTIVE_ROUND", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS", "DEFERRED", "REJECTED"],
+      "notes": "Read immutable GitHub branch, PR, review, CI, merge, and release facts with provenance.",
+      "status": "ROADMAP_ACCEPTED", "transition_order": 4, "depends_on": ["trust-layer-schema-foundation"],
+      "workstream_id": "github-truth-adapter"
+    },
+    {
+      "active_decision_id": "", "active_round_id": "", "baseline_round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "execution_authority": "project_state/decision_packet.md", "family": "framework_transition", "is_execution_authority": false,
+      "lifecycle": ["IDEA", "CANDIDATE", "ROADMAP_ACCEPTED", "READY_FOR_DECISION", "ACTIVE_ROUND", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS", "DEFERRED", "REJECTED"],
+      "notes": "BMAD planning adapter for discovery, PRD, architecture, and stories; never command authority.",
+      "status": "ROADMAP_ACCEPTED", "transition_order": 5, "depends_on": ["selective-capability-integration"],
+      "workstream_id": "bmad-planning-adapter"
+    },
+    {
+      "active_decision_id": "", "active_round_id": "", "baseline_round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "execution_authority": "project_state/decision_packet.md", "family": "framework_transition", "is_execution_authority": false,
+      "lifecycle": ["IDEA", "CANDIDATE", "ROADMAP_ACCEPTED", "READY_FOR_DECISION", "ACTIVE_ROUND", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS", "DEFERRED", "REJECTED"],
+      "notes": "LangGraph-only primary runtime in non-dispatching shadow mode; no dual-primary architecture.",
+      "status": "ROADMAP_ACCEPTED", "transition_order": 6, "depends_on": ["trust-layer-schema-foundation", "github-truth-adapter"],
+      "workstream_id": "langgraph-shadow-runtime"
+    },
+    {
+      "active_decision_id": "", "active_round_id": "", "baseline_round_id": "round_20260720_legacy_control_plane_transition_disposition_v1",
+      "execution_authority": "project_state/decision_packet.md", "family": "framework_transition", "is_execution_authority": false,
+      "lifecycle": ["IDEA", "CANDIDATE", "ROADMAP_ACCEPTED", "READY_FOR_DECISION", "ACTIVE_ROUND", "ACCEPTED", "ACCEPTED_WITH_LIMITATIONS", "DEFERRED", "REJECTED"],
+      "notes": "Adapt User Solve/workbench after shadow runtime and planning adapters pass compatibility gates.",
+      "status": "ROADMAP_ACCEPTED", "transition_order": 7, "depends_on": ["langgraph-shadow-runtime", "bmad-planning-adapter"],
+      "workstream_id": "web-workbench-transition"
     }
   ]
 }
