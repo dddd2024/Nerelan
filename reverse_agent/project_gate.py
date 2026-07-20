@@ -16,9 +16,11 @@ from typing import Any, Callable, Mapping
 
 from .control_plane.command_authority import validate_command_plan as validate_transition_command_plan
 from .control_plane.legacy_adapter import (
+    build_transition_command_plan,
     detect_control_plane_mode,
     is_transition_decision,
     load_legacy_command_plan,
+    load_transition_scope,
     load_transition_decision,
 )
 from .control_plane.models import TransitionAuthority
@@ -35923,10 +35925,23 @@ def _active_transition_skills(repo_root: Path) -> tuple[str, ...]:
 
 def transition_lint(*, state_dir: Path) -> dict[str, Any]:
     repo_root = _derive_repo_root(state_dir)
-    decision, contract = load_transition_decision(state_dir / "decision_packet.md")
-    plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
     def check(name: str, passed: bool, detail: str) -> dict[str, str]:
         return {"name": name, "status": "PASS" if passed else "FAIL", "detail": detail}
+
+    try:
+        decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+        expected_plan = build_transition_command_plan(decision, contract)
+        plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "schema_version": 1,
+            "gate_name": "transition-lint",
+            "gate_status": "BLOCKED",
+            "decision_id": "",
+            "round_id": "",
+            "checks": [],
+            "blocking_reasons": [f"invalid_transition_authority:{exc}"],
+        }
 
     plan_errors = validate_transition_command_plan(plan)
     checks = [
@@ -35934,6 +35949,7 @@ def transition_lint(*, state_dir: Path) -> dict[str, Any]:
         check("decision_approved", decision.status == "APPROVED", f"status={decision.status}"),
         check("active_skills", all(skill in _active_transition_skills(repo_root) for skill in decision.skill_profiles), f"skills={list(decision.skill_profiles)}"),
         check("command_plan_identity", plan.decision_id == decision.decision_id and plan.round_id == decision.round_id, f"plan={plan.decision_id}/{plan.round_id}"),
+        check("command_plan_provenance", plan.to_dict() == expected_plan.to_dict(), "plan matches deterministic active Decision projection"),
         check("command_plan_contract", not plan_errors, f"errors={list(plan_errors)}"),
     ]
     blocking = [f"{item['name']}: {item['detail']}" for item in checks if item["status"] == "FAIL"]
@@ -35949,24 +35965,64 @@ def transition_lint(*, state_dir: Path) -> dict[str, Any]:
 
 
 def transition_command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
-    plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
-    errors = validate_transition_command_plan(plan)
-    payload = plan.to_dict()
+    try:
+        decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+        plan = build_transition_command_plan(decision, contract)
+        errors = validate_transition_command_plan(plan)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "schema_version": 1,
+            "plan_name": "transition-command-plan",
+            "plan_status": "BLOCKED",
+            "decision_id": "",
+            "round_id": "",
+            "commands": [],
+            "blocking_reasons": [f"invalid_transition_authority:{exc}"],
+        }
+    plan_payload = plan.to_dict()
+    payload = dict(plan_payload)
     payload.update({
         "plan_name": "transition-command-plan",
         "plan_status": "PASSED" if not errors else "BLOCKED",
         "blocking_reasons": list(errors),
     })
     if write_result:
-        path = state_dir / "gates" / TRANSITION_COMMAND_PLAN_PREVIEW_NAME
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True, exist_ok=True)
+        (gates_dir / COMMAND_PLAN_RESULT_NAME).write_text(
+            json.dumps(plan_payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        (gates_dir / TRANSITION_COMMAND_PLAN_PREVIEW_NAME).write_text(
+            json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
     return payload
 
 
 def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
     repo_root = repo_root or _derive_repo_root(state_dir)
-    decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+    try:
+        decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+        scope = load_transition_scope(decision, contract)
+        plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        result = {
+            "schema_version": 1,
+            "gate_name": "transition-preflight",
+            "gate_status": "BLOCKED",
+            "decision_id": "",
+            "round_id": "",
+            "checks": [],
+            "blocking_reasons": [f"invalid_transition_authority:{exc}"],
+        }
+        if write_result:
+            path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
     if not is_transition_decision(contract):
         return {
             "schema_version": 1,
@@ -35977,38 +36033,38 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
             "checks": [],
             "blocking_reasons": ["transition kernel is not selected by the active Decision"],
         }
-    plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
     branch = _transition_git(repo_root, "branch", "--show-current")
     if not branch:
         branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME") or ""
-    base_sha = _transition_git(repo_root, "rev-parse", "origin/main")
-    merge_base = _transition_git(repo_root, "merge-base", "HEAD", "origin/main")
+    base_sha = str(scope["activation_base_sha"])
+    merge_base = _transition_git(repo_root, "merge-base", "HEAD", base_sha)
     decision_commit = _transition_git(repo_root, "log", "-1", "--format=%H", "--", "project_state/decision_packet.md")
     ancestry = subprocess.run(
         ["git", "merge-base", "--is-ancestor", decision_commit, "HEAD"],
         cwd=repo_root,
         check=False,
     ).returncode == 0
-    committed = _transition_git(repo_root, "diff", "--name-only", "origin/main...HEAD")
+    committed = _transition_git(repo_root, "diff", "--name-only", f"{decision_commit}..HEAD")
     working = _transition_git(repo_root, "diff", "--name-only")
-    observed_paths = tuple(dict.fromkeys(line for line in f"{committed}\n{working}".splitlines() if line))
+    staged = _transition_git(repo_root, "diff", "--cached", "--name-only")
+    observed_paths = tuple(dict.fromkeys(line for line in f"{committed}\n{working}\n{staged}".splitlines() if line))
     authority = TransitionAuthority(
         decision=decision,
         command_plan=plan,
         expected_decision_id=decision.decision_id,
         expected_round_id=decision.round_id,
         active_skills=_active_transition_skills(repo_root),
-        legal_mainlines=("engineering_branch",),
-        expected_branch=TRANSITION_EXPECTED_BRANCH,
+        legal_mainlines=tuple(scope["legal_mainlines"]),
+        expected_branch=str(scope["required_branch"]),
         actual_branch=branch,
         base_sha=base_sha,
         merge_base_sha=merge_base,
         decision_commit_sha=decision_commit,
         decision_is_ancestor=ancestry,
         observed_paths=observed_paths,
-        allowed_paths=TRANSITION_ALLOWED_PATHS,
-        forbidden_paths=TRANSITION_FORBIDDEN_PATHS,
-        forbidden_operations=TRANSITION_FORBIDDEN_OPERATIONS,
+        allowed_paths=tuple(scope["allowed_paths"]),
+        forbidden_paths=tuple(scope["forbidden_paths"]),
+        forbidden_operations=tuple(scope["forbidden_operations"]),
     )
     result = validate_transition(authority).to_dict()
     if write_result:

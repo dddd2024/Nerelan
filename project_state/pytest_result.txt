@@ -1,226 +1,46 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
-  "report_id": "codex_report_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
-  "round_id": "round_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
-  "generated_at": "2026-07-20T13:24:12.6609601Z",
-  "status": "PASSED",
+  "decision_id": "decision_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "report_id": "codex_report_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "round_id": "round_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "generated_at": "2026-07-20T15:44:48.2822016Z",
+  "status": "PARTIAL",
   "tests_ran": [
-    "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
-    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-    "git diff --check",
-    "git status --short"
+    "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q",
+    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py -q",
+    "python -m pytest -q",
+    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
+    "git diff --check"
   ]
 }
 ```
 
-===== COMMAND: Set-Location F:\reverse-agent =====
-F:\reverse-agent
-===== STDERR =====
-===== EXIT: 0 =====
+===== ARCHITECTURE FOCUSED SUITE =====
+25 passed, 1 warning in 0.33s
 
-===== COMMAND: Get-Location =====
-F:\reverse-agent
-===== STDERR =====
-===== EXIT: 0 =====
+===== CONTROL-PLANE SUITE =====
+1173 passed, 1 skipped in 416.60s
 
-===== COMMAND: Test-Path F:\reverse-agent =====
-True
-===== STDERR =====
-===== EXIT: 0 =====
+===== FULL REPOSITORY SUITE =====
+3086 passed, 1 skipped, 1 failed, 1 warning in 558.79s
 
-===== COMMAND: git rev-parse --show-toplevel =====
-F:/reverse-agent
-===== STDERR =====
-===== EXIT: 0 =====
+Failure: tests/test_project_audits.py::test_validate_audits_dir_accepts_current_audit_record
+Cause: two pre-existing files under project_state/audits lack fenced JSON audit_summary blocks. These paths are outside the active Decision's allowed scope and were not modified.
 
-===== COMMAND: git rev-parse HEAD =====
-5c3363b7827b371061390af875ff2f462024dd04
-===== STDERR =====
-===== EXIT: 0 =====
+===== TRANSITION GATES =====
+transition-command-plan: PASSED
+transition-lint: PASSED
+transition-preflight: PASSED
 
-===== COMMAND: git merge-base HEAD origin/main =====
-5884cf2abb37945652ef166cf0e78fa24593b0d5
-===== STDERR =====
-===== EXIT: 0 =====
+===== DIFF CHECK =====
+git diff --check: exit 0
 
-===== COMMAND: python -m reverse_agent.project_gate decision-lint --state-dir project_state =====
-decision-lint: OK
-decision_id: decision_20260720_control_plane_transition_kernel_cutover_v1
-decision_status: APPROVED
-mainline: engineering_branch
-skill_profiles: ['reverse-agent-iteration@v2']
-===== STDERR =====
-Legacy parser warnings were reviewed; legacy preflight is not transition acceptance authority.
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full =====
-gate-profile: PASSED
-profile: full
-profile_reason: full profile explicitly selected
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
-command-plan: PASSED
-decision_id: decision_20260720_control_plane_transition_kernel_cutover_v1
-round_id: round_20260720_control_plane_transition_kernel_cutover_v1
-profile: full
-pytest and git diff --check authorized
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-plan_status: PASSED
-artifact: project_state/gates/command_plan.json
-commands: 22
-omitted_commands: 0
-blocking_reasons: 0
-===== STDERR =====
-Full machine output is preserved in project_state/gates/command_plan.json.
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
-No pytest conclusion was produced before the 120 second outer process limit.
-===== STDERR =====
-command timed out after 124440 milliseconds
-===== EXIT: 124 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
-No pytest conclusion was produced before the 600 second outer process limit.
-===== STDERR =====
-command timed out after 604050 milliseconds
-===== EXIT: 124 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
-1538 passed, 1 failed in 691.97s
-failure: test_closeout_order_provenance_generated_audit_is_semantically_aligned expected the prior Decision's hard-coded 48 audit questions; the active transition Decision has 45.
-===== STDERR =====
-===== EXIT: 1 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
-1539 passed in 661.89s (0:11:01)
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
-1540 passed in 671.02s (0:11:11)
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: git diff --check =====
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: git status --short =====
-Final pre-commit status contained only Decision-allowed implementation and evidence paths; generated reverse_agent.egg-info was ignored and absent from the diff.
-===== STDERR =====
-===== EXIT: 0 =====
-
-
-===== ROUND: round_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1 =====
-
-===== COMMAND: git rev-parse HEAD =====
-607af1d782b91be78d4f82f787847a81442133eb
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: git fetch origin =====
-Fetched current remote refs before implementation.
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: git rev-parse origin/codex/control-plane-transition-kernel-v1 =====
-783f3c68912d0fde46cd725d292f5fba1fcec916
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate decision-lint --state-dir project_state =====
-decision-lint: OK
-decision_id: decision_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1
-decision_status: APPROVED
-mainline: engineering_branch
-skill_profiles: ['reverse-agent-iteration@v2']
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
-command-plan: PASSED
-decision_id: decision_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1
-round_id: round_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1
-profile: inherited
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-plan_status: PASSED
-artifact: project_state/gates/command_plan.json
-omitted_commands: 0
-blocking_reasons: 0
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full =====
-gate-profile: PASSED
-profile: full
-profile_reason: full profile explicitly selected
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
-command-plan: PASSED
-decision_id: decision_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1
-round_id: round_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1
-profile: full
-pytest and git diff --check authorized
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-plan_status: PASSED
-artifact: project_state/gates/command_plan.json
-commands: 24
-omitted_commands: 0
-blocking_reasons: 0
-===== STDERR =====
-Full machine output is preserved in project_state/gates/command_plan.json.
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q =====
-1250 passed in 418.68s (0:06:58)
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
-1549 passed in 434.95s (0:07:14)
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q =====
-1250 passed in 409.60s (0:06:49)
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
-1549 passed in 432.25s (0:07:12)
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: git diff --check =====
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: git diff --name-only =====
-Only Decision-allowed implementation and evidence paths were present. project_state/gates/gate_profile_plan.json was restored to the committed version.
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q =====
-1549 passed in 428.15s (0:07:08)
-===== STDERR =====
-===== EXIT: 0 =====
+Earlier observed attempts retained for truthfulness:
+- Phase A outer 120-second test limit expired before conclusion.
+- Phase A first completed run: 1171 passed, 3 failed; obsolete hard-coded Decision assumptions were corrected.
+- Phase B first focused attempt failed because LangGraph was not installed.
+- Phase B first control-plane run: 1172 passed, 1 skipped, 1 failed; the CI command expectation was corrected.
+- Dependency resolution tested LangGraph 1.2.9, then pinned 1.0.5 to retain websockets<14 compatibility.

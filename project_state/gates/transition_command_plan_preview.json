@@ -66,5 +66,8 @@
       ],
       "execution_surface": "local"
     }
-  ]
+  ],
+  "plan_name": "transition-command-plan",
+  "plan_status": "PASSED",
+  "blocking_reasons": []
 }

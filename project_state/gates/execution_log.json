@@ -1,267 +1,39 @@
 {
   "schema_version": 1,
   "artifact_name": "execution_log.json",
-  "gate_name": "transition-execution-log",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
-  "round_id": "round_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
-  "report_id": "codex_report_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
-  "generated_at": "2026-07-20T13:24:12.6609601Z",
+  "gate_name": "transition-bootstrap-and-architecture-spine-execution-log",
+  "gate_status": "PASSED_WITH_LIMITATIONS",
+  "decision_id": "decision_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "round_id": "round_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "report_id": "codex_report_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "generated_at": "2026-07-20T15:44:48.2822016Z",
   "source": "observed_codex_tool_transcript",
   "commands": [
-    {
-      "index": 1,
-      "command": "Set-Location F:\\reverse-agent",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 2,
-      "command": "Get-Location",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 3,
-      "command": "Test-Path F:\\reverse-agent",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 4,
-      "command": "git rev-parse --show-toplevel",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 5,
-      "command": "git status --short",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 6,
-      "command": "git rev-parse HEAD",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 7,
-      "command": "git merge-base HEAD origin/main",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 8,
-      "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
-      "phase": "gate",
-      "exit_code": 0
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "exit_code": 0
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "exit_code": 0
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
-      "phase": "gate",
-      "exit_code": 0
-    },
-    {
-      "index": 12,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "exit_code": 124,
-      "outcome": "outer_timeout_120s"
-    },
-    {
-      "index": 13,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "exit_code": 124,
-      "outcome": "outer_timeout_600s"
-    },
-    {
-      "index": 14,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "exit_code": 1,
-      "outcome": "1538_passed_1_failed"
-    },
-    {
-      "index": 15,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "exit_code": 0,
-      "outcome": "1539_passed"
-    },
-    {
-      "index": 16,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "exit_code": 0,
-      "outcome": "1540_passed"
-    },
-    {
-      "index": 17,
-      "command": "git diff --check",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 18,
-      "command": "git status --short",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 19,
-      "command": "Set-Location F:\\reverse-agent",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 20,
-      "command": "Get-Location",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 21,
-      "command": "Test-Path F:\\reverse-agent",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 22,
-      "command": "git rev-parse --show-toplevel",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 23,
-      "command": "git status --short",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 24,
-      "command": "git rev-parse HEAD",
-      "phase": "status",
-      "exit_code": 0,
-      "outcome": "607af1d782b91be78d4f82f787847a81442133eb"
-    },
-    {
-      "index": 25,
-      "command": "git fetch origin",
-      "phase": "sync",
-      "exit_code": 0
-    },
-    {
-      "index": 26,
-      "command": "git rev-parse origin/codex/control-plane-transition-kernel-v1",
-      "phase": "sync",
-      "exit_code": 0,
-      "outcome": "783f3c68912d0fde46cd725d292f5fba1fcec916"
-    },
-    {
-      "index": 27,
-      "command": "python -m reverse_agent.project_gate decision-lint --state-dir project_state",
-      "phase": "gate",
-      "exit_code": 0
-    },
-    {
-      "index": 28,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "exit_code": 0,
-      "outcome": "inherited_profile_passed"
-    },
-    {
-      "index": 29,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "exit_code": 0,
-      "outcome": "no_omissions_or_blockers"
-    },
-    {
-      "index": 30,
-      "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile full",
-      "phase": "gate",
-      "exit_code": 0
-    },
-    {
-      "index": 31,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "phase": "gate",
-      "exit_code": 0,
-      "outcome": "full_profile_passed"
-    },
-    {
-      "index": 32,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "phase": "gate",
-      "exit_code": 0,
-      "outcome": "24_commands_no_omissions_or_blockers"
-    },
-    {
-      "index": 33,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-      "phase": "test",
-      "exit_code": 0,
-      "outcome": "1250_passed_418.68s"
-    },
-    {
-      "index": 34,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "exit_code": 0,
-      "outcome": "1549_passed_434.95s"
-    },
-    {
-      "index": 35,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
-      "phase": "test",
-      "exit_code": 0,
-      "outcome": "1250_passed_409.60s"
-    },
-    {
-      "index": 36,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "exit_code": 0,
-      "outcome": "1549_passed_432.25s"
-    },
-    {
-      "index": 37,
-      "command": "git diff --check",
-      "phase": "status",
-      "exit_code": 0
-    },
-    {
-      "index": 38,
-      "command": "git diff --name-only",
-      "phase": "status",
-      "exit_code": 0,
-      "outcome": "decision_allowed_paths_only"
-    },
-    {
-      "index": 39,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-      "phase": "test",
-      "exit_code": 0,
-      "outcome": "1549_passed_428.15s"
-    }
+    {"index": 1, "command": "git pull --ff-only", "phase": "sync", "exit_code": 0, "outcome": "fast_forward_to_2724a8ef00b758ed62661b54df5c991511ce0bbb"},
+    {"index": 2, "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state", "phase": "bootstrap_gate", "exit_code": 0},
+    {"index": 3, "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state", "phase": "bootstrap_gate", "exit_code": 0},
+    {"index": 4, "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state", "phase": "bootstrap_gate", "exit_code": 0},
+    {"index": 5, "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py -q", "phase": "phase_a_test", "exit_code": 124, "outcome": "outer_timeout_120s"},
+    {"index": 6, "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py -q", "phase": "phase_a_test", "exit_code": 1, "outcome": "1171_passed_3_failed"},
+    {"index": 7, "command": "python -m pytest tests/test_control_plane_transition.py -q", "phase": "phase_a_test", "exit_code": 0, "outcome": "7_passed"},
+    {"index": 8, "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py -q", "phase": "phase_a_test", "exit_code": 0, "outcome": "1173_passed_1_skipped"},
+    {"index": 9, "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q", "phase": "phase_b_test", "exit_code": 1, "outcome": "missing_langgraph"},
+    {"index": 10, "command": "python -m pip install -e .[test] websockets<14", "phase": "dependency", "exit_code": 0, "outcome": "langgraph_1.0.5_websockets_13.1"},
+    {"index": 11, "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q", "phase": "phase_b_test", "exit_code": 0, "outcome": "24_passed_1_warning"},
+    {"index": 12, "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py -q", "phase": "phase_b_test", "exit_code": 1, "outcome": "1172_passed_1_skipped_1_failed"},
+    {"index": 13, "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py -q", "phase": "phase_b_test", "exit_code": 0, "outcome": "1173_passed_1_skipped"},
+    {"index": 14, "command": "python -m pytest -q", "phase": "full_test", "exit_code": 1, "outcome": "3086_passed_1_skipped_1_failed_1_warning", "limitation": "pre_existing_legacy_audit_documents_outside_authorized_scope"},
+    {"index": 15, "command": "git diff --check", "phase": "validation", "exit_code": 0},
+    {"index": 16, "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py tests/test_project_reports.py -q", "phase": "final_validation", "exit_code": 0, "outcome": "52_passed_1_warning"},
+    {"index": 17, "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state", "phase": "final_gate", "exit_code": 0},
+    {"index": 18, "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state", "phase": "final_gate", "exit_code": 0},
+    {"index": 19, "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state", "phase": "final_gate", "exit_code": 0},
+    {"index": 20, "command": "git diff --check", "phase": "final_validation", "exit_code": 0},
+    {"index": 21, "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py tests/test_project_reports.py -q", "phase": "contract_completion_test", "exit_code": 0, "outcome": "53_passed_1_warning"},
+    {"index": 22, "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q", "phase": "final_architecture_test", "exit_code": 0, "outcome": "25_passed_1_warning"}
   ],
-  "final_observed_command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
-  "final_test_outcome": "1549 passed in 428.15s",
-  "blocking_reasons": []
+  "limitations": [
+    "project_state/audits/audit_20260701_rework_required_audit_readiness_packet.md lacks fenced json audit_summary block",
+    "project_state/audits/audit_20260701_rework_required_current_handoff_packet_readiness_mismatch.md lacks fenced json audit_summary block"
+  ]
 }
