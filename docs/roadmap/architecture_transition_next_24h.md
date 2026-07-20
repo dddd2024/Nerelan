@@ -1,109 +1,225 @@
-# reverse-agent 架构迁移下一步 24 小时计划
+# reverse-agent 门禁自举与 Architecture Spine v1 合并执行计划
 
-## 1. 文档定位
+## 0. 文档定位
 
-本文是 `decision_20260720_architecture_spine_v1` 的规划说明文档。
+本文是以下 active Decision 的实施说明：
 
-执行权威仍然是：
+```text
+decision_20260720_transition_bootstrap_and_architecture_spine_v1
+```
+
+执行权威：
 
 ```text
 project_state/decision_packet.md
 ```
 
-命令权威仍然是 Agent 在本轮开始时重新生成的：
+命令权威：
 
 ```text
+Phase A 完成后由当前 Decision 重新生成的
 project_state/gates/command_plan.json
 ```
 
-本文用于解释为什么这样拆分、24 小时内应交付什么，以及哪些内容必须延后。Agent 不得只根据本文绕过 Decision 执行。
-
-## 2. 当前审计结论
-
-PR #8 已经完成架构迁移前置基础：
-
-- 独立 transition control-plane kernel；
-- typed Decision、command-plan、execution-envelope 和 preflight；
-- fail-closed 命令授权；
-- legacy / transition 模式识别；
-- CI、State Gate 和 Decision Preflight 分流；
-- 三个远端工作流成功。
-
-但这些只说明旧系统已经具备迁移出口，不代表目标架构已经实现。
-
-当前缺少：
+统一长期路线图位于：
 
 ```text
-GitHub Work Item 驱动入口
-LangGraph Workflow State
-checkpoint / resume
-R0-R3 风险分类
-BMAD planning 输入边界
-GitHub truth adapter
-Trust Authorization Port
-开发工作流与二进制分析工作流分离
+docs/roadmap/reverse_agent_unified_architecture_and_trust_roadmap.md
 ```
 
-因此当前阶段定义为：
+本文将原来分离的两个近期计划合并为一个约 24 小时工程轮：
+
+1. 修复 transition gate 无法启动新 Decision 的自举矛盾；
+2. 门禁通过后实施 Architecture Spine v1。
+
+Agent 不得只根据本文绕过 Decision，也不得跳过 Phase A 直接进入 Architecture Spine。
+
+---
+
+# 1. 当前阻塞审计
+
+当前 transition kernel 已经完成 legacy/transition 分流、fail-closed 校验和 CI 接入，但存在两个自举缺陷：
 
 ```text
-ARCHITECTURE_MIGRATION_BOOTSTRAP_READY
+transition-command-plan
+= 只读取并复制旧 command_plan.json
+= 不会根据 active Decision 生成新计划
+
+transition-preflight
+= 写死 codex/control-plane-transition-kernel-v1
+= 写死上一轮 allowed paths
+= 无法接受新分支和新架构范围
 ```
 
-而不是：
+因此新的 Architecture Spine Decision 虽然已经上传，但会被旧计划身份和旧分支范围阻塞。
+
+这不是 Architecture Spine 业务实现问题，而是迁移门禁本身尚未成为可复用、数据驱动的控制面。
+
+---
+
+# 2. 合并后的唯一目标
+
+在约 24 小时内完成：
 
 ```text
-NEW_ARCHITECTURE_IMPLEMENTED
+Phase A：Transition Gate Bootstrap Repair
+  ↓
+当前 Decision 生成当前 Command Plan
+  ↓
+transition-lint PASSED
+  ↓
+transition-preflight PASSED
+  ↓
+Phase B：Architecture Spine v1
 ```
 
-## 3. 下一轮唯一目标
-
-实现 `Architecture Spine v1`：
+工作量目标：
 
 ```text
-BMAD Planning Reference
-        ↓
-GitHub Work Item
-        ↓
-LangGraph Workflow Instance
-        ↓
-Deterministic Risk Classifier
-   ┌───────────────┐
-   │               │
- R0 / R1         R2 / R3
-   │               │
-Standard Path   Trust Authorization Port
-   └───────┬───────┘
-           ↓
-Deterministic Acceptance Result
+Phase A：4–6 小时
+Phase B：18–20 小时
+总量：约 24 小时
 ```
 
-这是目标架构的第一个可运行纵向切片，不是完整的自动开发系统。
+范围不足时优先保证 Phase A 完整和 Phase B 的可运行最小纵向切片，不扩张到 BMAD 安装、真实 Agent 执行或 Trust Schema 全量建设。
 
-## 4. 权威划分
+---
 
-| 事实类型 | 主权威 | 本轮要求 |
-|---|---|---|
-| Product Brief、PRD、Architecture、Story | BMAD planning artifact | 只读输入，不能授权命令 |
-| 当前工程工作单元 | GitHub Work Item | 生成 workflow identity |
-| workflow 状态、checkpoint、resume | LangGraph | 不复制到旧 closeout 状态链 |
-| branch、commit、PR、CI | GitHub | reverse-agent 仅保存带来源 observation |
-| R0/R1 普通工程任务 | Work Item + execution envelope | 目标设计中不依赖完整 Decision |
-| R2/R3 高风险任务 | reverse-agent Trust Layer | 必须显式授权 |
-| 二进制 Evidence、Claim、Counterevidence | reverse-agent Trust Layer | 本轮只保留边界，不实现业务 Schema |
-| 最终 merge | 用户和 GitHub protection | Agent 不自动合并 |
+# 3. Phase A：Transition Gate Bootstrap Repair
 
-## 5. 24 小时工作包
+## 3.1 目标
 
-### 工作包 A：架构契约，约 4 小时
+使 transition kernel 从“为上一轮写死的门禁”变成“可由任意合法 active Decision 驱动的门禁”。
 
-建立：
+## 3.2 必须实现
+
+### A. 当前 Decision 生成 Command Plan
+
+`transition-command-plan` 必须：
+
+1. 读取 active `decision_packet.md`；
+2. 提取 decision/round identity；
+3. 提取 allowed paths、forbidden paths、forbidden operations；
+4. 生成而不是复制 `command_plan.json`；
+5. 输出稳定、可验证的计划摘要；
+6. 重复生成结果应一致；
+7. 不允许手工编辑冒充生成结果。
+
+### B. 当前 Decision 驱动 lint
+
+`transition-lint` 必须检查：
+
+```text
+active Decision identity
+current Command Plan identity
+Decision status
+skill profile
+plan schema
+plan digest / generation provenance
+```
+
+不得再因为继承了上一轮 plan 而永久 BLOCKED。
+
+### C. 当前 Decision 驱动 preflight
+
+`transition-preflight` 必须从 Decision 读取：
+
+```text
+required_branch
+allowed source/test/doc/state paths
+forbidden paths
+forbidden operations
+legal mainline
+```
+
+必须删除或降级以下硬编码事实：
+
+```text
+codex/control-plane-transition-kernel-v1
+上一轮 TRANSITION_ALLOWED_PATHS
+上一轮 TRANSITION_FORBIDDEN_PATHS
+```
+
+字段缺失、类型错误、路径规则冲突或 Decision 不明确时必须 fail closed。
+
+### D. 兼容性
+
+```text
+legacy mode 行为不变
+PR #8 已有 transition Decision 仍可被解析
+旧 plan 不能覆盖新 Decision
+```
+
+## 3.3 明确授权的自举边界
+
+因为旧门禁无法为新 Decision 生成计划，本轮 Decision 明确授权 Agent 在新 command plan 生成前，只修改以下范围：
+
+```text
+reverse_agent/project_gate.py
+reverse_agent/control_plane/legacy_adapter.py
+reverse_agent/control_plane/models.py
+reverse_agent/control_plane/command_authority.py
+tests/test_project_gate.py
+tests/test_control_plane_transition.py
+project_state/gates/command_plan.json
+project_state/gates/transition_command_plan_preview.json
+project_state/gates/transition_preflight_result.json
+```
+
+允许命令仅限 Decision 中的 bootstrap command list。
+
+该例外在以下条件同时满足后立即失效：
+
+```text
+当前 command plan identity 正确
+transition-lint = PASSED
+transition-preflight = PASSED
+```
+
+## 3.4 Phase A 验收
+
+1. 新 Decision 能生成新 plan；
+2. 换一个 Decision/branch fixture 后计划和 preflight 随之改变；
+3. 无需修改 Python 常量；
+4. 当前分支 `codex/architecture-spine-v1` 通过；
+5. old branch 不再是硬要求；
+6. malformed Decision 被 BLOCKED；
+7. focused tests 和 `git diff --check` 通过。
+
+Phase A 未通过时必须停止。
+
+---
+
+# 4. Phase B：Architecture Spine v1
+
+## 4.1 目标纵向切片
+
+```text
+Planning Reference
+→ GitHub Work Item
+→ Workflow Identity
+→ R0–R3 Risk Classifier
+→ LangGraph Shadow Workflow
+   ├─ R0/R1 → STANDARD_PATH
+   └─ R2/R3 → TRUST_AUTHORIZATION_REQUIRED
+→ Deterministic Acceptance Gate
+```
+
+这一阶段只建立正确的架构主干，不实现完整多 Agent 自动开发，也不运行未知二进制。
+
+## 4.2 Work Package B1：架构契约
+
+建议目录：
 
 ```text
 reverse_agent/architecture/
+  __init__.py
+  contracts.py
+  authority.py
+  risk.py
 ```
 
-定义：
+至少实现：
 
 ```text
 PlanningReference
@@ -112,29 +228,39 @@ WorkflowIdentity
 RiskTier
 ExecutionEnvelope
 AuthorizationRequirement
-ArchitectureDecision
+AuthorizationRequest
+AuthorizationResult
 AcceptanceResult
+DevelopmentWorkflowState
 ```
 
-验收：
+约束：
 
-- 可稳定 JSON 序列化；
-- 有 schema version；
-- 不读取 legacy closeout、seal、report-summary、context 或 state manifest；
-- PlanningReference 永远不能成为 command authority；
-- GitHubWorkItem 身份不完整时 fail closed。
+1. Planning Reference 只提供上下文；
+2. GitHub Work Item 是普通工程任务入口；
+3. R0/R1 不强制完整 Decision；
+4. R2/R3 必须进入 Trust Authorization；
+5. 未知字段或缺失 identity 必须拒绝；
+6. 所有模型稳定序列化。
 
-### 工作包 B：风险分类与授权路由，约 4 小时
+## 4.3 Work Package B2：确定性风险分类
 
-第一版只使用确定性规则。
-
-风险等级：
+建议目录：
 
 ```text
-R0：只读研究、规划、代码阅读、审查
-R1：限定路径编辑、本地测试、格式化，无网络、无 push、无样本执行
-R2：Workflow、依赖、网络、commit/push/Draft PR、权限策略、迁移
-R3：未知二进制、debugger/emulator/hook、动态探测、secrets、破坏性操作
+reverse_agent/architecture/risk_classifier.py
+reverse_agent/architecture/authorization_router.py
+```
+
+第一版不调用 LLM。
+
+分类：
+
+```text
+R0：规划、研究、只读
+R1：限定代码修改、测试、无网络/无 push
+R2：Workflow、依赖、网络、commit/push/Draft PR、权限策略
+R3：未知二进制、debugger、hook、secrets、破坏性或高权限动作
 ```
 
 路由：
@@ -142,17 +268,24 @@ R3：未知二进制、debugger/emulator/hook、动态探测、secrets、破坏�
 ```text
 R0/R1 → STANDARD_PATH
 R2/R3 → TRUST_AUTHORIZATION_REQUIRED
-未知、缺失或冲突 → BLOCKED
+unknown/conflict → BLOCKED 或取更高风险
 ```
 
-### 工作包 C：LangGraph Shadow Runtime，约 6 小时
+## 4.4 Work Package B3：LangGraph Shadow Runtime
 
-引入 LangGraph 作为唯一 Python workflow runtime。
-
-建立：
+建议目录：
 
 ```text
 reverse_agent/workflows/
+  __init__.py
+  state.py
+  development_graph.py
+  nodes/
+    load_work_item.py
+    load_planning_context.py
+    classify_risk.py
+    request_authorization.py
+    acceptance_gate.py
 ```
 
 Graph：
@@ -163,74 +296,110 @@ START
 → load_planning_context
 → classify_risk
 → conditional route
-   ├─ R0/R1 → acceptance_gate
-   └─ R2/R3 → request_authorization → acceptance_gate
+   ├─ standard_path
+   └─ request_authorization
+→ acceptance_gate
 → END
 ```
 
 限制：
 
-- Shadow Mode；
-- 不执行 shell；
-- 不修改源码；
-- 不 push；
-- 使用内存或测试 checkpointer；
-- 相同输入必须可稳定重放；
-- checkpoint/resume 必须有测试。
+1. Shadow Mode；
+2. 不修改业务源码；
+3. 不执行 shell 工具动作；
+4. 不访问网络；
+5. 不调用模型；
+6. 使用内存或测试 checkpointer；
+7. 相同输入可稳定重放；
+8. LangGraph 是唯一 Python 主运行时。
 
-### 工作包 D：Trust Authorization Adapter，约 3 小时
+## 4.5 Work Package B4：Trust Authorization Adapter
 
-建立：
+建议目录：
 
 ```text
-reverse_agent/trust/authorization.py
+reverse_agent/trust/
+  __init__.py
+  authorization.py
 ```
 
-将 PR #8 的 transition kernel 包装成窄接口：
+接口：
 
-```text
-AuthorizationRequest
-→ TrustAuthorizationPort
-→ AUTHORIZED / APPROVAL_REQUIRED / BLOCKED
+```python
+class TrustAuthorizationPort(Protocol):
+    def authorize(self, request: AuthorizationRequest) -> AuthorizationResult:
+        ...
 ```
 
-边界：
-
-- 不修改 `reverse_agent/control_plane/**`；
-- 不导入完整 legacy closeout 生命周期；
-- 不读取 final-check、seal、report-summary、context 或 state manifest；
-- 不让 Decision 成为目标架构中 R0/R1 的必需输入。
-
-### 工作包 E：BMAD 与 GitHub adapter，约 3 小时
-
-建立：
+输出仅允许：
 
 ```text
-reverse_agent/adapters/bmad_planning.py
-reverse_agent/adapters/github_work_item.py
-reverse_agent/adapters/github_truth.py
+AUTHORIZED
+APPROVAL_REQUIRED
+BLOCKED
 ```
 
-本轮只处理 fixture 和结构化输入，不做完整远程自动化。
+不得读取 legacy closeout、final seal、report-summary、publication truth。不得要求 R0/R1 提供完整 Decision。
 
-BMAD adapter：
+## 4.6 Work Package B5：BMAD 与 GitHub 边界
 
-- 读取 Product Brief、PRD、Architecture、Story 的路径、摘要和 digest；
-- 不安装 BMAD；
-- 不生成命令权限。
-
-GitHub adapter：
-
-- 读取 repository、item number、acceptance criteria、requested operations、requested paths；
-- 身份缺失即阻塞；
-- branch、commit、PR、check 必须带 source 和 observed-at；
-- observation 只是缓存，不是真相源。
-
-### 工作包 F：测试、CI 与架构文档，约 4 小时
-
-新增测试：
+建议目录：
 
 ```text
+reverse_agent/adapters/
+  __init__.py
+  bmad_planning.py
+  github_work_item.py
+  github_truth.py
+```
+
+本轮只实现 fixture 和解析边界：
+
+```text
+BMAD artifact path / digest / summary
+GitHub repository / issue / title / acceptance criteria
+GitHub branch / head SHA / PR / CI observation
+```
+
+不安装 BMAD，不远程调用 GitHub，不创建真实 Issue/PR。
+
+---
+
+# 5. 测试计划
+
+## Phase A 测试
+
+```text
+active Decision 生成新 plan
+Decision identity 改变时 plan 改变
+branch 来自 Decision
+allowed paths 来自 Decision
+缺失字段 fail closed
+手工篡改 plan 被拒绝
+legacy mode 保持兼容
+```
+
+## Phase B 测试
+
+```text
+模型稳定序列化
+planning input 不能授权命令
+GitHub observation 带 repository/SHA provenance
+R0/R1/R2/R3 分类
+冲突时取更高风险
+unknown 被阻止
+R0/R1 走 standard path
+R2/R3 调 Trust Port
+blocked authorization 进入 blocked acceptance
+checkpoint replay 结果一致
+Graph 无副作用调用
+```
+
+建议测试文件：
+
+```text
+tests/test_project_gate.py
+tests/test_control_plane_transition.py
 tests/test_architecture_contracts.py
 tests/test_risk_classifier.py
 tests/test_development_graph.py
@@ -238,85 +407,66 @@ tests/test_trust_authorization_adapter.py
 tests/test_planning_and_github_adapters.py
 ```
 
-更新 CI，使新架构测试在 clean runner 中执行。
+---
 
-增加：
-
-```text
-docs/architecture/architecture-spine-v1.md
-```
-
-## 6. 必须验证的场景
-
-1. 只读审查被分类为 R0。
-2. 指定路径本地修改和测试被分类为 R1。
-3. 修改 Workflow 或依赖被分类为 R2。
-4. 运行未知二进制被分类为 R3。
-5. 未知操作或字段冲突被阻塞。
-6. R0/R1 不调用 Trust Authorization Port。
-7. R2/R3 必须调用 Trust Authorization Port。
-8. `BLOCKED` 不能进入 accepted。
-9. `APPROVAL_REQUIRED` 不能被包装为 executable。
-10. transition kernel adapter 保持 fail closed。
-11. Graph 节点不执行 shell，不修改仓库。
-12. 同一 fixture 的最终状态可重放。
-13. checkpoint/resume 得到相同终态。
-14. BMAD planning reference 不能授权命令。
-15. GitHub observation 不能覆盖 GitHub 真相。
-16. PR #8 已有 transition-kernel 测试保持通过。
-
-## 7. 明确不做
-
-本轮不做：
+# 6. 执行顺序
 
 ```text
-旧 closeout / final seal / publication truth 修复
-旧 project_state 扩展
-BMAD 正式安装和完整流程迁入
-Microsoft Agent Framework 双运行时
-自由多 Agent 自动写代码
-真实 runner dispatch
-模型 API 调用
-未知二进制执行
-IDA / Ghidra / debugger 接入
-Binary Evidence Firewall
-Claim / Counterevidence Graph
-User Solve 迁移
-Web Workbench 迁移
-数据库、队列、scheduler
-自动 merge 或 release
+1. 确认 codex/architecture-spine-v1
+2. 读取 active Decision
+3. 只实施 Phase A
+4. 跑 bootstrap focused tests
+5. 生成当前 command_plan.json
+6. transition-lint
+7. transition-preflight
+8. 三者通过后自举例外失效
+9. 实施 Phase B
+10. 跑 Phase B focused tests
+11. 跑控制平面回归测试
+12. git diff --check
+13. 在时间允许时跑完整 pytest
+14. 更新执行报告
+15. push 到当前分支
+16. 最多创建一个 Draft PR
+17. 停止，等待审计
 ```
 
-## 8. 完成标准
+---
 
-Architecture Spine v1 完成时必须满足：
-
-- Decision commit 早于全部实现提交；
-- 新 command plan 在实现前重新生成；
-- 分支从 PR #8 最终有效头派生；
-- LangGraph 是唯一 primary runtime；
-- Shadow Graph 端到端可运行；
-- R0/R1 和 R2/R3 路由正确；
-- 未知输入 fail closed；
-- Trust adapter 复用但不修改 transition kernel；
-- checkpoint/resume 测试通过；
-- 新增 focused tests 通过；
-- 旧 transition tests 通过；
-- full pytest 或真实已知限制被完整记录；
-- `git diff --check` 通过；
-- Draft PR exact-head CI、State Gate、Decision Preflight 成功；
-- PR 保持 Draft、Open、Unmerged。
-
-## 9. 本轮之后
-
-本轮完成后，再选择一个独立 workstream：
+# 7. 禁止事项
 
 ```text
-Trust Layer Schema Foundation
-或
-GitHub Truth Live Adapter
-或
-BMAD Planning Integration
+不跳过 Phase A
+不手工伪造 command plan
+不保留旧分支硬编码作为 fallback
+不修 legacy closeout / seal / publication truth
+不安装 BMAD
+不引入第二个工作流运行时
+不修改 User Solve、frontend、solver、harness
+不运行未知二进制、IDA、Ghidra、debugger
+不调用模型 API
+不访问 secrets
+不直接 push main
+不 merge、rebase、force-push、tag、release
+不自动开始 Trust Schema Foundation
 ```
 
-不得在本轮自动开始 Binary Evidence Firewall、Claim Ledger、User Solve、Web 或外部逆向工具集成。
+---
+
+# 8. 完成标准
+
+全部满足才算完成：
+
+1. transition gate 由 active Decision 数据驱动；
+2. 当前 Decision 生成当前 command plan；
+3. 当前 lint 和 preflight 通过；
+4. Architecture Spine typed contracts 完成；
+5. R0–R3 分类确定且 fail-closed；
+6. LangGraph Shadow Workflow 可运行、可 checkpoint、可重放；
+7. R2/R3 经过 Trust Authorization Adapter；
+8. R0/R1 不依赖 legacy closeout；
+9. focused tests 和 diff check 通过；
+10. 未执行或超时测试被如实记录；
+11. 只推送到 `codex/architecture-spine-v1`；
+12. 不发生 merge；
+13. 完成后停止，等待下一次独立审计。
