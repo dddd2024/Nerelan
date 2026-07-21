@@ -28,7 +28,13 @@ from .control_plane.legacy_adapter import (
     load_transition_decision,
     persist_bootstrap_state,
 )
-from .control_plane.models import ExecutionEnvelope, TransitionAuthority
+from .control_plane.local_seal import evaluate_reconciliation, seal_local
+from .control_plane.models import (
+    ExecutionEnvelope,
+    ExecutionRecord,
+    TransitionAuthority,
+    TransitionCommandPlan,
+)
 from .control_plane.transition import validate_transition
 from .architecture.report_truth import (
     ChangedFileInventory,
@@ -9374,6 +9380,8 @@ def startup_snapshot(
         for path in (
             list(decision_contract.get("allowed_source_files") or [])
             + list(decision_contract.get("required_files_changed") or [])
+            + list(decision_contract.get("allowed_mutated_paths") or [])
+            + list(decision_contract.get("bootstrap_exception_files") or [])
         )
         if _path_is_source_or_test(_norm_path(path))
     } if not strict_source_test_clean_start else set()
@@ -36402,14 +36410,17 @@ def transition_report(
         (state_dir / "codex_execution_report.md").write_text(
             codex_report_md,
             encoding="utf-8",
+            newline="\n",
         )
         (state_dir / "execution_report.md").write_text(
             execution_report_md,
             encoding="utf-8",
+            newline="\n",
         )
         (state_dir / "pytest_result.txt").write_text(
             pytest_result_txt,
             encoding="utf-8",
+            newline="\n",
         )
 
     return {
@@ -36425,6 +36436,216 @@ def transition_report(
         "changed_files": list(inventory.paths),
         "blocking_reasons": [],
     }
+
+
+def transition_reconcile_evaluate(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Phase B: evaluate sealed subject records and emit a candidate result.
+
+    Reads execution records from ``execution_log.json``, filters out
+    evaluator/sealer self-records (F4: non-self-referential), and produces
+    a :class:`ReconciliationCandidate` written to
+    ``project_state/gates/reconciliation_candidate.json``.
+
+    The evaluator itself is never part of its own subject set, so running
+    it cannot validate itself.
+    """
+
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    gate_name = "transition-reconcile-evaluate"
+    try:
+        decision, _contract = load_transition_decision(state_dir / "decision_packet.md")
+        plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        result = {
+            "schema_version": 1,
+            "gate_name": gate_name,
+            "status": "BLOCKED",
+            "decision_id": "",
+            "round_id": "",
+            "blocking_reasons": [f"invalid_transition_authority:{exc}"],
+        }
+        if write_result:
+            path = state_dir / "gates" / "reconciliation_candidate.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
+
+    records: tuple[ExecutionRecord, ...] = ()
+    execution_log_path = state_dir / "gates" / EXECUTION_LOG_RESULT_NAME
+    if execution_log_path.exists():
+        try:
+            raw = json.loads(execution_log_path.read_text(encoding="utf-8"))
+            commands = raw.get("commands") if isinstance(raw, dict) else None
+            if isinstance(commands, list):
+                parsed: list[ExecutionRecord] = []
+                for entry in commands:
+                    if not isinstance(entry, Mapping):
+                        continue
+                    try:
+                        parsed.append(ExecutionRecord.from_mapping(entry))
+                    except ValueError:
+                        continue
+                records = tuple(parsed)
+        except (OSError, ValueError, json.JSONDecodeError):
+            records = ()
+
+    candidate = evaluate_reconciliation(plan, records)
+    result: dict[str, Any] = {
+        "schema_version": 1,
+        "gate_name": gate_name,
+        **candidate.to_dict(),
+    }
+    if write_result:
+        path = state_dir / "gates" / "reconciliation_candidate.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return result
+
+
+def transition_seal_local(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Phase B: validate the candidate and emit a LOCAL_RECONCILED seal.
+
+    Reads ``project_state/gates/reconciliation_candidate.json`` (produced by
+    :func:`transition_reconcile_evaluate`), validates it, and writes a
+    :class:`LocalSeal` to ``project_state/gates/local_execution_seal.json``.
+
+    Fails closed (returns ``LOCAL_RECONCILIATION_BLOCKED``) when:
+    - the candidate file is missing or malformed;
+    - the candidate status is ``BLOCKED``;
+    - the candidate decision/round identity diverges from the active Decision.
+
+    The sealer never claims remote success.
+    """
+
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    gate_name = "transition-seal-local"
+    try:
+        decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+        plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        result = {
+            "schema_version": 1,
+            "gate_name": gate_name,
+            "status": "LOCAL_RECONCILIATION_BLOCKED",
+            "decision_id": "",
+            "round_id": "",
+            "blocking_reasons": [f"invalid_transition_authority:{exc}"],
+        }
+        if write_result:
+            path = state_dir / "gates" / "local_execution_seal.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
+
+    candidate_path = state_dir / "gates" / "reconciliation_candidate.json"
+    if not candidate_path.exists():
+        result = {
+            "schema_version": 1,
+            "gate_name": gate_name,
+            "status": "LOCAL_RECONCILIATION_BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "blocking_reasons": ["missing_reconciliation_candidate"],
+        }
+        if write_result:
+            path = state_dir / "gates" / "local_execution_seal.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
+
+    try:
+        raw_candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        result = {
+            "schema_version": 1,
+            "gate_name": gate_name,
+            "status": "LOCAL_RECONCILIATION_BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "blocking_reasons": [f"malformed_reconciliation_candidate:{exc}"],
+        }
+        if write_result:
+            path = state_dir / "gates" / "local_execution_seal.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
+
+    blocking: list[str] = []
+    candidate_status = str(raw_candidate.get("status") or "")
+    candidate_decision_id = str(raw_candidate.get("decision_id") or "")
+    candidate_round_id = str(raw_candidate.get("round_id") or "")
+    if candidate_decision_id and candidate_decision_id != decision.decision_id:
+        blocking.append(
+            f"candidate_decision_id_diverges:{candidate_decision_id}:{decision.decision_id}"
+        )
+    if candidate_round_id and candidate_round_id != decision.round_id:
+        blocking.append(
+            f"candidate_round_id_diverges:{candidate_round_id}:{decision.round_id}"
+        )
+    if candidate_status != "RECONCILED":
+        blocking.append(f"candidate_not_reconciled:{candidate_status}")
+
+    # Rebuild a ReconciliationCandidate snapshot for the sealer. We use the
+    # persisted candidate dict directly so the sealer binds the same digest.
+    from .control_plane.local_seal import ReconciliationCandidate
+
+    try:
+        candidate = ReconciliationCandidate(
+            status=candidate_status,
+            decision_id=candidate_decision_id or decision.decision_id,
+            round_id=candidate_round_id or decision.round_id,
+            subject_record_count=int(raw_candidate.get("subject_record_count") or 0),
+            subject_digest=str(raw_candidate.get("subject_digest") or ""),
+            missing_command_ids=tuple(raw_candidate.get("missing_command_ids") or []),
+            matched_command_ids=tuple(raw_candidate.get("matched_command_ids") or []),
+            blocking_reasons=tuple(raw_candidate.get("blocking_reasons") or []),
+        )
+    except (TypeError, ValueError) as exc:
+        result = {
+            "schema_version": 1,
+            "gate_name": gate_name,
+            "status": "LOCAL_RECONCILIATION_BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "blocking_reasons": [f"invalid_candidate_shape:{exc}"],
+        }
+        if write_result:
+            path = state_dir / "gates" / "local_execution_seal.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
+
+    activation_base_sha = str(contract.get("activation_base_sha") or "").lower()
+    seal = seal_local(
+        candidate=candidate,
+        plan=plan,
+        decision_id=decision.decision_id,
+        round_id=decision.round_id,
+        activation_base_sha=activation_base_sha,
+    )
+    result: dict[str, Any] = {
+        "schema_version": 1,
+        "gate_name": gate_name,
+        **seal.to_dict(),
+    }
+    if blocking:
+        result["status"] = "LOCAL_RECONCILIATION_BLOCKED"
+        result["blocking_reasons"] = list(blocking)
+    if write_result:
+        path = state_dir / "gates" / "local_execution_seal.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return result
 
 
 def _close_round_exit_code(close_status: object) -> int:
@@ -36689,6 +36910,18 @@ def main(argv: list[str] | None = None) -> int:
     transition_report_parser = subparsers.add_parser("transition-report", help="Generate current-round local report artifacts bound to the active Decision.")
     transition_report_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     transition_report_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    transition_reconcile_evaluate_parser = subparsers.add_parser(
+        "transition-reconcile-evaluate",
+        help="Phase B: evaluate sealed subject records and emit a reconciliation candidate.",
+    )
+    transition_reconcile_evaluate_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    transition_reconcile_evaluate_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    transition_seal_local_parser = subparsers.add_parser(
+        "transition-seal-local",
+        help="Phase B: validate the candidate and emit a LOCAL_RECONCILED seal.",
+    )
+    transition_seal_local_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    transition_seal_local_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
@@ -36754,6 +36987,33 @@ def main(argv: list[str] | None = None) -> int:
             print("artifact: project_state/execution_report.md")
             print("artifact: project_state/pytest_result.txt")
         return 0 if result.get("gate_status") == "PASSED" else 1
+    if args.command == "transition-reconcile-evaluate":
+        state_dir = Path(args.state_dir)
+        result = transition_reconcile_evaluate(state_dir=state_dir, repo_root=_derive_repo_root(state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print("artifact: project_state/gates/reconciliation_candidate.json")
+        # Evaluator runs even when candidate status is BLOCKED; exit 0
+        # so the sealer can read the candidate and emit a blocking seal.
+        return 0
+    if args.command == "transition-seal-local":
+        state_dir = Path(args.state_dir)
+        result = transition_seal_local(state_dir=state_dir, repo_root=_derive_repo_root(state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print("artifact: project_state/gates/local_execution_seal.json")
+        # Sealer runs even when status is LOCAL_RECONCILIATION_BLOCKED so the
+        # blocking reason is persisted; exit non-zero only when no seal was
+        # produced (e.g. missing candidate).
+        if result.get("status") == "LOCAL_RECONCILED":
+            return 0
+        if "blocking_reasons" in result and result.get("blocking_reasons") and result["blocking_reasons"][0] == "missing_reconciliation_candidate":
+            return 1
+        return 0
     if args.command == "final-check":
         result = final_check(state_dir=Path(args.state_dir), repo_root=_derive_repo_root(Path(args.state_dir)))
         if args.json:

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from fnmatch import fnmatch
 from typing import Iterable
 
 from .legacy_adapter import canonical_command
-from .models import ExecutionEnvelope, TransitionCommand, TransitionCommandPlan
+from .models import ExecutionEnvelope, ExecutionRecord, TransitionCommand, TransitionCommandPlan
 
 
 VALID_EXECUTION_SURFACES = frozenset({"local", "ci_only", "remote_observation"})
@@ -134,3 +135,76 @@ def reconcile_command(
         if missing:
             errors.append(f"operations_under_reported:{requested}:{list(missing)}")
     return tuple(errors)
+
+
+def _path_matches_pattern(path: str, pattern: str) -> bool:
+    """Match a path against a glob pattern, normalizing separators."""
+
+    normalized = path.replace("\\", "/")
+    candidate = pattern.replace("\\", "/")
+    return fnmatch(normalized, candidate)
+
+
+def _path_in_generated(path: str, generated_artifact_paths: tuple[str, ...]) -> bool:
+    """Return True if path is covered by any generated_artifact_paths pattern."""
+
+    normalized = path.replace("\\", "/")
+    for pattern in generated_artifact_paths:
+        candidate = pattern.replace("\\", "/")
+        if fnmatch(normalized, candidate):
+            return True
+    return False
+
+
+def _path_in_produced(path: str, produced_artifacts: tuple[str, ...]) -> bool:
+    """Return True if path is covered by any produced_artifacts pattern."""
+
+    normalized = path.replace("\\", "/")
+    for pattern in produced_artifacts:
+        candidate = pattern.replace("\\", "/")
+        if fnmatch(normalized, candidate):
+            return True
+    return False
+
+
+def validate_mutation_grants(
+    plan: TransitionCommandPlan,
+    records: tuple[ExecutionRecord, ...],
+    *,
+    generated_artifact_paths: tuple[str, ...] = (),
+) -> list[str]:
+    """Phase E: enforce command-bound mutation grants for generated artifacts.
+
+    Replaces the global generated-artifact exemption. A path in
+    ``generated_artifact_paths`` may only be mutated by a command whose
+    ``produced_artifacts`` entry covers that path. Non-artifact paths are
+    not subject to this check (they are governed by ``allowed_path_scope``).
+
+    Returns a list of violation strings. An empty list means all observed
+    mutations of generated artifacts are backed by a command-bound grant.
+    """
+
+    violations: list[str] = []
+    # Index plan entries by command_id for O(1) lookup.
+    plan_by_id: dict[str, TransitionCommand] = {}
+    for entry in plan.commands:
+        if entry.command_id:
+            plan_by_id[entry.command_id] = entry
+
+    for record in records:
+        record_command_id = record.command_id
+        plan_entry = plan_by_id.get(record_command_id)
+        for mutated_path in record.mutated_paths:
+            if not _path_in_generated(mutated_path, generated_artifact_paths):
+                # Non-artifact paths are not subject to command-bound grants.
+                continue
+            if plan_entry is None:
+                violations.append(
+                    f"unknown_command_id:{record_command_id}:{mutated_path}"
+                )
+                continue
+            if not _path_in_produced(mutated_path, plan_entry.produced_artifacts):
+                violations.append(
+                    f"missing_mutation_grant:{record_command_id}:{mutated_path}"
+                )
+    return violations

@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260721_architecture_spine_evidence_runtime_closeout_v1",
-  "round_id": "round_20260721_architecture_spine_evidence_runtime_closeout_v1",
+  "decision_id": "decision_20260721_architecture_spine_attestation_policy_seal_v1",
+  "round_id": "round_20260721_architecture_spine_attestation_policy_seal_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260721_architecture_spine_evidence_runtime_closeout_v1 expected=decision_20260721_architecture_spine_evidence_runtime_closeout_v1"
+      "detail": "observed=decision_20260721_architecture_spine_attestation_policy_seal_v1 expected=decision_20260721_architecture_spine_attestation_policy_seal_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260721_architecture_spine_evidence_runtime_closeout_v1 expected=round_20260721_architecture_spine_evidence_runtime_closeout_v1"
+      "detail": "observed=round_20260721_architecture_spine_attestation_policy_seal_v1 expected=round_20260721_architecture_spine_attestation_policy_seal_v1"
     },
     {
       "name": "decision_approved",
@@ -38,17 +38,17 @@
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=97c28ac0647c7653f6eedffac5314297ded8a508 merge_base=97c28ac0647c7653f6eedffac5314297ded8a508"
+      "detail": "base=ed634162b0189acaa60c11b4ad8e080479748f98 merge_base=ed634162b0189acaa60c11b4ad8e080479748f98"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=5ee5cc9728249f9bf8b60bf052d561237cc830d4"
+      "detail": "decision_commit=c97edca2cb5ae7b3d6ab830a0f1ab52ce6eecabb"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260721_architecture_spine_evidence_runtime_closeout_v1/round_20260721_architecture_spine_evidence_runtime_closeout_v1"
+      "detail": "plan=decision_20260721_architecture_spine_attestation_policy_seal_v1/round_20260721_architecture_spine_attestation_policy_seal_v1"
     },
     {
       "name": "command_plan_contract",

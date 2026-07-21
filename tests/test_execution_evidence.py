@@ -457,8 +457,15 @@ def test_load_transition_scope_rejects_generated_forbidden_overlap() -> None:
         load_transition_scope(decision, contract)
 
 
-def test_load_transition_scope_rejects_generated_allowed_overlap() -> None:
-    """Phase E: generated_artifact_paths and allowed_mutated_paths must not overlap."""
+def test_load_transition_scope_allows_generated_allowed_overlap() -> None:
+    """Phase E v2: generated_artifact_paths may overlap with allowed_mutated_paths.
+
+    The attestation policy seal round replaces the global generated-artifact
+    exemption with command-bound mutation grants. A path may be both an
+    authorized mutable path AND a generated artifact bound to a specific
+    generator command via ``produced_artifacts``. The scope loader must accept
+    this overlap; binding enforcement happens at execution-record validation.
+    """
 
     from reverse_agent.control_plane.legacy_adapter import load_transition_scope
 
@@ -467,8 +474,9 @@ def test_load_transition_scope_rejects_generated_allowed_overlap() -> None:
         generated_artifact_paths=["project_state/gates/command_plan.json"],
         allowed_mutated_paths=["project_state/gates/command_plan.json"],
     )
-    with pytest.raises(ValueError, match="generated_allowed_path_conflict"):
-        load_transition_scope(decision, contract)
+    scope = load_transition_scope(decision, contract)
+    assert "project_state/gates/command_plan.json" in scope["generated_artifact_paths"]
+    assert "project_state/gates/command_plan.json" in scope["allowed_paths"]
 
 
 def test_path_risk_applies_to_all_observed_paths_including_allowed() -> None:

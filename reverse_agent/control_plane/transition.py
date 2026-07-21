@@ -217,12 +217,15 @@ def _required_command_coverage_missing(
 ) -> tuple[str, ...]:
     """Phase B/F1: validate all required commands have evidence by source.
 
-    Required commands are partitioned by ``required_evidence_source``:
-    - ``local_provenance`` commands must have a matching local envelope in
-      the execution log.
-    - ``exact_head_ci`` commands cannot be satisfied by local provenance
+    Required commands are partitioned by ``required_evidence_source``
+    (Phase C normalized tokens):
+    - ``local_command_evidence`` commands must have a matching local envelope
+      in the execution log.
+    - ``ci_check_attestation`` commands cannot be satisfied by local provenance
       alone; they require external CI observation, so we flag them as
       missing until the post-execution gate receives a CI-bound observation.
+    - ``repository_state_attestation`` commands are validated via Git ancestry;
+      treat them as satisfied if their envelope is observed locally.
 
     Diagnostic-only and optional commands are excluded from the required set.
     Bootstrap-exception commands are also excluded: they belong to the
@@ -244,16 +247,16 @@ def _required_command_coverage_missing(
     }
     missing: list[str] = []
     for cmd in required_commands:
-        if cmd.required_evidence_source == "local_provenance":
+        if cmd.required_evidence_source == "local_command_evidence":
             if canonical_command(cmd.command) not in observed_local_canonical:
                 missing.append(cmd.command_id or cmd.command)
-        elif cmd.required_evidence_source == "exact_head_ci":
+        elif cmd.required_evidence_source == "ci_check_attestation":
             # Local provenance cannot satisfy CI evidence; flag as missing
             # until an external CI observation is provided. The post gate
             # currently only sees local envelopes, so required CI commands
             # always fail closed from a local-only log.
             missing.append(cmd.command_id or cmd.command)
-        elif cmd.required_evidence_source == "repository_truth":
+        elif cmd.required_evidence_source == "repository_state_attestation":
             # Repository-truth commands are validated via Git ancestry; treat
             # them as satisfied if their envelope is observed locally.
             if canonical_command(cmd.command) not in observed_local_canonical:

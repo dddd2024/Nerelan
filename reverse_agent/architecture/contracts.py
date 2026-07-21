@@ -121,6 +121,9 @@ class WorkflowIdentity:
     workflow_id: str
     work_item_identity: str
     attempt: int = 1
+    decision_id: str = ""
+    round_id: str = ""
+    policy_digest: str = ""
     schema_version: int = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -135,6 +138,9 @@ class WorkflowIdentity:
             "workflow_id": self.workflow_id,
             "work_item_identity": self.work_item_identity,
             "attempt": self.attempt,
+            "decision_id": self.decision_id,
+            "round_id": self.round_id,
+            "policy_digest": self.policy_digest,
         }
 
 

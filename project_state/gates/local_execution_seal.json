@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "gate_name": "transition-seal-local",
+  "status": "LOCAL_RECONCILED",
+  "decision_id": "decision_20260721_architecture_spine_attestation_policy_seal_v1",
+  "round_id": "round_20260721_architecture_spine_attestation_policy_seal_v1",
+  "activation_base_sha": "ed634162b0189acaa60c11b4ad8e080479748f98",
+  "subject_digest": "sha256:4e7dc3e36f8c7a6f5f1186556944d4061127225ea8819212450bd8c59f803bd3",
+  "plan_digest": "sha256:64a85876ce104b87d59dbe7f98f9b55557c521e4864bca067b43383da4e6e131",
+  "result_digest": "sha256:c6c1eca2815c33172f9b27d884cff51c740ca80aafef0d2711a7bad4d57a7d31",
+  "sealed_at": "2026-07-21T08:52:33Z"
+}

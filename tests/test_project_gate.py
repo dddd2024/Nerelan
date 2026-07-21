@@ -28550,6 +28550,101 @@ def test_startup_snapshot_fails_on_source_test_dirty_with_strict_rework_contract
     assert "startup_source_test_dirty" in result["blocking_reasons"]
 
 
+def test_startup_snapshot_authorizes_dirty_files_via_allowed_mutated_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """allowed_mutated_paths in decision_contract authorizes bounded source/test dirtiness.
+
+    Modern attestation/policy-seal contracts use ``allowed_mutated_paths`` instead
+    of the legacy ``allowed_source_files`` field. The startup-snapshot gate must
+    recognize both field names so that authorized implementation work does not
+    false-trip ``startup_source_test_dirty``.
+    """
+    contract = {
+        "allowed_mutated_paths": [
+            "reverse_agent/control_plane/evidence_recorder.py",
+            "tests/test_evidence_authenticity.py",
+        ],
+    }
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_allowed_mutated",
+        round_id="round_allowed_mutated",
+    )
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_status_short_lines",
+        lambda _repo: [
+            " M reverse_agent/control_plane/evidence_recorder.py",
+            "?? tests/test_evidence_authenticity.py",
+        ],
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda repo: str(repo))
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "commit_mutated")
+
+    result = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["source_test_dirty_files"] == []
+    assert "reverse_agent/control_plane/evidence_recorder.py" in result["authorized_source_test_dirty_files"]
+    assert "tests/test_evidence_authenticity.py" in result["authorized_source_test_dirty_files"]
+    assert "startup_source_test_dirty" not in result["blocking_reasons"]
+
+
+def test_startup_snapshot_authorizes_dirty_files_via_bootstrap_exception_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """bootstrap_exception_files in decision_contract also authorizes source/test dirtiness.
+
+    The bootstrap exception list names files that may be modified during the
+    bootstrap window before normal validation is in force. These files must
+    also be recognized as authorized at startup-snapshot time.
+    """
+    contract = {
+        "bootstrap_exception_files": [
+            "reverse_agent/control_plane/local_seal.py",
+            "tests/test_local_execution_seal.py",
+        ],
+    }
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_bootstrap_files",
+        round_id="round_bootstrap_files",
+    )
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_status_short_lines",
+        lambda _repo: [
+            " M reverse_agent/control_plane/local_seal.py",
+            "?? tests/test_local_execution_seal.py",
+        ],
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda repo: str(repo))
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "commit_bootstrap")
+
+    result = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["source_test_dirty_files"] == []
+    assert "reverse_agent/control_plane/local_seal.py" in result["authorized_source_test_dirty_files"]
+    assert "tests/test_local_execution_seal.py" in result["authorized_source_test_dirty_files"]
+    assert "startup_source_test_dirty" not in result["blocking_reasons"]
+
+
 def test_record_startup_diagnostics_rewrites_status_from_startup_snapshot(
     tmp_path: Path,
 ) -> None:
@@ -31808,3 +31903,320 @@ def test_transition_project_gate_cli_routes_without_legacy_artifacts(
     # Phase B: transition-preflight (default pre mode) returns
     # PRE_EXECUTION_AUTHORIZED on success, not PASSED.
     assert preflight["gate_status"] == "PRE_EXECUTION_AUTHORIZED"
+
+
+# ---------------------------------------------------------------------------
+# Phase B/F CLI integration: non-self-referential local seal
+#
+# Covers the project-gate CLI subcommands ``transition-reconcile-evaluate``
+# and ``transition-seal-local``. The evaluator reads sealed subject records
+# from ``execution_log.json`` and writes ``reconciliation_candidate.json``.
+# The sealer validates the candidate and writes ``local_execution_seal.json``
+# with status ``LOCAL_RECONCILED`` or ``LOCAL_RECONCILIATION_BLOCKED``.
+#
+# Neither command may include itself in its own subject set (F4).
+# ---------------------------------------------------------------------------
+
+
+def _write_seal_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _make_seal_state(tmp_path: Path) -> Path:
+    """Build a minimal state_dir with decision + command plan + skills."""
+
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir()
+
+    # Skill registry
+    registry_dir = tmp_path / ".codex-skills"
+    registry_dir.mkdir()
+    _write_seal_json(
+        registry_dir / "registry.json",
+        {
+            "schema_version": 1,
+            "skills": {
+                "reverse-agent-iteration": {"status": "active", "version": 2}
+            },
+        },
+    )
+
+    decision_meta = {
+        "schema_version": 1,
+        "decision_id": "decision_seal_cli",
+        "round_id": "round_seal_cli",
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": "engineering_branch",
+        "skill_profiles": ["reverse-agent-iteration@v2"],
+    }
+    decision_contract = {
+        "required_branch": "codex/architecture-spine-v1",
+        "activation_base_sha": "a" * 40,
+        "allowed_mutated_paths": [
+            "reverse_agent/control_plane/local_seal.py",
+            "project_state/gates/reconciliation_candidate.json",
+            "project_state/gates/local_execution_seal.json",
+        ],
+        "forbidden_mutated_paths": [],
+        "forbidden_operations": [],
+        "reference_paths": [],
+        "generated_artifact_paths": [
+            "project_state/gates/reconciliation_candidate.json",
+            "project_state/gates/local_execution_seal.json",
+        ],
+    }
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(decision_meta, indent=2)}
+```
+
+```json decision_contract
+{json.dumps(decision_contract, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Phase B/F local seal CLI integration.
+""",
+        encoding="utf-8",
+    )
+
+    # Command plan with one required command.
+    _write_seal_json(
+        gates_dir / "command_plan.json",
+        {
+            "schema_version": 1,
+            "decision_id": "decision_seal_cli",
+            "round_id": "round_seal_cli",
+            "commands": [
+                {
+                    "command_id": "status.git_status",
+                    "command": "git status --short",
+                    "phase": "status",
+                    "required": True,
+                    "required_evidence_source": "local_command_evidence",
+                    "expected_exit_codes": [0],
+                    "execution_surface": "local",
+                    "operations": ["repository_observation"],
+                    "network_access": False,
+                    "authority_origin": "normal_plan",
+                }
+            ],
+        },
+    )
+    return state_dir
+
+
+def _write_seal_execution_log(
+    state_dir: Path,
+    *,
+    records: list[dict[str, Any]],
+    decision_id: str = "decision_seal_cli",
+    round_id: str = "round_seal_cli",
+) -> None:
+    _write_seal_json(
+        state_dir / "gates" / "execution_log.json",
+        {
+            "schema_version": 1,
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "commands": records,
+        },
+    )
+
+
+def _stub_seal_git(monkeypatch: pytest.MonkeyPatch, *, base_sha: str = "a" * 40) -> None:
+    """Stub _transition_git so no real git calls are made."""
+    import reverse_agent.project_gate as project_gate_module
+
+    def fake_git(_repo_root: Path, *args: str, check: bool = True) -> str:
+        del check
+        if args == ("branch", "--show-current"):
+            return "codex/architecture-spine-v1"
+        if args == ("merge-base", "HEAD", base_sha):
+            return base_sha
+        if args == ("log", "-1", "--format=%H", "--", "project_state/decision_packet.md"):
+            return "b" * 40
+        if args == ("diff", "--name-only"):
+            return ""
+        if args == ("diff", "--cached", "--name-only"):
+            return ""
+        if args and args[0] == "diff":
+            return ""
+        return ""
+
+    monkeypatch.setattr(project_gate_module, "_transition_git", fake_git)
+    monkeypatch.setattr(
+        project_gate_module.subprocess,
+        "run",
+        lambda *args, **kwargs: type("R", (), {"returncode": 0})(),
+    )
+
+
+def _authentic_seal_record_dict(
+    *,
+    command_id: str = "status.git_status",
+    command: str = "git status --short",
+    exit_code: int = 0,
+) -> dict[str, Any]:
+    return {
+        "command_id": command_id,
+        "command": command,
+        "execution_surface": "local",
+        "operations": ["repository_observation"],
+        "mutated_paths": [],
+        "exit_code": exit_code,
+        "started_at": "2026-07-21T10:00:00Z",
+        "observed_at": "2026-07-21T10:00:01Z",
+        "head_before": "a" * 40,
+        "head_after": "a" * 40,
+        "stdout_digest": "sha256:" + "0" * 64,
+        "stderr_digest": "sha256:" + "0" * 64,
+        "authority_origin": "normal_plan",
+    }
+
+
+def test_transition_reconcile_evaluate_writes_candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """transition-reconcile-evaluate writes reconciliation_candidate.json."""
+
+    state_dir = _make_seal_state(tmp_path)
+    _write_seal_execution_log(state_dir, records=[_authentic_seal_record_dict()])
+    _stub_seal_git(monkeypatch)
+
+    rc = main(["transition-reconcile-evaluate", "--state-dir", str(state_dir)])
+    assert rc == 0
+
+    candidate_path = state_dir / "gates" / "reconciliation_candidate.json"
+    assert candidate_path.exists()
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    assert candidate["decision_id"] == "decision_seal_cli"
+    assert candidate["round_id"] == "round_seal_cli"
+    assert candidate["status"] == "RECONCILED"
+    assert candidate["missing_command_ids"] == []
+    assert candidate["subject_digest"].startswith("sha256:")
+    assert candidate["subject_record_count"] == 1
+
+
+def test_transition_reconcile_evaluate_blocks_when_required_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Evaluator returns BLOCKED status when a required command is missing."""
+
+    state_dir = _make_seal_state(tmp_path)
+    # Empty execution log: no records.
+    _write_seal_execution_log(state_dir, records=[])
+    _stub_seal_git(monkeypatch)
+
+    rc = main(["transition-reconcile-evaluate", "--state-dir", str(state_dir)])
+    # Evaluator runs (exit 0) but status is BLOCKED.
+    assert rc == 0
+
+    candidate = json.loads(
+        (state_dir / "gates" / "reconciliation_candidate.json").read_text(encoding="utf-8")
+    )
+    assert candidate["status"] == "BLOCKED"
+    assert "status.git_status" in candidate["missing_command_ids"]
+
+
+def test_transition_reconcile_evaluate_excludes_self_records(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Evaluator/sealer records must NOT be part of the subject set (F4)."""
+
+    state_dir = _make_seal_state(tmp_path)
+    _write_seal_execution_log(
+        state_dir,
+        records=[
+            _authentic_seal_record_dict(),
+            _authentic_seal_record_dict(
+                command_id="gate.reconcile_evaluate",
+                command="python -m reverse_agent.project_gate transition-reconcile-evaluate --state-dir project_state",
+            ),
+            _authentic_seal_record_dict(
+                command_id="gate.seal_local",
+                command="python -m reverse_agent.project_gate transition-seal-local --state-dir project_state",
+            ),
+        ],
+    )
+    _stub_seal_git(monkeypatch)
+
+    rc = main(["transition-reconcile-evaluate", "--state-dir", str(state_dir)])
+    assert rc == 0
+
+    candidate = json.loads(
+        (state_dir / "gates" / "reconciliation_candidate.json").read_text(encoding="utf-8")
+    )
+    # Only the subject record counts; evaluator/sealer are excluded.
+    assert candidate["subject_record_count"] == 1
+    assert candidate["status"] == "RECONCILED"
+
+
+def test_transition_seal_local_writes_local_reconciled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sealer writes local_execution_seal.json with LOCAL_RECONCILED."""
+
+    state_dir = _make_seal_state(tmp_path)
+    _write_seal_execution_log(state_dir, records=[_authentic_seal_record_dict()])
+    _stub_seal_git(monkeypatch)
+
+    # Run evaluator first.
+    assert main(["transition-reconcile-evaluate", "--state-dir", str(state_dir)]) == 0
+    # Then sealer.
+    rc = main(["transition-seal-local", "--state-dir", str(state_dir)])
+    assert rc == 0
+
+    seal_path = state_dir / "gates" / "local_execution_seal.json"
+    assert seal_path.exists()
+    seal = json.loads(seal_path.read_text(encoding="utf-8"))
+    assert seal["status"] == "LOCAL_RECONCILED"
+    assert seal["decision_id"] == "decision_seal_cli"
+    assert seal["round_id"] == "round_seal_cli"
+    assert seal["subject_digest"].startswith("sha256:")
+    assert seal["plan_digest"].startswith("sha256:")
+    assert seal["result_digest"].startswith("sha256:")
+    assert seal["activation_base_sha"] == "a" * 40
+    # Local seal must NOT claim remote success.
+    assert "REMOTE_PASSED" not in seal["status"]
+    assert seal["status"] != "ACCEPTED"
+
+
+def test_transition_seal_local_blocks_when_candidate_blocked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sealer emits LOCAL_RECONCILIATION_BLOCKED when candidate is BLOCKED."""
+
+    state_dir = _make_seal_state(tmp_path)
+    _write_seal_execution_log(state_dir, records=[])  # missing required
+    _stub_seal_git(monkeypatch)
+
+    assert main(["transition-reconcile-evaluate", "--state-dir", str(state_dir)]) == 0
+    rc = main(["transition-seal-local", "--state-dir", str(state_dir)])
+    # Sealer runs (exit 0) but status is BLOCKED.
+    assert rc == 0
+
+    seal = json.loads(
+        (state_dir / "gates" / "local_execution_seal.json").read_text(encoding="utf-8")
+    )
+    assert seal["status"] == "LOCAL_RECONCILIATION_BLOCKED"
+
+
+def test_transition_seal_local_requires_candidate_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sealer fails closed when reconciliation_candidate.json is missing."""
+
+    state_dir = _make_seal_state(tmp_path)
+    _write_seal_execution_log(state_dir, records=[_authentic_seal_record_dict()])
+    _stub_seal_git(monkeypatch)
+
+    # Skip evaluator; sealer should fail.
+    rc = main(["transition-seal-local", "--state-dir", str(state_dir)])
+    assert rc != 0

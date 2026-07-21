@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from .evidence_source import normalize_evidence_source
 from .models import (
     BootstrapState,
     CapabilityPolicy,
@@ -153,11 +154,14 @@ def _parse_structured_command(raw: Mapping[str, Any], *, bootstrap_exception: bo
         allowed_only_after_validation=bool(raw.get("allowed_only_after_validation", False)),
         bootstrap_exception=bootstrap_exception,
         command_id=str(raw.get("command_id") or ""),
-        required_evidence_source=str(raw.get("required_evidence_source") or "local_provenance"),
+        required_evidence_source=normalize_evidence_source(
+            str(raw.get("required_evidence_source") or "")
+        ),
         authority_origin=(
             "bootstrap_exception" if bootstrap_exception
             else str(raw.get("authority_origin") or "normal_plan")
         ),
+        subject_to_reconciliation=bool(raw.get("subject_to_reconciliation", True)),
     )
 
 
@@ -214,7 +218,7 @@ def build_transition_command_plan(
             allowed_only_after_validation=False,
             bootstrap_exception=True,
             command_id=f"bootstrap.{command[:64]}",
-            required_evidence_source="local_provenance",
+            required_evidence_source=normalize_evidence_source("local_provenance"),
             authority_origin="bootstrap_exception",
         )
         for command in bootstrap_raw
@@ -472,11 +476,13 @@ def load_transition_scope(
         raise ValueError(
             f"generated_forbidden_path_conflict:{sorted(generated_forbidden_overlap)}"
         )
-    generated_allowed_overlap = generated_set & allowed_set
-    if generated_allowed_overlap:
-        raise ValueError(
-            f"generated_allowed_path_conflict:{sorted(generated_allowed_overlap)}"
-        )
+    # Phase E v2 (attestation policy seal): generated_artifact_paths MAY
+    # overlap with allowed_mutated_paths. The global generated-artifact
+    # exemption is replaced by command-bound mutation grants
+    # (``produced_artifacts`` on each command). A path that is both an
+    # authorized mutable path and a generated artifact is permitted; the
+    # binding to a specific generator command_id is enforced at
+    # execution-record validation time, not at scope loading.
 
     if not decision.mainline:
         raise ValueError("missing_mainline")
@@ -597,5 +603,6 @@ def persist_bootstrap_state(
     state_path.write_text(
         json.dumps(state.to_dict(), indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     return state

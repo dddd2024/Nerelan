@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from fnmatch import fnmatch
 from typing import Any, Mapping, Sequence
 
+from .evidence_source import normalize_evidence_source
+
 
 def _strings(value: object) -> tuple[str, ...]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
@@ -56,6 +58,8 @@ class TransitionCommand:
     command_id: str = ""
     required_evidence_source: str = "local_provenance"
     authority_origin: str = "normal_plan"
+    produced_artifacts: tuple[str, ...] = ()
+    subject_to_reconciliation: bool = True
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "TransitionCommand":
@@ -73,8 +77,10 @@ class TransitionCommand:
             allowed_only_after_validation=bool(payload.get("allowed_only_after_validation", False)),
             bootstrap_exception=bool(payload.get("bootstrap_exception", False)),
             command_id=str(payload.get("command_id") or ""),
-            required_evidence_source=str(payload.get("required_evidence_source") or "local_provenance"),
+            required_evidence_source=normalize_evidence_source(payload.get("required_evidence_source")),
             authority_origin=str(payload.get("authority_origin") or "normal_plan"),
+            produced_artifacts=_strings(payload.get("produced_artifacts")),
+            subject_to_reconciliation=bool(payload.get("subject_to_reconciliation", True)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -92,6 +98,8 @@ class TransitionCommand:
             "allowed_only_after_validation": self.allowed_only_after_validation,
             "authority_origin": self.authority_origin,
             "bootstrap_exception": self.bootstrap_exception,
+            "produced_artifacts": list(self.produced_artifacts),
+            "subject_to_reconciliation": self.subject_to_reconciliation,
         }
 
 
