@@ -31268,8 +31268,22 @@ def _make_transition_authority():
         decision_id=decision.decision_id,
         round_id=decision.round_id,
         commands=(
-            TransitionCommand("python -m pytest tests/test_project_gate.py -q", "test", True, (0,), "local"),
-            TransitionCommand("gh pr checks", "remote", True, (0,), "ci_only"),
+            TransitionCommand(
+                "python -m pytest tests/test_project_gate.py -q",
+                "test",
+                True,
+                (0,),
+                "local",
+                ("unit_test",),
+            ),
+            TransitionCommand(
+                "gh pr checks",
+                "remote",
+                True,
+                (0,),
+                "ci_only",
+                ("remote_observation",),
+            ),
         ),
     )
     return TransitionAuthority(
@@ -31372,11 +31386,11 @@ def test_transition_command_scope_surface_and_operations_fail_closed() -> None:
     cases = (
         (
             ExecutionEnvelope("python unknown.py", "local"),
-            "command_authority",
+            "execution_reconciliation",
         ),
         (
             ExecutionEnvelope("gh pr checks", "local"),
-            "command_authority",
+            "execution_reconciliation",
         ),
         (
             ExecutionEnvelope(
@@ -31715,6 +31729,29 @@ def test_transition_project_gate_cli_routes_without_legacy_artifacts(
                     "phase": "test",
                     "required": True,
                     "expected_exit_codes": [0],
+                }
+            ],
+        },
+    )
+    _write_json(
+        gates_dir / "execution_log.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "execution_log.json",
+            "gate_name": "transition-execution-log",
+            "gate_status": "PASSED",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "report_id": "test_report",
+            "generated_at": "2026-07-21T00:00:00Z",
+            "source": "observed_codex_tool_transcript",
+            "commands": [
+                {
+                    "index": 1,
+                    "command": "python -m pytest tests/test_project_gate.py -q",
+                    "phase": "test",
+                    "exit_code": 0,
+                    "bootstrap_exception": True,
                 }
             ],
         },

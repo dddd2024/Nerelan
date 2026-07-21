@@ -1,25 +1,71 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260720_transition_bootstrap_and_architecture_spine_v1",
-  "round_id": "round_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "decision_id": "decision_20260721_architecture_spine_authority_closure_rework_v1",
+  "round_id": "round_20260721_architecture_spine_authority_closure_rework_v1",
   "commands": [
     {
-      "command": "python -m pytest tests/test_project_gate.py -q",
-      "phase": "test",
+      "command": "git status --short",
+      "phase": "status",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local"
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
     },
     {
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
-      "phase": "test",
+      "command": "git rev-parse HEAD",
+      "phase": "status",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local"
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "git branch --show-current",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "repository_observation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m pip install -e \".[test]\" --no-deps",
+      "phase": "dependency",
+      "required": false,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "dependency_install"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
     },
     {
       "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
@@ -28,7 +74,14 @@
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local"
+      "execution_surface": "local",
+      "operations": [
+        "command_plan_generation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
     },
     {
       "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
@@ -37,7 +90,14 @@
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local"
+      "execution_surface": "local",
+      "operations": [
+        "authority_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
     },
     {
       "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
@@ -46,25 +106,177 @@
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local"
+      "execution_surface": "local",
+      "operations": [
+        "authority_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "unit_test"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py tests/test_report_truth.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "unit_test"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py tests/test_authority_closure.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "integration_test"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m pytest -q",
+      "phase": "diagnostic",
+      "required": false,
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "full_repository_test"
+      ],
+      "network_access": false,
+      "diagnostic_only": true,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
     },
     {
       "command": "git diff --check",
-      "phase": "status",
+      "phase": "validation",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local"
+      "execution_surface": "local",
+      "operations": [
+        "diff_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
     },
     {
-      "command": "git status --short",
-      "phase": "status",
+      "command": "git push origin codex/architecture-spine-v1",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "push",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": true,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m pip install -e \".[test]\"",
+      "phase": "ci_dependency",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "local"
+      "execution_surface": "ci_only",
+      "operations": [
+        "dependency_install",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "ci_gate",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "ci_only",
+      "operations": [
+        "command_plan_generation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "ci_gate",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "ci_only",
+      "operations": [
+        "authority_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
+      "phase": "ci_gate",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "ci_only",
+      "operations": [
+        "authority_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "bootstrap_exception": false
     }
   ],
   "plan_name": "transition-command-plan",

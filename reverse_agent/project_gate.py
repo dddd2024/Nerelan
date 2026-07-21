@@ -19,11 +19,14 @@ from .control_plane.legacy_adapter import (
     build_transition_command_plan,
     detect_control_plane_mode,
     is_transition_decision,
+    load_capability_policy,
+    load_execution_envelopes_from_log,
     load_legacy_command_plan,
+    load_path_risk_floor,
     load_transition_scope,
     load_transition_decision,
 )
-from .control_plane.models import TransitionAuthority
+from .control_plane.models import ExecutionEnvelope, TransitionAuthority
 from .control_plane.transition import validate_transition
 
 from .project_ci import (
@@ -36008,6 +36011,8 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
         decision, contract = load_transition_decision(state_dir / "decision_packet.md")
         scope = load_transition_scope(decision, contract)
         plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+        capability_policy = load_capability_policy(contract)
+        path_risk_floor = load_path_risk_floor(contract)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         result = {
             "schema_version": 1,
@@ -36033,6 +36038,16 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
             "checks": [],
             "blocking_reasons": ["transition kernel is not selected by the active Decision"],
         }
+    # Load real execution envelopes from the observed transcript. When no
+    # log exists the preflight must fail closed via ``execution_evidence_present``
+    # rather than silently reporting ``command_authority=PASS``.
+    execution_log_path = state_dir / "gates" / EXECUTION_LOG_RESULT_NAME
+    envelopes: tuple[ExecutionEnvelope, ...] = ()
+    if execution_log_path.exists():
+        try:
+            envelopes = load_execution_envelopes_from_log(execution_log_path)
+        except (OSError, ValueError, json.JSONDecodeError):
+            envelopes = ()
     branch = _transition_git(repo_root, "branch", "--show-current")
     if not branch:
         branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME") or ""
@@ -36065,8 +36080,11 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
         allowed_paths=tuple(scope["allowed_paths"]),
         forbidden_paths=tuple(scope["forbidden_paths"]),
         forbidden_operations=tuple(scope["forbidden_operations"]),
+        reference_paths=tuple(scope["reference_paths"]),
+        capability_policy=capability_policy,
+        path_risk_floor=path_risk_floor,
     )
-    result = validate_transition(authority).to_dict()
+    result = validate_transition(authority, envelopes).to_dict()
     if write_result:
         path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
         path.parent.mkdir(parents=True, exist_ok=True)

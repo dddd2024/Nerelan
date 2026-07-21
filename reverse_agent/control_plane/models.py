@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from typing import Any, Mapping, Sequence
 
 
@@ -47,6 +48,11 @@ class TransitionCommand:
     required: bool
     expected_exit_codes: tuple[int, ...]
     execution_surface: str = "local"
+    operations: tuple[str, ...] = ()
+    network_access: bool = False
+    diagnostic_only: bool = False
+    allowed_only_after_validation: bool = False
+    bootstrap_exception: bool = False
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "TransitionCommand":
@@ -58,6 +64,11 @@ class TransitionCommand:
             required=bool(payload.get("required", False)),
             expected_exit_codes=codes,
             execution_surface=str(payload.get("execution_surface") or "local"),
+            operations=_strings(payload.get("operations")),
+            network_access=bool(payload.get("network_access", False)),
+            diagnostic_only=bool(payload.get("diagnostic_only", False)),
+            allowed_only_after_validation=bool(payload.get("allowed_only_after_validation", False)),
+            bootstrap_exception=bool(payload.get("bootstrap_exception", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -67,6 +78,11 @@ class TransitionCommand:
             "required": self.required,
             "expected_exit_codes": list(self.expected_exit_codes),
             "execution_surface": self.execution_surface,
+            "operations": list(self.operations),
+            "network_access": self.network_access,
+            "diagnostic_only": self.diagnostic_only,
+            "allowed_only_after_validation": self.allowed_only_after_validation,
+            "bootstrap_exception": self.bootstrap_exception,
         }
 
 
@@ -107,6 +123,10 @@ class ExecutionEnvelope:
     execution_surface: str
     mutated_paths: tuple[str, ...] = ()
     operations: tuple[str, ...] = ()
+    exit_code: int | None = None
+    started_at: str = ""
+    observed_at: str = ""
+    bootstrap_exception: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -114,6 +134,102 @@ class ExecutionEnvelope:
             "execution_surface": self.execution_surface,
             "mutated_paths": list(self.mutated_paths),
             "operations": list(self.operations),
+            "exit_code": self.exit_code,
+            "started_at": self.started_at,
+            "observed_at": self.observed_at,
+            "bootstrap_exception": self.bootstrap_exception,
+        }
+
+
+@dataclass(frozen=True)
+class CapabilityPolicy:
+    runner_dispatch_allowed: bool = False
+    model_api_invocation_allowed: bool = False
+    external_reverse_tool_invocation_allowed: bool = False
+    unknown_binary_execution_allowed: bool = False
+    destructive_operations_allowed: bool = False
+    bmad_installation_allowed: bool = False
+    network_access_default_allowed: bool = False
+    direct_push_to_main_allowed: bool = False
+    merge_allowed: bool = False
+    force_push_allowed: bool = False
+    rebase_during_execution_allowed: bool = False
+    tag_or_release_allowed: bool = False
+    local_network_exceptions: tuple[str, ...] = ()
+    ci_network_exceptions: tuple[str, ...] = ()
+    remote_observation_read_only_allowed: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "runner_dispatch_allowed": self.runner_dispatch_allowed,
+            "model_api_invocation_allowed": self.model_api_invocation_allowed,
+            "external_reverse_tool_invocation_allowed": self.external_reverse_tool_invocation_allowed,
+            "unknown_binary_execution_allowed": self.unknown_binary_execution_allowed,
+            "destructive_operations_allowed": self.destructive_operations_allowed,
+            "bmad_installation_allowed": self.bmad_installation_allowed,
+            "network_access_default_allowed": self.network_access_default_allowed,
+            "direct_push_to_main_allowed": self.direct_push_to_main_allowed,
+            "merge_allowed": self.merge_allowed,
+            "force_push_allowed": self.force_push_allowed,
+            "rebase_during_execution_allowed": self.rebase_during_execution_allowed,
+            "tag_or_release_allowed": self.tag_or_release_allowed,
+            "local_network_exceptions": list(self.local_network_exceptions),
+            "ci_network_exceptions": list(self.ci_network_exceptions),
+            "remote_observation_read_only_allowed": self.remote_observation_read_only_allowed,
+        }
+
+
+@dataclass(frozen=True)
+class PathRiskFloor:
+    entries: tuple[tuple[str, str], ...]
+
+    def risk_for_path(self, path: str) -> str | None:
+        normalized = path.replace("\\", "/").lstrip("./")
+        for pattern, risk in self.entries:
+            candidate = pattern.replace("\\", "/").lstrip("./")
+            if self._matches(candidate, normalized):
+                return risk
+        return None
+
+    @staticmethod
+    def _matches(candidate: str, normalized: str) -> bool:
+        # Strip leading "**/" - matches anything before the rest.
+        leading_any = candidate.startswith("**/")
+        if leading_any:
+            candidate = candidate[3:]
+        # Strip trailing "/**" - matches anything after the rest.
+        trailing_any = candidate.endswith("/**")
+        if trailing_any:
+            candidate = candidate[:-3]
+        candidate = candidate.strip("/")
+
+        if leading_any and trailing_any:
+            # **/foo/** -> path contains /foo/
+            if not candidate:
+                return True
+            return (
+                normalized == candidate
+                or normalized.startswith(f"{candidate}/")
+                or normalized.endswith(f"/{candidate}")
+                or f"/{candidate}/" in f"/{normalized}/"
+            )
+        if leading_any:
+            # **/foo     -> any path named foo at any depth
+            # **/*.exe   -> any path ending with .ext
+            if "*" in candidate or "?" in candidate:
+                return fnmatch(normalized, candidate) or fnmatch(normalized, f"*/{candidate}")
+            return normalized == candidate or normalized.endswith(f"/{candidate}")
+        if trailing_any:
+            # foo/**     -> prefix match
+            return normalized == candidate or normalized.startswith(f"{candidate}/")
+        return normalized == candidate or fnmatch(normalized, candidate)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "entries": [
+                {"pattern": pattern, "minimum_risk": risk}
+                for pattern, risk in self.entries
+            ],
         }
 
 
@@ -135,6 +251,9 @@ class TransitionAuthority:
     allowed_paths: tuple[str, ...]
     forbidden_paths: tuple[str, ...]
     forbidden_operations: tuple[str, ...]
+    reference_paths: tuple[str, ...] = ()
+    capability_policy: CapabilityPolicy | None = None
+    path_risk_floor: PathRiskFloor | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -154,6 +273,9 @@ class TransitionAuthority:
             "allowed_paths": list(self.allowed_paths),
             "forbidden_paths": list(self.forbidden_paths),
             "forbidden_operations": list(self.forbidden_operations),
+            "reference_paths": list(self.reference_paths),
+            "capability_policy": self.capability_policy.to_dict() if self.capability_policy else None,
+            "path_risk_floor": self.path_risk_floor.to_dict() if self.path_risk_floor else None,
         }
 
 

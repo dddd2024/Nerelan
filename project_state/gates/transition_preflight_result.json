@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260720_transition_bootstrap_and_architecture_spine_v1",
-  "round_id": "round_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "decision_id": "decision_20260721_architecture_spine_authority_closure_rework_v1",
+  "round_id": "round_20260721_architecture_spine_authority_closure_rework_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260720_transition_bootstrap_and_architecture_spine_v1 expected=decision_20260720_transition_bootstrap_and_architecture_spine_v1"
+      "detail": "observed=decision_20260721_architecture_spine_authority_closure_rework_v1 expected=decision_20260721_architecture_spine_authority_closure_rework_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260720_transition_bootstrap_and_architecture_spine_v1 expected=round_20260720_transition_bootstrap_and_architecture_spine_v1"
+      "detail": "observed=round_20260721_architecture_spine_authority_closure_rework_v1 expected=round_20260721_architecture_spine_authority_closure_rework_v1"
     },
     {
       "name": "decision_approved",
@@ -38,17 +38,17 @@
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=0dbdc3cb82c7935ae715d7f3092f16e2242c0948 merge_base=0dbdc3cb82c7935ae715d7f3092f16e2242c0948"
+      "detail": "base=aa87aad81404bf940f8c262a3be5dcf7222258db merge_base=aa87aad81404bf940f8c262a3be5dcf7222258db"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=4db79f6baa6d71e7e64019316d78e910640d84d7"
+      "detail": "decision_commit=ac82d95e6b5acaf03baba34c02099bb19350fc0b"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260720_transition_bootstrap_and_architecture_spine_v1/round_20260720_transition_bootstrap_and_architecture_spine_v1"
+      "detail": "plan=decision_20260721_architecture_spine_authority_closure_rework_v1/round_20260721_architecture_spine_authority_closure_rework_v1"
     },
     {
       "name": "command_plan_contract",
@@ -66,14 +66,34 @@
       "detail": "forbidden=[]"
     },
     {
-      "name": "command_authority",
+      "name": "reference_paths_read_only",
       "status": "PASS",
-      "detail": "errors=[]"
+      "detail": "violations=[]"
     },
     {
-      "name": "forbidden_operations",
+      "name": "capability_policy_enforced",
       "status": "PASS",
       "detail": "forbidden=[]"
+    },
+    {
+      "name": "network_policy_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "path_risk_floor_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "execution_reconciliation",
+      "status": "PASS",
+      "detail": "status=POST_EXECUTION_RECONCILED reasons=[]"
+    },
+    {
+      "name": "execution_evidence_present",
+      "status": "PASS",
+      "detail": "missing_evidence=False"
     }
   ],
   "blocking_reasons": []

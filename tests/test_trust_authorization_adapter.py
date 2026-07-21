@@ -11,7 +11,11 @@ from reverse_agent.trust.authorization import TransitionKernelAuthorizationAdapt
 def _authority() -> TransitionAuthority:
     decision = TransitionDecision("decision_x", "round_x", "APPROVED", "engineering_branch", ("reverse-agent-iteration@v2",))
     command = "python -m pytest tests/test_architecture_contracts.py -q"
-    plan = TransitionCommandPlan("decision_x", "round_x", (TransitionCommand(command, "test", True, (0,)),))
+    plan = TransitionCommandPlan(
+        "decision_x",
+        "round_x",
+        (TransitionCommand(command, "test", True, (0,), "local", ("unit_test",)),),
+    )
     return TransitionAuthority(
         decision=decision,
         command_plan=plan,
