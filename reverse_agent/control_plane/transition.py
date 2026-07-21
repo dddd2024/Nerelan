@@ -122,6 +122,80 @@ def _path_risk_floor_violations(
     return tuple(dict.fromkeys(violations))
 
 
+def _plan_network_policy_violations(
+    plan: Any,
+    envelopes: tuple[ExecutionEnvelope, ...],
+    policy: CapabilityPolicy,
+) -> tuple[str, ...]:
+    """Phase C/F2: plan-driven network_access enforcement.
+
+    When a plan entry declares ``network_access=True``, the capability policy
+    must be enforced regardless of whether the matching envelope reports
+    network operations. This prevents envelopes from bypassing the network
+    policy by simply omitting the ``network_access`` operation.
+    """
+
+    violations: list[str] = []
+    envelope_by_surface: dict[str, list[ExecutionEnvelope]] = {"local": [], "ci_only": [], "remote_observation": []}
+    for env in envelopes:
+        envelope_by_surface.setdefault(env.execution_surface, []).append(env)
+    for cmd in plan.commands:
+        if not cmd.network_access:
+            continue
+        if cmd.authority_origin == "bootstrap_exception":
+            continue
+        surface = cmd.execution_surface
+        if surface == "local":
+            allowed_exceptions = policy.local_network_exceptions
+        elif surface == "ci_only":
+            allowed_exceptions = policy.ci_network_exceptions
+        else:
+            allowed_exceptions = ()
+        requested = canonical_command(cmd.command)
+        if requested in {canonical_command(item) for item in allowed_exceptions}:
+            continue
+        if policy.network_access_default_allowed:
+            continue
+        # The plan declares network access and the policy does not allow it;
+        # this is a violation regardless of what the envelope says.
+        violations.append(
+            f"plan_network_access_denied:{cmd.command_id or requested}:{surface}"
+        )
+    return tuple(dict.fromkeys(violations))
+
+
+def _unknown_operation_violations(
+    plan: Any,
+    envelopes: tuple[ExecutionEnvelope, ...],
+) -> tuple[str, ...]:
+    """Phase C: unknown operations in envelopes must fail closed.
+
+    Each operation in an envelope must be declared by the matching plan
+    entry (or be a network-access-related operation that the plan's
+    ``network_access`` flag covers). Operations that the plan never
+    declared are suspicious and must block reconciliation.
+    """
+
+    plan_operations_by_command: dict[str, set[str]] = {}
+    plan_network_by_command: dict[str, bool] = {}
+    for cmd in plan.commands:
+        key = canonical_command(cmd.command)
+        plan_operations_by_command.setdefault(key, set()).update(cmd.operations)
+        plan_network_by_command[key] = cmd.network_access
+    network_aliases = {"network_access", "network", "package_install", "dependency_install"}
+    violations: list[str] = []
+    for envelope in envelopes:
+        requested = canonical_command(envelope.command)
+        declared = plan_operations_by_command.get(requested, set())
+        for operation in envelope.operations:
+            if operation in declared:
+                continue
+            if operation in network_aliases and plan_network_by_command.get(requested, False):
+                continue
+            violations.append(f"unknown_operation:{requested}:{operation}")
+    return tuple(dict.fromkeys(violations))
+
+
 def _reference_path_write_violations(
     observed_paths: tuple[str, ...],
     reference_paths: tuple[str, ...],
@@ -137,11 +211,72 @@ def _reference_path_write_violations(
     return tuple(dict.fromkeys(violations))
 
 
+def _required_command_coverage_missing(
+    plan: Any,
+    envelopes: tuple[ExecutionEnvelope, ...],
+) -> tuple[str, ...]:
+    """Phase B/F1: validate all required commands have evidence by source.
+
+    Required commands are partitioned by ``required_evidence_source``:
+    - ``local_provenance`` commands must have a matching local envelope in
+      the execution log.
+    - ``exact_head_ci`` commands cannot be satisfied by local provenance
+      alone; they require external CI observation, so we flag them as
+      missing until the post-execution gate receives a CI-bound observation.
+
+    Diagnostic-only and optional commands are excluded from the required set.
+    Bootstrap-exception commands are also excluded: they belong to the
+    bootstrap window (which has already expired by the time post-execution
+    reconciliation runs) and must not be counted as completion evidence
+    for the normal plan.
+    """
+
+    required_commands = [
+        cmd for cmd in plan.commands
+        if cmd.required
+        and not cmd.diagnostic_only
+        and cmd.authority_origin != "bootstrap_exception"
+    ]
+    observed_local_canonical = {
+        canonical_command(env.command)
+        for env in envelopes
+        if env.execution_surface == "local"
+    }
+    missing: list[str] = []
+    for cmd in required_commands:
+        if cmd.required_evidence_source == "local_provenance":
+            if canonical_command(cmd.command) not in observed_local_canonical:
+                missing.append(cmd.command_id or cmd.command)
+        elif cmd.required_evidence_source == "exact_head_ci":
+            # Local provenance cannot satisfy CI evidence; flag as missing
+            # until an external CI observation is provided. The post gate
+            # currently only sees local envelopes, so required CI commands
+            # always fail closed from a local-only log.
+            missing.append(cmd.command_id or cmd.command)
+        elif cmd.required_evidence_source == "repository_truth":
+            # Repository-truth commands are validated via Git ancestry; treat
+            # them as satisfied if their envelope is observed locally.
+            if canonical_command(cmd.command) not in observed_local_canonical:
+                missing.append(cmd.command_id or cmd.command)
+    return tuple(dict.fromkeys(missing))
+
+
 def validate_transition(
     authority: TransitionAuthority,
     envelopes: tuple[ExecutionEnvelope, ...] = (),
+    *,
+    mode: str = "pre",
 ) -> TransitionPreflightResult:
-    """Validate transition authority without consulting legacy acceptance state."""
+    """Validate transition authority without consulting legacy acceptance state.
+
+    ``mode='pre'``: pre-execution authorization. The execution_log is NOT
+    consulted as completion evidence; the gate only verifies plan identity,
+    path contract, capability policy and bootstrap state.
+
+    ``mode='post'``: post-execution reconciliation. Validates required command
+    coverage in addition to the pre-execution checks. Returns
+    ``POST_EXECUTION_RECONCILED`` on success.
+    """
 
     decision = authority.decision
     checks: list[dict[str, Any]] = []
@@ -194,7 +329,16 @@ def validate_transition(
     mutated_paths = tuple(dict.fromkeys(
         (*authority.observed_paths, *(path for envelope in envelopes for path in envelope.mutated_paths))
     ))
-    outside_scope = _paths_within_scope(mutated_paths, authority.allowed_paths)
+    # Phase E: generated artifact paths are authorized outputs written by their
+    # designated generator commands. They are exempt from the allowed-path-scope
+    # check (they are not in ``allowed_paths``) and from the path-risk floor
+    # (they are authorized writes, not arbitrary mutations of sensitive paths).
+    generated_set = authority.generated_artifact_paths
+    non_generated_paths = tuple(
+        path for path in mutated_paths
+        if not any(_path_matches(path, pattern) for pattern in generated_set)
+    )
+    outside_scope = _paths_within_scope(non_generated_paths, authority.allowed_paths)
     forbidden_paths = _paths_in_forbidden(mutated_paths, authority.forbidden_paths)
     checks.append(_check("allowed_path_scope", not outside_scope, f"outside={list(outside_scope)}"))
     checks.append(_check("forbidden_paths", not forbidden_paths, f"forbidden={list(forbidden_paths)}"))
@@ -240,13 +384,16 @@ def validate_transition(
             f"forbidden={list(forbidden_operations)}",
         ))
 
-    # Path risk floor enforcement. Only paths outside the explicitly allowed
-    # scope are checked; ``allowed_mutated_paths`` already authorizes those
-    # writes and the risk floor's job is to classify, not to block authorized
-    # regeneration of gate artifacts.
+    # Path risk floor enforcement. Phase E/F5: path risk must apply to ALL
+    # observed paths, not just outside_scope. Allowed scope authorizes writes
+    # but does not lower the risk classification; an allowed path that is also
+    # in the risk floor (e.g. .github/workflows/**) must still be flagged so
+    # the runtime can route to Trust Authorization.
+    # Phase E: generated_artifact_paths are exempt — they are authorized
+    # outputs written by their generator commands, not arbitrary mutations.
     if authority.path_risk_floor is not None and authority.path_risk_floor.entries:
         floor_violations = _path_risk_floor_violations(
-            outside_scope,
+            non_generated_paths,
             authority.path_risk_floor,
             minimum="R2",
         )
@@ -256,29 +403,77 @@ def validate_transition(
             f"violations={list(floor_violations)}",
         ))
 
-    # Real execution reconciliation. When no envelopes are supplied the gate
-    # must fail closed rather than report ``command_authority=PASS``.
-    reconciliation = reconcile_executions(authority.command_plan, envelopes)
-    checks.append(_check(
-        "execution_reconciliation",
-        reconciliation.status != "BLOCKED",
-        f"status={reconciliation.status} reasons={list(reconciliation.blocking_reasons)}",
-    ))
-    checks.append(_check(
-        "execution_evidence_present",
-        not reconciliation.missing_evidence,
-        f"missing_evidence={reconciliation.missing_evidence}",
-    ))
+    # Real execution reconciliation. In pre mode, do NOT consume execution_log
+    # as completion evidence; pass empty envelopes so the pre-execution gate
+    # cannot pass based on stale local provenance.
+    effective_envelopes = envelopes if mode == "post" else ()
+    reconciliation = reconcile_executions(authority.command_plan, effective_envelopes)
+    if mode == "post":
+        checks.append(_check(
+            "execution_reconciliation",
+            reconciliation.status != "BLOCKED",
+            f"status={reconciliation.status} reasons={list(reconciliation.blocking_reasons)}",
+        ))
+        checks.append(_check(
+            "execution_evidence_present",
+            not reconciliation.missing_evidence,
+            f"missing_evidence={reconciliation.missing_evidence}",
+        ))
+        # Phase B/F1: required command coverage. A subset of valid records is
+        # not completion. Bootstrap-only records cannot produce a post-
+        # execution reconcile.
+        missing_coverage = _required_command_coverage_missing(authority.command_plan, effective_envelopes)
+        checks.append(_check(
+            "required_command_coverage",
+            not missing_coverage,
+            f"missing={list(missing_coverage)}",
+        ))
+        # Phase C/F2: plan-driven network_access enforcement. The capability
+        # policy must be applied to every plan entry that declares
+        # ``network_access=True`` regardless of envelope-reported operations.
+        if authority.capability_policy is not None:
+            plan_network_violations = _plan_network_policy_violations(
+                authority.command_plan,
+                effective_envelopes,
+                authority.capability_policy,
+            )
+            checks.append(_check(
+                "plan_network_policy_enforced",
+                not plan_network_violations,
+                f"violations={list(plan_network_violations)}",
+            ))
+        # Phase C: unknown operations in envelopes must fail closed.
+        unknown_operations = _unknown_operation_violations(
+            authority.command_plan,
+            effective_envelopes,
+        )
+        checks.append(_check(
+            "envelope_operations_declared",
+            not unknown_operations,
+            f"violations={list(unknown_operations)}",
+        ))
+    else:
+        # Pre mode: no execution evidence required, but no stale log may
+        # accidentally turn the gate green either.
+        checks.append(_check(
+            "execution_evidence_present",
+            True,
+            "pre_execution_mode_no_evidence_required",
+        ))
 
     blocking = tuple(
         f"{check['name']}: {check['detail']}"
         for check in checks
         if check["status"] == "FAIL"
     )
+    if not blocking:
+        gate_status = "POST_EXECUTION_RECONCILED" if mode == "post" else "PASSED"
+    else:
+        gate_status = "BLOCKED"
     return TransitionPreflightResult(
         decision_id=decision.decision_id,
         round_id=decision.round_id,
-        gate_status="PASSED" if not blocking else "BLOCKED",
+        gate_status=gate_status,
         checks=tuple(checks),
         blocking_reasons=blocking,
     )

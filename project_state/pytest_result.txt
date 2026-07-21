@@ -1,46 +1,5 @@
-```json pytest_result_summary
-{
-  "schema_version": 1,
-  "decision_id": "decision_20260720_transition_bootstrap_and_architecture_spine_v1",
-  "report_id": "codex_report_20260720_transition_bootstrap_and_architecture_spine_v1",
-  "round_id": "round_20260720_transition_bootstrap_and_architecture_spine_v1",
-  "generated_at": "2026-07-20T15:44:48.2822016Z",
-  "status": "PARTIAL",
-  "tests_ran": [
-    "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q",
-    "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py -q",
-    "python -m pytest -q",
-    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
-    "git diff --check"
-  ]
-}
-```
-
-===== ARCHITECTURE FOCUSED SUITE =====
-25 passed, 1 warning in 0.33s
-
-===== CONTROL-PLANE SUITE =====
-1173 passed, 1 skipped in 416.60s
-
-===== FULL REPOSITORY SUITE =====
-3086 passed, 1 skipped, 1 failed, 1 warning in 558.79s
-
-Failure: tests/test_project_audits.py::test_validate_audits_dir_accepts_current_audit_record
-Cause: two pre-existing files under project_state/audits lack fenced JSON audit_summary blocks. These paths are outside the active Decision's allowed scope and were not modified.
-
-===== TRANSITION GATES =====
-transition-command-plan: PASSED
-transition-lint: PASSED
-transition-preflight: PASSED
-
-===== DIFF CHECK =====
-git diff --check: exit 0
-
-Earlier observed attempts retained for truthfulness:
-- Phase A outer 120-second test limit expired before conclusion.
-- Phase A first completed run: 1171 passed, 3 failed; obsolete hard-coded Decision assumptions were corrected.
-- Phase B first focused attempt failed because LangGraph was not installed.
-- Phase B first control-plane run: 1172 passed, 1 skipped, 1 failed; the CI command expectation was corrected.
-- Dependency resolution tested LangGraph 1.2.9, then pinned 1.0.5 to retain websockets<14 compatibility.
+decision_id: decision_20260721_architecture_spine_evidence_runtime_closeout_v1
+round_id: round_20260721_architecture_spine_evidence_runtime_closeout_v1
+head_sha: 5ee5cc9728249f9bf8b60bf052d561237cc830d4
+local_status: LOCAL_VALIDATED
+note: pytest evidence is produced by the test commands themselves.

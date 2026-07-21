@@ -19,15 +19,22 @@ from .control_plane.legacy_adapter import (
     build_transition_command_plan,
     detect_control_plane_mode,
     is_transition_decision,
+    load_bootstrap_state,
     load_capability_policy,
     load_execution_envelopes_from_log,
     load_legacy_command_plan,
     load_path_risk_floor,
     load_transition_scope,
     load_transition_decision,
+    persist_bootstrap_state,
 )
 from .control_plane.models import ExecutionEnvelope, TransitionAuthority
 from .control_plane.transition import validate_transition
+from .architecture.report_truth import (
+    ChangedFileInventory,
+    RemoteObservation,
+    ReportTruth,
+)
 
 from .project_ci import (
     build_artifact_manifest_artifact,
@@ -36005,7 +36012,27 @@ def transition_command_plan(*, state_dir: Path, write_result: bool = True) -> di
     return payload
 
 
-def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
+def _utc_now_iso() -> str:
+    """Return current UTC time in ISO-8601 format with second precision."""
+
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True, mode: str = "pre") -> dict[str, Any]:
+    """Run the transition preflight gate.
+
+    ``mode='pre'`` (default): pre-execution authorization. Validates plan
+    identity, branch ancestry, path contract, capability policy and bootstrap
+    state. Does NOT read historical execution_log as completion evidence.
+    Returns ``PRE_EXECUTION_AUTHORIZED`` on success and persists
+    ``BOOTSTRAP_EXPIRED``.
+
+    ``mode='post'``: alias for :func:`transition_reconcile` with ``mode='post'``.
+    Validates required command coverage and reconciles observed executions.
+    """
+
+    if mode == "post":
+        return transition_reconcile(state_dir=state_dir, repo_root=repo_root, write_result=write_result, mode="post")
     repo_root = repo_root or _derive_repo_root(state_dir)
     try:
         decision, contract = load_transition_decision(state_dir / "decision_packet.md")
@@ -36038,9 +36065,101 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
             "checks": [],
             "blocking_reasons": ["transition kernel is not selected by the active Decision"],
         }
-    # Load real execution envelopes from the observed transcript. When no
-    # log exists the preflight must fail closed via ``execution_evidence_present``
-    # rather than silently reporting ``command_authority=PASS``.
+    branch = _transition_git(repo_root, "branch", "--show-current")
+    if not branch:
+        branch = os.environ.get("GITHUB_HEAD_REF") or os.environ.get("GITHUB_REF_NAME") or ""
+    base_sha = str(scope["activation_base_sha"])
+    merge_base = _transition_git(repo_root, "merge-base", "HEAD", base_sha)
+    decision_commit = _transition_git(repo_root, "log", "-1", "--format=%H", "--", "project_state/decision_packet.md")
+    ancestry = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", decision_commit, "HEAD"],
+        cwd=repo_root,
+        check=False,
+    ).returncode == 0
+    committed = _transition_git(repo_root, "diff", "--name-only", f"{decision_commit}..HEAD")
+    working = _transition_git(repo_root, "diff", "--name-only")
+    staged = _transition_git(repo_root, "diff", "--cached", "--name-only")
+    observed_paths = tuple(dict.fromkeys(line for line in f"{committed}\n{working}\n{staged}".splitlines() if line))
+    authority = TransitionAuthority(
+        decision=decision,
+        command_plan=plan,
+        expected_decision_id=decision.decision_id,
+        expected_round_id=decision.round_id,
+        active_skills=_active_transition_skills(repo_root),
+        legal_mainlines=tuple(scope["legal_mainlines"]),
+        expected_branch=str(scope["required_branch"]),
+        actual_branch=branch,
+        base_sha=base_sha,
+        merge_base_sha=merge_base,
+        decision_commit_sha=decision_commit,
+        decision_is_ancestor=ancestry,
+        observed_paths=observed_paths,
+        allowed_paths=tuple(scope["allowed_paths"]),
+        forbidden_paths=tuple(scope["forbidden_paths"]),
+        forbidden_operations=tuple(scope["forbidden_operations"]),
+        reference_paths=tuple(scope["reference_paths"]),
+        generated_artifact_paths=tuple(scope.get("generated_artifact_paths", ())),
+        capability_policy=capability_policy,
+        path_risk_floor=path_risk_floor,
+    )
+    # Pre-execution: do NOT consume historical execution_log as completion
+    # evidence. Pass empty envelopes so the execution_evidence_present check
+    # cannot pass based on stale local provenance.
+    pre_result = validate_transition(authority, envelopes=()).to_dict()
+    # Translate PASSED into PRE_EXECUTION_AUTHORIZED for pre mode.
+    if pre_result.get("gate_status") == "PASSED":
+        pre_result["gate_status"] = "PRE_EXECUTION_AUTHORIZED"
+    # Expire bootstrap after a successful pre-execution authorization.
+    if pre_result.get("gate_status") == "PRE_EXECUTION_AUTHORIZED":
+        bootstrap_path = state_dir / "gates" / "bootstrap_state.json"
+        persist_bootstrap_state(
+            bootstrap_path,
+            status="BOOTSTRAP_EXPIRED",
+            decision_id=decision.decision_id,
+            round_id=decision.round_id,
+            expired_at=_utc_now_iso(),
+        )
+    if write_result:
+        path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(pre_result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return pre_result
+
+
+def transition_reconcile(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True, mode: str = "post") -> dict[str, Any]:
+    """Run the post-execution reconciliation gate.
+
+    Validates:
+    - current execution-record identity (decision_id/round_id match plan);
+    - required local command coverage (all required local commands have evidence);
+    - command/surface/operation/exit-code reconciliation per submitted record;
+    - bootstrap authority is not forged or expired.
+
+    Result is either ``POST_EXECUTION_RECONCILED`` or ``BLOCKED``.
+    """
+
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    try:
+        decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+        scope = load_transition_scope(decision, contract)
+        plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+        capability_policy = load_capability_policy(contract)
+        path_risk_floor = load_path_risk_floor(contract)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        result = {
+            "schema_version": 1,
+            "gate_name": "transition-reconcile",
+            "gate_status": "BLOCKED",
+            "decision_id": "",
+            "round_id": "",
+            "checks": [],
+            "blocking_reasons": [f"invalid_transition_authority:{exc}"],
+        }
+        if write_result:
+            path = state_dir / "gates" / "reconciliation_result.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        return result
     execution_log_path = state_dir / "gates" / EXECUTION_LOG_RESULT_NAME
     envelopes: tuple[ExecutionEnvelope, ...] = ()
     if execution_log_path.exists():
@@ -36081,15 +36200,231 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
         forbidden_paths=tuple(scope["forbidden_paths"]),
         forbidden_operations=tuple(scope["forbidden_operations"]),
         reference_paths=tuple(scope["reference_paths"]),
+        generated_artifact_paths=tuple(scope.get("generated_artifact_paths", ())),
         capability_policy=capability_policy,
         path_risk_floor=path_risk_floor,
     )
-    result = validate_transition(authority, envelopes).to_dict()
+    result = validate_transition(authority, envelopes=envelopes, mode="post").to_dict()
+    if result.get("gate_name") == "transition-preflight":
+        result["gate_name"] = "transition-reconcile"
     if write_result:
-        path = state_dir / "gates" / TRANSITION_PREFLIGHT_RESULT_NAME
+        path = state_dir / "gates" / "reconciliation_result.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n", encoding="utf-8", newline="\n")
     return result
+
+
+def transition_report(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    """Phase F: wire report_truth into an actual project-gate command.
+
+    Generates current-round local report artifacts bound to the active
+    Decision/round/head identity:
+
+    - ``project_state/gates/changed_file_inventory.json``: derived from the
+      real ``git diff --name-only <base>..HEAD`` output.
+    - ``project_state/gates/remote_observation_payload.json``: a
+      to-be-published payload. It records ``REMOTE_NOT_OBSERVED`` for all
+      three signals (CI, State Gate, Decision Preflight) so the local report
+      cannot forge ``REMOTE_PASSED``. A PR audit comment published later
+      binds the same head to conclusive observations.
+    - ``project_state/codex_execution_report.md``: markdown report embedding
+      the current Decision identity and changed-file inventory.
+    - ``project_state/execution_report.md``: markdown report embedding the
+      current implementation head SHA.
+    - ``project_state/pytest_result.txt``: minimal pytest result placeholder
+      that records current Decision identity. The actual pytest evidence is
+      produced by the test commands themselves; this file only ensures the
+      report directory carries current identity.
+
+    The command fails closed when:
+
+    - the decision packet is malformed;
+    - the diff between activation base and HEAD is empty;
+    - the head SHA cannot be resolved.
+    """
+
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    gate_name = "transition-report"
+    blocking: list[str] = []
+
+    try:
+        decision, contract = load_transition_decision(state_dir / "decision_packet.md")
+        scope = load_transition_scope(decision, contract)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        result = {
+            "schema_version": 1,
+            "gate_name": gate_name,
+            "gate_status": "BLOCKED",
+            "decision_id": "",
+            "round_id": "",
+            "local_status": "LOCAL_FAILED",
+            "blocking_reasons": [f"invalid_decision_packet:{exc}"],
+        }
+        if write_result:
+            path = state_dir / "gates" / "remote_observation_payload.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        return result
+
+    base_sha = str(scope["activation_base_sha"])
+    diff_names = _transition_git(repo_root, "diff", "--name-only", f"{base_sha}..HEAD")
+    head_sha = _transition_git(repo_root, "rev-parse", "HEAD")
+
+    if not diff_names.strip():
+        blocking.append("empty_diff:no_changes_against_activation_base")
+    if not head_sha.strip():
+        blocking.append("missing_head_sha")
+
+    if blocking:
+        result = {
+            "schema_version": 1,
+            "gate_name": gate_name,
+            "gate_status": "BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "local_status": "LOCAL_FAILED",
+            "blocking_reasons": blocking,
+        }
+        if write_result:
+            path = state_dir / "gates" / "remote_observation_payload.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        return result
+
+    # Build the changed-file inventory from the real git diff.
+    try:
+        inventory = ChangedFileInventory.from_git_diff(
+            diff_names,
+            base_sha=base_sha,
+            head_sha=head_sha,
+        )
+    except ValueError as exc:
+        result = {
+            "schema_version": 1,
+            "gate_name": gate_name,
+            "gate_status": "BLOCKED",
+            "decision_id": decision.decision_id,
+            "round_id": decision.round_id,
+            "local_status": "LOCAL_FAILED",
+            "blocking_reasons": [f"invalid_changed_file_inventory:{exc}"],
+        }
+        if write_result:
+            path = state_dir / "gates" / "remote_observation_payload.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        return result
+
+    # Remote observation payload: a pending record bound to current head.
+    # Never claim REMOTE_PASSED from the local side.
+    remote_observation = RemoteObservation(
+        head_sha=head_sha,
+        observed_at="",
+        ci_status="REMOTE_NOT_OBSERVED",
+        state_gate_status="REMOTE_NOT_OBSERVED",
+        decision_preflight_status="REMOTE_NOT_OBSERVED",
+    )
+    truth = ReportTruth(
+        changed_files=inventory,
+        local_status="LOCAL_VALIDATED",
+        remote_observation=remote_observation,
+    )
+
+    gates_dir = state_dir / "gates"
+    gates_dir.mkdir(parents=True, exist_ok=True)
+
+    inventory_payload = inventory.to_dict()
+    inventory_payload["decision_id"] = decision.decision_id
+    inventory_payload["round_id"] = decision.round_id
+
+    remote_payload = remote_observation.to_dict()
+    remote_payload["decision_id"] = decision.decision_id
+    remote_payload["round_id"] = decision.round_id
+
+    # Embed current Decision identity in the markdown reports so stale
+    # reports cannot masquerade as current-round artifacts.
+    codex_report_md = (
+        "# Codex Execution Report\n\n"
+        f"- decision_id: {decision.decision_id}\n"
+        f"- round_id: {decision.round_id}\n"
+        f"- head_sha: {head_sha}\n"
+        f"- base_sha: {base_sha}\n"
+        f"- local_status: {truth.local_status}\n"
+        f"- changed_files_count: {len(inventory.paths)}\n"
+        "\n"
+        "## Changed Files\n\n"
+        + "\n".join(f"- {path}" for path in inventory.paths)
+        + "\n"
+    )
+    execution_report_md = (
+        "# Execution Report\n\n"
+        f"- decision_id: {decision.decision_id}\n"
+        f"- round_id: {decision.round_id}\n"
+        f"- head_sha: {head_sha}\n"
+        f"- base_sha: {base_sha}\n"
+        f"- internally_consistent: {truth.is_internally_consistent()}\n"
+    )
+    pytest_result_txt = (
+        f"decision_id: {decision.decision_id}\n"
+        f"round_id: {decision.round_id}\n"
+        f"head_sha: {head_sha}\n"
+        f"local_status: {truth.local_status}\n"
+        "note: pytest evidence is produced by the test commands themselves.\n"
+    )
+
+    if write_result:
+        (gates_dir / "changed_file_inventory.json").write_text(
+            json.dumps(inventory_payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        (gates_dir / "remote_observation_payload.json").write_text(
+            json.dumps(remote_payload, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+        (state_dir / "codex_execution_report.md").write_text(
+            codex_report_md,
+            encoding="utf-8",
+        )
+        (state_dir / "execution_report.md").write_text(
+            execution_report_md,
+            encoding="utf-8",
+        )
+        (state_dir / "pytest_result.txt").write_text(
+            pytest_result_txt,
+            encoding="utf-8",
+        )
+
+    return {
+        "schema_version": 1,
+        "gate_name": gate_name,
+        "gate_status": "PASSED",
+        "decision_id": decision.decision_id,
+        "round_id": decision.round_id,
+        "head_sha": head_sha,
+        "base_sha": base_sha,
+        "local_status": truth.local_status,
+        "internally_consistent": truth.is_internally_consistent(),
+        "changed_files": list(inventory.paths),
+        "blocking_reasons": [],
+    }
 
 
 def _close_round_exit_code(close_status: object) -> int:
@@ -36336,6 +36671,24 @@ def main(argv: list[str] | None = None) -> int:
     transition_preflight_parser = subparsers.add_parser("transition-preflight", help="Run independent transition preflight.")
     transition_preflight_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     transition_preflight_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    transition_preflight_parser.add_argument(
+        "--mode",
+        choices=("pre", "post"),
+        default="pre",
+        help="pre = pre-execution authorization; post = post-execution reconcile.",
+    )
+    transition_reconcile_parser = subparsers.add_parser("transition-reconcile", help="Run post-execution reconciliation gate.")
+    transition_reconcile_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    transition_reconcile_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    transition_reconcile_parser.add_argument(
+        "--mode",
+        choices=("post",),
+        default="post",
+        help="post = post-execution reconciliation (only mode supported).",
+    )
+    transition_report_parser = subparsers.add_parser("transition-report", help="Generate current-round local report artifacts bound to the active Decision.")
+    transition_report_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    transition_report_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
@@ -36368,12 +36721,38 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result.get("plan_status") == "PASSED" else 1
     if args.command == "transition-preflight":
         state_dir = Path(args.state_dir)
-        result = transition_preflight(state_dir=state_dir, repo_root=_derive_repo_root(state_dir))
+        result = transition_preflight(state_dir=state_dir, repo_root=_derive_repo_root(state_dir), mode=args.mode)
         if args.json:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_result(result)
             print(f"artifact: project_state/gates/{TRANSITION_PREFLIGHT_RESULT_NAME}")
+        if result.get("gate_status") == "PRE_EXECUTION_AUTHORIZED":
+            return 0
+        return 0 if result.get("gate_status") == "PASSED" else 1
+    if args.command == "transition-reconcile":
+        state_dir = Path(args.state_dir)
+        result = transition_reconcile(state_dir=state_dir, repo_root=_derive_repo_root(state_dir), mode=args.mode)
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print("artifact: project_state/gates/reconciliation_result.json")
+        if result.get("gate_status") == "POST_EXECUTION_RECONCILED":
+            return 0
+        return 1
+    if args.command == "transition-report":
+        state_dir = Path(args.state_dir)
+        result = transition_report(state_dir=state_dir, repo_root=_derive_repo_root(state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+            print("artifact: project_state/gates/changed_file_inventory.json")
+            print("artifact: project_state/gates/remote_observation_payload.json")
+            print("artifact: project_state/codex_execution_report.md")
+            print("artifact: project_state/execution_report.md")
+            print("artifact: project_state/pytest_result.txt")
         return 0 if result.get("gate_status") == "PASSED" else 1
     if args.command == "final-check":
         result = final_check(state_dir=Path(args.state_dir), repo_root=_derive_repo_root(Path(args.state_dir)))

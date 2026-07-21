@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .models import (
+    BootstrapState,
     CapabilityPolicy,
     ExecutionEnvelope,
     PathRiskFloor,
@@ -151,6 +152,12 @@ def _parse_structured_command(raw: Mapping[str, Any], *, bootstrap_exception: bo
         diagnostic_only=bool(raw.get("diagnostic_only", False)),
         allowed_only_after_validation=bool(raw.get("allowed_only_after_validation", False)),
         bootstrap_exception=bootstrap_exception,
+        command_id=str(raw.get("command_id") or ""),
+        required_evidence_source=str(raw.get("required_evidence_source") or "local_provenance"),
+        authority_origin=(
+            "bootstrap_exception" if bootstrap_exception
+            else str(raw.get("authority_origin") or "normal_plan")
+        ),
     )
 
 
@@ -206,6 +213,9 @@ def build_transition_command_plan(
             diagnostic_only=False,
             allowed_only_after_validation=False,
             bootstrap_exception=True,
+            command_id=f"bootstrap.{command[:64]}",
+            required_evidence_source="local_provenance",
+            authority_origin="bootstrap_exception",
         )
         for command in bootstrap_raw
     ]
@@ -347,6 +357,22 @@ def load_reference_paths(contract: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(str(item).strip() for item in raw if isinstance(item, str) and item.strip())
 
 
+def load_generated_artifact_paths(contract: Mapping[str, Any]) -> tuple[str, ...]:
+    """Load generated-artifact paths declared by the Decision.
+
+    Phase E: generated artifacts (gate outputs, reports, etc.) are a separate
+    group from reference, allowed, and forbidden paths. They may only be
+    written by their designated generator command, not by arbitrary mutation.
+    """
+
+    raw = contract.get("generated_artifact_paths")
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ValueError("missing_or_invalid_contract_field:generated_artifact_paths")
+    return tuple(str(item).strip() for item in raw if isinstance(item, str) and item.strip())
+
+
 def load_transition_scope(
     decision: TransitionDecision,
     contract: Mapping[str, Any],
@@ -380,6 +406,11 @@ def load_transition_scope(
 
     # ``reference_paths`` must NOT be added to allowed mutable scope.
     reference_paths = load_reference_paths(contract)
+
+    # Phase E: ``generated_artifact_paths`` is a separate group. It must not
+    # overlap with reference_paths, allowed_mutated_paths, or forbidden_mutated_paths.
+    # Generated artifacts may only be written by their designated generator.
+    generated_artifact_paths = load_generated_artifact_paths(contract)
 
     forbidden = _string_list(contract, "forbidden_mutated_paths", required=True)
     operations = list(_string_list(contract, "forbidden_operations"))
@@ -425,9 +456,27 @@ def load_transition_scope(
     # Detect explicit allowed/forbidden path conflicts.
     allowed_set = {p for p in allowed}
     forbidden_set = {p for p in forbidden}
+    reference_set = {p for p in reference_paths}
+    generated_set = {p for p in generated_artifact_paths}
     overlap = allowed_set & forbidden_set
     if overlap:
         raise ValueError(f"allowed_forbidden_path_conflict:{sorted(overlap)}")
+    # Phase E: four-group mutual exclusivity checks.
+    reference_generated_overlap = reference_set & generated_set
+    if reference_generated_overlap:
+        raise ValueError(
+            f"reference_generated_path_conflict:{sorted(reference_generated_overlap)}"
+        )
+    generated_forbidden_overlap = generated_set & forbidden_set
+    if generated_forbidden_overlap:
+        raise ValueError(
+            f"generated_forbidden_path_conflict:{sorted(generated_forbidden_overlap)}"
+        )
+    generated_allowed_overlap = generated_set & allowed_set
+    if generated_allowed_overlap:
+        raise ValueError(
+            f"generated_allowed_path_conflict:{sorted(generated_allowed_overlap)}"
+        )
 
     if not decision.mainline:
         raise ValueError("missing_mainline")
@@ -439,6 +488,7 @@ def load_transition_scope(
         "forbidden_operations": tuple(dict.fromkeys(operations)),
         "legal_mainlines": (decision.mainline,),
         "reference_paths": reference_paths,
+        "generated_artifact_paths": generated_artifact_paths,
     }
 
 
@@ -499,7 +549,7 @@ def load_execution_envelopes_from_log(path: Path) -> tuple[ExecutionEnvelope, ..
     return tuple(envelopes)
 
 
-def dispatch_preflight(
+def select_validator(
     contract: Mapping[str, Any],
     *,
     transition_validator: Callable[[], Any],
@@ -508,3 +558,44 @@ def dispatch_preflight(
     """Preserve legacy behavior unless a Decision explicitly selects transition mode."""
 
     return transition_validator() if is_transition_decision(contract) else legacy_validator()
+
+
+# Backwards-compatible alias used by legacy dispatch tests.
+dispatch_preflight = select_validator
+
+
+def load_bootstrap_state(state_path: Path) -> BootstrapState:
+    """Load bootstrap state from ``bootstrap_state.json``.
+
+    If the file does not exist, bootstrap defaults to ``BOOTSTRAP_OPEN``
+    (the decision contract declares ``bootstrap_state_initial``).
+    """
+
+    if not state_path.exists():
+        return BootstrapState(status="BOOTSTRAP_OPEN")
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    return BootstrapState.from_mapping(payload)
+
+
+def persist_bootstrap_state(
+    state_path: Path,
+    *,
+    status: str,
+    decision_id: str = "",
+    round_id: str = "",
+    expired_at: str = "",
+) -> BootstrapState:
+    """Persist a bootstrap state file, validating the status first."""
+
+    state = BootstrapState(
+        status=status,
+        decision_id=decision_id,
+        round_id=round_id,
+        expired_at=expired_at,
+    )
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps(state.to_dict(), indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return state

@@ -31383,14 +31383,18 @@ def test_transition_command_scope_surface_and_operations_fail_closed() -> None:
     from reverse_agent.control_plane.transition import validate_transition
 
     authority = _make_transition_authority()
+    # Phase B: execution_reconciliation checks only fire in post mode.
+    # Path/scope/operations checks fire in both pre and post modes.
     cases = (
         (
             ExecutionEnvelope("python unknown.py", "local"),
             "execution_reconciliation",
+            "post",
         ),
         (
             ExecutionEnvelope("gh pr checks", "local"),
             "execution_reconciliation",
+            "post",
         ),
         (
             ExecutionEnvelope(
@@ -31399,6 +31403,7 @@ def test_transition_command_scope_surface_and_operations_fail_closed() -> None:
                 mutated_paths=("outside.txt",),
             ),
             "allowed_path_scope",
+            "pre",
         ),
         (
             ExecutionEnvelope(
@@ -31407,6 +31412,7 @@ def test_transition_command_scope_surface_and_operations_fail_closed() -> None:
                 mutated_paths=(".github/workflows/ci.yml",),
             ),
             "forbidden_paths",
+            "pre",
         ),
         (
             ExecutionEnvelope(
@@ -31415,10 +31421,11 @@ def test_transition_command_scope_surface_and_operations_fail_closed() -> None:
                 operations=("force_push",),
             ),
             "forbidden_operations",
+            "pre",
         ),
     )
-    for envelope, check_name in cases:
-        result = validate_transition(authority, (envelope,))
+    for envelope, check_name, mode in cases:
+        result = validate_transition(authority, (envelope,), mode=mode)
         assert result.gate_status == "BLOCKED"
         assert _transition_check(result, check_name)["status"] == "FAIL"
 
@@ -31798,4 +31805,6 @@ def test_transition_project_gate_cli_routes_without_legacy_artifacts(
     preflight = json.loads((gates_dir / "transition_preflight_result.json").read_text(encoding="utf-8"))
     assert preview["plan_status"] == "PASSED"
     assert preview["commands"][0]["execution_surface"] == "local"
-    assert preflight["gate_status"] == "PASSED"
+    # Phase B: transition-preflight (default pre mode) returns
+    # PRE_EXECUTION_AUTHORIZED on success, not PASSED.
+    assert preflight["gate_status"] == "PRE_EXECUTION_AUTHORIZED"

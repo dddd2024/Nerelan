@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "gate_name": "transition-preflight",
-  "gate_status": "PRE_EXECUTION_AUTHORIZED",
+  "gate_name": "transition-reconcile",
+  "gate_status": "BLOCKED",
   "decision_id": "decision_20260721_architecture_spine_evidence_runtime_closeout_v1",
   "round_id": "round_20260721_architecture_spine_evidence_runtime_closeout_v1",
   "checks": [
@@ -86,10 +86,33 @@
       "detail": "violations=[]"
     },
     {
+      "name": "execution_reconciliation",
+      "status": "FAIL",
+      "detail": "status=BLOCKED reasons=['exit_code_mismatch:python -m reverse_agent.project_gate transition-reconcile --state-dir project_state --mode post:1']"
+    },
+    {
       "name": "execution_evidence_present",
       "status": "PASS",
-      "detail": "pre_execution_mode_no_evidence_required"
+      "detail": "missing_evidence=False"
+    },
+    {
+      "name": "required_command_coverage",
+      "status": "FAIL",
+      "detail": "missing=['test.evidence_control_plane', 'test.runtime_risk_graph', 'test.report_truth', 'ci.install', 'ci.test', 'ci.transition_preflight']"
+    },
+    {
+      "name": "plan_network_policy_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "envelope_operations_declared",
+      "status": "PASS",
+      "detail": "violations=[]"
     }
   ],
-  "blocking_reasons": []
+  "blocking_reasons": [
+    "execution_reconciliation: status=BLOCKED reasons=['exit_code_mismatch:python -m reverse_agent.project_gate transition-reconcile --state-dir project_state --mode post:1']",
+    "required_command_coverage: missing=['test.evidence_control_plane', 'test.runtime_risk_graph', 'test.report_truth', 'ci.install', 'ci.test', 'ci.transition_preflight']"
+  ]
 }

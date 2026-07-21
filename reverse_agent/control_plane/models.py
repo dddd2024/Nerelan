@@ -53,6 +53,9 @@ class TransitionCommand:
     diagnostic_only: bool = False
     allowed_only_after_validation: bool = False
     bootstrap_exception: bool = False
+    command_id: str = ""
+    required_evidence_source: str = "local_provenance"
+    authority_origin: str = "normal_plan"
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "TransitionCommand":
@@ -69,21 +72,31 @@ class TransitionCommand:
             diagnostic_only=bool(payload.get("diagnostic_only", False)),
             allowed_only_after_validation=bool(payload.get("allowed_only_after_validation", False)),
             bootstrap_exception=bool(payload.get("bootstrap_exception", False)),
+            command_id=str(payload.get("command_id") or ""),
+            required_evidence_source=str(payload.get("required_evidence_source") or "local_provenance"),
+            authority_origin=str(payload.get("authority_origin") or "normal_plan"),
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "command_id": self.command_id,
             "command": self.command,
             "phase": self.phase,
             "required": self.required,
+            "required_evidence_source": self.required_evidence_source,
             "expected_exit_codes": list(self.expected_exit_codes),
             "execution_surface": self.execution_surface,
             "operations": list(self.operations),
             "network_access": self.network_access,
             "diagnostic_only": self.diagnostic_only,
             "allowed_only_after_validation": self.allowed_only_after_validation,
+            "authority_origin": self.authority_origin,
             "bootstrap_exception": self.bootstrap_exception,
         }
+
+
+_VALID_EVIDENCE_SOURCES = frozenset({"local_provenance", "exact_head_ci", "repository_truth"})
+_VALID_AUTHORITY_ORIGINS = frozenset({"normal_plan", "bootstrap_exception"})
 
 
 @dataclass(frozen=True)
@@ -114,6 +127,151 @@ class TransitionCommandPlan:
             "decision_id": self.decision_id,
             "round_id": self.round_id,
             "commands": [command.to_dict() for command in self.commands],
+        }
+
+    def find_command(self, command_id: str, execution_surface: str) -> TransitionCommand | None:
+        """Locate a plan entry by stable command_id + execution_surface."""
+
+        for entry in self.commands:
+            if entry.command_id == command_id and entry.execution_surface == execution_surface:
+                return entry
+        return None
+
+
+_EXECUTION_RECORD_REQUIRED_FIELDS = (
+    "command_id",
+    "command",
+    "execution_surface",
+    "operations",
+    "mutated_paths",
+    "exit_code",
+    "started_at",
+    "observed_at",
+    "head_before",
+    "head_after",
+    "stdout_digest",
+    "stderr_digest",
+    "authority_origin",
+)
+
+
+@dataclass(frozen=True)
+class ExecutionRecord:
+    """Strict execution record with required head binding and digests.
+
+    Required by Phase A.2: missing key fields must BLOCKED rather than
+    be silently accepted via empty-string defaults.
+    """
+
+    command_id: str
+    command: str
+    execution_surface: str
+    operations: tuple[str, ...]
+    mutated_paths: tuple[str, ...]
+    exit_code: int | None
+    started_at: str
+    observed_at: str
+    head_before: str
+    head_after: str
+    stdout_digest: str
+    stderr_digest: str
+    authority_origin: str = "normal_plan"
+
+    def __post_init__(self) -> None:
+        for field_name in _EXECUTION_RECORD_REQUIRED_FIELDS:
+            value = getattr(self, field_name)
+            if isinstance(value, str) and not value.strip():
+                raise ValueError(f"missing_field:{field_name}")
+            if value is None and field_name in ("command_id", "command", "execution_surface", "started_at", "observed_at", "head_before", "head_after", "stdout_digest", "stderr_digest", "authority_origin"):
+                raise ValueError(f"missing_field:{field_name}")
+        if self.authority_origin not in _VALID_AUTHORITY_ORIGINS:
+            raise ValueError(f"invalid_authority_origin:{self.authority_origin}")
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "ExecutionRecord":
+        return cls(
+            command_id=str(payload.get("command_id") or ""),
+            command=str(payload.get("command") or ""),
+            execution_surface=str(payload.get("execution_surface") or ""),
+            operations=_strings(payload.get("operations")),
+            mutated_paths=_strings(payload.get("mutated_paths")),
+            exit_code=payload.get("exit_code") if isinstance(payload.get("exit_code"), int) else None,
+            started_at=str(payload.get("started_at") or ""),
+            observed_at=str(payload.get("observed_at") or ""),
+            head_before=str(payload.get("head_before") or ""),
+            head_after=str(payload.get("head_after") or ""),
+            stdout_digest=str(payload.get("stdout_digest") or ""),
+            stderr_digest=str(payload.get("stderr_digest") or ""),
+            authority_origin=str(payload.get("authority_origin") or "normal_plan"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "command_id": self.command_id,
+            "command": self.command,
+            "execution_surface": self.execution_surface,
+            "operations": list(self.operations),
+            "mutated_paths": list(self.mutated_paths),
+            "exit_code": self.exit_code,
+            "started_at": self.started_at,
+            "observed_at": self.observed_at,
+            "head_before": self.head_before,
+            "head_after": self.head_after,
+            "stdout_digest": self.stdout_digest,
+            "stderr_digest": self.stderr_digest,
+            "authority_origin": self.authority_origin,
+        }
+
+
+_VALID_BOOTSTRAP_STATUSES = frozenset({"BOOTSTRAP_OPEN", "BOOTSTRAP_EXPIRED"})
+
+
+@dataclass(frozen=True)
+class BootstrapState:
+    """Phase A.3: explicit BOOTSTRAP_OPEN / BOOTSTRAP_EXPIRED lifecycle.
+
+    Bootstrap authority is derived from persisted state, not self-declared
+    by execution-log authors. Once BOOTSTRAP_EXPIRED, any new record claiming
+    ``authority_origin=bootstrap_exception`` must be rejected.
+    """
+
+    status: str
+    decision_id: str = ""
+    round_id: str = ""
+    expired_at: str = ""
+
+    def __post_init__(self) -> None:
+        if self.status not in _VALID_BOOTSTRAP_STATUSES:
+            raise ValueError(f"invalid_bootstrap_status:{self.status}")
+
+    @property
+    def is_open(self) -> bool:
+        return self.status == "BOOTSTRAP_OPEN"
+
+    @property
+    def is_expired(self) -> bool:
+        return self.status == "BOOTSTRAP_EXPIRED"
+
+    def rejects_expired_bootstrap_record(self, record: ExecutionRecord) -> bool:
+        """Return True if a bootstrap record arrives after expiry."""
+
+        return self.is_expired and record.authority_origin == "bootstrap_exception"
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "BootstrapState":
+        return cls(
+            status=str(payload.get("status") or "BOOTSTRAP_OPEN"),
+            decision_id=str(payload.get("decision_id") or ""),
+            round_id=str(payload.get("round_id") or ""),
+            expired_at=str(payload.get("expired_at") or ""),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "decision_id": self.decision_id,
+            "round_id": self.round_id,
+            "expired_at": self.expired_at,
         }
 
 
@@ -252,6 +410,7 @@ class TransitionAuthority:
     forbidden_paths: tuple[str, ...]
     forbidden_operations: tuple[str, ...]
     reference_paths: tuple[str, ...] = ()
+    generated_artifact_paths: tuple[str, ...] = ()
     capability_policy: CapabilityPolicy | None = None
     path_risk_floor: PathRiskFloor | None = None
 
@@ -274,6 +433,7 @@ class TransitionAuthority:
             "forbidden_paths": list(self.forbidden_paths),
             "forbidden_operations": list(self.forbidden_operations),
             "reference_paths": list(self.reference_paths),
+            "generated_artifact_paths": list(self.generated_artifact_paths),
             "capability_policy": self.capability_policy.to_dict() if self.capability_policy else None,
             "path_risk_floor": self.path_risk_floor.to_dict() if self.path_risk_floor else None,
         }

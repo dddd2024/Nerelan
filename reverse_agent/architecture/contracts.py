@@ -247,6 +247,213 @@ class DevelopmentWorkflowState(TypedDict, total=False):
     planning_references: list[dict[str, Any]]
     workflow_identity: dict[str, Any]
     risk_decision: dict[str, Any]
+    risk_policy_snapshot: dict[str, Any]
     authorization_result: dict[str, Any]
     acceptance_result: dict[str, Any]
     node_trace: list[str]
+
+
+@dataclass(frozen=True)
+class PathRiskFloorSnapshot:
+    """Architecture-layer path-risk floor data.
+
+    This concrete dataclass mirrors the control-plane ``PathRiskFloor`` but
+    lives in the architecture layer so it can be carried inside a
+    ``RiskPolicySnapshot`` without violating the layer boundary.
+    """
+
+    entries: tuple[tuple[str, str], ...]
+    schema_version: int = SCHEMA_VERSION
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "PathRiskFloorSnapshot":
+        raw_entries = payload.get("entries")
+        if not isinstance(raw_entries, (list, tuple)):
+            raise ValueError("missing_or_invalid:path_risk_floor")
+        entries: list[tuple[str, str]] = []
+        for item in raw_entries:
+            if not isinstance(item, (list, tuple)) or len(item) != 2:
+                raise ValueError("missing_or_invalid:path_risk_floor")
+            pattern = _text(item[0], "path_risk_floor_pattern")
+            tier_label = _text(item[1], "path_risk_floor_tier").upper()
+            try:
+                RiskTier(tier_label)
+            except ValueError as exc:
+                raise ValueError(f"missing_or_invalid:path_risk_floor_tier:{tier_label}") from exc
+            entries.append((pattern, tier_label))
+        if not entries:
+            raise ValueError("missing_or_invalid:path_risk_floor")
+        return cls(entries=tuple(entries))
+
+    def risk_for_path(self, path: str) -> str | None:
+        normalized = path.replace("\\", "/").lstrip("./")
+        highest: str | None = None
+        rank = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
+        for pattern, tier_label in self.entries:
+            candidate = pattern.replace("\\", "/").lstrip("./")
+            if not self._matches(candidate, normalized):
+                continue
+            if highest is None or rank.get(tier_label, 0) > rank.get(highest, 0):
+                highest = tier_label
+        return highest
+
+    @staticmethod
+    def _matches(candidate: str, normalized: str) -> bool:
+        from fnmatch import fnmatch
+
+        leading_any = candidate.startswith("**/")
+        if leading_any:
+            candidate = candidate[3:]
+        trailing_any = candidate.endswith("/**")
+        if trailing_any:
+            candidate = candidate[:-3]
+        candidate = candidate.strip("/")
+
+        if leading_any and trailing_any:
+            if not candidate:
+                return True
+            return (
+                normalized == candidate
+                or normalized.startswith(f"{candidate}/")
+                or normalized.endswith(f"/{candidate}")
+                or f"/{candidate}/" in f"/{normalized}/"
+            )
+        if leading_any:
+            if "*" in candidate or "?" in candidate:
+                return fnmatch(normalized, candidate) or fnmatch(normalized, f"*/{candidate}")
+            return normalized == candidate or normalized.endswith(f"/{candidate}")
+        if trailing_any:
+            return normalized == candidate or normalized.startswith(f"{candidate}/")
+        return normalized == candidate or fnmatch(normalized, candidate)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "entries": [[pattern, tier] for pattern, tier in self.entries],
+        }
+
+
+@dataclass(frozen=True)
+class CapabilityRiskRule:
+    """Maps an operation name to a minimum risk tier.
+
+    When an envelope declares ``operation``, its risk must be at least
+    ``risk_tier``. Used by :meth:`RiskPolicySnapshot.resolved_capability_risk_for`
+    to compute a single ``capability_flag_risk`` value for the classifier.
+    """
+
+    operation: str
+    risk_tier: RiskTier
+    schema_version: int = SCHEMA_VERSION
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "CapabilityRiskRule":
+        operation = _text(payload.get("operation"), "capability_risk_rule_operation")
+        tier_label = _text(payload.get("risk_tier"), "capability_risk_rule_tier").upper()
+        try:
+            tier = RiskTier(tier_label)
+        except ValueError as exc:
+            raise ValueError(f"missing_or_invalid:capability_risk_rule_tier:{tier_label}") from exc
+        return cls(operation=operation, risk_tier=tier)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "operation": self.operation,
+            "risk_tier": self.risk_tier.value,
+        }
+
+
+_TIER_RANK = {RiskTier.R0: 0, RiskTier.R1: 1, RiskTier.R2: 2, RiskTier.R3: 3}
+
+
+@dataclass(frozen=True)
+class RiskPolicySnapshot:
+    """Immutable, Decision-bound runtime risk policy.
+
+    Phase D: bound to the active Decision (``decision_id``/``round_id``),
+    carries the path-risk floor and capability-risk rules, and exposes a
+    ``policy_digest`` that the runtime can compare against the authorized
+    digest to detect drift. The classify node fails closed when the snapshot
+    is missing, the identity mismatches, or the digest has changed.
+    """
+
+    decision_id: str
+    round_id: str
+    path_risk_floor: PathRiskFloorSnapshot
+    capability_risk_rules: tuple[CapabilityRiskRule, ...]
+    policy_digest: str
+    schema_version: int = SCHEMA_VERSION
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "RiskPolicySnapshot":
+        _schema(payload)
+        decision_id = _text(payload.get("decision_id"), "decision_id")
+        round_id = _text(payload.get("round_id"), "round_id")
+        floor_payload = payload.get("path_risk_floor")
+        if not isinstance(floor_payload, Mapping):
+            raise ValueError("missing_or_invalid:path_risk_floor")
+        path_risk_floor = PathRiskFloorSnapshot.from_mapping(floor_payload)
+        raw_rules = payload.get("capability_risk_rules")
+        if not isinstance(raw_rules, (list, tuple)) or not raw_rules:
+            raise ValueError("missing_or_invalid:capability_risk_rules")
+        rules = tuple(
+            CapabilityRiskRule.from_mapping(item) if isinstance(item, Mapping)
+            else CapabilityRiskRule.from_mapping({"operation": item[0], "risk_tier": item[1]})
+            for item in raw_rules
+        )
+        digest = _compute_policy_digest(decision_id, round_id, path_risk_floor, rules)
+        return cls(
+            decision_id=decision_id,
+            round_id=round_id,
+            path_risk_floor=path_risk_floor,
+            capability_risk_rules=rules,
+            policy_digest=digest,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "decision_id": self.decision_id,
+            "round_id": self.round_id,
+            "path_risk_floor": self.path_risk_floor.to_dict(),
+            "capability_risk_rules": [rule.to_dict() for rule in self.capability_risk_rules],
+            "policy_digest": self.policy_digest,
+        }
+
+    def identity_matches(self, decision_id: str, round_id: str) -> bool:
+        return self.decision_id == decision_id and self.round_id == round_id
+
+    def resolved_capability_risk_for(self, operations: tuple[str, ...]) -> RiskTier | None:
+        """Return the max risk tier across all capability rules that match.
+
+        If none of the operations appear in the rules, returns ``None``.
+        """
+
+        normalized = {op.strip().lower() for op in operations if isinstance(op, str) and op.strip()}
+        applicable: list[RiskTier] = [
+            rule.risk_tier
+            for rule in self.capability_risk_rules
+            if rule.operation in normalized
+        ]
+        if not applicable:
+            return None
+        return max(applicable, key=lambda tier: _TIER_RANK[tier])
+
+
+def _compute_policy_digest(
+    decision_id: str,
+    round_id: str,
+    path_risk_floor: PathRiskFloorSnapshot,
+    capability_risk_rules: tuple[CapabilityRiskRule, ...],
+) -> str:
+    import hashlib
+
+    payload = {
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "path_risk_floor": path_risk_floor.to_dict(),
+        "capability_risk_rules": [rule.to_dict() for rule in capability_risk_rules],
+    }
+    serialized = stable_json(payload)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()

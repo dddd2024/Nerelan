@@ -1,12 +1,14 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260721_architecture_spine_authority_closure_rework_v1",
-  "round_id": "round_20260721_architecture_spine_authority_closure_rework_v1",
+  "decision_id": "decision_20260721_architecture_spine_evidence_runtime_closeout_v1",
+  "round_id": "round_20260721_architecture_spine_evidence_runtime_closeout_v1",
   "commands": [
     {
+      "command_id": "status.git_status",
       "command": "git status --short",
       "phase": "status",
       "required": true,
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [
         0
       ],
@@ -17,12 +19,15 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
+      "command_id": "status.git_head",
       "command": "git rev-parse HEAD",
       "phase": "status",
       "required": true,
+      "required_evidence_source": "repository_truth",
       "expected_exit_codes": [
         0
       ],
@@ -33,12 +38,15 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
+      "command_id": "status.git_branch",
       "command": "git branch --show-current",
       "phase": "status",
       "required": true,
+      "required_evidence_source": "repository_truth",
       "expected_exit_codes": [
         0
       ],
@@ -49,28 +57,15 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
-      "command": "python -m pip install -e \".[test]\" --no-deps",
-      "phase": "dependency",
-      "required": false,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "dependency_install"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "bootstrap_exception": false
-    },
-    {
+      "command_id": "gate.command_plan",
       "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
       "phase": "gate",
       "required": true,
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [
         0
       ],
@@ -81,12 +76,15 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
+      "command_id": "gate.transition_lint",
       "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
       "phase": "gate",
       "required": true,
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [
         0
       ],
@@ -97,44 +95,34 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
+      "command_id": "gate.pre_execution",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
       "phase": "gate",
       "required": true,
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "authority_validation"
+        "pre_execution_authorization"
       ],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py -q",
+      "command_id": "test.evidence_control_plane",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py -q",
       "phase": "test",
       "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "unit_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "bootstrap_exception": false
-    },
-    {
-      "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py tests/test_report_truth.py -q",
-      "phase": "test",
-      "required": true,
+      "required_evidence_source": "exact_head_ci",
       "expected_exit_codes": [
         0
       ],
@@ -145,12 +133,15 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py tests/test_authority_closure.py -q",
+      "command_id": "test.runtime_risk_graph",
+      "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_runtime_risk_policy.py tests/test_trust_authorization_adapter.py -q",
       "phase": "test",
       "required": true,
+      "required_evidence_source": "exact_head_ci",
       "expected_exit_codes": [
         0
       ],
@@ -161,12 +152,34 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
+      "command_id": "test.report_truth",
+      "command": "python -m pytest tests/test_report_truth.py tests/test_transition_report.py tests/test_planning_and_github_adapters.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "exact_head_ci",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "integration_test"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false
+    },
+    {
+      "command_id": "test.full_repository",
       "command": "python -m pytest -q",
       "phase": "diagnostic",
       "required": false,
+      "required_evidence_source": "exact_head_ci",
       "expected_exit_codes": [
         0,
         1
@@ -178,12 +191,34 @@
       "network_access": false,
       "diagnostic_only": true,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
+      "command_id": "report.generate_local",
+      "command": "python -m reverse_agent.project_gate transition-report --state-dir project_state",
+      "phase": "report",
+      "required": true,
+      "required_evidence_source": "local_provenance",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "report_generation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false
+    },
+    {
+      "command_id": "validation.diff_check",
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [
         0
       ],
@@ -194,12 +229,34 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
+      "command_id": "gate.post_execution",
+      "command": "python -m reverse_agent.project_gate transition-reconcile --state-dir project_state --mode post",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_provenance",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "post_execution_reconciliation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false
+    },
+    {
+      "command_id": "publication.push_branch",
       "command": "git push origin codex/architecture-spine-v1",
       "phase": "publication",
       "required": false,
+      "required_evidence_source": "repository_truth",
       "expected_exit_codes": [
         0
       ],
@@ -211,12 +268,15 @@
       "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
+      "command_id": "ci.install",
       "command": "python -m pip install -e \".[test]\"",
       "phase": "ci_dependency",
       "required": true,
+      "required_evidence_source": "exact_head_ci",
       "expected_exit_codes": [
         0
       ],
@@ -228,44 +288,35 @@
       "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
-      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-      "phase": "ci_gate",
+      "command_id": "ci.test",
+      "command": "python -m pytest -q",
+      "phase": "ci_test",
       "required": true,
+      "required_evidence_source": "exact_head_ci",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "execution_surface": "ci_only",
       "operations": [
-        "command_plan_generation"
+        "full_repository_test"
       ],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     },
     {
-      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-      "phase": "ci_gate",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "ci_only",
-      "operations": [
-        "authority_validation"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "bootstrap_exception": false
-    },
-    {
+      "command_id": "ci.transition_preflight",
       "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
       "phase": "ci_gate",
       "required": true,
+      "required_evidence_source": "exact_head_ci",
       "expected_exit_codes": [
         0
       ],
@@ -276,6 +327,7 @@
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
       "bootstrap_exception": false
     }
   ]

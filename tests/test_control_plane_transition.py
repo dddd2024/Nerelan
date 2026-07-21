@@ -289,13 +289,14 @@ def test_transition_preflight_uses_decision_branch_and_paths(tmp_path: Path, mon
         committed_files="reverse_agent/different/module.py",
     )
     result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path)
-    assert result["gate_status"] == "PASSED"
+    # Phase B: pre mode returns PRE_EXECUTION_AUTHORIZED (not PASSED).
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED"
     branch_check = next(item for item in result["checks"] if item["name"] == "branch_identity")
     assert "expected=codex/different-v2" in branch_check["detail"]
 
 
 def test_transition_preflight_blocks_when_execution_log_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Phase B: missing execution evidence cannot produce a positive reconciliation claim."""
+    """Phase B: missing execution evidence is fine in pre mode (pre-authorized)."""
 
     state_dir = tmp_path / "project_state"
     _write_decision(state_dir, branch="codex/example-v1", allowed_path="reverse_agent/example/**")
@@ -308,12 +309,10 @@ def test_transition_preflight_blocks_when_execution_log_missing(tmp_path: Path, 
         decision_commit="b" * 40,
         committed_files="reverse_agent/example/module.py",
     )
-    result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path)
-    assert result["gate_status"] == "BLOCKED"
-    evidence_check = next(
-        item for item in result["checks"] if item["name"] == "execution_evidence_present"
-    )
-    assert evidence_check["status"] == "FAIL"
+    # Phase B: pre mode must NOT consume execution_log as completion evidence;
+    # a missing log is acceptable for pre-execution authorization.
+    result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path, mode="pre")
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED"
 
 
 def test_transition_preflight_enforces_structured_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -328,8 +327,20 @@ def test_transition_preflight_enforces_structured_authority(tmp_path: Path, monk
         decision_id="decision_structured",
         round_id="round_structured",
         commands=[
-            {"index": 1, "command": "git status --short", "phase": "status", "exit_code": 0},
-            {"index": 2, "command": "git diff --check", "phase": "validation", "exit_code": 0},
+            {
+                "index": 1,
+                "command": "git status --short",
+                "phase": "status",
+                "exit_code": 0,
+                "operations": ["repository_observation"],
+            },
+            {
+                "index": 2,
+                "command": "git diff --check",
+                "phase": "validation",
+                "exit_code": 0,
+                "operations": ["diff_validation"],
+            },
         ],
     )
     _install_envelope_git_stub(
@@ -339,14 +350,16 @@ def test_transition_preflight_enforces_structured_authority(tmp_path: Path, monk
         decision_commit="b" * 40,
         committed_files="reverse_agent/example/module.py",
     )
-    result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path)
+    # Phase B: execution_reconciliation + execution_evidence_present checks
+    # only appear in post mode (pre mode passes empty envelopes on purpose).
+    result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path, mode="post")
     check_names = {item["name"] for item in result["checks"]}
     assert "capability_policy_enforced" in check_names
     assert "path_risk_floor_enforced" in check_names
     assert "reference_paths_read_only" in check_names
     assert "execution_reconciliation" in check_names
     assert "execution_evidence_present" in check_names
-    assert result["gate_status"] == "PASSED", result["checks"]
+    assert result["gate_status"] == "POST_EXECUTION_RECONCILED", result["checks"]
 
 
 def test_transition_preflight_blocks_when_envelope_command_undeclared(
@@ -363,7 +376,13 @@ def test_transition_preflight_blocks_when_envelope_command_undeclared(
         decision_id="decision_structured",
         round_id="round_structured",
         commands=[
-            {"index": 1, "command": "git status --short", "phase": "status", "exit_code": 0},
+            {
+                "index": 1,
+                "command": "git status --short",
+                "phase": "status",
+                "exit_code": 0,
+                "operations": ["repository_observation"],
+            },
             {"index": 2, "command": "rm -rf /", "phase": "destructive", "exit_code": 0},
         ],
     )
@@ -374,7 +393,7 @@ def test_transition_preflight_blocks_when_envelope_command_undeclared(
         decision_commit="b" * 40,
         committed_files="reverse_agent/example/module.py",
     )
-    result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path)
+    result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path, mode="post")
     assert result["gate_status"] == "BLOCKED"
     reconciliation = next(item for item in result["checks"] if item["name"] == "execution_reconciliation")
     assert reconciliation["status"] == "FAIL"

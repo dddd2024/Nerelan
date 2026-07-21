@@ -121,7 +121,12 @@ def reconcile_command(
             errors.append(
                 f"exit_code_mismatch:{requested}:{envelope.exit_code}"
             )
-    if command.operations and envelope.operations:
+    # Phase C/F2: plan-driven operation coverage. When the plan declares
+    # operations, the envelope must cover them all. An empty envelope
+    # operations tuple cannot bypass the operation check by claiming
+    # nothing happened. Bootstrap exception commands are exempt because
+    # they predate the structured operation contract.
+    if command.operations and not command.bootstrap_exception:
         missing = tuple(
             operation for operation in command.operations
             if operation not in envelope.operations

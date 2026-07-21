@@ -1,0 +1,9 @@
+{
+  "head_sha": "5ee5cc9728249f9bf8b60bf052d561237cc830d4",
+  "observed_at": "",
+  "ci_status": "REMOTE_NOT_OBSERVED",
+  "state_gate_status": "REMOTE_NOT_OBSERVED",
+  "decision_preflight_status": "REMOTE_NOT_OBSERVED",
+  "decision_id": "decision_20260721_architecture_spine_evidence_runtime_closeout_v1",
+  "round_id": "round_20260721_architecture_spine_evidence_runtime_closeout_v1"
+}
