@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260721_architecture_spine_provenance_integration_final_rework_v1",
-  "round_id": "round_20260721_architecture_spine_provenance_integration_final_rework_v1",
-  "expired_at": "2026-07-21T09:30:31+00:00"
+  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "expired_at": "2026-07-21T15:44:38+00:00"
 }

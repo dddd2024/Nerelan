@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260721_architecture_spine_provenance_integration_final_rework_v1",
-  "round_id": "round_20260721_architecture_spine_provenance_integration_final_rework_v1",
+  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
   "commands": [
     {
       "command_id": "status.git_status",
@@ -22,7 +22,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "status.git_head",
@@ -43,7 +44,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "status.git_branch",
@@ -64,7 +66,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "gate.command_plan",
@@ -84,8 +87,15 @@
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
     },
     {
       "command_id": "gate.transition_lint",
@@ -106,7 +116,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "gate.pre_execution",
@@ -126,12 +137,19 @@
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "produced_artifacts": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ]
     },
     {
-      "command_id": "test.provenance_pipeline",
-      "command": "python -m pytest tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py -q",
+      "command_id": "test.trusted_execution_cutover",
+      "command": "python -m pytest tests/test_trusted_command_runner.py tests/test_provenance_integration.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -140,7 +158,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "unit_test"
+        "integration_test"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -148,7 +166,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "test.runtime_policy_integration",
@@ -169,7 +188,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "test.mutation_report_integration",
@@ -190,11 +210,12 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "test.control_plane",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -211,7 +232,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "test.full_repository",
@@ -233,7 +255,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "report.generate_local",
@@ -242,7 +265,8 @@
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "execution_surface": "local",
       "operations": [
@@ -253,8 +277,21 @@
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "produced_artifacts": [
+        "project_state/gates/changed_file_inventory.json",
+        "project_state/gates/remote_observation_payload.json",
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/pytest_result.txt"
+      ],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": [
+        "project_state/gates/changed_file_inventory.json",
+        "project_state/gates/remote_observation_payload.json",
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/pytest_result.txt"
+      ]
     },
     {
       "command_id": "validation.diff_check",
@@ -275,7 +312,8 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "gate.reconcile_evaluate",
@@ -296,8 +334,13 @@
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": false
+      "produced_artifacts": [
+        "project_state/gates/reconciliation_candidate.json"
+      ],
+      "subject_to_reconciliation": false,
+      "allowed_mutated_paths": [
+        "project_state/gates/reconciliation_candidate.json"
+      ]
     },
     {
       "command_id": "gate.seal_local",
@@ -318,8 +361,13 @@
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": false
+      "produced_artifacts": [
+        "project_state/gates/local_execution_seal.json"
+      ],
+      "subject_to_reconciliation": false,
+      "allowed_mutated_paths": [
+        "project_state/gates/local_execution_seal.json"
+      ]
     },
     {
       "command_id": "publication.push_branch",
@@ -341,11 +389,12 @@
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     },
     {
       "command_id": "bootstrap.python -m pytest tests/test_project_gate.py tests/test_control_p",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py tests/test_trusted_command_runner.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -360,7 +409,8 @@
       "authority_origin": "bootstrap_exception",
       "bootstrap_exception": true,
       "produced_artifacts": [],
-      "subject_to_reconciliation": true
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
     }
   ]
 }

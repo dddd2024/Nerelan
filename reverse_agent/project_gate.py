@@ -35,6 +35,10 @@ from .control_plane.models import (
     TransitionAuthority,
     TransitionCommandPlan,
 )
+from .control_plane.report_binding import (
+    ClassifiedPaths,
+    build_report_subject_binding,
+)
 from .control_plane.transition import validate_transition
 from .architecture.report_truth import (
     ChangedFileInventory,
@@ -36109,6 +36113,9 @@ def transition_preflight(*, state_dir: Path, repo_root: Path | None = None, writ
         generated_artifact_paths=tuple(scope.get("generated_artifact_paths", ())),
         capability_policy=capability_policy,
         path_risk_floor=path_risk_floor,
+        authorized_risk_paths=tuple(scope.get("authorized_risk_paths", ())),
+        authorized_risk_tier=str(scope.get("authorized_risk_tier", "")),
+        runner_managed_artifact_paths=tuple(scope.get("runner_managed_artifact_paths", ())),
     )
     # Pre-execution: do NOT consume historical execution_log as completion
     # evidence. Pass empty envelopes so the execution_evidence_present check
@@ -36211,6 +36218,9 @@ def transition_reconcile(*, state_dir: Path, repo_root: Path | None = None, writ
         generated_artifact_paths=tuple(scope.get("generated_artifact_paths", ())),
         capability_policy=capability_policy,
         path_risk_floor=path_risk_floor,
+        authorized_risk_paths=tuple(scope.get("authorized_risk_paths", ())),
+        authorized_risk_tier=str(scope.get("authorized_risk_tier", "")),
+        runner_managed_artifact_paths=tuple(scope.get("runner_managed_artifact_paths", ())),
     )
     result = validate_transition(authority, envelopes=envelopes, mode="post").to_dict()
     if result.get("gate_name") == "transition-preflight":
@@ -36348,11 +36358,65 @@ def transition_report(
         state_gate_status="REMOTE_NOT_OBSERVED",
         decision_preflight_status="REMOTE_NOT_OBSERVED",
     )
-    truth = ReportTruth(
-        changed_files=inventory,
-        local_status="LOCAL_VALIDATED",
-        remote_observation=remote_observation,
+
+    # F11: load the local seal (if present) and bind its digest. If the
+    # seal's Decision/round identity diverges from the active Decision,
+    # the report must be LOCAL_BLOCKED — stale seal authority is rejected.
+    seal_blocking: list[str] = []
+    local_seal_digest = ""
+    seal_path = state_dir / "gates" / "local_execution_seal.json"
+    if seal_path.exists():
+        try:
+            seal_payload = json.loads(seal_path.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as exc:
+            seal_blocking.append(f"malformed_local_seal:{exc}")
+            seal_payload = {}
+        seal_decision_id = str(seal_payload.get("decision_id") or "") if isinstance(seal_payload, dict) else ""
+        seal_round_id = str(seal_payload.get("round_id") or "") if isinstance(seal_payload, dict) else ""
+        if seal_decision_id and seal_decision_id != decision.decision_id:
+            seal_blocking.append(
+                f"seal_decision_id_diverges:{seal_decision_id}:{decision.decision_id}"
+            )
+        if seal_round_id and seal_round_id != decision.round_id:
+            seal_blocking.append(
+                f"seal_round_id_diverges:{seal_round_id}:{decision.round_id}"
+            )
+        # F11: bind the seal's subject/plan digest if the seal is current.
+        if not seal_blocking:
+            seal_subject_digest = str(seal_payload.get("subject_digest") or "") if isinstance(seal_payload, dict) else ""
+            if seal_subject_digest.startswith("sha256:"):
+                local_seal_digest = seal_subject_digest
+
+    # F11: classify changed files and compute subject binding.
+    classified = ClassifiedPaths.from_paths(inventory.paths)
+    # The diff text for subject_diff_digest uses the name-only diff output
+    # so the binding is deterministic and reproducible.
+    binding = build_report_subject_binding(
+        repo_root=repo_root,
+        activation_base_sha=base_sha,
+        subject_paths=classified.implementation_paths,
+        diff_text=diff_names,
+        observed_worktree_paths=tuple(inventory.paths),
+        local_seal_digest=local_seal_digest,
+        implementation_subject_paths=classified.implementation_paths,
     )
+
+    # F11: if any input identity mismatches, report must be LOCAL_BLOCKED.
+    # ``LOCAL_BLOCKED`` is a transition-report-only status that indicates the
+    # report itself refused to bind a divergent seal; it is not a ``ReportTruth``
+    # value, so we avoid constructing a ``ReportTruth`` in that case and feed
+    # the status through to the report payload directly.
+    if seal_blocking:
+        local_status = "LOCAL_BLOCKED"
+        internally_consistent = False
+    else:
+        truth = ReportTruth(
+            changed_files=inventory,
+            local_status="LOCAL_VALIDATED",
+            remote_observation=remote_observation,
+        )
+        local_status = truth.local_status
+        internally_consistent = truth.is_internally_consistent()
 
     gates_dir = state_dir / "gates"
     gates_dir.mkdir(parents=True, exist_ok=True)
@@ -36365,6 +36429,11 @@ def transition_report(
     remote_payload["decision_id"] = decision.decision_id
     remote_payload["round_id"] = decision.round_id
 
+    # F11: subject binding payload embedded in the report output.
+    binding_payload = binding.to_dict()
+    binding_payload["governance_paths"] = list(classified.governance_paths)
+    binding_payload["generated_artifact_paths"] = list(classified.generated_artifact_paths)
+
     # Embed current Decision identity in the markdown reports so stale
     # reports cannot masquerade as current-round artifacts.
     codex_report_md = (
@@ -36373,8 +36442,11 @@ def transition_report(
         f"- round_id: {decision.round_id}\n"
         f"- head_sha: {head_sha}\n"
         f"- base_sha: {base_sha}\n"
-        f"- local_status: {truth.local_status}\n"
+        f"- local_status: {local_status}\n"
         f"- changed_files_count: {len(inventory.paths)}\n"
+        f"- subject_tree_digest: {binding.subject_tree_digest}\n"
+        f"- subject_diff_digest: {binding.subject_diff_digest}\n"
+        f"- local_seal_digest: {binding.local_seal_digest}\n"
         "\n"
         "## Changed Files\n\n"
         + "\n".join(f"- {path}" for path in inventory.paths)
@@ -36386,13 +36458,15 @@ def transition_report(
         f"- round_id: {decision.round_id}\n"
         f"- head_sha: {head_sha}\n"
         f"- base_sha: {base_sha}\n"
-        f"- internally_consistent: {truth.is_internally_consistent()}\n"
+        f"- internally_consistent: {internally_consistent}\n"
+        f"- subject_tree_digest: {binding.subject_tree_digest}\n"
+        f"- subject_diff_digest: {binding.subject_diff_digest}\n"
     )
     pytest_result_txt = (
         f"decision_id: {decision.decision_id}\n"
         f"round_id: {decision.round_id}\n"
         f"head_sha: {head_sha}\n"
-        f"local_status: {truth.local_status}\n"
+        f"local_status: {local_status}\n"
         "note: pytest evidence is produced by the test commands themselves.\n"
     )
 
@@ -36423,18 +36497,20 @@ def transition_report(
             newline="\n",
         )
 
+    gate_status = "PASSED" if not seal_blocking else "BLOCKED"
     return {
         "schema_version": 1,
         "gate_name": gate_name,
-        "gate_status": "PASSED",
+        "gate_status": gate_status,
         "decision_id": decision.decision_id,
         "round_id": decision.round_id,
         "head_sha": head_sha,
         "base_sha": base_sha,
-        "local_status": truth.local_status,
-        "internally_consistent": truth.is_internally_consistent(),
+        "local_status": local_status,
+        "internally_consistent": internally_consistent,
         "changed_files": list(inventory.paths),
-        "blocking_reasons": [],
+        "subject_binding": binding_payload,
+        "blocking_reasons": seal_blocking,
     }
 
 

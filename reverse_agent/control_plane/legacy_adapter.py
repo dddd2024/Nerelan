@@ -166,6 +166,10 @@ def _parse_structured_command(raw: Mapping[str, Any], *, bootstrap_exception: bo
             str(p).strip() for p in (raw.get("allowed_mutated_paths") or [])
             if isinstance(p, str) and p.strip()
         ),
+        produced_artifacts=tuple(
+            str(p).strip() for p in (raw.get("produced_artifacts") or [])
+            if isinstance(p, str) and p.strip()
+        ),
     )
 
 
@@ -488,6 +492,35 @@ def load_transition_scope(
     # binding to a specific generator command_id is enforced at
     # execution-record validation time, not at scope loading.
 
+    # F9: load the active Decision's authorized risk tier and authorized risk
+    # paths so the path-risk floor can distinguish authorized R2 mutations
+    # (e.g. project_state/gates/**) from unauthorized sensitive mutations.
+    authorized_risk_tier = str(contract.get("authorized_risk_tier") or "").strip()
+    raw_authorized_risk_paths = contract.get("authorized_risk_paths")
+    if raw_authorized_risk_paths is None:
+        authorized_risk_paths: tuple[str, ...] = ()
+    elif isinstance(raw_authorized_risk_paths, list):
+        authorized_risk_paths = tuple(
+            str(item).strip() for item in raw_authorized_risk_paths
+            if isinstance(item, str) and item.strip()
+        )
+    else:
+        raise ValueError("missing_or_invalid_contract_field:authorized_risk_paths")
+
+    # F4/F6: runner-managed artifact paths are executor provenance written by
+    # the TrustedExecutionContext itself. They are excluded from the subprocess
+    # mutation delta but remain part of the local evidence bundle.
+    raw_runner_managed = contract.get("runner_managed_artifact_paths")
+    if raw_runner_managed is None:
+        runner_managed_artifact_paths: tuple[str, ...] = ()
+    elif isinstance(raw_runner_managed, list):
+        runner_managed_artifact_paths = tuple(
+            str(item).strip() for item in raw_runner_managed
+            if isinstance(item, str) and item.strip()
+        )
+    else:
+        raise ValueError("missing_or_invalid_contract_field:runner_managed_artifact_paths")
+
     if not decision.mainline:
         raise ValueError("missing_mainline")
     return {
@@ -499,6 +532,9 @@ def load_transition_scope(
         "legal_mainlines": (decision.mainline,),
         "reference_paths": reference_paths,
         "generated_artifact_paths": generated_artifact_paths,
+        "authorized_risk_paths": authorized_risk_paths,
+        "authorized_risk_tier": authorized_risk_tier,
+        "runner_managed_artifact_paths": runner_managed_artifact_paths,
     }
 
 

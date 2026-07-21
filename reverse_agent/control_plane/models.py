@@ -177,6 +177,11 @@ class ExecutionRecord:
     ``raw_stdout_path``, ``raw_stderr_path`` and ``sequence`` bind each
     record to the plan that authorized it and to the persisted raw
     evidence. These fields are populated by the TrustedCommandRunner.
+
+    F7 rework: ``pre_state_digest``, ``post_state_digest`` and
+    ``mutation_delta_digest`` bind each record to a command-local
+    before/after state delta so pre-existing dirty paths are not
+    attributed to the command.
     """
 
     command_id: str
@@ -199,6 +204,9 @@ class ExecutionRecord:
     sequence: int = 0
     raw_stdout_path: str = ""
     raw_stderr_path: str = ""
+    pre_state_digest: str = ""
+    post_state_digest: str = ""
+    mutation_delta_digest: str = ""
 
     def __post_init__(self) -> None:
         for field_name in _EXECUTION_RECORD_REQUIRED_FIELDS:
@@ -233,6 +241,9 @@ class ExecutionRecord:
             sequence=int(payload.get("sequence") or 0),
             raw_stdout_path=str(payload.get("raw_stdout_path") or ""),
             raw_stderr_path=str(payload.get("raw_stderr_path") or ""),
+            pre_state_digest=str(payload.get("pre_state_digest") or ""),
+            post_state_digest=str(payload.get("post_state_digest") or ""),
+            mutation_delta_digest=str(payload.get("mutation_delta_digest") or ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -257,6 +268,9 @@ class ExecutionRecord:
             "sequence": self.sequence,
             "raw_stdout_path": self.raw_stdout_path,
             "raw_stderr_path": self.raw_stderr_path,
+            "pre_state_digest": self.pre_state_digest,
+            "post_state_digest": self.post_state_digest,
+            "mutation_delta_digest": self.mutation_delta_digest,
         }
 
 
@@ -452,6 +466,9 @@ class TransitionAuthority:
     generated_artifact_paths: tuple[str, ...] = ()
     capability_policy: CapabilityPolicy | None = None
     path_risk_floor: PathRiskFloor | None = None
+    authorized_risk_paths: tuple[str, ...] = ()
+    authorized_risk_tier: str = ""
+    runner_managed_artifact_paths: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -475,6 +492,9 @@ class TransitionAuthority:
             "generated_artifact_paths": list(self.generated_artifact_paths),
             "capability_policy": self.capability_policy.to_dict() if self.capability_policy else None,
             "path_risk_floor": self.path_risk_floor.to_dict() if self.path_risk_floor else None,
+            "authorized_risk_paths": list(self.authorized_risk_paths),
+            "authorized_risk_tier": self.authorized_risk_tier,
+            "runner_managed_artifact_paths": list(self.runner_managed_artifact_paths),
         }
 
 

@@ -105,21 +105,42 @@ def _path_risk_floor_violations(
     path_risk_floor: PathRiskFloor | None,
     *,
     minimum: str = "R2",
+    authorized_risk_paths: tuple[str, ...] = (),
+    authorized_risk_tier: str = "",
 ) -> tuple[str, ...]:
-    """Return paths that violate the risk floor for sensitive locations."""
+    """Return paths that violate the risk floor for sensitive locations.
+
+    F9: a path is a violation only when it is NOT explicitly authorized by the
+    active APPROVED Decision, OR its floor risk exceeds the authorized tier.
+    Paths in ``authorized_risk_paths`` with floor risk <= ``authorized_risk_tier``
+    are treated as authorized and do not appear as violations.
+    """
 
     if path_risk_floor is None or not path_risk_floor.entries:
         return ()
     floor_rank = {"R0": 0, "R1": 1, "R2": 2, "R3": 3}
     minimum_rank = floor_rank.get(minimum, 2)
+    authorized_rank = floor_rank.get(authorized_risk_tier, -1) if authorized_risk_tier else -1
     violations: list[str] = []
     for path in observed_paths:
         risk = path_risk_floor.risk_for_path(path)
         if risk is None:
             continue
-        if floor_rank.get(risk, 0) >= minimum_rank:
-            violations.append(f"{path}:{risk}")
+        if floor_rank.get(risk, 0) < minimum_rank:
+            continue
+        # F9: a path explicitly authorized by the active Decision at a tier
+        # >= the floor risk is not a violation.
+        if authorized_risk_paths and _path_matches_any(path, authorized_risk_paths):
+            if authorized_rank >= 0 and floor_rank.get(risk, 0) <= authorized_rank:
+                continue
+        violations.append(f"{path}:{risk}")
     return tuple(dict.fromkeys(violations))
+
+
+def _path_matches_any(path: str, patterns: tuple[str, ...]) -> bool:
+    """Return True if path matches any of the provided glob patterns."""
+
+    return any(_path_matches(path, pattern) for pattern in patterns)
 
 
 def _plan_network_policy_violations(
@@ -337,20 +358,26 @@ def validate_transition(
     # in the decision-level ``allowed_paths`` OR in some command's grant
     # (``produced_artifacts ∪ allowed_mutated_paths``). Per-command binding is
     # enforced separately by ``mutation_grants_enforced`` (rule #1).
+    # F9/F4: runner-managed artifact paths (executor provenance) are also
+    # authorized for write by the trusted execution context itself.
     command_granted_paths: tuple[str, ...] = ()
     for entry in authority.command_plan.commands:
         command_granted_paths = (*command_granted_paths, *entry.produced_artifacts, *entry.allowed_mutated_paths)
-    effective_allowed_scope = tuple(dict.fromkeys((*authority.allowed_paths, *command_granted_paths)))
+    effective_allowed_scope = tuple(dict.fromkeys((
+        *authority.allowed_paths,
+        *command_granted_paths,
+        *authority.runner_managed_artifact_paths,
+    )))
     outside_scope = _paths_within_scope(mutated_paths, effective_allowed_scope)
     forbidden_paths = _paths_in_forbidden(mutated_paths, authority.forbidden_paths)
     checks.append(_check("allowed_path_scope", not outside_scope, f"outside={list(outside_scope)}"))
     checks.append(_check("forbidden_paths", not forbidden_paths, f"forbidden={list(forbidden_paths)}"))
 
     # Reference paths must remain read-only even when they appear in the Decision.
-    # Paths explicitly allowed for mutation (in ``allowed_paths``) are excluded
-    # so the gate can regenerate command_plan.json / execution_log.json without
-    # tripping the read-only guard when the Decision authorizes those writes.
-    reference_violations = _reference_path_write_violations(outside_scope, authority.reference_paths)
+    # F10: the read-only check must cover ALL observed mutated paths, not just
+    # ``outside_scope``. A reference path mistakenly placed in allowed scope
+    # must still be flagged.
+    reference_violations = _reference_path_write_violations(mutated_paths, authority.reference_paths)
     checks.append(_check(
         "reference_paths_read_only",
         not reference_violations,
@@ -414,6 +441,8 @@ def validate_transition(
             mutated_paths,
             authority.path_risk_floor,
             minimum="R2",
+            authorized_risk_paths=authority.authorized_risk_paths,
+            authorized_risk_tier=authority.authorized_risk_tier,
         )
         checks.append(_check(
             "path_risk_floor_enforced",

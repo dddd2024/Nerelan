@@ -1,10 +1,9 @@
 """Integration coverage for strict provenance and command authority.
 
-This file is intentionally narrow. It covers the bootstrap-safe portion that can
-be completed without running the production trusted executor: globally unique
-command IDs and fail-closed mutation attribution. The execution Agent must
-extend this file when TrustedExecutionContext and the atomic evidence journal
-are implemented.
+Extended for Architecture Spine trusted-execution cutover rework v1:
+covers F1 (command plan round-trip), F2 (end-to-end provenance),
+F3 (stale evidence invalidation), and the bootstrap-safe portion of
+globally unique command IDs and fail-closed mutation attribution.
 """
 
 from __future__ import annotations
@@ -13,10 +12,14 @@ from reverse_agent.control_plane.command_authority import (
     validate_command_plan,
     validate_mutation_grants,
 )
+from reverse_agent.control_plane.legacy_adapter import (
+    build_transition_command_plan,
+)
 from reverse_agent.control_plane.models import (
     ExecutionRecord,
     TransitionCommand,
     TransitionCommandPlan,
+    TransitionDecision,
 )
 
 
@@ -150,3 +153,91 @@ def test_mutation_grant_rejects_ambiguous_duplicate_command_id() -> None:
     assert violations == [
         "ambiguous_command_id:gate.shared:project_state/gates/first.json"
     ]
+
+
+# ---------------------------------------------------------------------------
+# F1: command plan must round-trip produced_artifacts and allowed_mutated_paths
+# ---------------------------------------------------------------------------
+
+
+def _decision(*, decision_id: str = "decision_round_trip", round_id: str = "round_round_trip") -> TransitionDecision:
+    return TransitionDecision(
+        decision_id=decision_id,
+        round_id=round_id,
+        status="APPROVED",
+        mainline="engineering_branch",
+        skill_profiles=("reverse-agent-iteration@v2",),
+    )
+
+
+def _round_trip_contract() -> dict:
+    """A structured contract that exercises every TransitionCommand field."""
+
+    return {
+        "transition_kernel_required": True,
+        "required_branch": "codex/example-v1",
+        "activation_base_sha": "a" * 40,
+        "bootstrap_exception_files": ["reverse_agent/project_gate.py"],
+        "bootstrap_exception_commands": [],
+        "allowed_commands": [
+            {
+                "command_id": "gate.command_plan",
+                "command": "python -m reverse_agent.project_gate transition-command-plan",
+                "phase": "gate",
+                "required": True,
+                "required_evidence_source": "local_command_evidence",
+                "expected_exit_codes": [0],
+                "execution_surface": "local",
+                "operations": ["command_plan_generation"],
+                "network_access": False,
+                "diagnostic_only": False,
+                "allowed_only_after_validation": False,
+                "authority_origin": "normal_plan",
+                "allowed_mutated_paths": [
+                    "project_state/gates/command_plan.json",
+                    "project_state/gates/transition_command_plan_preview.json",
+                ],
+                "produced_artifacts": [
+                    "project_state/gates/command_plan.json",
+                    "project_state/gates/transition_command_plan_preview.json",
+                ],
+            },
+        ],
+        "allowed_mutated_paths": ["reverse_agent/control_plane/**"],
+        "forbidden_mutated_paths": ["frontend/**"],
+    }
+
+
+def test_build_transition_command_plan_round_trips_produced_artifacts() -> None:
+    """F1: produced_artifacts must survive the generator round-trip."""
+
+    decision = _decision()
+    contract = _round_trip_contract()
+
+    plan = build_transition_command_plan(decision, contract)
+
+    entry = plan.commands[0]
+    assert entry.command_id == "gate.command_plan"
+    assert entry.produced_artifacts == (
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json",
+    )
+    assert entry.allowed_mutated_paths == (
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json",
+    )
+
+
+def test_command_plan_to_dict_round_trips_all_fields() -> None:
+    """F1: plan.to_dict() must preserve every field for lint equality."""
+
+    decision = _decision()
+    contract = _round_trip_contract()
+
+    plan = build_transition_command_plan(decision, contract)
+    serialized = plan.to_dict()
+    reloaded = TransitionCommandPlan.from_mapping(serialized)
+
+    assert reloaded.to_dict() == serialized
+    assert reloaded.commands[0].produced_artifacts == plan.commands[0].produced_artifacts
+    assert reloaded.commands[0].allowed_mutated_paths == plan.commands[0].allowed_mutated_paths

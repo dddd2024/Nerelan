@@ -76,6 +76,7 @@ def _write_structured_decision(
         ],
         "allowed_commands": [
             {
+                "command_id": "status.git_status",
                 "command": "git status --short",
                 "phase": "status",
                 "required": True,
@@ -85,6 +86,7 @@ def _write_structured_decision(
                 "network_access": False,
             },
             {
+                "command_id": "validation.diff_check",
                 "command": "git diff --check",
                 "phase": "validation",
                 "required": True,
@@ -461,6 +463,78 @@ def test_transition_preflight_blocks_when_reference_path_mutated(
     assert result["gate_status"] == "BLOCKED"
     reference_check = next(item for item in result["checks"] if item["name"] == "reference_paths_read_only")
     assert reference_check["status"] == "FAIL"
+
+
+def test_transition_preflight_blocks_reference_path_even_when_in_allowed_scope(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F10: reference read-only check must cover ALL observed mutated paths.
+
+    A reference path mistakenly placed in allowed_mutated_paths must still be
+    flagged as a reference violation. The check must not be limited to
+    ``outside_scope`` paths.
+    """
+
+    state_dir = tmp_path / "project_state"
+    # Build a contract where a reference path is ALSO in allowed_mutated_paths
+    # (a misconfiguration that the gate must catch).
+    contract = {
+        "transition_kernel_required": True,
+        "required_branch": "codex/example-v1",
+        "activation_base_sha": "a" * 40,
+        "bootstrap_exception_files": ["reverse_agent/project_gate.py"],
+        "bootstrap_exception_commands": [],
+        "allowed_commands": [
+            {
+                "command": "git status --short",
+                "phase": "status",
+                "required": True,
+                "expected_exit_codes": [0],
+                "execution_surface": "local",
+                "operations": ["repository_observation"],
+                "network_access": False,
+            },
+        ],
+        "allowed_mutated_paths": ["docs/roadmap/example.md"],
+        "forbidden_mutated_paths": ["frontend/**"],
+        "reference_paths": ["docs/roadmap/example.md"],
+        "capability_policy": {
+            "network_access_default_allowed": False,
+            "local_network_exceptions": [],
+            "ci_network_exceptions": [],
+        },
+        "path_risk_floor": [],
+    }
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": "decision_ref",
+                "round_id": "round_ref",
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+                "skill_profiles": ["reverse-agent-iteration@v2"],
+            }
+        )
+        + "\n```\n\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    _registry(tmp_path)
+    project_gate.transition_command_plan(state_dir=state_dir)
+    _install_envelope_git_stub(
+        monkeypatch,
+        branch="codex/example-v1",
+        base_sha="a" * 40,
+        decision_commit="b" * 40,
+        committed_files="docs/roadmap/example.md",
+    )
+    result = project_gate.transition_preflight(state_dir=state_dir, repo_root=tmp_path)
+    reference_check = next(item for item in result["checks"] if item["name"] == "reference_paths_read_only")
+    assert reference_check["status"] == "FAIL", result["checks"]
 
 
 def test_transition_preflight_blocks_when_mutation_grant_missing(

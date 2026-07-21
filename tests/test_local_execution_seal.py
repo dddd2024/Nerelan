@@ -557,6 +557,74 @@ def test_evaluate_reconciliation_blocks_on_generated_at_before_records() -> None
     assert any("generated_at_before_records" in r for r in candidate.blocking_reasons)
 
 
+def test_evaluate_reconciliation_rejects_stale_decision_records() -> None:
+    """F3: records belonging to a different Decision must be rejected as STALE.
+
+    When the active Decision changes, previous-round evidence must not be
+    treated as completion evidence. The evaluator must filter out records
+    whose ``decision_id`` or ``round_id`` diverges from the plan's identity.
+    """
+
+    plan = _plan_with_commands(_command())
+    stale_record = ExecutionRecord(
+        command_id="status.git_status",
+        command="git status --short",
+        execution_surface="local",
+        operations=("repository_observation",),
+        mutated_paths=(),
+        exit_code=0,
+        started_at="2026-07-21T08:00:00Z",
+        observed_at="2026-07-21T08:00:01Z",
+        head_before="a" * 40,
+        head_after="a" * 40,
+        stdout_digest="sha256:" + "0" * 64,
+        stderr_digest="sha256:" + "0" * 64,
+        authority_origin="normal_plan",
+        decision_id="decision_OLD",
+        round_id="round_OLD",
+    )
+    candidate = evaluate_reconciliation(
+        plan, (stale_record,),
+        evaluation_time="2026-07-21T08:00:02Z",
+    )
+    # F3: stale records must NOT be matched as completion evidence.
+    assert candidate.status == "BLOCKED"
+    assert any(
+        "stale_record" in r or "decision_id_mismatch" in r or "round_id_mismatch" in r
+        for r in candidate.blocking_reasons
+    )
+    assert candidate.subject_record_count == 0
+
+
+def test_evaluate_reconciliation_accepts_current_decision_records() -> None:
+    """F3: records matching the plan's decision_id/round_id are accepted."""
+
+    plan = _plan_with_commands(_command())
+    current_record = ExecutionRecord(
+        command_id="status.git_status",
+        command="git status --short",
+        execution_surface="local",
+        operations=("repository_observation",),
+        mutated_paths=(),
+        exit_code=0,
+        started_at="2026-07-21T08:00:00Z",
+        observed_at="2026-07-21T08:00:01Z",
+        head_before="a" * 40,
+        head_after="a" * 40,
+        stdout_digest="sha256:" + "0" * 64,
+        stderr_digest="sha256:" + "0" * 64,
+        authority_origin="normal_plan",
+        decision_id=plan.decision_id,
+        round_id=plan.round_id,
+    )
+    candidate = evaluate_reconciliation(
+        plan, (current_record,),
+        evaluation_time="2026-07-21T08:00:02Z",
+    )
+    assert candidate.status == "RECONCILED"
+    assert candidate.subject_record_count == 1
+
+
 def test_report_subject_binding_captures_required_fields(tmp_path: Path) -> None:
     """ReportSubjectBinding captures all Phase F binding fields."""
 

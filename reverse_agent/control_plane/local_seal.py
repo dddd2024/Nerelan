@@ -37,6 +37,25 @@ _SELF_COMMAND_IDS = frozenset({
 })
 
 
+def _record_belongs_to_current_round(
+    record: ExecutionRecord,
+    plan: TransitionCommandPlan,
+) -> bool:
+    """F3: return True if a record belongs to the plan's Decision/round.
+
+    Records from a previous Decision are STALE and must not be treated as
+    completion evidence. Records with empty decision_id/round_id (e.g.
+    legacy records without binding) are accepted to preserve backward
+    compatibility — they will still go through authenticity validation.
+    """
+
+    if record.decision_id and record.decision_id != plan.decision_id:
+        return False
+    if record.round_id and record.round_id != plan.round_id:
+        return False
+    return True
+
+
 def _sha256_json(payload: Any) -> str:
     """Stable sha256 digest of a JSON-serializable payload."""
 
@@ -99,10 +118,26 @@ def evaluate_reconciliation(
 
     from .evidence_recorder import validate_record_authenticity
 
-    subject_records = tuple(
-        r for r in records
-        if r.command_id not in _SELF_COMMAND_IDS
-    )
+    # F3: invalidate previous-round evidence as STALE. Records whose
+    # decision_id or round_id diverges from the plan's identity are
+    # rejected before authenticity validation — they cannot be treated
+    # as completion evidence for the current round.
+    subject_records: list[ExecutionRecord] = []
+    stale_record_reasons: list[str] = []
+    for r in records:
+        if r.command_id in _SELF_COMMAND_IDS:
+            continue
+        if not _record_belongs_to_current_round(r, plan):
+            if r.decision_id and r.decision_id != plan.decision_id:
+                stale_record_reasons.append(
+                    f"stale_record:decision_id_mismatch:{r.command_id}:{r.decision_id}:{plan.decision_id}"
+                )
+            if r.round_id and r.round_id != plan.round_id:
+                stale_record_reasons.append(
+                    f"stale_record:round_id_mismatch:{r.command_id}:{r.round_id}:{plan.round_id}"
+                )
+            continue
+        subject_records.append(r)
 
     # Use current UTC time if no evaluation_time is supplied.
     if evaluation_time is None:
@@ -111,7 +146,7 @@ def evaluate_reconciliation(
 
     matched: list[dict[str, Any]] = []
     matched_ids: list[str] = []
-    blocking_reasons: list[str] = []
+    blocking_reasons: list[str] = list(stale_record_reasons)
 
     plan_by_id: dict[str, TransitionCommand] = {}
     for entry in plan.commands:

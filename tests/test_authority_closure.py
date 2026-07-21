@@ -92,9 +92,15 @@ def _structured_command(
     surface: str = "local",
     operations: tuple[str, ...] = ("repository_observation",),
     network_access: bool = False,
+    command_id: str = "",
 ) -> dict:
+    if not command_id:
+        # Derive a stable command_id from the command string so F8's
+        # global-uniqueness requirement is satisfied for test fixtures.
+        command_id = "test." + command.replace(" ", "_").replace("-", "_")
     return {
         "command": command,
+        "command_id": command_id,
         "phase": phase,
         "required": True,
         "expected_exit_codes": [0],

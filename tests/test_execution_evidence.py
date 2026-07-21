@@ -482,8 +482,8 @@ def test_load_transition_scope_allows_generated_allowed_overlap() -> None:
 def test_path_risk_applies_to_all_observed_paths_including_allowed() -> None:
     """Phase E/F5: path risk floor must apply to ALL observed paths, not just outside_scope.
 
-    Modifying an allowed path that is also in the risk floor (e.g. workflow file)
-    must still be flagged so the runtime can route to Trust Authorization.
+    Modifying a path that is also in the risk floor (e.g. workflow file) and is
+    NOT explicitly authorized by the active Decision must still be flagged.
     """
 
     from reverse_agent.control_plane.transition import _path_risk_floor_violations
@@ -503,3 +503,59 @@ def test_path_risk_applies_to_all_observed_paths_including_allowed() -> None:
     violations = _path_risk_floor_violations(observed, floor, minimum="R2")
     assert ".github/workflows/ci.yml:R2" in violations
     assert "pyproject.toml:R2" in violations
+
+
+def test_path_risk_floor_respects_explicit_decision_authorization() -> None:
+    """F9: R2 paths explicitly authorized by active APPROVED Decision must NOT auto-block.
+
+    A path that is in the risk floor AND in the Decision's authorized_risk_paths
+    with risk <= authorized_risk_tier is authorized, not a violation.
+    """
+
+    from reverse_agent.control_plane.transition import _path_risk_floor_violations
+    from reverse_agent.control_plane.models import PathRiskFloor
+
+    floor = PathRiskFloor(
+        entries=(
+            ("project_state/gates/**", "R2"),
+            ("config/secrets/**", "R3"),
+        )
+    )
+    observed = (
+        "project_state/gates/command_plan.json",  # R2, authorized
+        "project_state/gates/execution_log.json",  # R2, authorized
+        "config/secrets/api.key",                  # R3, exceeds authorized tier
+    )
+    violations = _path_risk_floor_violations(
+        observed,
+        floor,
+        minimum="R2",
+        authorized_risk_paths=("project_state/gates/**",),
+        authorized_risk_tier="R2",
+    )
+    # Authorized R2 paths must NOT appear as violations.
+    assert "project_state/gates/command_plan.json:R2" not in violations
+    assert "project_state/gates/execution_log.json:R2" not in violations
+    # R3 path exceeds authorized tier (R2) -> violation.
+    assert "config/secrets/api.key:R3" in violations
+
+
+def test_path_risk_floor_blocks_unauthorized_r2_path() -> None:
+    """F9: R2 path outside authorized_risk_paths must still block."""
+
+    from reverse_agent.control_plane.transition import _path_risk_floor_violations
+    from reverse_agent.control_plane.models import PathRiskFloor
+
+    floor = PathRiskFloor(
+        entries=(("project_state/gates/**", "R2"),),
+    )
+    observed = ("project_state/gates/startup_snapshot.json",)
+    violations = _path_risk_floor_violations(
+        observed,
+        floor,
+        minimum="R2",
+        authorized_risk_paths=("project_state/gates/command_plan.json",),
+        authorized_risk_tier="R2",
+    )
+    # startup_snapshot.json is R2 but NOT in authorized_risk_paths -> violation.
+    assert "project_state/gates/startup_snapshot.json:R2" in violations

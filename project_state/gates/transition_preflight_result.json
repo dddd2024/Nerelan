@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260721_architecture_spine_provenance_integration_final_rework_v1",
-  "round_id": "round_20260721_architecture_spine_provenance_integration_final_rework_v1",
+  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260721_architecture_spine_provenance_integration_final_rework_v1 expected=decision_20260721_architecture_spine_provenance_integration_final_rework_v1"
+      "detail": "observed=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1 expected=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260721_architecture_spine_provenance_integration_final_rework_v1 expected=round_20260721_architecture_spine_provenance_integration_final_rework_v1"
+      "detail": "observed=round_20260721_architecture_spine_trusted_execution_cutover_rework_v1 expected=round_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
     },
     {
       "name": "decision_approved",
@@ -38,17 +38,17 @@
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=f9621761865fd5ee46de220cea0b780d568eef3e merge_base=f9621761865fd5ee46de220cea0b780d568eef3e"
+      "detail": "base=54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f merge_base=54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=6b0cc4220786e6b11bfe9367a8d1e15c12a3abce"
+      "detail": "decision_commit=8a5cb389dc218ae63de9cc68cd88a18baf985d4c"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260721_architecture_spine_provenance_integration_final_rework_v1/round_20260721_architecture_spine_provenance_integration_final_rework_v1"
+      "detail": "plan=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1/round_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
     },
     {
       "name": "command_plan_contract",
@@ -67,6 +67,11 @@
     },
     {
       "name": "reference_paths_read_only",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "mutation_grants_enforced",
       "status": "PASS",
       "detail": "violations=[]"
     },

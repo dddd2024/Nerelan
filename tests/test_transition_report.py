@@ -371,3 +371,138 @@ def test_transition_report_writes_pytest_result_with_current_identity(tmp_path, 
     content = pytest_path.read_text(encoding="utf-8")
     assert _DECISION_ID in content
     assert _ROUND_ID in content
+
+
+# --- Test 8: F11 — report subject binding into transition-report CLI --------
+
+
+def test_transition_report_binds_implementation_subject(tmp_path, monkeypatch) -> None:
+    """F11: transition-report must bind to the implementation subject.
+
+    The report must classify changed files into implementation/governance/
+    generated buckets, compute subject_tree_digest and subject_diff_digest,
+    and embed them in the report output. Governance paths (Decision,
+    roadmap) must NOT appear in ``implementation_subject_paths``.
+    """
+
+    import reverse_agent.project_gate as project_gate_module
+
+    state_dir = _setup_repo(tmp_path)
+    diff_names = (
+        "reverse_agent/control_plane/transition.py\n"
+        "project_state/decision_packet.md\n"
+        "project_state/gates/changed_file_inventory.json\n"
+    )
+    monkeypatch.setattr(
+        project_gate_module,
+        "_transition_git",
+        _fake_git_factory(diff_names=diff_names),
+    )
+    monkeypatch.setattr(
+        project_gate_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+
+    result = transition_report(state_dir=state_dir, repo_root=tmp_path)
+    assert result["gate_status"] == "PASSED"
+    # F11: report must carry subject binding fields.
+    assert "subject_binding" in result
+    binding = result["subject_binding"]
+    assert binding["activation_base_sha"] == _BASE_SHA
+    assert "subject_tree_digest" in binding
+    assert "subject_diff_digest" in binding
+    # F11: implementation_subject_paths must contain only implementation
+    # paths, not governance (decision_packet.md) or generated artifacts.
+    impl_paths = binding["implementation_subject_paths"]
+    assert "reverse_agent/control_plane/transition.py" in impl_paths
+    assert "project_state/decision_packet.md" not in impl_paths
+    assert "project_state/gates/changed_file_inventory.json" not in impl_paths
+    # F11: governance and generated buckets are recorded separately.
+    assert "governance_paths" in binding
+    assert "generated_artifact_paths" in binding
+    assert "project_state/decision_packet.md" in binding["governance_paths"]
+    assert (
+        "project_state/gates/changed_file_inventory.json"
+        in binding["generated_artifact_paths"]
+    )
+
+
+def test_transition_report_binds_local_seal_digest_when_seal_exists(
+    tmp_path, monkeypatch
+) -> None:
+    """F11: when a LOCAL_RECONCILED seal exists, its digest is bound."""
+
+    import reverse_agent.project_gate as project_gate_module
+
+    state_dir = _setup_repo(tmp_path)
+    # Write a LOCAL_RECONCILED seal so the report can bind its digest.
+    seal_path = state_dir / "gates" / "local_execution_seal.json"
+    seal_path.write_text(
+        json.dumps({
+            "schema_version": 1,
+            "gate_name": "transition-seal-local",
+            "status": "LOCAL_RECONCILED",
+            "decision_id": _DECISION_ID,
+            "round_id": _ROUND_ID,
+            "subject_digest": "sha256:" + "a" * 64,
+            "plan_digest": "sha256:" + "b" * 64,
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        project_gate_module,
+        "_transition_git",
+        _fake_git_factory(diff_names="reverse_agent/example.py\n"),
+    )
+    monkeypatch.setattr(
+        project_gate_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+
+    result = transition_report(state_dir=state_dir, repo_root=tmp_path)
+    assert result["gate_status"] == "PASSED"
+    binding = result["subject_binding"]
+    # F11: local_seal_digest must be present and non-empty.
+    assert binding["local_seal_digest"]
+    assert binding["local_seal_digest"].startswith("sha256:")
+
+
+def test_transition_report_blocks_when_seal_decision_diverges(
+    tmp_path, monkeypatch
+) -> None:
+    """F11: when the local seal's Decision diverges, report is LOCAL_BLOCKED."""
+
+    import reverse_agent.project_gate as project_gate_module
+
+    state_dir = _setup_repo(tmp_path)
+    # Write a seal that belongs to a DIFFERENT Decision.
+    seal_path = state_dir / "gates" / "local_execution_seal.json"
+    seal_path.write_text(
+        json.dumps({
+            "schema_version": 1,
+            "gate_name": "transition-seal-local",
+            "status": "LOCAL_RECONCILED",
+            "decision_id": "decision_OLD",
+            "round_id": "round_OLD",
+            "subject_digest": "sha256:" + "a" * 64,
+            "plan_digest": "sha256:" + "b" * 64,
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        project_gate_module,
+        "_transition_git",
+        _fake_git_factory(diff_names="reverse_agent/example.py\n"),
+    )
+    monkeypatch.setattr(
+        project_gate_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(args[0], 0, "", ""),
+    )
+
+    result = transition_report(state_dir=state_dir, repo_root=tmp_path)
+    # F11: any input identity mismatch must produce LOCAL_BLOCKED.
+    assert result["local_status"] == "LOCAL_BLOCKED"
+    assert any("seal_decision_id_diverges" in r for r in result["blocking_reasons"])

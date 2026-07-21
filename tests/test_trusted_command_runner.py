@@ -400,3 +400,372 @@ def test_runner_metadata_includes_raw_evidence_paths(tmp_path: Path) -> None:
     assert "stdout_digest" in metadata
     assert "stderr_digest" in metadata
     assert metadata["stdout_digest"] == record.stdout_digest
+
+
+# ---------------------------------------------------------------------------
+# F4: TrustedExecutionContext.from_state_dir — the ONLY production entry point
+# ---------------------------------------------------------------------------
+
+
+def _write_state_decision(
+    state_dir: Path,
+    *,
+    decision_id: str = "decision_trusted",
+    round_id: str = "round_trusted",
+    branch: str = "codex/example-v1",
+    base_sha: str = "a" * 40,
+    allowed_commands: list[dict] | None = None,
+) -> None:
+    """Write a structured Decision packet + committed command plan."""
+
+    import json as _json
+
+    if allowed_commands is None:
+        allowed_commands = [
+            {
+                "command_id": "status.git_head",
+                "command": "git rev-parse HEAD",
+                "phase": "status",
+                "required": True,
+                "required_evidence_source": "local_command_evidence",
+                "expected_exit_codes": [0],
+                "execution_surface": "local",
+                "operations": ["repository_observation"],
+                "network_access": False,
+                "authority_origin": "normal_plan",
+                "allowed_mutated_paths": [],
+                "produced_artifacts": [],
+            },
+        ]
+    contract = {
+        "transition_kernel_required": True,
+        "required_branch": branch,
+        "activation_base_sha": base_sha,
+        "bootstrap_exception_files": ["reverse_agent/project_gate.py"],
+        "bootstrap_exception_commands": [],
+        "allowed_commands": allowed_commands,
+        "allowed_mutated_paths": ["reverse_agent/control_plane/**"],
+        "forbidden_mutated_paths": ["frontend/**"],
+        "capability_policy": {
+            "network_access_default_allowed": False,
+            "local_network_exceptions": [],
+            "ci_network_exceptions": [],
+        },
+        "path_risk_floor": [],
+        "runner_managed_artifact_paths": [
+            "project_state/gates/execution_log.json",
+            "project_state/gates/evidence/**",
+        ],
+    }
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "decision_packet.md").write_text(
+        "```json decision_meta\n"
+        + _json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+                "skill_profiles": ["reverse-agent-iteration@v2"],
+            }
+        )
+        + "\n```\n\n```json decision_contract\n"
+        + _json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True, exist_ok=True)
+    # Write committed command plan matching the decision.
+    from reverse_agent.control_plane.legacy_adapter import (
+        build_transition_command_plan,
+    )
+    from reverse_agent.control_plane.models import TransitionDecision
+
+    decision = TransitionDecision(
+        decision_id=decision_id,
+        round_id=round_id,
+        status="APPROVED",
+        mainline="engineering_branch",
+        skill_profiles=("reverse-agent-iteration@v2",),
+    )
+    plan = build_transition_command_plan(decision, contract)
+    (gates / "command_plan.json").write_text(
+        _json.dumps(plan.to_dict(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_trusted_execution_context_from_state_dir_loads_authority(tmp_path: Path) -> None:
+    """F4: from_state_dir reads active Decision + committed plan and constructs a context."""
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir)
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+
+    assert context.decision_id == "decision_trusted"
+    assert context.round_id == "round_trusted"
+    assert context.plan_digest.startswith("sha256:")
+    # The context must NOT accept a caller-supplied plan.
+    import inspect
+
+    sig = inspect.signature(TrustedExecutionContext.from_state_dir)
+    params = set(sig.parameters.keys()) - {"cls"}
+    forbidden = {"plan", "command", "head_sha", "timestamp", "authority_origin"}
+    assert not (forbidden & params), f"from_state_dir must not accept: {forbidden & params}"
+
+
+def test_trusted_execution_context_rejects_plan_mismatch(tmp_path: Path) -> None:
+    """F4: from_state_dir must reject a committed plan that diverges from the Decision."""
+
+    import json as _json
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir)
+    # Tamper with the committed plan so it no longer matches the Decision.
+    plan_path = state_dir / "gates" / "command_plan.json"
+    payload = _json.loads(plan_path.read_text(encoding="utf-8"))
+    payload["commands"][0]["command"] = "git rev-parse HEAD --tampered"
+    plan_path.write_text(_json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="plan_digest_mismatch|plan_mismatch"):
+        TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# F5: authorize_before_execute — the pre-execution hard gate
+# ---------------------------------------------------------------------------
+
+
+def test_authorize_before_execute_returns_authorized_for_valid_command(tmp_path: Path) -> None:
+    """F5: a valid command_id with matching identity returns AUTHORIZED."""
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir)
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    result = context.authorize_before_execute("status.git_head")
+
+    assert result.status == "AUTHORIZED"
+    assert result.reasons == ()
+
+
+def test_authorize_before_execute_blocks_unknown_command_id(tmp_path: Path) -> None:
+    """F5: an unknown command_id must be BLOCKED."""
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir)
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    result = context.authorize_before_execute("nonexistent.command")
+
+    assert result.status == "BLOCKED"
+    assert any("unknown_command_id" in r for r in result.reasons)
+
+
+def test_authorize_before_execute_blocks_allowed_only_after_validation(tmp_path: Path) -> None:
+    """F5: a command with allowed_only_after_validation must BLOCKED until the seal is LOCAL_RECONCILED."""
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(
+        state_dir,
+        allowed_commands=[
+            {
+                "command_id": "publication.push_branch",
+                "command": "git push origin codex/example-v1",
+                "phase": "publication",
+                "required": False,
+                "required_evidence_source": "repository_state_attestation",
+                "expected_exit_codes": [0],
+                "execution_surface": "local",
+                "operations": ["push", "network_access"],
+                "network_access": True,
+                "allowed_only_after_validation": True,
+                "authority_origin": "normal_plan",
+                "allowed_mutated_paths": [],
+                "produced_artifacts": [],
+            },
+        ],
+    )
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    result = context.authorize_before_execute("publication.push_branch")
+
+    assert result.status == "BLOCKED"
+    assert any("allowed_only_after_validation" in r for r in result.reasons)
+
+
+# ---------------------------------------------------------------------------
+# F6: Atomic evidence journal — cross-round rejection, lock, monotonic sequence
+# ---------------------------------------------------------------------------
+
+
+def test_journal_rejects_cross_round_append(tmp_path: Path) -> None:
+    """F6: appending to a log that belongs to a different Decision must be rejected."""
+
+    import json as _json
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir, decision_id="decision_new", round_id="round_new")
+    # Write a stale execution log belonging to an OLD decision.
+    gates = state_dir / "gates"
+    gates.mkdir(parents=True, exist_ok=True)
+    stale_log = {
+        "schema_version": 1,
+        "artifact_name": "execution_log.json",
+        "gate_name": "transition-trusted-runner",
+        "gate_status": "PASSED",
+        "decision_id": "decision_OLD",
+        "round_id": "round_OLD",
+        "generated_at": "2026-01-01T00:00:00Z",
+        "source": "trusted_command_runner",
+        "commands": [],
+    }
+    (gates / "execution_log.json").write_text(
+        _json.dumps(stale_log, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    with pytest.raises(ValueError, match="cross_round_log|stale_log|decision_id_mismatch"):
+        context.run_command("status.git_head")
+
+
+def test_journal_appends_monotonically_under_lock(tmp_path: Path) -> None:
+    """F6: two sequential records get monotonically increasing sequence numbers."""
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir)
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    record1 = context.run_command("status.git_head")
+    record2 = context.run_command("status.git_head")
+
+    assert record2.sequence == record1.sequence + 1
+    assert record1.record_id != record2.record_id
+
+
+def test_journal_log_header_binds_plan_digest(tmp_path: Path) -> None:
+    """F6: the execution log header must carry the current plan digest."""
+
+    import json as _json
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir)
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    context.run_command("status.git_head")
+
+    log = _json.loads((state_dir / "gates" / "execution_log.json").read_text(encoding="utf-8"))
+    assert log["plan_digest"] == context.plan_digest
+    assert log["decision_id"] == context.decision_id
+    assert log["round_id"] == context.round_id
+
+
+# ---------------------------------------------------------------------------
+# F7: Command-local mutation delta — pre/post state digests
+# ---------------------------------------------------------------------------
+
+
+def test_runner_records_pre_and_post_state_digests(tmp_path: Path) -> None:
+    """F7: each record carries pre_state_digest and post_state_digest."""
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(
+        state_dir,
+        allowed_commands=[
+            {
+                "command_id": "test.create_file",
+                "command": "python -c \"open('new_file.txt', 'w').write('hello')\"",
+                "phase": "test",
+                "required": True,
+                "required_evidence_source": "local_command_evidence",
+                "expected_exit_codes": [0],
+                "execution_surface": "local",
+                "operations": ["integration_test"],
+                "network_access": False,
+                "authority_origin": "normal_plan",
+                "allowed_mutated_paths": ["new_file.txt"],
+                "produced_artifacts": [],
+            },
+        ],
+    )
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    record = context.run_command("test.create_file")
+
+    assert record.pre_state_digest.startswith("sha256:")
+    assert record.post_state_digest.startswith("sha256:")
+    assert record.mutation_delta_digest.startswith("sha256:")
+    assert record.pre_state_digest != record.post_state_digest
+
+
+def test_runner_delta_excludes_pre_existing_dirty_paths(tmp_path: Path) -> None:
+    """F7: pre-existing dirty paths must NOT be attributed to the command.
+
+    The runner captures state BEFORE the command. Only paths that changed
+    between pre and post should appear in mutated_paths.
+    """
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+    )
+
+    _init_repo(tmp_path)
+    # Create a pre-existing dirty file BEFORE running any command.
+    (tmp_path / "pre_existing.txt").write_text("dirty before command", encoding="utf-8")
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir)
+
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    record = context.run_command("status.git_head")
+
+    # The pre-existing dirty file must NOT be attributed to this command.
+    assert "pre_existing.txt" not in record.mutated_paths
