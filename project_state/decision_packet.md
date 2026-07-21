@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260720_transition_bootstrap_and_architecture_spine_v1",
-  "round_id": "round_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "decision_id": "decision_20260721_architecture_spine_authority_closure_rework_v1",
+  "round_id": "round_20260721_architecture_spine_authority_closure_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,101 +15,263 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
-  "follows_last_round_id": "round_20260720_transition_workflow_cutover_and_ci_test_bootstrap_v1",
-  "previous_remote_gate_status": "SUCCESS",
-  "workstream_id": "transition-bootstrap-and-architecture-spine-v1",
+  "follows_last_decision_id": "decision_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "follows_last_round_id": "round_20260720_transition_bootstrap_and_architecture_spine_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
+  "workstream_id": "architecture-spine-authority-closure-rework-v1",
+  "source_pull_request": 9,
   "required_branch": "codex/architecture-spine-v1",
-  "activation_base_sha": "0dbdc3cb82c7935ae715d7f3092f16e2242c0948",
-  "source_pull_request": 8,
-  "source_branch": "codex/control-plane-transition-kernel-v1",
-  "source_head_sha": "0dbdc3cb82c7935ae715d7f3092f16e2242c0948",
-  "roadmap_path": "docs/roadmap/architecture_transition_next_24h.md",
-  "unified_long_term_roadmap": "docs/roadmap/reverse_agent_unified_architecture_and_trust_roadmap.md",
+  "activation_base_sha": "aa87aad81404bf940f8c262a3be5dcf7222258db",
+  "source_architecture_head_sha": "71c794dc16477fa68943dd42ca4978f744f93f7e",
+  "roadmap_path": "docs/roadmap/architecture_spine_authority_closure_rework_v1.md",
   "decision_commit_must_precede_implementation": true,
+  "decision_content_immutable_after_activation": true,
   "transition_kernel_required": true,
-  "architecture_migration_required": true,
+  "authority_closure_required": true,
   "legacy_state_maintenance_is_primary_goal": false,
   "legacy_final_check_is_acceptance_authority": false,
   "legacy_closeout_is_acceptance_authority": false,
   "legacy_state_manifest_is_acceptance_authority": false,
+  "command_plan_generated_from_active_decision_required": true,
+  "command_plan_precedes_normal_implementation_required": true,
+  "execution_reconciliation_required": true,
+  "capability_policy_mapping_required": true,
+  "reference_mutation_scope_separation_required": true,
+  "path_risk_floor_required": true,
+  "github_truth_reconciliation_required": true,
   "bootstrap_exception_authorized": true,
-  "bootstrap_exception_reason": "The inherited transition-command-plan only validates and copies the previous round plan, while transition-preflight hard-codes the previous branch and path scope. A narrowly bounded gate bootstrap must run before the current Decision can generate its own command authority.",
-  "bootstrap_exception_expires_when": "The current Decision command plan has been regenerated, transition-lint passes, and transition-preflight passes on codex/architecture-spine-v1.",
+  "bootstrap_exception_reason": "The current transition command-plan builder can only consume bootstrap_exception_commands and transition-preflight can pass command authority without reconciling the real execution set. A narrowly bounded bootstrap is required to add structured allowed_commands and real execution reconciliation before the normal rework can be authorized.",
+  "bootstrap_exception_expires_when": "A command plan generated from allowed_commands matches this Decision, transition-lint passes, transition-preflight validates the current branch and scope, and the bootstrap execution records are explicitly classified as bootstrap exceptions.",
   "bootstrap_exception_files": [
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/models.py",
     "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/transition.py",
+    "reverse_agent/control_plane/execution_reconciliation.py",
     "tests/test_project_gate.py",
     "tests/test_control_plane_transition.py",
-    "project_state/decision_packet.md",
+    "tests/test_authority_closure.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/execution_log.json"
   ],
   "bootstrap_exception_commands": [
-    "python -m pytest tests/test_project_gate.py -q",
-    "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q",
+    "git status --short",
+    "git rev-parse HEAD",
+    "git branch --show-current",
+    "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py -q",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
     "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
-    "git diff --check",
-    "git status --short"
+    "git diff --check"
   ],
-  "command_plan_precedes_architecture_implementation": true,
-  "command_plan_is_local_command_authority_after_bootstrap": true,
-  "allowed_packaging_files": [
-    "pyproject.toml"
+  "allowed_commands": [
+    {
+      "command": "git status --short",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false
+    },
+    {
+      "command": "git rev-parse HEAD",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false
+    },
+    {
+      "command": "git branch --show-current",
+      "phase": "status",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false
+    },
+    {
+      "command": "python -m pip install -e \".[test]\" --no-deps",
+      "phase": "dependency",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["dependency_install"],
+      "network_access": false
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["command_plan_generation"],
+      "network_access": false
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["authority_validation"],
+      "network_access": false
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["authority_validation"],
+      "network_access": false
+    },
+    {
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["unit_test"],
+      "network_access": false
+    },
+    {
+      "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py tests/test_report_truth.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["unit_test"],
+      "network_access": false
+    },
+    {
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_control_plane_transition.py tests/test_authority_closure.py -q",
+      "phase": "test",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["integration_test"],
+      "network_access": false
+    },
+    {
+      "command": "python -m pytest -q",
+      "phase": "diagnostic",
+      "required": false,
+      "diagnostic_only": true,
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["full_repository_test"],
+      "network_access": false
+    },
+    {
+      "command": "git diff --check",
+      "phase": "validation",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false
+    },
+    {
+      "command": "git push origin codex/architecture-spine-v1",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["push", "network_access"],
+      "network_access": true,
+      "allowed_only_after_validation": true
+    },
+    {
+      "command": "python -m pip install -e \".[test]\"",
+      "phase": "ci_dependency",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "ci_only",
+      "operations": ["dependency_install", "network_access"],
+      "network_access": true
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "ci_gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "ci_only",
+      "operations": ["command_plan_generation"],
+      "network_access": false
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "ci_gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "ci_only",
+      "operations": ["authority_validation"],
+      "network_access": false
+    },
+    {
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
+      "phase": "ci_gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "ci_only",
+      "operations": ["authority_validation"],
+      "network_access": false
+    }
   ],
-  "allowed_workflow_files": [
-    ".github/workflows/ci.yml"
+  "reference_paths": [
+    "docs/roadmap/architecture_spine_authority_closure_rework_v1.md",
+    "docs/roadmap/reverse_agent_unified_architecture_and_trust_roadmap.md",
+    "docs/architecture/architecture-spine-v1.md",
+    "docs/architecture/control-plane-transition-kernel.md",
+    "project_state/decision_packet.md",
+    "project_state/pytest_result.txt",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/execution_log.json",
+    "project_state/gates/transition_preflight_result.json"
   ],
-  "allowed_control_plane_files": [
+  "allowed_mutated_paths": [
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/legacy_adapter.py",
     "reverse_agent/control_plane/models.py",
-    "reverse_agent/control_plane/command_authority.py"
-  ],
-  "allowed_source_paths": [
-    "reverse_agent/architecture/**",
-    "reverse_agent/workflows/**",
-    "reverse_agent/trust/**",
-    "reverse_agent/adapters/**"
-  ],
-  "allowed_test_files": [
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/transition.py",
+    "reverse_agent/control_plane/execution_reconciliation.py",
+    "reverse_agent/architecture/contracts.py",
+    "reverse_agent/architecture/risk_classifier.py",
+    "reverse_agent/architecture/report_truth.py",
+    "reverse_agent/workflows/nodes/classify_risk.py",
+    "reverse_agent/adapters/github_truth.py",
     "tests/test_project_gate.py",
     "tests/test_control_plane_transition.py",
     "tests/test_architecture_contracts.py",
     "tests/test_risk_classifier.py",
     "tests/test_development_graph.py",
     "tests/test_trust_authorization_adapter.py",
-    "tests/test_planning_and_github_adapters.py"
-  ],
-  "allowed_documentation_files": [
-    "docs/roadmap/architecture_transition_next_24h.md",
-    "docs/architecture/architecture-spine-v1.md",
-    "docs/architecture/transition-gate-bootstrap.md"
-  ],
-  "allowed_project_state_files": [
-    "project_state/decision_packet.md",
+    "tests/test_planning_and_github_adapters.py",
+    "tests/test_authority_closure.py",
+    "tests/test_report_truth.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/execution_log.json",
-    "project_state/gates/transition_preflight_result.json",
     "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md"
   ],
-  "read_only_compatibility_paths": [
-    ".github/workflows/state-gate.yml",
-    ".github/workflows/decision-preflight.yml",
-    "project_state/schemas/transition_authority.schema.json",
-    "project_state/schemas/transition_command_plan.schema.json",
-    "project_state/schemas/execution_envelope.schema.json",
-    "project_state/schemas/transition_preflight_result.schema.json"
-  ],
   "forbidden_mutated_paths": [
+    "project_state/decision_packet.md",
+    "docs/roadmap/**",
+    "docs/architecture/**",
+    ".github/workflows/**",
+    "pyproject.toml",
     "frontend/**",
     "solve_reports/**",
     "local_reverse_samples/**",
@@ -123,25 +285,70 @@
     "project_state/state_manifest.json",
     "project_state/context/**",
     "project_state/rounds/**",
-    ".codex-skills/**"
+    "project_state/audits/**",
+    ".codex-skills/**",
+    ".env",
+    "**/secrets/**",
+    "**/credentials/**"
   ],
-  "framework_installation_allowed": true,
-  "allowed_frameworks": [
-    "langgraph"
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "local_network_exceptions": [
+      "git push origin codex/architecture-spine-v1"
+    ],
+    "ci_network_exceptions": [
+      "python -m pip install -e \".[test]\""
+    ],
+    "remote_observation_read_only_allowed": true,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": false,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false
+  },
+  "path_risk_floor": [
+    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
+    {"pattern": "pyproject.toml", "minimum_risk": "R2"},
+    {"pattern": "**/*lock*", "minimum_risk": "R2"},
+    {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
+    {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
+    {"pattern": ".env", "minimum_risk": "R3"},
+    {"pattern": "**/secrets/**", "minimum_risk": "R3"},
+    {"pattern": "**/credentials/**", "minimum_risk": "R3"},
+    {"pattern": "local_reverse_samples/**", "minimum_risk": "R3"},
+    {"pattern": "training_materials/local_reverse/**", "minimum_risk": "R3"},
+    {"pattern": "**/*.exe", "minimum_risk": "R3"},
+    {"pattern": "**/*.dll", "minimum_risk": "R3"},
+    {"pattern": "**/*.bin", "minimum_risk": "R3"}
   ],
-  "bmad_installation_allowed": false,
-  "runner_dispatch_allowed": false,
-  "model_api_invocation_allowed": false,
-  "external_reverse_tool_invocation_allowed": false,
-  "unknown_binary_execution_allowed": false,
-  "destructive_operations_allowed": false,
-  "network_access_allowed": false,
-  "direct_push_to_main_allowed": false,
-  "merge_allowed": false,
-  "force_push_allowed": false,
-  "rebase_during_execution_allowed": false,
+  "risk_combination_policy": "max(operation_risk,path_risk,capability_flag_risk)",
+  "unknown_operation_policy": "BLOCKED",
+  "unknown_sensitive_path_policy": "BLOCKED",
+  "report_truth_required": true,
+  "changed_files_from_git_diff_required": true,
+  "exact_head_remote_observation_required": true,
+  "remote_status_values": [
+    "REMOTE_NOT_OBSERVED",
+    "REMOTE_PENDING",
+    "REMOTE_PASSED",
+    "REMOTE_FAILED"
+  ],
+  "local_status_values": [
+    "LOCAL_VALIDATED",
+    "LOCAL_PARTIAL",
+    "LOCAL_FAILED"
+  ],
   "draft_pull_request_allowed": true,
-  "scope_policy": "single_round_gate_bootstrap_then_architecture_spine_only"
+  "existing_pull_request_only": 9,
+  "new_pull_request_allowed": false,
+  "scope_policy": "authority_closure_only",
+  "stop_after_independent_audit_handoff": true
 }
 ```
 
@@ -149,317 +356,184 @@
 
 ## 1. Goal
 
-Complete one merged implementation round of approximately 24 hours:
+Repair the Architecture Spine v1 authority boundary without expanding product scope.
+
+The result must close the following chain:
 
 ```text
-Phase A: Transition Gate Bootstrap Repair
-→ regenerate current Decision command authority
-→ pass current-branch transition lint and preflight
-→ Phase B: Architecture Spine v1
+active Decision
+→ structured allowed_commands
+→ generated current command plan
+→ pre-execution authorization
+→ actual execution records
+→ post-execution reconciliation
+→ capability and path-risk enforcement
+→ truthful Git/GitHub report
 ```
 
-The round exists because the prior Architecture Spine Decision could not start safely. The inherited transition kernel contains two self-bootstrap defects:
-
-1. `transition-command-plan` reads and republishes the previous `command_plan.json` instead of generating a plan from the active Decision;
-2. `transition-preflight` hard-codes the previous branch and path scope instead of reading the active Decision contract.
-
-This Decision explicitly authorizes a narrow bootstrap exception to repair those defects. The exception is not a permanent bypass. It expires immediately after the current Decision generates its own command plan and the current branch passes transition lint and preflight.
-
-After the exception expires, all Architecture Spine work must follow the regenerated command plan.
-
-Estimated effort:
-
-```text
-Phase A: 4–6 hours
-Phase B: 18–20 hours
-Total target: approximately 24 hours
-```
-
-Do not expand scope merely to consume the estimate.
+The previous round established the intended architecture, but the independent audit found that its command plan covered only bootstrap commands while the real execution included additional tests, dependency installation and final validation. The current transition preflight can also report command authority as passed when no real execution envelopes are supplied. These defects must be repaired before PR #9 can be accepted.
 
 ---
 
-## 2. Phase A — Transition Gate Bootstrap Repair
+## 2. Current Evidence
 
-### 2.1 Required behavior
-
-Implement all of the following:
-
-1. `transition-command-plan` loads the active Decision and deterministically writes a new `project_state/gates/command_plan.json` for that Decision;
-2. generated plan identity exactly matches active `decision_id` and `round_id`;
-3. generated plan derives allowed paths, forbidden paths, forbidden operations and allowed commands from the active Decision contract;
-4. `transition-lint` validates the newly generated current plan rather than the previous round plan;
-5. `transition-preflight` derives `expected_branch` from `required_branch` in the active Decision;
-6. `transition-preflight` derives allowed and forbidden paths from the active Decision;
-7. no previous branch or previous round path scope remains hard-coded as the authority;
-8. missing, malformed or ambiguous Decision fields fail closed;
-9. legacy mode behavior remains unchanged;
-10. tests prove a second Decision on a different branch and scope can bootstrap successfully without editing constants.
-
-### 2.2 Bootstrap execution order
-
-The Agent is explicitly authorized to perform the following sequence before a valid current command plan exists:
-
-```text
-read active Decision and transition implementation
-→ modify only bootstrap_exception_files
-→ run focused bootstrap tests
-→ run transition-command-plan
-→ inspect generated command_plan.json
-→ run transition-lint
-→ run transition-preflight
-```
-
-No Architecture Spine source file may be created before all three conditions are true:
-
-```text
-current plan identity matches this Decision
-transition-lint = PASSED
-transition-preflight = PASSED
-```
-
-### 2.3 Phase A acceptance
-
-Phase A passes only if:
-
-1. `command_plan.json` was generated, not manually fabricated;
-2. its Decision and round identity match this packet;
-3. current branch `codex/architecture-spine-v1` is accepted from the Decision contract;
-4. current allowed paths come from the Decision contract;
-5. old branch `codex/control-plane-transition-kernel-v1` is no longer a hard-coded requirement;
-6. focused tests pass;
-7. `git diff --check` passes.
-
-If Phase A fails, stop. Do not begin Phase B.
+- Continue only on `codex/architecture-spine-v1` and Draft PR #9.
+- The planning baseline is commit `aa87aad81404bf940f8c262a3be5dcf7222258db`.
+- The previous Architecture Spine implementation head was `71c794dc16477fa68943dd42ca4978f744f93f7e`.
+- The previous focused architecture suite and control-plane suite passed.
+- The previous full suite had one known legacy audit-document failure outside the prior Decision scope.
+- Exact-head CI, State Gate and Decision Preflight for the previous head were observed successful.
+- The current blocker is authority truth, not general Architecture Spine functionality.
+- The roadmap document is context only and may not authorize implementation.
+- This Decision must be committed before any new implementation.
 
 ---
 
-## 3. Phase B — Architecture Spine v1
+## 3. Phase A — Authority Bootstrap Closure
 
-### 3.1 Target architecture slice
+Before normal implementation, use only the explicit bootstrap exception to:
 
-Build the first executable vertical slice of the new architecture:
+1. add support for structured `allowed_commands`;
+2. generate the current command plan from this Decision;
+3. add execution-surface, operations and network fields to command authority;
+4. record bootstrap commands separately from normal plan-authorized commands;
+5. run the bootstrap-focused tests;
+6. run transition-command-plan, transition-lint and transition-preflight.
 
-```text
-Planning Reference
-→ GitHub Work Item
-→ Workflow Identity
-→ deterministic R0–R3 Risk Classification
-→ LangGraph Shadow Workflow
-   ├─ R0/R1 → STANDARD_PATH
-   └─ R2/R3 → Trust Authorization Adapter
-→ Deterministic Acceptance Gate
-```
-
-This is a shadow architecture slice. It must not dispatch coding Agents, run shell tools, invoke model APIs, execute binaries, push automatically or merge.
-
-### 3.2 Architecture contracts
-
-Add typed, serializable models for at least:
-
-```text
-PlanningReference
-GitHubWorkItem
-WorkflowIdentity
-RiskTier
-ExecutionEnvelope
-AuthorizationRequirement
-AuthorizationRequest
-AuthorizationResult
-AcceptanceResult
-DevelopmentWorkflowState
-```
-
-Required semantics:
-
-1. BMAD planning artifacts are context only and never command authority;
-2. GitHub Work Item is the ordinary engineering task entry;
-3. R0/R1 do not require a full Decision;
-4. R2/R3 route to the Trust Authorization Port;
-5. unknown or incomplete risk inputs fail closed;
-6. GitHub branch/PR/CI facts are observations with repository, SHA and observed time;
-7. runtime state belongs to LangGraph, not to the legacy closeout chain.
-
-### 3.3 Deterministic risk classifier
-
-Implement R0–R3 without an LLM.
-
-Minimum routing:
-
-```text
-R0/R1 → STANDARD_PATH
-R2/R3 → TRUST_AUTHORIZATION_REQUIRED
-unknown / malformed → BLOCKED
-```
-
-Representative classifications:
-
-- R0: research, planning, read-only audit;
-- R1: scoped code edits, unit tests, local static checks, no network or push;
-- R2: workflow changes, dependency changes, network, commit/push/Draft PR, permission policy;
-- R3: unknown binary execution, debugger/emulator/hook, secrets, destructive or privileged actions.
-
-### 3.4 LangGraph Shadow Runtime
-
-Add a minimal graph:
-
-```text
-START
-→ load_work_item
-→ load_planning_context
-→ classify_risk
-→ conditional route
-   ├─ standard_path
-   └─ request_trust_authorization
-→ acceptance_gate
-→ END
-```
-
-Constraints:
-
-1. use LangGraph as the single Python workflow runtime;
-2. use an in-memory or test checkpointer;
-3. nodes are ordinary Python functions;
-4. same input can be replayed deterministically;
-5. no source mutation, shell execution, network, model API or external reverse tool action occurs inside the graph;
-6. graph state is not copied into multiple legacy gate artifacts.
-
-### 3.5 Trust Authorization Adapter
-
-Wrap the transition kernel behind a narrow port:
-
-```python
-class TrustAuthorizationPort(Protocol):
-    def authorize(self, request: AuthorizationRequest) -> AuthorizationResult:
-        ...
-```
-
-The adapter returns only:
-
-```text
-AUTHORIZED
-APPROVAL_REQUIRED
-BLOCKED
-```
-
-It must not read final-check, closeout, final seal, report-summary or publication mirrors. It must not make a full Decision mandatory for R0/R1.
-
-### 3.6 BMAD and GitHub adapter boundaries
-
-Implement fixtures and parsing boundaries only:
-
-- BMAD adapter loads artifact references, summaries and digests;
-- GitHub Work Item adapter loads repository, issue/story identity, title, acceptance criteria and immutable source references;
-- GitHub truth adapter models branch, head SHA, PR and CI observations without making remote mutations.
-
-Do not install BMAD in this round and do not call GitHub remotely from the graph.
+If the generated plan identity, branch, activation base, path scope or command schema is invalid, stop. Do not continue to normal implementation.
 
 ---
 
-## 4. Required tests
+## 4. Phase B — Real Execution Reconciliation
 
-Add focused tests covering:
+Implement a deterministic reconciliation path that checks actual execution records against the generated plan.
 
-### Gate bootstrap
+Required behavior:
 
-1. active Decision generates a new plan;
-2. plan identity changes when Decision identity changes;
-3. branch comes from Decision, not a constant;
-4. allowed paths come from Decision, not a constant;
-5. missing branch/scope fields fail closed;
-6. manually edited or malformed plan is blocked;
-7. legacy path remains compatible.
-
-### Architecture contracts
-
-1. stable serialization;
-2. invalid enums and missing identity rejected;
-3. planning input cannot authorize commands;
-4. GitHub observation requires repository and SHA provenance.
-
-### Risk classifier
-
-1. representative R0/R1/R2/R3 cases;
-2. conflicting features select the higher risk;
-3. unknown inputs block.
-
-### LangGraph
-
-1. R0/R1 take standard path;
-2. R2/R3 call Trust Authorization Port;
-3. blocked authorization reaches blocked acceptance;
-4. checkpoint replay produces the same terminal result;
-5. no side-effect tool is invoked.
-
-### Trust adapter
-
-1. R2/R3 Decision/plan identity mismatch blocks;
-2. authorized request returns expected status;
-3. R0/R1 do not depend on legacy closeout files.
+1. real command, execution surface, paths, operations and exit code are preserved;
+2. each actual command is matched against one exact plan entry;
+3. undeclared commands block;
+4. cross-surface execution blocks;
+5. missing execution evidence cannot produce a positive reconciliation claim;
+6. bootstrap exceptions are identified explicitly;
+7. pre-execution authorization and post-execution reconciliation remain separate statuses;
+8. report generation consumes reconciliation facts rather than inferred coverage.
 
 ---
 
-## 5. Required validation sequence
+## 5. Phase C — Capability and Scope Enforcement
 
-After Phase A passes:
+Implement complete mapping for all capability fields in the Decision.
 
-```text
-python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q
-python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
-python -m reverse_agent.project_gate transition-lint --state-dir project_state
-python -m reverse_agent.project_gate transition-preflight --state-dir project_state
-```
+Reference paths are read-only. They must not be added to mutable scope merely because they are named in the Decision.
 
-After Phase B implementation:
+The Decision file and roadmap are immutable during implementation. Any attempted mutation must block.
 
-```text
-python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q
-python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py -q
-git diff --check
-```
-
-Then run the repository test suite within the available execution window. If the full suite exceeds the environment time limit, preserve the timeout truthfully and run the largest deterministic covered subset; do not report an uncompleted full suite as passed.
+Network access is denied by default. Only the exact declared publication command and CI dependency-install command are exceptions. No generic `git pull`, package resolution or remote API access is authorized.
 
 ---
 
-## 6. Do Not Do
+## 6. Phase D — Path-Aware Risk Classification
+
+Change risk calculation to use the highest of:
+
+```text
+operation risk
+path risk floor
+capability flag risk
+```
+
+A caller cannot lower workflow, dependency, Decision, gate, secret, binary or destructive work by labeling it as a generic source edit.
+
+Add negative tests for operation under-reporting, sensitive paths, unknown operations and unknown sensitive paths.
+
+---
+
+## 7. Phase E — Report Truth Closure
+
+Generate changed-file inventory from the real Git diff.
+
+The final report must clearly separate local validation from remote observations. It must not simultaneously claim that exact-head checks are both observed and pending.
+
+After local validation:
+
+```text
+push current branch
+→ observe exact remote head
+→ observe CI, State Gate and Decision Preflight
+→ update final report
+→ stop
+```
+
+The PR remains Draft and must not be merged.
+
+---
+
+## 8. Required Tests
+
+At minimum, test:
+
+1. structured command-plan generation;
+2. Decision/round identity invalidation;
+3. undeclared command rejection;
+4. execution-surface mismatch rejection;
+5. missing real execution evidence rejection;
+6. bootstrap exception separation;
+7. capability flag mapping;
+8. local network denial and exact exceptions;
+9. reference paths remain read-only;
+10. allowed/forbidden path conflicts block;
+11. workflow and dependency paths reach at least R2;
+12. secrets, binaries and destructive paths reach R3;
+13. operation under-reporting cannot reduce risk;
+14. changed-file inventory matches Git diff;
+15. remote status is internally consistent;
+16. stale observation cannot support a new head.
+
+Run the required focused suites and `git diff --check`. Run the full repository suite as a diagnostic and preserve its exact outcome. Do not convert a diagnostic failure into a full pass.
+
+---
+
+## 9. Do Not Do
 
 Do not:
 
-- begin Phase B before Phase A lint and preflight pass;
-- manually fabricate `command_plan.json`;
-- preserve the old hard-coded branch or path scope as a fallback;
-- broaden the bootstrap exception beyond the exact files and commands listed;
-- repair legacy closeout, final seal, publication truth, context sync or state manifest;
-- install BMAD in this round;
-- add Microsoft Agent Framework, MetaGPT or ChatDev;
-- use two workflow runtimes;
-- modify User Solve, frontend, solver, harness or reverse-analysis business logic;
-- run unknown binaries, IDA, Ghidra, debugger, emulator, hook or runtime probe;
-- call a model API;
-- access secrets;
+- alter this Decision after activation;
+- modify roadmap or architecture documents;
+- modify GitHub workflows or `pyproject.toml`;
+- repair unrelated legacy audit documents;
+- install BMAD;
+- add a second workflow runtime;
+- dispatch coding Agents;
+- call model APIs;
+- run unknown binaries or reverse tools;
+- modify User Solve, frontend, solver or harness code;
+- modify legacy closeout, final-seal, context or state-manifest systems;
+- create another branch or pull request;
 - push directly to main;
 - merge, rebase, force-push, tag or release;
-- create a second implementation branch for this round;
-- automatically start the next Trust Layer phase.
+- begin Evidence Trust Schema or Binary Evidence Firewall work.
 
 ---
 
-## 7. Completion criteria
+## 10. Completion Criteria
 
-The round is complete only if all are true:
+The round may recommend `ACCEPTED` only if:
 
-1. gate bootstrap is data-driven by the active Decision;
-2. current Decision generated the current command plan;
-3. current transition lint and preflight pass;
-4. Architecture Spine contracts exist and serialize stably;
-5. R0–R3 classification is deterministic and fail-closed;
-6. LangGraph Shadow Workflow runs and replays;
-7. R2/R3 use the Trust Authorization Adapter;
-8. R0/R1 do not require legacy closeout artifacts;
-9. focused tests and diff check pass;
-10. reports distinguish completed validation from timeout or unrun validation;
-11. changes are pushed only to `codex/architecture-spine-v1`;
-12. at most one Draft PR is created and no merge occurs.
+1. this Decision generated the current structured command plan;
+2. transition-lint and transition-preflight pass;
+3. all real execution records reconcile with the plan or an explicit bootstrap exception;
+4. no undeclared command is hidden by an empty-envelope preflight;
+5. capability flags are enforced;
+6. reference and mutable scopes are separated;
+7. path-aware risk floors are enforced;
+8. focused tests pass;
+9. full-suite truth is preserved;
+10. changed-file inventory matches Git diff;
+11. exact-head CI, State Gate and Decision Preflight are observed;
+12. the final report contains no local/remote status contradiction;
+13. PR #9 remains Draft and unmerged.
 
-After completion, stop and wait for independent audit. Do not begin BMAD installation, Trust Schema Foundation, Binary Evidence Firewall, tool integration or Web work automatically.
+If any authority, scope, risk or report-truth condition remains open, the result is `REWORK_REQUIRED`.
+
+After completion, stop for independent audit. Do not automatically start BMAD adoption or the Trust Layer product phase.
