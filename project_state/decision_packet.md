@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260721_architecture_spine_evidence_runtime_closeout_v1",
-  "round_id": "round_20260721_architecture_spine_evidence_runtime_closeout_v1",
+  "decision_id": "decision_20260721_architecture_spine_attestation_policy_seal_v1",
+  "round_id": "round_20260721_architecture_spine_attestation_policy_seal_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,36 +15,40 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260721_architecture_spine_authority_closure_rework_v1",
-  "follows_last_round_id": "round_20260721_architecture_spine_authority_closure_rework_v1",
+  "follows_last_decision_id": "decision_20260721_architecture_spine_evidence_runtime_closeout_v1",
+  "follows_last_round_id": "round_20260721_architecture_spine_evidence_runtime_closeout_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "workstream_id": "architecture-spine-evidence-runtime-closeout-v1",
+  "workstream_id": "architecture-spine-attestation-policy-seal-v1",
   "source_pull_request": 9,
   "required_branch": "codex/architecture-spine-v1",
-  "activation_base_sha": "97c28ac0647c7653f6eedffac5314297ded8a508",
-  "audited_implementation_head_sha": "976122bdaeb98c05f04bcb54affec54d130a8e45",
-  "roadmap_path": "docs/roadmap/architecture_spine_evidence_runtime_closeout_v1.md",
+  "activation_base_sha": "ed634162b0189acaa60c11b4ad8e080479748f98",
+  "audited_implementation_head_sha": "19c081410b3ee2bc9c81eeb52b0c0a21f200d02a",
+  "roadmap_path": "docs/roadmap/architecture_spine_attestation_policy_seal_v1.md",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
   "transition_kernel_required": true,
-  "final_architecture_spine_closeout_round": true,
+  "final_architecture_spine_seal_round": true,
   "legacy_state_maintenance_is_primary_goal": false,
   "legacy_final_check_is_acceptance_authority": false,
   "legacy_closeout_is_acceptance_authority": false,
   "legacy_state_manifest_is_acceptance_authority": false,
-  "required_command_coverage_required": true,
-  "strict_execution_record_schema_required": true,
-  "bootstrap_provenance_machine_derived_required": true,
-  "pre_post_execution_gate_split_required": true,
-  "plan_driven_capability_enforcement_required": true,
-  "runtime_path_risk_wiring_required": true,
-  "path_contract_separation_required": true,
-  "report_truth_runtime_integration_required": true,
-  "exact_head_remote_truth_externalized_required": true,
+  "machine_generated_execution_evidence_required": true,
+  "future_timestamp_rejection_required": true,
+  "real_sha256_digest_validation_required": true,
+  "raw_evidence_digest_verification_required": true,
+  "self_reconciliation_forbidden": true,
+  "local_remote_seal_separation_required": true,
+  "evidence_source_normalization_required": true,
+  "decision_issued_risk_policy_required": true,
+  "workflow_identity_policy_digest_binding_required": true,
+  "command_bound_mutation_grants_required": true,
+  "global_generated_artifact_exemption_forbidden": true,
+  "report_subject_tree_binding_required": true,
+  "remote_publication_seal_externalized_required": true,
   "bootstrap_exception_authorized": true,
   "bootstrap_state_initial": "BOOTSTRAP_OPEN",
-  "bootstrap_exception_reason": "The audited implementation added structured command authority but still permits incomplete required-command coverage, caller-supplied bootstrap classification, omitted operations, and a combined pre/post transition gate. A narrowly bounded bootstrap is required to introduce stable command IDs, strict execution records, and separate pre-execution/post-execution validation before normal closeout work can proceed.",
-  "bootstrap_exception_expires_when": "The active Decision generates a command plan with stable command IDs and authority origins, strict execution record schema validation exists, transition-preflight --mode pre passes without consuming historical completion evidence, and bootstrap state is persisted as BOOTSTRAP_EXPIRED.",
+  "bootstrap_exception_reason": "The audited implementation added strict-looking execution records, local/remote report artifacts and runtime policy snapshots, but the evidence fields are not cryptographically or temporally validated, the post gate includes itself in its subject, runtime policy identity checks are self-referential, and generated artifact exemptions are not bound to a designated command. A narrow bootstrap is required to add the recorder, subject sealing and trusted policy provider before normal validation can proceed.",
+  "bootstrap_exception_expires_when": "A machine-generated command plan for this Decision exists; transition-lint passes; transition-preflight --mode pre passes; evidence timestamp, digest and head validation tests pass; a persisted bootstrap state is BOOTSTRAP_EXPIRED; and subsequent execution records cannot claim bootstrap authority.",
   "bootstrap_exception_files": [
     "reverse_agent/project_gate.py",
     "reverse_agent/control_plane/models.py",
@@ -52,10 +56,13 @@
     "reverse_agent/control_plane/command_authority.py",
     "reverse_agent/control_plane/execution_reconciliation.py",
     "reverse_agent/control_plane/transition.py",
+    "reverse_agent/control_plane/evidence_recorder.py",
+    "reverse_agent/control_plane/local_seal.py",
     "tests/test_project_gate.py",
     "tests/test_control_plane_transition.py",
-    "tests/test_authority_closure.py",
     "tests/test_execution_evidence.py",
+    "tests/test_evidence_authenticity.py",
+    "tests/test_local_execution_seal.py",
     "project_state/gates/command_plan.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
@@ -65,7 +72,7 @@
     "git status --short",
     "git rev-parse HEAD",
     "git branch --show-current",
-    "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py -q",
+    "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
     "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
     "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
@@ -118,7 +125,11 @@
       "execution_surface": "local",
       "operations": ["command_plan_generation"],
       "network_access": false,
-      "authority_origin": "normal_plan"
+      "authority_origin": "normal_plan",
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
     },
     {
       "command_id": "gate.transition_lint",
@@ -142,14 +153,17 @@
       "execution_surface": "local",
       "operations": ["pre_execution_authorization"],
       "network_access": false,
-      "authority_origin": "normal_plan"
+      "authority_origin": "normal_plan",
+      "produced_artifacts": [
+        "project_state/gates/transition_preflight_result.json"
+      ]
     },
     {
-      "command_id": "test.evidence_control_plane",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py -q",
+      "command_id": "test.evidence_authenticity",
+      "command": "python -m pytest tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
       "phase": "test",
       "required": true,
-      "required_evidence_source": "exact_head_ci",
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["unit_test"],
@@ -157,11 +171,11 @@
       "authority_origin": "normal_plan"
     },
     {
-      "command_id": "test.runtime_risk_graph",
-      "command": "python -m pytest tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_runtime_risk_policy.py tests/test_trust_authorization_adapter.py -q",
+      "command_id": "test.runtime_policy_binding",
+      "command": "python -m pytest tests/test_runtime_risk_policy.py tests/test_policy_provider.py tests/test_development_graph.py tests/test_risk_classifier.py -q",
       "phase": "test",
       "required": true,
-      "required_evidence_source": "exact_head_ci",
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["integration_test"],
@@ -169,11 +183,23 @@
       "authority_origin": "normal_plan"
     },
     {
-      "command_id": "test.report_truth",
-      "command": "python -m pytest tests/test_report_truth.py tests/test_transition_report.py tests/test_planning_and_github_adapters.py -q",
+      "command_id": "test.mutation_grants_report",
+      "command": "python -m pytest tests/test_command_mutation_grants.py tests/test_transition_report.py tests/test_report_truth.py -q",
       "phase": "test",
       "required": true,
-      "required_evidence_source": "exact_head_ci",
+      "required_evidence_source": "local_provenance",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["integration_test"],
+      "network_access": false,
+      "authority_origin": "normal_plan"
+    },
+    {
+      "command_id": "test.control_plane",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["integration_test"],
@@ -185,12 +211,12 @@
       "command": "python -m pytest -q",
       "phase": "diagnostic",
       "required": false,
-      "diagnostic_only": true,
-      "required_evidence_source": "exact_head_ci",
+      "required_evidence_source": "local_provenance",
       "expected_exit_codes": [0, 1],
       "execution_surface": "local",
       "operations": ["full_repository_test"],
       "network_access": false,
+      "diagnostic_only": true,
       "authority_origin": "normal_plan"
     },
     {
@@ -203,7 +229,14 @@
       "execution_surface": "local",
       "operations": ["report_generation"],
       "network_access": false,
-      "authority_origin": "normal_plan"
+      "authority_origin": "normal_plan",
+      "produced_artifacts": [
+        "project_state/gates/changed_file_inventory.json",
+        "project_state/gates/remote_observation_payload.json",
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/pytest_result.txt"
+      ]
     },
     {
       "command_id": "validation.diff_check",
@@ -218,16 +251,36 @@
       "authority_origin": "normal_plan"
     },
     {
-      "command_id": "gate.post_execution",
-      "command": "python -m reverse_agent.project_gate transition-reconcile --state-dir project_state --mode post",
+      "command_id": "gate.reconcile_evaluate",
+      "command": "python -m reverse_agent.project_gate transition-reconcile-evaluate --state-dir project_state",
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_provenance",
       "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["post_execution_reconciliation"],
+      "operations": ["post_execution_evaluation"],
       "network_access": false,
-      "authority_origin": "normal_plan"
+      "authority_origin": "normal_plan",
+      "subject_to_reconciliation": false,
+      "produced_artifacts": [
+        "project_state/gates/reconciliation_candidate.json"
+      ]
+    },
+    {
+      "command_id": "gate.seal_local",
+      "command": "python -m reverse_agent.project_gate transition-seal-local --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_provenance",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["local_execution_seal"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "subject_to_reconciliation": false,
+      "produced_artifacts": [
+        "project_state/gates/local_execution_seal.json"
+      ]
     },
     {
       "command_id": "publication.push_branch",
@@ -241,62 +294,13 @@
       "network_access": true,
       "allowed_only_after_validation": true,
       "authority_origin": "normal_plan"
-    },
-    {
-      "command_id": "ci.install",
-      "command": "python -m pip install -e \".[test]\"",
-      "phase": "ci_dependency",
-      "required": true,
-      "required_evidence_source": "exact_head_ci",
-      "expected_exit_codes": [0],
-      "execution_surface": "ci_only",
-      "operations": ["dependency_install", "network_access"],
-      "network_access": true,
-      "authority_origin": "normal_plan"
-    },
-    {
-      "command_id": "ci.test",
-      "command": "python -m pytest -q",
-      "phase": "ci_test",
-      "required": true,
-      "required_evidence_source": "exact_head_ci",
-      "expected_exit_codes": [0, 1],
-      "execution_surface": "ci_only",
-      "operations": ["full_repository_test"],
-      "network_access": false,
-      "authority_origin": "normal_plan"
-    },
-    {
-      "command_id": "ci.transition_preflight",
-      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state",
-      "phase": "ci_gate",
-      "required": true,
-      "required_evidence_source": "exact_head_ci",
-      "expected_exit_codes": [0],
-      "execution_surface": "ci_only",
-      "operations": ["authority_validation"],
-      "network_access": false,
-      "authority_origin": "normal_plan"
     }
   ],
   "reference_paths": [
-    "docs/roadmap/architecture_spine_evidence_runtime_closeout_v1.md",
+    "docs/roadmap/architecture_spine_attestation_policy_seal_v1.md",
     "docs/roadmap/reverse_agent_unified_architecture_and_trust_roadmap.md",
-    "docs/architecture/architecture-spine-v1.md",
-    "docs/architecture/control-plane-transition-kernel.md"
-  ],
-  "generated_artifact_paths": [
-    "project_state/gates/command_plan.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "project_state/gates/reconciliation_result.json",
-    "project_state/gates/changed_file_inventory.json",
-    "project_state/gates/remote_observation_payload.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/execution_log.json",
-    "project_state/pytest_result.txt",
-    "project_state/codex_execution_report.md",
-    "project_state/execution_report.md"
+    "docs/architecture/**",
+    "project_state/decision_packet.md"
   ],
   "allowed_mutated_paths": [
     "reverse_agent/project_gate.py",
@@ -305,24 +309,52 @@
     "reverse_agent/control_plane/command_authority.py",
     "reverse_agent/control_plane/execution_reconciliation.py",
     "reverse_agent/control_plane/transition.py",
+    "reverse_agent/control_plane/evidence_recorder.py",
+    "reverse_agent/control_plane/local_seal.py",
     "reverse_agent/architecture/contracts.py",
-    "reverse_agent/architecture/risk_classifier.py",
-    "reverse_agent/architecture/report_truth.py",
-    "reverse_agent/workflows/graph.py",
+    "reverse_agent/architecture/policy_provider.py",
+    "reverse_agent/workflows/development_graph.py",
+    "reverse_agent/workflows/nodes/load_work_item.py",
     "reverse_agent/workflows/nodes/classify_risk.py",
-    "reverse_agent/adapters/github_truth.py",
     "tests/test_project_gate.py",
     "tests/test_control_plane_transition.py",
     "tests/test_authority_closure.py",
     "tests/test_execution_evidence.py",
-    "tests/test_architecture_contracts.py",
-    "tests/test_risk_classifier.py",
-    "tests/test_development_graph.py",
+    "tests/test_evidence_authenticity.py",
+    "tests/test_local_execution_seal.py",
     "tests/test_runtime_risk_policy.py",
-    "tests/test_trust_authorization_adapter.py",
-    "tests/test_report_truth.py",
+    "tests/test_policy_provider.py",
+    "tests/test_development_graph.py",
+    "tests/test_risk_classifier.py",
+    "tests/test_command_mutation_grants.py",
     "tests/test_transition_report.py",
-    "tests/test_planning_and_github_adapters.py"
+    "tests/test_report_truth.py",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/execution_log.json",
+    "project_state/gates/reconciliation_candidate.json",
+    "project_state/gates/local_execution_seal.json",
+    "project_state/gates/changed_file_inventory.json",
+    "project_state/gates/remote_observation_payload.json",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/pytest_result.txt"
+  ],
+  "generated_artifact_paths": [
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/execution_log.json",
+    "project_state/gates/reconciliation_candidate.json",
+    "project_state/gates/local_execution_seal.json",
+    "project_state/gates/changed_file_inventory.json",
+    "project_state/gates/remote_observation_payload.json",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/pytest_result.txt"
   ],
   "forbidden_mutated_paths": [
     "project_state/decision_packet.md",
@@ -352,8 +384,25 @@
     "**/*.dll",
     "**/*.bin"
   ],
-  "path_contract_conflict_policy": "BLOCKED",
-  "generated_artifact_write_policy": "generator_only",
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "local_network_exceptions": [
+      "git push origin codex/architecture-spine-v1"
+    ],
+    "ci_network_exceptions": [],
+    "remote_observation_read_only_allowed": true,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": false,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false
+  },
   "path_risk_floor": [
     {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
     {"pattern": "pyproject.toml", "minimum_risk": "R2"},
@@ -369,67 +418,33 @@
     {"pattern": "**/*.dll", "minimum_risk": "R3"},
     {"pattern": "**/*.bin", "minimum_risk": "R3"}
   ],
+  "capability_risk_rules": [
+    {"operation": "workflow_change", "risk_tier": "R2"},
+    {"operation": "dependency_change", "risk_tier": "R2"},
+    {"operation": "network_access", "risk_tier": "R2"},
+    {"operation": "push", "risk_tier": "R2"},
+    {"operation": "permission_policy", "risk_tier": "R2"},
+    {"operation": "unknown_binary_execution", "risk_tier": "R3"},
+    {"operation": "debugger", "risk_tier": "R3"},
+    {"operation": "emulator", "risk_tier": "R3"},
+    {"operation": "secrets", "risk_tier": "R3"},
+    {"operation": "destructive_delete", "risk_tier": "R3"}
+  ],
   "risk_combination_policy": "max(operation_risk,path_risk,capability_flag_risk)",
-  "risk_policy_snapshot_required": true,
-  "missing_risk_policy_policy": "BLOCKED",
   "unknown_operation_policy": "BLOCKED",
   "unknown_sensitive_path_policy": "BLOCKED",
-  "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": false,
-    "bmad_installation_allowed": false,
-    "network_access_default_allowed": false,
-    "local_network_exceptions": [
-      "git push origin codex/architecture-spine-v1"
-    ],
-    "ci_network_exceptions": [
-      "python -m pip install -e \".[test]\""
-    ],
-    "remote_observation_read_only_allowed": true,
-    "direct_push_to_main_allowed": false,
-    "merge_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false
-  },
-  "execution_evidence_required_fields": [
-    "command_id",
-    "command",
-    "execution_surface",
-    "operations",
-    "mutated_paths",
-    "exit_code",
-    "started_at",
-    "observed_at",
-    "head_before",
-    "head_after",
-    "stdout_digest",
-    "stderr_digest",
-    "authority_origin"
-  ],
-  "required_command_coverage_policy": "ALL_REQUIRED_BY_EVIDENCE_SOURCE",
-  "diagnostic_truth_required": true,
-  "changed_files_from_activation_base_diff_required": true,
-  "local_report_remote_pass_forbidden": true,
-  "remote_truth_location": "pull_request_audit_comment",
-  "remote_truth_required_fields": [
-    "observed_head_sha",
-    "ci_run_id",
-    "ci_conclusion",
-    "state_gate_run_id",
-    "state_gate_conclusion",
-    "decision_preflight_run_id",
-    "decision_preflight_conclusion",
-    "observed_at",
-    "auditor_outcome"
+  "local_seal_status_required": "LOCAL_RECONCILED",
+  "remote_publication_seal_required": true,
+  "remote_publication_seal_location": "pull_request_comment",
+  "required_remote_checks": [
+    "CI",
+    "State Gate",
+    "Decision Preflight"
   ],
   "draft_pull_request_allowed": true,
   "existing_pull_request_only": 9,
   "new_pull_request_allowed": false,
-  "scope_policy": "final_evidence_runtime_closeout_only",
+  "scope_policy": "attestation_policy_seal_only",
   "stop_after_independent_audit_handoff": true
 }
 ```
@@ -438,171 +453,109 @@
 
 ## 1. Goal
 
-Complete the final Architecture Spine v1 closeout by repairing evidence completeness and wiring already-implemented policy logic into the actual runtime path.
+Complete the Architecture Spine v1 proof chain without expanding product scope.
 
-The audited implementation at `976122bdaeb98c05f04bcb54affec54d130a8e45` is retained. This round must not redesign the architecture. It must close the remaining chain:
+The round must establish:
 
 ```text
 active Decision
-→ stable command IDs
-→ strict pre-execution authorization
-→ complete required-command coverage
-→ plan-driven capability enforcement
-→ path-aware LangGraph routing
-→ generated current-round local report
-→ exact-head GitHub Actions
-→ PR-bound independent audit observation
+→ machine-generated execution evidence
+→ non-self-referential local reconciliation
+→ Decision-issued runtime risk policy
+→ command-bound mutation grants
+→ truthful local report
+→ external exact-head publication seal
 ```
 
----
-
-## 2. Audit Findings That Must Be Closed
-
-1. Three bootstrap commands currently produce `POST_EXECUTION_RECONCILED` even though required implementation and test commands are absent.
-2. Empty execution operations can bypass operation, network and capability checks.
-3. Bootstrap identity is caller-supplied rather than derived from authority state.
-4. `classify_risk_node()` does not pass path-risk or capability policy into the classifier.
-5. preflight applies reference and path-risk checks only to paths outside allowed scope.
-6. report-truth code is not connected to the actual project reports.
-7. current report and pytest artifacts still belong to the previous Decision.
-8. local execution evidence lacks stable command IDs, timestamps, head binding and output digests.
+The audited implementation at `19c081410b3ee2bc9c81eeb52b0c0a21f200d02a` is retained. Only the audit findings listed in `docs/roadmap/architecture_spine_attestation_policy_seal_v1.md` may be repaired.
 
 ---
 
-## 3. Bootstrap Phase
+## 2. Bootstrap Phase
 
 Use the bootstrap exception only to implement:
 
-- stable command IDs and authority origin;
-- strict execution record schema;
-- explicit BOOTSTRAP_OPEN / BOOTSTRAP_EXPIRED state;
-- `transition-preflight --mode pre`;
-- `transition-reconcile --mode post` scaffolding;
-- current Decision command-plan regeneration.
+1. strict timestamp, digest and Git SHA validation;
+2. the controlled evidence recorder;
+3. subject-set sealing and non-self-referential local reconciliation;
+4. command-specific artifact production fields;
+5. the tests required to prove these mechanisms;
+6. generation of the current command plan and pre-execution result.
 
-Bootstrap must not modify workflow risk routing, report truth, general architecture modules or product code.
-
-After pre-execution authorization succeeds, persist `BOOTSTRAP_EXPIRED`. Later execution records cannot self-declare bootstrap authority.
+After bootstrap expiry, no new execution record may claim bootstrap authority.
 
 ---
 
-## 4. Required Command Coverage
+## 3. Normal Implementation
 
-Post-execution reconciliation must validate both sides:
+After the generated plan and preflight pass:
+
+1. normalize evidence source semantics;
+2. issue runtime risk policy from the active Decision;
+3. bind Decision, round and policy digest into workflow identity;
+4. reject caller-supplied or tampered policy snapshots;
+5. replace global generated-artifact exemption with command-bound grants;
+6. bind the local report to subject tree and diff digests;
+7. produce a `LOCAL_RECONCILED` local seal;
+8. push the branch once local validation is complete;
+9. stop for independent exact-head remote audit.
+
+---
+
+## 4. Acceptance Boundary
+
+The repo-local implementation cannot declare final remote acceptance.
+
+Final acceptance requires an independent PR audit comment binding the subject commit to successful exact-head runs for:
 
 ```text
-all supplied records are authorized
-AND
-all required plan entries have evidence from their declared source
+CI
+State Gate
+Decision Preflight
 ```
 
-A subset of valid records is not completion.
-
-Local provenance, repository truth and exact-head CI are distinct evidence sources. CI-replayable tests should be accepted from exact-head Actions rather than a narrative local claim.
+Do not commit another report after the remote seal. A new commit invalidates the previous remote seal.
 
 ---
 
-## 5. Capability Enforcement
-
-Plan declarations are authoritative. Envelope omission cannot weaken them.
-
-If a plan entry declares operations or network access, the observed record must provide matching or stronger facts. Empty operations, inferred surfaces or missing identity fields must block.
-
----
-
-## 6. Runtime Risk Wiring
-
-Create an immutable risk-policy snapshot bound to the active Decision and pass it through the LangGraph workflow state.
-
-The real classify node must use path-risk and capability-risk inputs. Direct classifier unit tests are insufficient; full graph tests must prove R2/R3 routing.
-
----
-
-## 7. Path Contract
-
-Keep these concepts separate:
-
-```text
-reference_paths
-generated_artifact_paths
-allowed_mutated_paths
-forbidden_mutated_paths
-```
-
-Reference files are always read-only. Generated artifacts may be changed only by their generator. Allowed implementation paths still receive risk classification. Forbidden paths always block.
-
----
-
-## 8. Report Truth
-
-Wire report-truth logic to an actual `transition-report` command.
-
-Repository reports must describe only current local facts and may not claim `REMOTE_PASSED`. Exact-head remote truth is recorded after workflows complete in a PR #9 audit comment bound to the same head SHA. This avoids endless report commits invalidating the head they describe.
-
----
-
-## 9. Validation
-
-Required negative tests include:
-
-- missing required command coverage;
-- bootstrap-only false completion;
-- empty operations bypass;
-- network omission bypass;
-- forged bootstrap origin;
-- expired bootstrap record;
-- missing/incorrect execution surface;
-- stale Decision/round/head evidence;
-- runtime graph path-risk routing;
-- missing risk-policy snapshot;
-- path contract conflicts;
-- stale report/pytest identity;
-- incorrect changed-file inventory;
-- remote observation bound to a different head.
-
-Run focused suites, graph integration suites, report suites, full repository diagnostic and `git diff --check`. Preserve exact outcomes.
-
----
-
-## 10. Do Not Do
+## 5. Do Not Do
 
 Do not:
 
 - modify this Decision after activation;
 - modify roadmap or architecture documents;
 - modify GitHub workflows or dependencies;
-- repair unrelated legacy audits or closeout artifacts;
+- repair unrelated legacy audit files;
 - install BMAD;
-- dispatch coding Agents or call model APIs;
+- dispatch Agents or invoke model APIs;
 - execute unknown binaries or reverse tools;
-- modify frontend, User Solve, solver or harness code;
+- modify frontend, User Solve, solvers or harnesses;
+- extend legacy closeout/final-seal systems;
 - create another branch or PR;
-- push to main;
+- push directly to main;
 - merge, rebase, force-push, tag or release;
-- begin Evidence Trust Schema or Binary Evidence Firewall work.
+- begin Evidence Trust Schema or Binary Evidence Firewall implementation.
 
 ---
 
-## 11. Completion Criteria
+## 6. Completion Criteria
 
-This round may recommend `ACCEPTED` only if:
+Recommend `ACCEPTED` only after an independent audit confirms:
 
-1. command IDs and evidence sources are stable;
-2. bootstrap expires deterministically;
-3. required command coverage is complete;
-4. incomplete records fail closed;
-5. operation/network/capability omission cannot bypass policy;
-6. pre and post execution states are distinct;
-7. path risk is wired into the actual LangGraph node;
-8. full graph R0-R3 tests pass;
-9. path contract groups are semantically separate;
-10. report truth generates current-round artifacts;
-11. report, pytest and inventory match the active Decision and real diff;
-12. local report does not claim remote success;
-13. exact-head CI, State Gate and Decision Preflight succeed;
-14. a PR #9 audit comment records those run IDs against the same head;
-15. PR #9 remains Draft until the independent audit publishes `ACCEPTED`.
+1. evidence records are machine generated and cryptographically/temporally valid;
+2. no future timestamp or placeholder digest is accepted;
+3. local reconciliation excludes evaluator and sealer from its subject;
+4. required local evidence is complete;
+5. local commands are not falsely represented as CI evidence;
+6. runtime policy is issued from the active Decision;
+7. workflow identity binds the authorized policy digest;
+8. policy tampering and stale replay block;
+9. artifact mutation grants are command-specific;
+10. local report represents the actual implementation subject;
+11. local status is `LOCAL_RECONCILED` with no contradictory PASSED/BLOCKED fields;
+12. focused tests pass and full-suite truth is recorded;
+13. the subject commit has successful exact-head CI, State Gate and Decision Preflight;
+14. the remote publication seal is posted as a PR audit comment;
+15. PR #9 remains Draft until that final audit completes.
 
-If any blocking condition remains, the result is `REWORK_REQUIRED`.
-
-After acceptance, stop creating Architecture Spine governance rounds. Mark PR #9 ready for review, merge it through the normal GitHub path, then begin Evidence Trust Schema Foundation as a separate product phase.
+If any condition fails, the outcome remains `REWORK_REQUIRED`.
