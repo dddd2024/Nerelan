@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from fnmatch import fnmatch
-from typing import Iterable
 
 from .legacy_adapter import canonical_command
 from .models import ExecutionEnvelope, ExecutionRecord, TransitionCommand, TransitionCommandPlan
@@ -14,7 +13,8 @@ VALID_EXECUTION_SURFACES = frozenset({"local", "ci_only", "remote_observation"})
 
 def validate_command_plan(plan: TransitionCommandPlan) -> tuple[str, ...]:
     errors: list[str] = []
-    seen: set[tuple[str, str]] = set()
+    seen_commands: set[tuple[str, str]] = set()
+    seen_command_ids: set[str] = set()
     if not plan.decision_id:
         errors.append("missing_decision_id")
     if not plan.round_id:
@@ -23,6 +23,12 @@ def validate_command_plan(plan: TransitionCommandPlan) -> tuple[str, ...]:
         identity = (canonical_command(entry.command), entry.execution_surface)
         if not identity[0]:
             errors.append("empty_command")
+        if not entry.command_id:
+            errors.append(f"missing_command_id:{identity[0]}")
+        elif entry.command_id in seen_command_ids:
+            errors.append(f"duplicate_command_id:{entry.command_id}")
+        else:
+            seen_command_ids.add(entry.command_id)
         if entry.execution_surface not in VALID_EXECUTION_SURFACES:
             errors.append(f"invalid_execution_surface:{entry.execution_surface}")
         if not entry.expected_exit_codes:
@@ -33,9 +39,9 @@ def validate_command_plan(plan: TransitionCommandPlan) -> tuple[str, ...]:
             # Bootstrap exception commands are permitted to omit operations
             # because they predate the structured command contract.
             errors.append(f"missing_operations:{identity[0]}")
-        if identity in seen:
+        if identity in seen_commands:
             errors.append(f"duplicate_command:{identity[1]}:{identity[0]}")
-        seen.add(identity)
+        seen_commands.add(identity)
     return tuple(errors)
 
 
@@ -162,52 +168,49 @@ def validate_mutation_grants(
     *,
     generated_artifact_paths: tuple[str, ...] = (),
 ) -> list[str]:
-    """Phase D: enforce command-bound mutation grants for ALL mutated paths.
+    """Enforce command-bound mutation grants for every observed path.
 
-    Replaces the global generated-artifact exemption. Per roadmap rule #1,
-    every observed mutated path must belong to the command's authorized set
-    (``produced_artifacts ∪ allowed_mutated_paths``). ``generated_artifact_paths``
-    is inventory only — it does not grant write permission (rule #2).
-
-    Records carry a ``command_id`` that binds them to a plan entry. When
-    ``command_id`` is empty (e.g. envelopes produced by adapters that
-    predate the ``command_id`` contract), the validator falls back to
-    matching by canonical command string so legacy callers are not
-    silently rejected.
-
-    Returns a list of violation strings. An empty list means all observed
-    mutations are backed by a command-bound grant.
+    Every observed mutated path must belong to the exact plan entry selected by
+    ``record.command_id``. ``generated_artifact_paths`` is inventory only and
+    never grants write permission. Command-string fallback is deliberately
+    forbidden: missing, unknown, or duplicated command IDs must fail closed.
     """
 
     violations: list[str] = []
-    # Index plan entries by command_id for O(1) lookup.
     plan_by_id: dict[str, TransitionCommand] = {}
+    duplicate_ids: set[str] = set()
     for entry in plan.commands:
-        if entry.command_id:
-            plan_by_id[entry.command_id] = entry
+        if not entry.command_id:
+            continue
+        if entry.command_id in plan_by_id:
+            duplicate_ids.add(entry.command_id)
+            continue
+        plan_by_id[entry.command_id] = entry
 
     for record in records:
         record_command_id = record.command_id
+        if record_command_id in duplicate_ids:
+            for mutated_path in record.mutated_paths:
+                violations.append(
+                    f"ambiguous_command_id:{record_command_id}:{mutated_path}"
+                )
+            continue
+
         plan_entry = plan_by_id.get(record_command_id)
-        if plan_entry is None and not record_command_id:
-            # Fallback: match by canonical command string when command_id
-            # is absent. This supports legacy adapters that do not set
-            # command_id on the envelope.
-            requested = canonical_command(record.command)
-            for entry in plan.commands:
-                if canonical_command(entry.command) == requested:
-                    plan_entry = entry
-                    record_command_id = entry.command_id or ""
-                    break
         for mutated_path in record.mutated_paths:
             if plan_entry is None:
                 violations.append(
                     f"unknown_command_id:{record_command_id}:{mutated_path}"
                 )
                 continue
-            # Rule #1: path must be in produced_artifacts OR allowed_mutated_paths.
-            in_produced = _path_in_produced(mutated_path, plan_entry.produced_artifacts)
-            in_allowed = _path_in_produced(mutated_path, plan_entry.allowed_mutated_paths)
+            in_produced = _path_in_produced(
+                mutated_path,
+                plan_entry.produced_artifacts,
+            )
+            in_allowed = _path_in_produced(
+                mutated_path,
+                plan_entry.allowed_mutated_paths,
+            )
             if not in_produced and not in_allowed:
                 violations.append(
                     f"missing_mutation_grant:{record_command_id}:{mutated_path}"
