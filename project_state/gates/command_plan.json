@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260721_architecture_spine_attestation_policy_seal_v1",
-  "round_id": "round_20260721_architecture_spine_attestation_policy_seal_v1",
+  "decision_id": "decision_20260721_architecture_spine_provenance_integration_final_rework_v1",
+  "round_id": "round_20260721_architecture_spine_provenance_integration_final_rework_v1",
   "commands": [
     {
       "command_id": "status.git_status",
@@ -130,8 +130,8 @@
       "subject_to_reconciliation": true
     },
     {
-      "command_id": "test.evidence_authenticity",
-      "command": "python -m pytest tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "command_id": "test.provenance_pipeline",
+      "command": "python -m pytest tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -151,7 +151,7 @@
       "subject_to_reconciliation": true
     },
     {
-      "command_id": "test.runtime_policy_binding",
+      "command_id": "test.runtime_policy_integration",
       "command": "python -m pytest tests/test_runtime_risk_policy.py tests/test_policy_provider.py tests/test_development_graph.py tests/test_risk_classifier.py -q",
       "phase": "test",
       "required": true,
@@ -172,8 +172,8 @@
       "subject_to_reconciliation": true
     },
     {
-      "command_id": "test.mutation_grants_report",
-      "command": "python -m pytest tests/test_command_mutation_grants.py tests/test_transition_report.py tests/test_report_truth.py -q",
+      "command_id": "test.mutation_report_integration",
+      "command": "python -m pytest tests/test_command_mutation_grants.py tests/test_transition_report.py tests/test_report_truth.py tests/test_provenance_integration.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -194,7 +194,7 @@
     },
     {
       "command_id": "test.control_plane",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -284,7 +284,8 @@
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "execution_surface": "local",
       "operations": [
@@ -305,7 +306,8 @@
       "required": true,
       "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
-        0
+        0,
+        1
       ],
       "execution_surface": "local",
       "operations": [
@@ -343,7 +345,7 @@
     },
     {
       "command_id": "bootstrap.python -m pytest tests/test_project_gate.py tests/test_control_p",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py tests/test_trusted_command_runner.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",

@@ -31370,6 +31370,8 @@ def _make_transition_authority():
                 (0,),
                 "local",
                 ("unit_test",),
+                command_id="test.unit",
+                allowed_mutated_paths=("tests/test_project_gate.py",),
             ),
             TransitionCommand(
                 "gh pr checks",
@@ -31378,6 +31380,7 @@ def _make_transition_authority():
                 (0,),
                 "ci_only",
                 ("remote_observation",),
+                command_id="remote.checks",
             ),
         ),
     )
@@ -31424,6 +31427,7 @@ def test_transition_valid_authority_ignores_legacy_acceptance_artifacts(tmp_path
         command="python -m pytest tests/test_project_gate.py -q",
         execution_surface="local",
         mutated_paths=("tests/test_project_gate.py",),
+        command_id="test.unit",
     )
     result = validate_transition(_make_transition_authority(), (envelope,))
     assert result.gate_status == "PASSED"

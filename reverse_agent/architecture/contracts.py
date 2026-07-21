@@ -254,6 +254,7 @@ class DevelopmentWorkflowState(TypedDict, total=False):
     workflow_identity: dict[str, Any]
     risk_decision: dict[str, Any]
     risk_policy_snapshot: dict[str, Any]
+    caller_supplied_risk_policy_snapshot: dict[str, Any]
     authorization_result: dict[str, Any]
     acceptance_result: dict[str, Any]
     node_trace: list[str]
@@ -408,7 +409,14 @@ class RiskPolicySnapshot:
             else CapabilityRiskRule.from_mapping({"operation": item[0], "risk_tier": item[1]})
             for item in raw_rules
         )
-        digest = _compute_policy_digest(decision_id, round_id, path_risk_floor, rules)
+        # Phase E 8.3: preserve a caller-supplied policy_digest so the
+        # provider can detect a forged digest. When the payload omits the
+        # digest (the normal case), recompute it from the canonical content.
+        supplied_digest = payload.get("policy_digest")
+        if isinstance(supplied_digest, str) and supplied_digest:
+            digest = supplied_digest
+        else:
+            digest = _compute_policy_digest(decision_id, round_id, path_risk_floor, rules)
         return cls(
             decision_id=decision_id,
             round_id=round_id,

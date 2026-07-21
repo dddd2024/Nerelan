@@ -145,17 +145,6 @@ def _path_matches_pattern(path: str, pattern: str) -> bool:
     return fnmatch(normalized, candidate)
 
 
-def _path_in_generated(path: str, generated_artifact_paths: tuple[str, ...]) -> bool:
-    """Return True if path is covered by any generated_artifact_paths pattern."""
-
-    normalized = path.replace("\\", "/")
-    for pattern in generated_artifact_paths:
-        candidate = pattern.replace("\\", "/")
-        if fnmatch(normalized, candidate):
-            return True
-    return False
-
-
 def _path_in_produced(path: str, produced_artifacts: tuple[str, ...]) -> bool:
     """Return True if path is covered by any produced_artifacts pattern."""
 
@@ -173,15 +162,21 @@ def validate_mutation_grants(
     *,
     generated_artifact_paths: tuple[str, ...] = (),
 ) -> list[str]:
-    """Phase E: enforce command-bound mutation grants for generated artifacts.
+    """Phase D: enforce command-bound mutation grants for ALL mutated paths.
 
-    Replaces the global generated-artifact exemption. A path in
-    ``generated_artifact_paths`` may only be mutated by a command whose
-    ``produced_artifacts`` entry covers that path. Non-artifact paths are
-    not subject to this check (they are governed by ``allowed_path_scope``).
+    Replaces the global generated-artifact exemption. Per roadmap rule #1,
+    every observed mutated path must belong to the command's authorized set
+    (``produced_artifacts ∪ allowed_mutated_paths``). ``generated_artifact_paths``
+    is inventory only — it does not grant write permission (rule #2).
+
+    Records carry a ``command_id`` that binds them to a plan entry. When
+    ``command_id`` is empty (e.g. envelopes produced by adapters that
+    predate the ``command_id`` contract), the validator falls back to
+    matching by canonical command string so legacy callers are not
+    silently rejected.
 
     Returns a list of violation strings. An empty list means all observed
-    mutations of generated artifacts are backed by a command-bound grant.
+    mutations are backed by a command-bound grant.
     """
 
     violations: list[str] = []
@@ -194,16 +189,26 @@ def validate_mutation_grants(
     for record in records:
         record_command_id = record.command_id
         plan_entry = plan_by_id.get(record_command_id)
+        if plan_entry is None and not record_command_id:
+            # Fallback: match by canonical command string when command_id
+            # is absent. This supports legacy adapters that do not set
+            # command_id on the envelope.
+            requested = canonical_command(record.command)
+            for entry in plan.commands:
+                if canonical_command(entry.command) == requested:
+                    plan_entry = entry
+                    record_command_id = entry.command_id or ""
+                    break
         for mutated_path in record.mutated_paths:
-            if not _path_in_generated(mutated_path, generated_artifact_paths):
-                # Non-artifact paths are not subject to command-bound grants.
-                continue
             if plan_entry is None:
                 violations.append(
                     f"unknown_command_id:{record_command_id}:{mutated_path}"
                 )
                 continue
-            if not _path_in_produced(mutated_path, plan_entry.produced_artifacts):
+            # Rule #1: path must be in produced_artifacts OR allowed_mutated_paths.
+            in_produced = _path_in_produced(mutated_path, plan_entry.produced_artifacts)
+            in_allowed = _path_in_produced(mutated_path, plan_entry.allowed_mutated_paths)
+            if not in_produced and not in_allowed:
                 violations.append(
                     f"missing_mutation_grant:{record_command_id}:{mutated_path}"
                 )

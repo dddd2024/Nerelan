@@ -1,8 +1,10 @@
-"""Phase E: command-bound mutation grants tests.
+"""Phase D: command-bound mutation grants tests.
 
 Replaces the global generated-artifact exemption with command-specific
-grants. A path in ``generated_artifact_paths`` may only be mutated by the
-command whose ``produced_artifacts`` entry covers that path (F7).
+grants. Per roadmap rule #1, ALL observed mutated paths must belong to
+the command's authorized set (``produced_artifacts ∪ allowed_mutated_paths``).
+``generated_artifact_paths`` is inventory only — it does not grant write
+permission (rule #2). Forbidden paths always take priority (rule #9).
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ def _command(
     command_id: str = "gate.command_plan",
     command: str = "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
     produced_artifacts: tuple[str, ...] = (),
+    allowed_mutated_paths: tuple[str, ...] = (),
 ) -> TransitionCommand:
     return TransitionCommand(
         command_id=command_id,
@@ -38,6 +41,7 @@ def _command(
         operations=("command_plan_generation",),
         authority_origin="normal_plan",
         produced_artifacts=produced_artifacts,
+        allowed_mutated_paths=allowed_mutated_paths,
     )
 
 
@@ -150,20 +154,64 @@ def test_command_can_only_mutate_its_own_artifacts() -> None:
     assert any("missing_mutation_grant" in v for v in violations), violations
 
 
-def test_command_can_mutate_non_artifact_paths_freely() -> None:
-    """Non-artifact paths are not subject to produced_artifacts binding."""
+def test_command_with_allowed_mutated_paths_can_mutate_them() -> None:
+    """A command may mutate paths listed in its allowed_mutated_paths (rule #1)."""
 
-    cmd = _command(produced_artifacts=())
+    cmd = _command(
+        allowed_mutated_paths=("reverse_agent/example.py",),
+    )
     plan = _plan(cmd)
     record = _record(
-        mutated_paths=("reverse_agent/example.py",),  # not a generated artifact
+        mutated_paths=("reverse_agent/example.py",),
     )
     violations = validate_mutation_grants(
         plan,
         (record,),
-        generated_artifact_paths=("project_state/gates/command_plan.json",),
+        generated_artifact_paths=(),
     )
     assert violations == [], violations
+
+
+def test_command_without_grant_cannot_mutate_non_artifact_path() -> None:
+    """Rule #1: ALL mutated paths must be in the command's authorized set.
+
+    A command without produced_artifacts or allowed_mutated_paths cannot
+    mutate any path — not even non-artifact paths.
+    """
+
+    cmd = _command(produced_artifacts=(), allowed_mutated_paths=())
+    plan = _plan(cmd)
+    record = _record(
+        mutated_paths=("reverse_agent/example.py",),  # not in any grant
+    )
+    violations = validate_mutation_grants(
+        plan,
+        (record,),
+        generated_artifact_paths=(),
+    )
+    assert any("missing_mutation_grant" in v for v in violations), violations
+
+
+def test_command_cannot_mutate_path_outside_allowed_mutated_paths() -> None:
+    """A path not covered by allowed_mutated_paths or produced_artifacts fails."""
+
+    cmd = _command(
+        allowed_mutated_paths=("reverse_agent/example.py",),
+    )
+    plan = _plan(cmd)
+    record = _record(
+        mutated_paths=(
+            "reverse_agent/example.py",  # granted
+            "reverse_agent/other.py",  # NOT granted
+        ),
+    )
+    violations = validate_mutation_grants(
+        plan,
+        (record,),
+        generated_artifact_paths=(),
+    )
+    assert any("reverse_agent/other.py" in v for v in violations), violations
+    assert not any("reverse_agent/example.py" in v for v in violations), violations
 
 
 def test_unknown_command_id_cannot_mutate_artifacts() -> None:

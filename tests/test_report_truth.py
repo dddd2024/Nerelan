@@ -7,6 +7,11 @@ from reverse_agent.architecture.report_truth import (
     RemoteObservation,
     ReportTruth,
 )
+from reverse_agent.control_plane.report_binding import (
+    ClassifiedPaths,
+    ReportSubjectBinding,
+    classify_path,
+)
 
 
 # --- Test 14: changed-file inventory matches Git diff ---------------------
@@ -234,3 +239,129 @@ def test_report_truth_to_dict_preserves_provenance() -> None:
     assert payload["remote_observation"]["head_sha"] == "b" * 40
     assert payload["local_status"] == "LOCAL_VALIDATED"
     assert payload["internally_consistent"] is True
+
+
+# --- Phase F 9.2: changed-file inventory classification ------------------
+
+
+def test_classify_path_sorts_real_code_into_implementation() -> None:
+    """Real code and test paths are ``implementation``."""
+    assert classify_path("reverse_agent/control_plane/transition.py") == "implementation"
+    assert classify_path("reverse_agent/architecture/contracts.py") == "implementation"
+    assert classify_path("tests/test_report_truth.py") == "implementation"
+    assert classify_path("tests/test_development_graph.py") == "implementation"
+
+
+def test_classify_path_sorts_decision_packet_into_governance() -> None:
+    """The Decision itself is governance, not implementation."""
+    assert classify_path("project_state/decision_packet.md") == "governance"
+
+
+def test_classify_path_sorts_roadmap_into_governance() -> None:
+    """The roadmap is governance, not implementation."""
+    assert classify_path("docs/roadmap/architecture_spine_provenance_integration_final_rework_v1.md") == "governance"
+
+
+def test_classify_path_sorts_gate_artifacts_into_generated() -> None:
+    """Auto-generated report/gate artifacts are ``generated``."""
+    assert classify_path("project_state/gates/command_plan.json") == "generated"
+    assert classify_path("project_state/gates/execution_log.json") == "generated"
+    assert classify_path("project_state/gates/final_gate_result.json") == "generated"
+    assert classify_path("project_state/execution_report.md") == "generated"
+    assert classify_path("project_state/codex_execution_report.md") == "generated"
+    assert classify_path("project_state/pytest_result.txt") == "generated"
+
+
+def test_changed_file_inventory_classifies_paths_into_three_buckets() -> None:
+    """Phase F 9.2: the inventory must distinguish three path categories."""
+    diff = (
+        "reverse_agent/control_plane/transition.py\n"
+        "tests/test_report_truth.py\n"
+        "project_state/decision_packet.md\n"
+        "docs/roadmap/architecture_spine_provenance_integration_final_rework_v1.md\n"
+        "project_state/gates/command_plan.json\n"
+        "project_state/execution_report.md\n"
+    )
+    inventory = ChangedFileInventory.from_git_diff(
+        diff,
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+    )
+    classified = ClassifiedPaths.from_paths(inventory.paths)
+    assert classified.implementation_paths == (
+        "reverse_agent/control_plane/transition.py",
+        "tests/test_report_truth.py",
+    )
+    assert classified.governance_paths == (
+        "docs/roadmap/architecture_spine_provenance_integration_final_rework_v1.md",
+        "project_state/decision_packet.md",
+    )
+    assert classified.generated_artifact_paths == (
+        "project_state/execution_report.md",
+        "project_state/gates/command_plan.json",
+    )
+
+
+def test_changed_file_inventory_excludes_decision_from_implementation() -> None:
+    """The Decision itself must not appear in ``implementation_paths``."""
+    diff = (
+        "reverse_agent/example.py\n"
+        "project_state/decision_packet.md\n"
+    )
+    inventory = ChangedFileInventory.from_git_diff(
+        diff,
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+    )
+    classified = ClassifiedPaths.from_paths(inventory.paths)
+    assert "project_state/decision_packet.md" not in classified.implementation_paths
+    assert "project_state/decision_packet.md" in classified.governance_paths
+
+
+def test_changed_file_inventory_excludes_generated_artifacts_from_implementation() -> None:
+    """Auto-generated artifacts must not appear in ``implementation_paths``."""
+    diff = (
+        "reverse_agent/example.py\n"
+        "project_state/gates/command_plan.json\n"
+        "project_state/execution_report.md\n"
+    )
+    inventory = ChangedFileInventory.from_git_diff(
+        diff,
+        base_sha="a" * 40,
+        head_sha="b" * 40,
+    )
+    classified = ClassifiedPaths.from_paths(inventory.paths)
+    assert "project_state/gates/command_plan.json" not in classified.implementation_paths
+    assert "project_state/execution_report.md" not in classified.implementation_paths
+    assert "project_state/gates/command_plan.json" in classified.generated_artifact_paths
+    assert "project_state/execution_report.md" in classified.generated_artifact_paths
+
+
+# --- Phase F 9.1: report subject binding uses implementation paths --------
+
+
+def test_report_subject_binding_includes_implementation_subject_paths() -> None:
+    """Phase F 9.1: the binding must record ``implementation_subject_paths``."""
+    binding = ReportSubjectBinding(
+        activation_base_sha="a" * 40,
+        subject_tree_digest="c" * 64,
+        subject_diff_digest="d" * 64,
+        observed_worktree_paths=("reverse_agent/example.py",),
+        implementation_subject_paths=("reverse_agent/example.py",),
+        local_seal_digest="e" * 64,
+    )
+    payload = binding.to_dict()
+    assert payload["implementation_subject_paths"] == ["reverse_agent/example.py"]
+
+
+def test_report_subject_binding_defaults_implementation_subject_paths_to_empty() -> None:
+    """When not provided, ``implementation_subject_paths`` defaults to empty."""
+    binding = ReportSubjectBinding(
+        activation_base_sha="a" * 40,
+        subject_tree_digest="c" * 64,
+        subject_diff_digest="d" * 64,
+        observed_worktree_paths=("reverse_agent/example.py",),
+        local_seal_digest="e" * 64,
+    )
+    payload = binding.to_dict()
+    assert payload["implementation_subject_paths"] == []

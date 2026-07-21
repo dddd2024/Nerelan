@@ -162,6 +162,10 @@ def _parse_structured_command(raw: Mapping[str, Any], *, bootstrap_exception: bo
             else str(raw.get("authority_origin") or "normal_plan")
         ),
         subject_to_reconciliation=bool(raw.get("subject_to_reconciliation", True)),
+        allowed_mutated_paths=tuple(
+            str(p).strip() for p in (raw.get("allowed_mutated_paths") or [])
+            if isinstance(p, str) and p.strip()
+        ),
     )
 
 
@@ -540,6 +544,7 @@ def load_execution_envelopes_from_log(path: Path) -> tuple[ExecutionEnvelope, ..
             "bootstrap_gate",
             "bootstrap_test",
         }
+        command_id = str(entry.get("command_id") or "").strip()
         envelopes.append(
             ExecutionEnvelope(
                 command=command,
@@ -550,6 +555,7 @@ def load_execution_envelopes_from_log(path: Path) -> tuple[ExecutionEnvelope, ..
                 started_at=str(entry.get("started_at") or ""),
                 observed_at=str(entry.get("observed_at") or ""),
                 bootstrap_exception=bootstrap_exception,
+                command_id=command_id,
             )
         )
     return tuple(envelopes)

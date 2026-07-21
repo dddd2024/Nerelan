@@ -60,6 +60,7 @@ class TransitionCommand:
     authority_origin: str = "normal_plan"
     produced_artifacts: tuple[str, ...] = ()
     subject_to_reconciliation: bool = True
+    allowed_mutated_paths: tuple[str, ...] = ()
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "TransitionCommand":
@@ -81,6 +82,7 @@ class TransitionCommand:
             authority_origin=str(payload.get("authority_origin") or "normal_plan"),
             produced_artifacts=_strings(payload.get("produced_artifacts")),
             subject_to_reconciliation=bool(payload.get("subject_to_reconciliation", True)),
+            allowed_mutated_paths=_strings(payload.get("allowed_mutated_paths")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -100,6 +102,7 @@ class TransitionCommand:
             "bootstrap_exception": self.bootstrap_exception,
             "produced_artifacts": list(self.produced_artifacts),
             "subject_to_reconciliation": self.subject_to_reconciliation,
+            "allowed_mutated_paths": list(self.allowed_mutated_paths),
         }
 
 
@@ -169,6 +172,11 @@ class ExecutionRecord:
 
     Required by Phase A.2: missing key fields must BLOCKED rather than
     be silently accepted via empty-string defaults.
+
+    Phase B (final rework): ``record_id``, ``plan_digest``,
+    ``raw_stdout_path``, ``raw_stderr_path`` and ``sequence`` bind each
+    record to the plan that authorized it and to the persisted raw
+    evidence. These fields are populated by the TrustedCommandRunner.
     """
 
     command_id: str
@@ -184,6 +192,13 @@ class ExecutionRecord:
     stdout_digest: str
     stderr_digest: str
     authority_origin: str = "normal_plan"
+    record_id: str = ""
+    plan_digest: str = ""
+    decision_id: str = ""
+    round_id: str = ""
+    sequence: int = 0
+    raw_stdout_path: str = ""
+    raw_stderr_path: str = ""
 
     def __post_init__(self) -> None:
         for field_name in _EXECUTION_RECORD_REQUIRED_FIELDS:
@@ -211,6 +226,13 @@ class ExecutionRecord:
             stdout_digest=str(payload.get("stdout_digest") or ""),
             stderr_digest=str(payload.get("stderr_digest") or ""),
             authority_origin=str(payload.get("authority_origin") or "normal_plan"),
+            record_id=str(payload.get("record_id") or ""),
+            plan_digest=str(payload.get("plan_digest") or ""),
+            decision_id=str(payload.get("decision_id") or ""),
+            round_id=str(payload.get("round_id") or ""),
+            sequence=int(payload.get("sequence") or 0),
+            raw_stdout_path=str(payload.get("raw_stdout_path") or ""),
+            raw_stderr_path=str(payload.get("raw_stderr_path") or ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -228,6 +250,13 @@ class ExecutionRecord:
             "stdout_digest": self.stdout_digest,
             "stderr_digest": self.stderr_digest,
             "authority_origin": self.authority_origin,
+            "record_id": self.record_id,
+            "plan_digest": self.plan_digest,
+            "decision_id": self.decision_id,
+            "round_id": self.round_id,
+            "sequence": self.sequence,
+            "raw_stdout_path": self.raw_stdout_path,
+            "raw_stderr_path": self.raw_stderr_path,
         }
 
 
@@ -293,6 +322,7 @@ class ExecutionEnvelope:
     started_at: str = ""
     observed_at: str = ""
     bootstrap_exception: bool = False
+    command_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -304,6 +334,7 @@ class ExecutionEnvelope:
             "started_at": self.started_at,
             "observed_at": self.observed_at,
             "bootstrap_exception": self.bootstrap_exception,
+            "command_id": self.command_id,
         }
 
 

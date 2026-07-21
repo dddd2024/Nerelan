@@ -1,4 +1,10 @@
-"""LangGraph-only, non-dispatching development workflow."""
+"""LangGraph-only, non-dispatching development workflow.
+
+Phase E: the graph is built from a trusted ``AuthorizedRiskPolicyProvider``
+and a ``TrustAuthorizationPort``. Callers cannot inject arbitrary policy
+snapshots into initial state — the provider is the single authoritative
+source (roadmap 8.1).
+"""
 
 from __future__ import annotations
 
@@ -9,6 +15,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from reverse_agent.architecture.contracts import DevelopmentWorkflowState
+from reverse_agent.architecture.policy_provider import AuthorizedRiskPolicyProvider
 from reverse_agent.architecture.risk import WorkflowRoute
 from reverse_agent.trust.authorization import TrustAuthorizationPort
 
@@ -24,11 +31,23 @@ def _route(state: DevelopmentWorkflowState) -> Literal["acceptance_gate", "reque
     return "request_trust_authorization" if route is WorkflowRoute.TRUST_AUTHORIZATION_REQUIRED else "acceptance_gate"
 
 
-def build_development_graph(port: TrustAuthorizationPort, *, checkpointer: InMemorySaver | None = None):
+def build_development_graph(
+    port: TrustAuthorizationPort,
+    *,
+    provider: AuthorizedRiskPolicyProvider,
+    checkpointer: InMemorySaver | None = None,
+):
+    """Build the development workflow graph.
+
+    Phase E: ``provider`` is required. It is the single authoritative source
+    of ``RiskPolicySnapshot`` and ``WorkflowIdentity``. Callers cannot supply
+    their own snapshot into initial state (roadmap 8.1).
+    """
+
     builder = StateGraph(DevelopmentWorkflowState)
-    builder.add_node("load_work_item", load_work_item_node)
+    builder.add_node("load_work_item", partial(load_work_item_node, provider=provider))
     builder.add_node("load_planning_context", load_planning_context_node)
-    builder.add_node("classify_risk", classify_risk_node)
+    builder.add_node("classify_risk", partial(classify_risk_node, provider=provider))
     builder.add_node("request_trust_authorization", partial(request_authorization_node, port=port))
     builder.add_node("acceptance_gate", acceptance_gate_node)
     builder.add_edge(START, "load_work_item")

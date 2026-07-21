@@ -18,9 +18,11 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterable
 
 from .models import (
+    BootstrapState,
     ExecutionRecord,
     TransitionCommand,
     TransitionCommandPlan,
@@ -78,18 +80,34 @@ class ReconciliationCandidate:
 def evaluate_reconciliation(
     plan: TransitionCommandPlan,
     records: Iterable[ExecutionRecord],
+    *,
+    repo_root: Path | None = None,
+    evaluation_time: str | None = None,
+    bootstrap_state: BootstrapState | None = None,
+    log_generated_at: str | None = None,
 ) -> ReconciliationCandidate:
     """Evaluate sealed subject records against the plan.
 
     The evaluator/sealer command ids (``gate.reconcile_evaluate``,
     ``gate.seal_local``) are filtered out of the subject set so the gate
     cannot validate itself (F4).
+
+    Phase C (final rework): authenticity validation is a hard prerequisite.
+    Each record is validated before it can become a match. Any authenticity
+    error blocks the candidate (F3).
     """
+
+    from .evidence_recorder import validate_record_authenticity
 
     subject_records = tuple(
         r for r in records
         if r.command_id not in _SELF_COMMAND_IDS
     )
+
+    # Use current UTC time if no evaluation_time is supplied.
+    if evaluation_time is None:
+        from datetime import datetime, timezone
+        evaluation_time = datetime.now(tz=timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     matched: list[dict[str, Any]] = []
     matched_ids: list[str] = []
@@ -100,6 +118,20 @@ def evaluate_reconciliation(
         plan_by_id[entry.command_id] = entry
 
     for record in subject_records:
+        # Phase C: authenticity gate is a hard prerequisite to matching.
+        auth_errors = validate_record_authenticity(
+            record,
+            plan=plan,
+            recorder_observed_at=evaluation_time,
+            bootstrap_state=bootstrap_state,
+            repo_root=repo_root,
+            log_generated_at=log_generated_at,
+        )
+        if auth_errors:
+            for err in auth_errors:
+                blocking_reasons.append(f"authenticity:{record.command_id}:{err}")
+            continue
+
         plan_entry = plan_by_id.get(record.command_id)
         if plan_entry is None:
             blocking_reasons.append(

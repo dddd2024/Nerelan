@@ -14,7 +14,16 @@ def _authority() -> TransitionAuthority:
     plan = TransitionCommandPlan(
         "decision_x",
         "round_x",
-        (TransitionCommand(command, "test", True, (0,), "local", ("unit_test",)),),
+        (TransitionCommand(
+            command,
+            "test",
+            True,
+            (0,),
+            "local",
+            ("unit_test",),
+            command_id="test.unit",
+            allowed_mutated_paths=("tests/test_architecture_contracts.py",),
+        ),),
     )
     return TransitionAuthority(
         decision=decision,

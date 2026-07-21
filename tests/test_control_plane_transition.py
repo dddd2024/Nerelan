@@ -463,6 +463,75 @@ def test_transition_preflight_blocks_when_reference_path_mutated(
     assert reference_check["status"] == "FAIL"
 
 
+def test_transition_preflight_blocks_when_mutation_grant_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Phase D: a command mutating a path outside its grant must block.
+
+    Rule #1: every observed mutated path must belong to the command's
+    authorized set (``produced_artifacts ∪ allowed_mutated_paths``).
+    """
+
+    from reverse_agent.control_plane.models import (
+        ExecutionEnvelope as TransitionExecutionEnvelope,
+    )
+    from reverse_agent.control_plane.models import (
+        TransitionAuthority,
+        TransitionCommand,
+        TransitionCommandPlan,
+        TransitionDecision,
+    )
+    from reverse_agent.control_plane.transition import validate_transition
+
+    decision = TransitionDecision(
+        "decision_grants", "round_grants", "APPROVED", "engineering_branch",
+        ("reverse-agent-iteration@v2",),
+    )
+    plan = TransitionCommandPlan(
+        decision_id=decision.decision_id,
+        round_id=decision.round_id,
+        commands=(
+            TransitionCommand(
+                "python -m pytest tests/test_x.py -q",
+                "test", True, (0,), "local", ("unit_test",),
+                command_id="test.unit",
+                allowed_mutated_paths=("tests/test_x.py",),
+            ),
+        ),
+    )
+    authority = TransitionAuthority(
+        decision=decision,
+        command_plan=plan,
+        expected_decision_id=decision.decision_id,
+        expected_round_id=decision.round_id,
+        active_skills=("reverse-agent-iteration@v2",),
+        legal_mainlines=("engineering_branch",),
+        expected_branch="codex/example-v1",
+        actual_branch="codex/example-v1",
+        base_sha="a" * 40,
+        merge_base_sha="a" * 40,
+        decision_commit_sha="b" * 40,
+        decision_is_ancestor=True,
+        observed_paths=(),
+        allowed_paths=("tests/**",),
+        forbidden_paths=("frontend/**",),
+        forbidden_operations=(),
+    )
+    # Envelope mutates a path NOT in the command's allowed_mutated_paths.
+    envelope = TransitionExecutionEnvelope(
+        command="python -m pytest tests/test_x.py -q",
+        execution_surface="local",
+        mutated_paths=("tests/test_OTHER.py",),  # not granted
+        operations=("unit_test",),
+        command_id="test.unit",
+    )
+    result = validate_transition(authority, (envelope,), mode="post")
+    assert result.gate_status == "BLOCKED"
+    grant_check = next(c for c in result.checks if c["name"] == "mutation_grants_enforced")
+    assert grant_check["status"] == "FAIL"
+    assert "tests/test_OTHER.py" in grant_check["detail"]
+
+
 @pytest.mark.parametrize("missing", ["required_branch", "forbidden_mutated_paths"])
 def test_transition_authority_missing_scope_fails_closed(tmp_path: Path, missing: str) -> None:
     state_dir = tmp_path / "project_state"

@@ -78,8 +78,8 @@ def _authentic_record(
         operations=("repository_observation",),
         mutated_paths=(),
         exit_code=0,
-        started_at="2026-07-21T10:00:00Z",
-        observed_at="2026-07-21T10:00:01Z",
+        started_at="2026-07-21T08:00:00Z",
+        observed_at="2026-07-21T08:00:01Z",
         head_before="a" * 40,
         head_after="a" * 40,
         stdout_digest="sha256:" + "0" * 64,
@@ -173,7 +173,7 @@ def test_evaluate_reconciliation_blocks_on_exit_code_outside_expected() -> None:
         operations=("repository_observation",),
         mutated_paths=(),
         exit_code=2,  # not in expected [0]
-        started_at="2026-07-21T10:00:00Z",
+        started_at="2026-07-21T08:00:00Z",
         observed_at="2026-07-21T10:00:01Z",
         head_before="a" * 40,
         head_after="a" * 40,
@@ -382,6 +382,179 @@ def test_subject_diff_digest_is_stable_sha256(tmp_path: Path) -> None:
     assert len(digest) == 64
     assert all(c in "0123456789abcdef" for c in digest)
     assert hashlib.sha256(diff_text.encode("utf-8")).hexdigest() == digest
+
+
+# ---------------------------------------------------------------------------
+# Phase C (final rework): Authenticity gate is a hard prerequisite to
+# reconciliation. The evaluator must call validate_record_authenticity for
+# each record BEFORE treating it as a match. Any authenticity error blocks
+# the candidate (F3).
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_reconciliation_blocks_on_future_timestamp() -> None:
+    """A record with a future timestamp must block the candidate (F3)."""
+
+    plan = _plan_with_commands(_command())
+    record = ExecutionRecord(
+        command_id="status.git_status",
+        command="git status --short",
+        execution_surface="local",
+        operations=("repository_observation",),
+        mutated_paths=(),
+        exit_code=0,
+        started_at="2099-12-31T23:59:59Z",  # future
+        observed_at="2099-12-31T23:59:59Z",  # future
+        head_before="a" * 40,
+        head_after="a" * 40,
+        stdout_digest="sha256:" + "0" * 64,
+        stderr_digest="sha256:" + "0" * 64,
+        authority_origin="normal_plan",
+    )
+    candidate = evaluate_reconciliation(
+        plan, (record,), evaluation_time="2026-07-21T08:00:00Z"
+    )
+    assert candidate.status == "BLOCKED"
+    assert any("future_timestamp" in r for r in candidate.blocking_reasons)
+
+
+def test_evaluate_reconciliation_blocks_on_nonexistent_git_sha(tmp_path: Path) -> None:
+    """A record with a git SHA that doesn't exist in the repo must block (F3)."""
+
+    import subprocess
+
+    subprocess.run(["git", "init", "-q"], cwd=str(tmp_path), check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@e.com"], cwd=str(tmp_path), check=True
+    )
+    subprocess.run(["git", "config", "user.name", "T"], cwd=str(tmp_path), check=True)
+    (tmp_path / "f.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=str(tmp_path), check=True)
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=str(tmp_path), check=True)
+
+    plan = _plan_with_commands(_command())
+    record = ExecutionRecord(
+        command_id="status.git_status",
+        command="git status --short",
+        execution_surface="local",
+        operations=("repository_observation",),
+        mutated_paths=(),
+        exit_code=0,
+        started_at="2026-07-21T08:00:00Z",
+        observed_at="2026-07-21T10:00:01Z",
+        head_before="b" * 40,  # doesn't exist in repo
+        head_after="b" * 40,
+        stdout_digest="sha256:" + "0" * 64,
+        stderr_digest="sha256:" + "0" * 64,
+        authority_origin="normal_plan",
+    )
+    candidate = evaluate_reconciliation(plan, (record,), repo_root=tmp_path)
+    assert candidate.status == "BLOCKED"
+    assert any("git_object_not_found" in r for r in candidate.blocking_reasons)
+
+
+def test_evaluate_reconciliation_blocks_on_missing_raw_evidence(tmp_path: Path) -> None:
+    """A record pointing to non-existent raw evidence must block (F3)."""
+
+    plan = _plan_with_commands(_command())
+    record = ExecutionRecord(
+        command_id="status.git_status",
+        command="git status --short",
+        execution_surface="local",
+        operations=("repository_observation",),
+        mutated_paths=(),
+        exit_code=0,
+        started_at="2026-07-21T08:00:00Z",
+        observed_at="2026-07-21T10:00:01Z",
+        head_before="a" * 40,
+        head_after="a" * 40,
+        stdout_digest="sha256:" + "0" * 64,
+        stderr_digest="sha256:" + "0" * 64,
+        authority_origin="normal_plan",
+        raw_stdout_path="evidence/missing/stdout.bin",  # doesn't exist
+        raw_stderr_path="evidence/missing/stderr.bin",
+    )
+    candidate = evaluate_reconciliation(plan, (record,), repo_root=tmp_path)
+    assert candidate.status == "BLOCKED"
+    assert any("raw_evidence_missing" in r for r in candidate.blocking_reasons)
+
+
+def test_evaluate_reconciliation_blocks_on_bootstrap_after_expiry() -> None:
+    """A bootstrap record after expiry must block the candidate (F4)."""
+
+    from reverse_agent.control_plane.models import BootstrapState
+
+    plan = _plan_with_commands(_command())
+    record = ExecutionRecord(
+        command_id="status.git_status",
+        command="git status --short",
+        execution_surface="local",
+        operations=("repository_observation",),
+        mutated_paths=(),
+        exit_code=0,
+        started_at="2026-07-21T08:00:00Z",
+        observed_at="2026-07-21T10:00:01Z",
+        head_before="a" * 40,
+        head_after="a" * 40,
+        stdout_digest="sha256:" + "0" * 64,
+        stderr_digest="sha256:" + "0" * 64,
+        authority_origin="bootstrap_exception",
+    )
+    bootstrap = BootstrapState(
+        status="BOOTSTRAP_EXPIRED",
+        expired_at="2026-07-21T09:00:00Z",
+    )
+    candidate = evaluate_reconciliation(
+        plan, (record,), bootstrap_state=bootstrap
+    )
+    assert candidate.status == "BLOCKED"
+    assert any("bootstrap_authority_after_expiry" in r for r in candidate.blocking_reasons)
+
+
+def test_evaluate_reconciliation_blocks_on_digest_mismatch_with_raw_evidence(
+    tmp_path: Path,
+) -> None:
+    """A record whose digest doesn't match the raw evidence must block (F3)."""
+
+    evidence_dir = tmp_path / "evidence" / "rec1"
+    evidence_dir.mkdir(parents=True)
+    (evidence_dir / "stdout.bin").write_bytes(b"real output")
+    (evidence_dir / "stderr.bin").write_bytes(b"")
+
+    plan = _plan_with_commands(_command())
+    record = ExecutionRecord(
+        command_id="status.git_status",
+        command="git status --short",
+        execution_surface="local",
+        operations=("repository_observation",),
+        mutated_paths=(),
+        exit_code=0,
+        started_at="2026-07-21T08:00:00Z",
+        observed_at="2026-07-21T10:00:01Z",
+        head_before="a" * 40,
+        head_after="a" * 40,
+        stdout_digest="sha256:" + "0" * 64,  # doesn't match "real output"
+        stderr_digest="sha256:" + "0" * 64,  # doesn't match ""
+        authority_origin="normal_plan",
+        raw_stdout_path="evidence/rec1/stdout.bin",
+        raw_stderr_path="evidence/rec1/stderr.bin",
+    )
+    candidate = evaluate_reconciliation(plan, (record,), repo_root=tmp_path)
+    assert candidate.status == "BLOCKED"
+    assert any("digest_mismatch" in r for r in candidate.blocking_reasons)
+
+
+def test_evaluate_reconciliation_blocks_on_generated_at_before_records() -> None:
+    """generated_at must be >= max(observed_at) (F3)."""
+
+    plan = _plan_with_commands(_command())
+    record = _authentic_record()
+    candidate = evaluate_reconciliation(
+        plan, (record,),
+        log_generated_at="2026-07-21T07:00:00Z",  # before observed_at
+    )
+    assert candidate.status == "BLOCKED"
+    assert any("generated_at_before_records" in r for r in candidate.blocking_reasons)
 
 
 def test_report_subject_binding_captures_required_fields(tmp_path: Path) -> None:

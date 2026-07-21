@@ -332,16 +332,16 @@ def validate_transition(
     mutated_paths = tuple(dict.fromkeys(
         (*authority.observed_paths, *(path for envelope in envelopes for path in envelope.mutated_paths))
     ))
-    # Phase E: generated artifact paths are authorized outputs written by their
-    # designated generator commands. They are exempt from the allowed-path-scope
-    # check (they are not in ``allowed_paths``) and from the path-risk floor
-    # (they are authorized writes, not arbitrary mutations of sensitive paths).
-    generated_set = authority.generated_artifact_paths
-    non_generated_paths = tuple(
-        path for path in mutated_paths
-        if not any(_path_matches(path, pattern) for pattern in generated_set)
-    )
-    outside_scope = _paths_within_scope(non_generated_paths, authority.allowed_paths)
+    # Phase D: remove global generated-artifact exemption. ``generated_artifact_paths``
+    # is inventory only (rule #2). A path is authorized for write only if it is
+    # in the decision-level ``allowed_paths`` OR in some command's grant
+    # (``produced_artifacts ∪ allowed_mutated_paths``). Per-command binding is
+    # enforced separately by ``mutation_grants_enforced`` (rule #1).
+    command_granted_paths: tuple[str, ...] = ()
+    for entry in authority.command_plan.commands:
+        command_granted_paths = (*command_granted_paths, *entry.produced_artifacts, *entry.allowed_mutated_paths)
+    effective_allowed_scope = tuple(dict.fromkeys((*authority.allowed_paths, *command_granted_paths)))
+    outside_scope = _paths_within_scope(mutated_paths, effective_allowed_scope)
     forbidden_paths = _paths_in_forbidden(mutated_paths, authority.forbidden_paths)
     checks.append(_check("allowed_path_scope", not outside_scope, f"outside={list(outside_scope)}"))
     checks.append(_check("forbidden_paths", not forbidden_paths, f"forbidden={list(forbidden_paths)}"))
@@ -355,6 +355,21 @@ def validate_transition(
         "reference_paths_read_only",
         not reference_violations,
         f"violations={list(reference_violations)}",
+    ))
+
+    # Phase D: command-bound mutation grants. Each envelope's mutated paths
+    # must be backed by its command's ``produced_artifacts ∪ allowed_mutated_paths``
+    # (rule #1). ``generated_artifact_paths`` does NOT grant write permission.
+    from .command_authority import validate_mutation_grants
+    mutation_violations = validate_mutation_grants(
+        authority.command_plan,
+        envelopes,
+        generated_artifact_paths=authority.generated_artifact_paths,
+    )
+    checks.append(_check(
+        "mutation_grants_enforced",
+        not mutation_violations,
+        f"violations={list(mutation_violations)}",
     ))
 
     # Capability policy mapping.
@@ -392,11 +407,11 @@ def validate_transition(
     # but does not lower the risk classification; an allowed path that is also
     # in the risk floor (e.g. .github/workflows/**) must still be flagged so
     # the runtime can route to Trust Authorization.
-    # Phase E: generated_artifact_paths are exempt — they are authorized
-    # outputs written by their generator commands, not arbitrary mutations.
+    # Phase D: generated_artifact_paths no longer exempt — all mutated paths
+    # are subject to the risk floor (rule #2: no auto-exemption).
     if authority.path_risk_floor is not None and authority.path_risk_floor.entries:
         floor_violations = _path_risk_floor_violations(
-            non_generated_paths,
+            mutated_paths,
             authority.path_risk_floor,
             minimum="R2",
         )
