@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260722_p0_standard_profile_compatibility_rework_v2",
-  "round_id": "round_20260722_p0_standard_profile_compatibility_rework_v2",
+  "decision_id": "decision_20260722_p0_command_plan_contract_compatibility_rework_v3",
+  "round_id": "round_20260722_p0_command_plan_contract_compatibility_rework_v3",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,15 +13,15 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260722_p0_test_compatibility_and_completion_rework_v1",
-  "follows_last_round_id": "round_20260722_p0_test_compatibility_and_completion_rework_v1",
-  "previous_audit_outcome": "BLOCKED_PROFILE_CONTRACT_MISMATCH",
-  "workstream_id": "p0-standard-profile-compatibility-rework-v2",
+  "follows_last_decision_id": "decision_20260722_p0_standard_profile_compatibility_rework_v2",
+  "follows_last_round_id": "round_20260722_p0_standard_profile_compatibility_rework_v2",
+  "previous_audit_outcome": "BLOCKED_STALE_COMMAND_PLAN_EXPECTATION",
+  "workstream_id": "p0-command-plan-contract-compatibility-rework-v3",
   "source_issue": 13,
   "source_pull_request": 11,
   "required_branch": "agent/architecture-constitution-plan-v1",
-  "activation_base_sha": "35977b412df6eb15f6dc5701572296df0be8cad0",
-  "starting_remote_head": "46380c4a7617d907ef2ce73434d05a546f01ca5a",
+  "activation_base_sha": "642405d545d6a50d511df976da255086ad3aeb6e",
+  "starting_remote_head": "642405d545d6a50d511df976da255086ad3aeb6e",
   "frozen_pr9_head": "43418818af61d9be3208d2444fd6ce5120f73fab",
   "roadmap_basis": "docs/roadmap/p0_architecture_constitution_execution_plan_v1.md",
   "risk_tier": "R1",
@@ -30,6 +30,13 @@
   "decision_content_immutable_after_activation": true,
   "command_plan_precedes_execution_required": true,
   "command_plan_digest_lock_required": true,
+  "command_plan_kinds_compiler_derived": true,
+  "startup_snapshot_separate_required": true,
+  "startup_required_in_command_plan_commands": false,
+  "bounded_run_round_allowed": true,
+  "run_closeout_execution_allowed": false,
+  "close_round_execution_allowed": false,
+  "unknown_command_allowed": false,
   "closeout_required": false,
   "close_round_required": false,
   "closeout_allowed": true,
@@ -80,7 +87,7 @@
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
-    "project_state/rounds/round_20260722_p0_standard_profile_compatibility_rework_v2/*"
+    "project_state/rounds/round_20260722_p0_command_plan_contract_compatibility_rework_v3/*"
   ],
   "read_only_reference_files": [
     "project_state/state_manifest.json",
@@ -124,7 +131,7 @@
   ],
   "publication_authorization": {
     "granted_by_user": true,
-    "applies_to": "the v2 standard-profile Decision activation commit and later validated P0 test/document/evidence commit on PR #11",
+    "applies_to": "the v3 command-plan-contract Decision activation commit and later validated P0 test/document/evidence commit on PR #11",
     "allowed_branch": "agent/architecture-constitution-plan-v1",
     "base_branch": "main",
     "decision_activation_commit_publication_allowed": true,
@@ -151,7 +158,7 @@
 
 ## 1. Goal
 
-以新的不可变 v2 Decision 取代因 automatic Gate Profile 契约冲突而阻塞的 v1 Decision，接受仓库正确推导的 `standard` Profile，并继续 Issue #13 的单一测试 fixture 兼容性修复及尚未发布的 **P0：Architecture Constitution and Migration Baseline** 文档成果。
+以新的不可变 v3 Decision 取代包含陈旧 Command Plan 预期的 v2 Decision，接受当前 compiler 对 `standard` Profile 的 bounded orchestration 投影，并继续 Issue #13 的单一测试 fixture 兼容性修复及尚未发布的 **P0：Architecture Constitution and Migration Baseline** 文档成果。
 
 本轮只允许：
 
@@ -161,12 +168,13 @@
 
 ## 2. Current Evidence
 
-- 用户已明确批准 `decision_20260722_p0_standard_profile_compatibility_rework_v2` 与对应 round。
+- 用户已明确批准 `decision_20260722_p0_command_plan_contract_compatibility_rework_v3` 与对应 round。
 - v1 Decision 已作为单文件 commit `35977b412df6eb15f6dc5701572296df0be8cad0` 保留在 Git 历史；其 automatic Gate Profile 正确推导为 `standard`、`closeout_allowed=true`，与 v1 的 `fast`、`closeout_allowed=false` 冲突，因此 v1 状态为 `BLOCKED / SUPERSEDED`，不得 amend、reset 或重写。
-- 当前 v2 authority 显式接受 automatic `standard` Profile 和 `closeout_allowed=true`，同时保持 `closeout_required=false`、`close_round_required=false`。
+- v2 Decision commit `642405d545d6a50d511df976da255086ad3aeb6e` 保留在 Git 历史；其 automatic `standard` Profile 正确，但它错误要求 startup 必须出现在 `command_plan.commands` 并错误禁止 bounded `run-round`，因此 v2 状态为 `BLOCKED_STALE_COMMAND_PLAN_EXPECTATION`，不得 amend、reset 或重写。
+- 当前 v3 authority 继续接受 automatic `standard` Profile 和 `closeout_allowed=true`，同时保持 `closeout_required=false`、`close_round_required=false`。
 - 执行工作树为既有 `F:\reverse-agent-p0`；它属于 `F:\reverse-agent` 同一仓库且承载全部未提交 P0 成果，没有创建新工作树。
 - 当前分支为 `agent/architecture-constitution-plan-v1`。
-- PR #11 starting remote head 为 `46380c4a7617d907ef2ce73434d05a546f01ca5a`；v2 activation base 为未改写的 v1 commit `35977b412df6eb15f6dc5701572296df0be8cad0`。
+- PR #11 starting remote head 与 v3 activation base 均为未改写的 v2 commit `642405d545d6a50d511df976da255086ad3aeb6e`。
 - PR #9 保持 Draft、open、unmerged，并冻结在 exact head `43418818af61d9be3208d2444fd6ce5120f73fab`。
 - 上一轮已通过 automatic fast Gate Profile、Command Plan、startup snapshot 与 preflight。
 - 上一轮 required pytest 实际结果为 `1488 passed, 1 failed`；唯一失败是 `tests/test_project_gate.py::test_closeout_order_provenance_generated_audit_is_semantically_aligned`。
@@ -219,7 +227,7 @@
 不得：
 
 - reset、clean、discard、覆盖或重新生成上述 `inherited_authorized_wip` 文档；
-- 在 v2 Decision activation commit 已推送、新 automatic standard Gate Profile、新 Command Plan digest lock、startup snapshot 和 preflight 全部通过前修改测试或 P0 文档；
+- 在 v3 Decision activation commit 已推送、新 automatic standard Gate Profile、compiler-generated Command Plan digest lock、独立 startup snapshot 和 preflight 全部通过前修改测试或 P0 文档；
 - 修改 `tests/test_project_gate.py` 之外的任何测试文件；
 - 修改 `reverse_agent/**`、`.github/workflows/**`、`.codex-skills/**`、`pyproject.toml` 或 `requirements*.txt`；
 - 通过 skip、xfail、删除断言、弱化 production validation 或读取 live Decision 来规避失败；
@@ -256,15 +264,15 @@
 最终报告必须逐项回答：
 
 1. 当前 Decision 与 Round ID 是否为本 replacement Decision？
-2. v1 Decision 是否以 `BLOCKED / SUPERSEDED` 状态保留在 Git 历史且未被 amend、reset 或重写？
+2. v1 与 v2 Decision 是否保留在 Git 历史且未被 amend、reset 或重写，v2 是否标记为 `BLOCKED_STALE_COMMAND_PLAN_EXPECTATION`？
 3. 当前分支、PR #11 starting remote head 与 activation base SHA 是否准确？
 4. PR #9 是否保持 Draft、open、unmerged 且 exact head 未变？
 5. 21 个唯一继承 P0 文件是否在激活前完成路径、标题和 SHA-256 盘点并标记为 `inherited_authorized_wip`，且是否解释了 Issue 文本中的计数差异？
 6. Decision activation commit 是否只包含 `project_state/decision_packet.md`？
 7. automatic Gate Profile 是否为 `standard` 且 `closeout_allowed=true`，没有使用强制 override？
-8. 新 Command Plan 是否在任何测试修复和后续 P0 修改前生成并锁定？
-9. Command Plan 是否包含 startup、preflight、pytest、doctor、lint-report、report-summary、final-check，且不包含 run-round 或 close-round？
-10. startup snapshot 与 preflight 是否通过且没有 scope/profile/closeout 冲突？
+8. 新 Command Plan 是否由当前 compiler 自动生成、未被手工编辑/删除/重排，并在任何测试修复和后续 P0 修改前锁定？
+9. Command Plan 是否不含 `run-closeout`、`close-round`、未知或越权命令，并正确允许 compiler 生成的 bounded `run-round`？
+10. startup 是否通过独立 startup snapshot 和实际启动 command blocks 验证，而不要求出现在 `command_plan.commands`；preflight 是否通过且没有 scope/profile/closeout 冲突？
 11. 测试是否不再读取仓库 live `project_state/decision_packet.md`？
 12. fixture 是否显式定义 Required Audit 问题并由 fixture 推导数量与顺序？
 13. 历史 48-question 场景与至少一个 non-48 场景是否均被覆盖？
@@ -307,7 +315,7 @@
 - `project_state/pytest_result.txt`
 - `project_state/codex_execution_report.md`
 - `project_state/execution_report.md`
-- `project_state/rounds/round_20260722_p0_standard_profile_compatibility_rework_v2/*`
+- `project_state/rounds/round_20260722_p0_command_plan_contract_compatibility_rework_v3/*`
 
 执行顺序不可调整：
 
@@ -317,8 +325,9 @@ verify exact heads
 → commit replacement Decision only
 → push Decision commits to existing PR #11 branch
 → automatic standard Gate Profile without override
-→ generate and lock replacement Command Plan
-→ refresh startup snapshot
+→ compiler-generate and lock replacement Command Plan without manual edits
+→ validate no run-closeout, close-round, unknown or unauthorized commands
+→ separately generate startup snapshot
 → preflight
 → hermetic fixture repair
 → focused pytest
@@ -335,11 +344,18 @@ verify exact heads
 
 ## 8. Tests
 
-只有 preflight 通过后才允许运行修复与验证：
+startup 与 preflight 是独立的激活 Gate，不要求出现在 `command_plan.commands`。先运行：
 
 ```text
 python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
 python -m reverse_agent.project_gate preflight --state-dir project_state
+```
+
+只有 preflight 通过后，才按 Gate Profile 与当前 compiler 自动生成的 Command Plan 执行后续命令；Decision 不手工枚举固定 command-kind 集合。原定 hermetic fixture 和 P0 验证目标保持不变，但不得执行 `run-closeout` 或 `close-round`。
+
+原定验证参考如下，实际执行权威仍是锁定后的 Command Plan：
+
+```text
 python -m pytest tests/test_project_gate.py::test_closeout_order_provenance_generated_audit_is_semantically_aligned -q
 python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q
 python -m reverse_agent.project_state doctor --state-dir project_state
@@ -351,7 +367,7 @@ python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-验收要求零失败，不要求或宣称固定的 passed 总数。不得运行 run-closeout 或 close-round。
+验收要求零失败，不要求或宣称固定的 passed 总数。bounded `run-round` 可以由 compiler 生成；不得执行 `run-closeout` 或 `close-round`。
 
 ## 9. Acceptance Criteria
 
@@ -361,7 +377,7 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 P0_TEST_COMPATIBILITY_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
 ```
 
-- v1 Decision 作为 `BLOCKED / SUPERSEDED` commit 保留且未改写，v2 replacement Decision 单文件 activation commit 已推送；
+- v1/v2 Decision commits 保留且未改写，v2 标记为 `BLOCKED_STALE_COMMAND_PLAN_EXPECTATION`，v3 replacement Decision 单文件 activation commit 已推送；
 - automatic `standard` Profile、`closeout_allowed=true`、Command Plan digest lock、startup snapshot 和 preflight 全部通过；
 - hermetic fixture 不再依赖 live Decision，且保留 48 与 non-48 场景覆盖；
 - required focused test 与完整 P0 pytest 命令零失败；
@@ -379,7 +395,8 @@ P0_TEST_COMPATIBILITY_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
 - PR #9 或 PR #11 远端 head 意外变化；
 - 当前分支或 activation base 不一致；
 - 继承 P0 文件无法与无关工作区分；
-- replacement Decision lint、automatic standard Profile、`closeout_allowed=true`、Command Plan、digest lock、startup snapshot 或 preflight 阻塞；
+- replacement Decision lint、automatic standard Profile、`closeout_allowed=true`、compiler-generated Command Plan、digest lock、独立 startup snapshot 或 preflight 阻塞；
+- Command Plan 包含 `run-closeout`、`close-round`、未知或越权命令，或被手工编辑、删除、重排；
 - hermetic test 修复必须修改 `reverse_agent/**`；
 - required tests 出现与同一 live-Decision fixture 缺陷无关的新失败；
 - path scope 要求修改 Gate 源码；
