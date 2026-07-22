@@ -304,9 +304,29 @@ class BootstrapState:
         return self.status == "BOOTSTRAP_EXPIRED"
 
     def rejects_expired_bootstrap_record(self, record: ExecutionRecord) -> bool:
-        """Return True if a bootstrap record arrives after expiry."""
+        """Return True only when bootstrap evidence was observed after expiry.
 
-        return self.is_expired and record.authority_origin == "bootstrap_exception"
+        This is deliberately based on the record observation time, not on the
+        current lifecycle status, so replaying a previously valid sealed
+        subject remains deterministic after the bootstrap window closes.
+        """
+
+        if not self.is_expired or record.authority_origin != "bootstrap_exception":
+            return False
+        if (
+            not self.expired_at
+            or self.decision_id != record.decision_id
+            or self.round_id != record.round_id
+        ):
+            return True
+        try:
+            from datetime import datetime
+
+            observed = datetime.fromisoformat(record.observed_at.replace("Z", "+00:00"))
+            expired = datetime.fromisoformat(self.expired_at.replace("Z", "+00:00"))
+        except ValueError:
+            return True
+        return observed > expired
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "BootstrapState":

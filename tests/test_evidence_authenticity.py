@@ -14,6 +14,7 @@ import pytest
 
 from reverse_agent.control_plane.evidence_recorder import (
     EvidenceRecorder,
+    _read_raw_evidence,
     validate_record_authenticity,
 )
 from reverse_agent.control_plane.evidence_source import (
@@ -81,6 +82,8 @@ def _record(
         stdout_digest=stdout_digest,
         stderr_digest=stderr_digest,
         authority_origin=authority_origin,
+        decision_id="decision_evidence_auth",
+        round_id="round_evidence_auth",
     )
 
 
@@ -303,6 +306,69 @@ def test_bootstrap_authority_after_expiry_rejected() -> None:
         bootstrap_state=bootstrap,
     )
     assert any("bootstrap_authority_after_expiry" in e for e in errors), errors
+
+
+def test_bootstrap_record_observed_before_expiry_remains_valid() -> None:
+    """Later replay uses observed_at <= expired_at, not current expiry alone."""
+
+    record = _record(
+        authority_origin="bootstrap_exception",
+        observed_at="2026-07-21T08:59:59Z",
+    )
+    plan = _plan_with_commands(_command())
+    from reverse_agent.control_plane.models import BootstrapState
+
+    bootstrap = BootstrapState(
+        status="BOOTSTRAP_EXPIRED",
+        decision_id="decision_evidence_auth",
+        round_id="round_evidence_auth",
+        expired_at="2026-07-21T09:00:00Z",
+    )
+    errors = validate_record_authenticity(
+        record,
+        plan=plan,
+        recorder_observed_at="2026-07-21T10:00:05Z",
+        bootstrap_state=bootstrap,
+    )
+    assert "bootstrap_authority_after_expiry" not in errors
+
+
+def test_bootstrap_expiry_accepts_generator_offset_utc_format() -> None:
+    record = _record(
+        authority_origin="bootstrap_exception",
+        observed_at="2026-07-21T08:59:59Z",
+    )
+    plan = _plan_with_commands(_command())
+    from reverse_agent.control_plane.models import BootstrapState
+
+    errors = validate_record_authenticity(
+        record,
+        plan=plan,
+        recorder_observed_at="2026-07-21T10:00:05Z",
+        bootstrap_state=BootstrapState(
+            status="BOOTSTRAP_EXPIRED",
+            decision_id="decision_evidence_auth",
+            round_id="round_evidence_auth",
+            expired_at="2026-07-21T09:00:00+00:00",
+        ),
+    )
+    assert "bootstrap_authority_after_expiry" not in errors
+
+
+def test_raw_evidence_reader_accepts_windows_style_relative_path(tmp_path: Path) -> None:
+    evidence = tmp_path / "project_state" / "gates" / "evidence" / "stdout.bin"
+    evidence.parent.mkdir(parents=True)
+    evidence.write_bytes(b"portable")
+    ok, raw = _read_raw_evidence(
+        tmp_path, "project_state\\gates\\evidence\\stdout.bin"
+    )
+    assert ok is True
+    assert raw == b"portable"
+
+
+@pytest.mark.parametrize("stored", ["../outside.bin", "/tmp/outside.bin", "C:/outside.bin"])
+def test_raw_evidence_reader_rejects_repo_escape(tmp_path: Path, stored: str) -> None:
+    assert _read_raw_evidence(tmp_path, stored) == (False, b"")
 
 
 # ---------------------------------------------------------------------------

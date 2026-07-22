@@ -5,8 +5,8 @@
   "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
   "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
   "activation_base_sha": "54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f",
-  "subject_digest": "sha256:647a75955193c4889b38784148826dcfff4c6f96ab6776a59c8783f8b462b0fd",
+  "subject_digest": "sha256:62bc2a584f3aaeac77f473c85b44261fb5860c086c0773ed13843e14e10c4d26",
   "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
-  "result_digest": "sha256:3786069a59668a53a45727516e7ffb295937f10484da9edb6cd26da5411d6358",
-  "sealed_at": "2026-07-22T02:35:07Z"
+  "result_digest": "sha256:c5dd01ec80ece171e6be5c43201da96d34cd52e16d3351657683f513e30722d8",
+  "sealed_at": "2026-07-22T05:14:22Z"
 }

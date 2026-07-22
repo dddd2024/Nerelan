@@ -1,0 +1,5 @@
+transition-reconcile-evaluate: None
+decision_id: decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+round_id: round_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+recommended_next_action: None
+artifact: project_state/gates/reconciliation_candidate.json

@@ -26,7 +26,7 @@ import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Iterator
 
 from .models import (
@@ -73,6 +73,20 @@ def _parse_rfc3339_utc(value: str) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def _parse_lifecycle_utc(value: str) -> datetime | None:
+    """Parse persisted lifecycle UTC in either ``Z`` or ``+00:00`` form."""
+
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None or dt.utcoffset() != timezone.utc.utcoffset(dt):
+        return None
+    return dt.astimezone(timezone.utc)
+
+
 def _is_lower_sha256_digest(value: str) -> bool:
     return isinstance(value, str) and bool(_SHA256_DIGEST.match(value))
 
@@ -114,6 +128,18 @@ def validate_record_authenticity(
     """
 
     errors: list[str] = []
+
+    # --- Strict transition identity -------------------------------------
+    # Current-round evidence is never anonymous.  Legacy records with an
+    # empty identity must not be accepted into a strict transition subject.
+    if not record.decision_id:
+        errors.append("missing_identity:decision_id")
+    elif record.decision_id != plan.decision_id:
+        errors.append("identity_mismatch:decision_id")
+    if not record.round_id:
+        errors.append("missing_identity:round_id")
+    elif record.round_id != plan.round_id:
+        errors.append("identity_mismatch:round_id")
 
     # --- Timestamp format and monotonicity -------------------------------
     started_dt = _parse_rfc3339_utc(record.started_at)
@@ -195,8 +221,24 @@ def validate_record_authenticity(
         errors.append("command_id_mismatch:command_string_diverges")
 
     # --- Bootstrap authority lifecycle ----------------------------------
-    if bootstrap_state is not None and bootstrap_state.is_expired:
-        if record.authority_origin == "bootstrap_exception":
+    if (
+        bootstrap_state is not None
+        and bootstrap_state.is_expired
+        and record.authority_origin == "bootstrap_exception"
+    ):
+        expiry_dt = _parse_lifecycle_utc(bootstrap_state.expired_at)
+        identity_matches = (
+            bootstrap_state.decision_id == record.decision_id
+            and bootstrap_state.round_id == record.round_id
+        )
+        # Replay-stable rule: a record observed while the bootstrap window
+        # was open remains valid after the persisted state later expires.
+        if (
+            expiry_dt is None
+            or observed_dt is None
+            or observed_dt > expiry_dt
+            or not identity_matches
+        ):
             errors.append("bootstrap_authority_after_expiry")
 
     # --- Log generated_at >= max(observed_at) (Phase C rework) ----------
@@ -230,10 +272,30 @@ def _read_raw_evidence(repo_root: Path, relative_path: str) -> tuple[bool, bytes
 
     if not relative_path:
         return False, b""
-    path = Path(repo_root) / relative_path
+    path = _resolve_repo_relative_path(repo_root, relative_path)
+    if path is None:
+        return False, b""
     if not path.is_file():
         return False, b""
     return True, path.read_bytes()
+
+
+def _resolve_repo_relative_path(repo_root: Path, stored_path: str) -> Path | None:
+    """Resolve a portable stored path without permitting repository escape."""
+
+    normalized = stored_path.replace("\\", "/")
+    if not normalized or normalized.startswith("/") or re.match(r"^[A-Za-z]:/", normalized):
+        return None
+    pure = PurePosixPath(normalized)
+    if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts):
+        return None
+    root = repo_root.resolve()
+    candidate = root.joinpath(*pure.parts).resolve(strict=False)
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
 
 
 def _find_plan_entry(
@@ -308,6 +370,9 @@ class EvidenceRecorder:
             stdout_digest=_sha256_digest(raw_stdout),
             stderr_digest=_sha256_digest(raw_stderr),
             authority_origin=authority_origin,
+            decision_id=self.plan.decision_id,
+            round_id=self.plan.round_id,
+            plan_digest=_plan_digest(self.plan),
         )
 
     def _git_head_sha(self) -> str:
@@ -399,12 +464,37 @@ class TrustedCommandRunner:
     plan: TransitionCommandPlan
     evidence_dir: Path
     execution_log_path: Path | None = None
+    test_only: bool = False
+
+    @classmethod
+    def for_test(
+        cls,
+        *,
+        repo_root: Path,
+        plan: TransitionCommandPlan,
+        evidence_dir: Path,
+        execution_log_path: Path | None = None,
+    ) -> "TrustedCommandRunner":
+        """Construct the legacy injected-plan runner for isolated tests only."""
+
+        return cls(
+            repo_root=repo_root,
+            plan=plan,
+            evidence_dir=evidence_dir,
+            execution_log_path=execution_log_path,
+            test_only=True,
+        )
 
     def run_command(self, *, command_id: str) -> ExecutionRecord:
         """Execute the plan entry identified by ``command_id``.
 
         Raises :class:`KeyError` if the command_id is not in the plan.
         """
+
+        if not self.test_only:
+            raise RuntimeError(
+                "injected_plan_runner_disabled:use_TrustedExecutionContext.from_state_dir"
+            )
 
         plan_entry = self._find_plan_entry(command_id)
         if plan_entry is None:
@@ -454,14 +544,20 @@ class TrustedCommandRunner:
             decision_id=self.plan.decision_id,
             round_id=self.plan.round_id,
             sequence=sequence,
-            raw_stdout_path=str(raw_stdout_path.relative_to(self.repo_root)) if raw_stdout_path.is_relative_to(self.repo_root) else str(raw_stdout_path),
-            raw_stderr_path=str(raw_stderr_path.relative_to(self.repo_root)) if raw_stderr_path.is_relative_to(self.repo_root) else str(raw_stderr_path),
+            raw_stdout_path=self._portable_repo_relative(raw_stdout_path),
+            raw_stderr_path=self._portable_repo_relative(raw_stderr_path),
         )
 
         if self.execution_log_path is not None:
             self._append_to_log(record)
 
         return record
+
+    def _portable_repo_relative(self, path: Path) -> str:
+        try:
+            return path.resolve().relative_to(self.repo_root.resolve()).as_posix()
+        except ValueError as exc:
+            raise ValueError(f"evidence_path_outside_repo:{path}") from exc
 
     def _find_plan_entry(self, command_id: str) -> TransitionCommand | None:
         for entry in self.plan.commands:
@@ -491,6 +587,7 @@ class TrustedCommandRunner:
     def _persist_raw_evidence(
         self, record_id: str, raw_stdout: bytes, raw_stderr: bytes
     ) -> tuple[Path, Path]:
+        self._ensure_binary_evidence_attributes()
         record_dir = self.evidence_dir / record_id
         record_dir.mkdir(parents=True, exist_ok=True)
         stdout_path = record_dir / "stdout.bin"
@@ -515,6 +612,13 @@ class TrustedCommandRunner:
             newline="\n",
         )
         return stdout_path, stderr_path
+
+    def _ensure_binary_evidence_attributes(self) -> None:
+        self.evidence_dir.mkdir(parents=True, exist_ok=True)
+        attributes_path = self.evidence_dir / ".gitattributes"
+        expected = "*.bin binary\n"
+        if not attributes_path.exists() or attributes_path.read_text(encoding="utf-8") != expected:
+            attributes_path.write_text(expected, encoding="utf-8", newline="\n")
 
     def _next_sequence(self) -> int:
         if self.execution_log_path is None or not self.execution_log_path.exists():
@@ -606,24 +710,93 @@ def _parse_status_paths(status_output: str) -> frozenset[str]:
     return frozenset(paths)
 
 
-def _compute_state_digest(head_sha: str, status_output: str) -> str:
-    """F7: sha256 digest of the worktree state (HEAD + status)."""
+def _snapshot_repository_state(repo_root: Path, head_sha: str) -> dict[str, Any]:
+    """Capture path identity plus index and worktree content state.
 
-    raw = f"{head_sha}\n{status_output}".encode("utf-8")
+    Unlike a porcelain-status set, this snapshot detects a second edit to a
+    path that was already dirty before the command, as well as creations,
+    deletions, renames and index-only changes.
+    """
+
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=str(repo_root),
+        capture_output=True,
+        check=False,
+    ).stdout
+    index_raw = subprocess.run(
+        ["git", "ls-files", "-s", "-z"],
+        cwd=str(repo_root),
+        capture_output=True,
+        check=False,
+    ).stdout
+    index: dict[str, list[str]] = {}
+    for item in index_raw.split(b"\0"):
+        if not item:
+            continue
+        meta, raw_path = item.split(b"\t", 1)
+        path = raw_path.decode("utf-8", "surrogateescape").replace("\\", "/")
+        index.setdefault(path, []).append(meta.decode("ascii", "replace"))
+
+    paths = {
+        item.decode("utf-8", "surrogateescape").replace("\\", "/")
+        for item in listed.split(b"\0")
+        if item
+    }
+    paths.update(index)
+    entries: dict[str, Any] = {}
+    for path in sorted(paths):
+        disk_path = repo_root.joinpath(*PurePosixPath(path).parts)
+        if disk_path.is_symlink():
+            worktree = {"kind": "symlink", "target": os.readlink(disk_path)}
+        elif disk_path.is_file():
+            stat = disk_path.stat()
+            worktree = {
+                "kind": "file",
+                "digest": _sha256_digest(disk_path.read_bytes()),
+                "executable": bool(stat.st_mode & 0o111),
+            }
+        else:
+            worktree = {"kind": "missing"}
+        entries[path] = {
+            "index": sorted(index.get(path, [])),
+            "worktree": worktree,
+        }
+    return {"head": head_sha, "paths": entries}
+
+
+def _snapshot_digest(snapshot: dict[str, Any]) -> str:
+    raw = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return _sha256_digest(raw)
 
 
+def _snapshot_mutated_paths(
+    before: dict[str, Any], after: dict[str, Any]
+) -> tuple[str, ...]:
+    before_paths = before.get("paths", {})
+    after_paths = after.get("paths", {})
+    return tuple(
+        path
+        for path in sorted(set(before_paths) | set(after_paths))
+        if before_paths.get(path) != after_paths.get(path)
+    )
+
+
 def _compute_mutation_delta_digest(
-    pre_status: str,
-    post_status: str,
+    pre_snapshot: dict[str, Any],
+    post_snapshot: dict[str, Any],
     mutated_paths: tuple[str, ...],
 ) -> str:
     """F7: sha256 digest of the command-local mutation delta."""
 
-    raw = (
-        f"{pre_status}\n---DELTA---\n{post_status}\n---PATHS---\n"
-        + "\n".join(mutated_paths)
-    ).encode("utf-8")
+    delta = {
+        path: {
+            "before": pre_snapshot.get("paths", {}).get(path),
+            "after": post_snapshot.get("paths", {}).get(path),
+        }
+        for path in mutated_paths
+    }
+    raw = json.dumps(delta, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return _sha256_digest(raw)
 
 
@@ -682,6 +855,10 @@ class TrustedExecutionContext:
     evidence_dir: Path
     execution_log_path: Path
     bootstrap_state: BootstrapState
+    decision_status: str
+    required_branch: str
+    activation_base_sha: str
+    capability_policy: Any
     local_seal_status: str = ""
 
     @classmethod
@@ -695,6 +872,7 @@ class TrustedExecutionContext:
 
         from .legacy_adapter import (
             build_transition_command_plan,
+            load_capability_policy,
             load_bootstrap_state,
             load_legacy_command_plan,
             load_transition_decision,
@@ -727,7 +905,12 @@ class TrustedExecutionContext:
         if local_seal_path.exists():
             try:
                 seal_payload = json.loads(local_seal_path.read_text(encoding="utf-8"))
-                local_seal_status = str(seal_payload.get("status") or "")
+                if (
+                    seal_payload.get("decision_id") == decision.decision_id
+                    and seal_payload.get("round_id") == decision.round_id
+                    and seal_payload.get("plan_digest") == committed_digest
+                ):
+                    local_seal_status = str(seal_payload.get("status") or "")
             except (ValueError, OSError):
                 pass
 
@@ -741,6 +924,10 @@ class TrustedExecutionContext:
             evidence_dir=state_dir / "gates" / "evidence",
             execution_log_path=state_dir / "gates" / "execution_log.json",
             bootstrap_state=bootstrap_state,
+            decision_status=decision.status,
+            required_branch=str(contract.get("required_branch") or ""),
+            activation_base_sha=str(contract.get("activation_base_sha") or "").lower(),
+            capability_policy=load_capability_policy(contract),
             local_seal_status=local_seal_status,
         )
 
@@ -759,10 +946,94 @@ class TrustedExecutionContext:
             reasons.append(f"unknown_command_id:{command_id}")
             return AuthorizationResult(status="BLOCKED", reasons=tuple(reasons))
 
+        if entry.execution_surface != "local":
+            reasons.append(f"execution_surface_mismatch:{command_id}:{entry.execution_surface}")
+
+        if self.decision_status != "APPROVED":
+            reasons.append(f"decision_not_approved:{self.decision_status}")
+        if self.plan.decision_id != self.decision_id or self.plan.round_id != self.round_id:
+            reasons.append("active_identity_mismatch")
+
+        # Re-read authority so a context cannot outlive a Decision or plan edit.
+        try:
+            from .legacy_adapter import load_legacy_command_plan, load_transition_decision
+
+            live_decision, _ = load_transition_decision(self.state_dir / "decision_packet.md")
+            live_plan = load_legacy_command_plan(self.state_dir / "gates" / "command_plan.json")
+            if (
+                live_decision.decision_id != self.decision_id
+                or live_decision.round_id != self.round_id
+                or live_decision.status != "APPROVED"
+            ):
+                reasons.append("active_decision_changed")
+            if _plan_digest(live_plan) != self.plan_digest:
+                reasons.append("active_plan_digest_changed")
+        except (OSError, ValueError, json.JSONDecodeError):
+            reasons.append("active_authority_unreadable")
+
+        branch = self._git_text("branch", "--show-current")
+        if branch != self.required_branch:
+            reasons.append(f"branch_identity:{branch}:{self.required_branch}")
+        if not self._git_is_ancestor(self.activation_base_sha, "HEAD"):
+            reasons.append(f"activation_base_ancestry:{self.activation_base_sha}")
+
+        from .models import ExecutionEnvelope
+        from .transition import _capability_forbidden_operations, _envelope_network_violations
+
+        forbidden_ops = set(_capability_forbidden_operations(self.capability_policy))
+        denied = sorted(forbidden_ops.intersection(entry.operations))
+        if denied:
+            reasons.append(f"capability_policy:{command_id}:{denied}")
+        envelope = ExecutionEnvelope(
+            command=entry.command,
+            execution_surface=entry.execution_surface,
+            operations=entry.operations,
+            command_id=entry.command_id,
+        )
+        network_errors = _envelope_network_violations((envelope,), self.capability_policy)
+        if entry.network_access and network_errors:
+            reasons.extend(network_errors)
+
+        # The persisted preflight must bind the same active authority.  It is
+        # independently regenerated by gate.pre_execution before normal work.
+        preflight_path = self.state_dir / "gates" / "transition_preflight_result.json"
+        try:
+            preflight = json.loads(preflight_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, json.JSONDecodeError):
+            preflight = {}
+        checks = preflight.get("checks") if isinstance(preflight.get("checks"), list) else []
+        check_status = {
+            str(item.get("name")): str(item.get("status"))
+            for item in checks
+            if isinstance(item, dict)
+        }
+        required_preflight_checks = {
+            "decision_identity",
+            "round_identity",
+            "decision_approved",
+            "branch_identity",
+            "base_ancestry",
+            "decision_ancestry",
+            "command_plan_identity",
+            "command_plan_contract",
+            "capability_policy_enforced",
+            "network_policy_enforced",
+            "path_risk_floor_enforced",
+        }
+        if (
+            preflight.get("decision_id") != self.decision_id
+            or preflight.get("round_id") != self.round_id
+            or preflight.get("gate_status") not in {"PASSED", "PRE_EXECUTION_AUTHORIZED"}
+            or any(check_status.get(name) != "PASS" for name in required_preflight_checks)
+        ):
+            reasons.append("required_preflight_not_authorized")
+
         # F5: allowed_only_after_validation requires LOCAL_RECONCILED seal
         if entry.allowed_only_after_validation:
             if self.local_seal_status != "LOCAL_RECONCILED":
                 reasons.append(f"allowed_only_after_validation:{command_id}")
+            if _git_status_porcelain(self.repo_root).strip():
+                reasons.append(f"validation_subject_dirty:{command_id}")
 
         # F5: bootstrap authority after expiry is forbidden
         if entry.authority_origin == "bootstrap_exception" and self.bootstrap_state.is_expired:
@@ -771,6 +1042,20 @@ class TrustedExecutionContext:
         if reasons:
             return AuthorizationResult(status="BLOCKED", reasons=tuple(reasons))
         return AuthorizationResult(status="AUTHORIZED", reasons=())
+
+    def _git_text(self, *args: str) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=str(self.repo_root), capture_output=True,
+            text=True, check=False,
+        ).stdout.strip()
+
+    def _git_is_ancestor(self, ancestor: str, descendant: str) -> bool:
+        if not _is_lower_git_sha(ancestor):
+            return False
+        return subprocess.run(
+            ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+            cwd=str(self.repo_root), capture_output=True, check=False,
+        ).returncode == 0
 
     def run_command(self, command_id: str) -> ExecutionRecord:
         """F4-F7: execute the plan entry identified by ``command_id``.
@@ -793,9 +1078,8 @@ class TrustedExecutionContext:
 
         # F7: capture pre-state (HEAD + worktree status)
         head_before = self._git_head_sha()
-        pre_status = _git_status_porcelain(self.repo_root)
-        pre_state_digest = _compute_state_digest(head_before, pre_status)
-        pre_paths = _parse_status_paths(pre_status)
+        pre_snapshot = _snapshot_repository_state(self.repo_root, head_before)
+        pre_state_digest = _snapshot_digest(pre_snapshot)
 
         started_at = _now_utc()
 
@@ -814,16 +1098,11 @@ class TrustedExecutionContext:
 
         # F7: capture post-state
         head_after = self._git_head_sha()
-        post_status = _git_status_porcelain(self.repo_root)
-        post_state_digest = _compute_state_digest(head_after, post_status)
-        post_paths = _parse_status_paths(post_status)
-
-        # F7: command-local delta — only paths newly dirty in post that
-        # were not already dirty in pre are attributed to this command.
-        new_paths = post_paths - pre_paths
-        mutated_paths = tuple(sorted(new_paths))
+        post_snapshot = _snapshot_repository_state(self.repo_root, head_after)
+        post_state_digest = _snapshot_digest(post_snapshot)
+        mutated_paths = _snapshot_mutated_paths(pre_snapshot, post_snapshot)
         mutation_delta_digest = _compute_mutation_delta_digest(
-            pre_status, post_status, mutated_paths
+            pre_snapshot, post_snapshot, mutated_paths
         )
 
         # F6: append to journal atomically with cross-round rejection,
@@ -845,6 +1124,118 @@ class TrustedExecutionContext:
         )
 
         return record
+
+    def replay_bootstrap_evidence_from_head(self) -> tuple[ExecutionRecord, ...]:
+        """Import authentic pre-expiry bootstrap records from the published HEAD.
+
+        Bootstrap commands cannot be rerun after expiry.  This controlled
+        recovery path reads the prior journal and raw blobs directly from the
+        current Git HEAD, verifies their current Decision/round/plan identity,
+        timestamps, Git objects and byte digests, then prepends them to the
+        new journal.  Callers cannot supply record fields or evidence bytes.
+        """
+
+        old_log_raw = self._git_blob("HEAD:project_state/gates/execution_log.json")
+        try:
+            old_log = json.loads(old_log_raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise ValueError("invalid_head_execution_log") from exc
+        imported: list[ExecutionRecord] = []
+        for payload in old_log.get("commands") or []:
+            if not isinstance(payload, dict) or payload.get("authority_origin") != "bootstrap_exception":
+                continue
+            record = ExecutionRecord.from_mapping(payload)
+            entry = self._find_plan_entry(record.command_id)
+            if entry is None or not entry.bootstrap_exception:
+                raise ValueError(f"untrusted_bootstrap_command_id:{record.command_id}")
+            if record.decision_id != self.decision_id or record.round_id != self.round_id:
+                raise ValueError(f"bootstrap_identity_mismatch:{record.command_id}")
+            if record.plan_digest != self.plan_digest:
+                raise ValueError(f"bootstrap_plan_digest_mismatch:{record.command_id}")
+
+            stdout_blob = self._git_blob(
+                "HEAD:" + record.raw_stdout_path.replace("\\", "/")
+            )
+            stderr_blob = self._git_blob(
+                "HEAD:" + record.raw_stderr_path.replace("\\", "/")
+            )
+            record_dir = self.evidence_dir / record.record_id
+            record_dir.mkdir(parents=True, exist_ok=True)
+            stdout_path = record_dir / "stdout.bin"
+            stderr_path = record_dir / "stderr.bin"
+            stdout_path.write_bytes(stdout_blob)
+            stderr_path.write_bytes(stderr_blob)
+            metadata = {
+                "record_id": record.record_id,
+                "stdout_path": stdout_path.name,
+                "stderr_path": stderr_path.name,
+                "stdout_digest": record.stdout_digest,
+                "stderr_digest": record.stderr_digest,
+                "stdout_bytes": len(stdout_blob),
+                "stderr_bytes": len(stderr_blob),
+                "replayed_from": "HEAD",
+            }
+            (record_dir / "metadata.json").write_text(
+                json.dumps(metadata, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+            normalized = ExecutionRecord.from_mapping({
+                **record.to_dict(),
+                "sequence": len(imported),
+                "raw_stdout_path": self._relative_or_abs(stdout_path),
+                "raw_stderr_path": self._relative_or_abs(stderr_path),
+            })
+            auth_errors = validate_record_authenticity(
+                normalized,
+                plan=self.plan,
+                recorder_observed_at=_now_utc(),
+                bootstrap_state=self.bootstrap_state,
+                repo_root=self.repo_root,
+            )
+            if auth_errors:
+                raise ValueError(
+                    f"bootstrap_replay_authenticity:{record.command_id}:{auth_errors}"
+                )
+            imported.append(normalized)
+
+        if not imported:
+            raise ValueError("no_replayable_bootstrap_records")
+
+        lock_path = self.execution_log_path.parent / "execution_log.lock"
+        with _file_lock(lock_path):
+            log = json.loads(self.execution_log_path.read_text(encoding="utf-8"))
+            if (
+                log.get("decision_id") != self.decision_id
+                or log.get("round_id") != self.round_id
+                or log.get("plan_digest") != self.plan_digest
+            ):
+                raise ValueError("bootstrap_replay_current_log_identity_mismatch")
+            commands = [item for item in log.get("commands") or [] if isinstance(item, dict)]
+            imported_ids = {record.record_id for record in imported}
+            if any(str(item.get("record_id") or "") in imported_ids for item in commands):
+                raise ValueError("bootstrap_replay_duplicate_record")
+            resequenced: list[dict[str, Any]] = [record.to_dict() for record in imported]
+            for sequence, item in enumerate(commands, start=len(resequenced)):
+                resequenced.append({**item, "sequence": sequence})
+            log["commands"] = resequenced
+            log["generated_at"] = _now_utc()
+            self._atomic_write(
+                self.execution_log_path,
+                json.dumps(log, indent=2, sort_keys=True) + "\n",
+            )
+        return tuple(imported)
+
+    def _git_blob(self, object_spec: str) -> bytes:
+        result = subprocess.run(
+            ["git", "show", object_spec],
+            cwd=str(self.repo_root),
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise ValueError(f"missing_git_blob:{object_spec}")
+        return result.stdout
 
     def _find_plan_entry(self, command_id: str) -> TransitionCommand | None:
         for entry in self.plan.commands:
@@ -980,9 +1371,9 @@ class TrustedExecutionContext:
 
     def _relative_or_abs(self, path: Path) -> str:
         try:
-            return str(path.relative_to(self.repo_root))
-        except ValueError:
-            return str(path)
+            return path.resolve().relative_to(self.repo_root.resolve()).as_posix()
+        except ValueError as exc:
+            raise ValueError(f"evidence_path_outside_repo:{path}") from exc
 
     def _persist_raw_evidence(
         self,
@@ -990,6 +1381,7 @@ class TrustedExecutionContext:
         raw_stdout: bytes,
         raw_stderr: bytes,
     ) -> tuple[Path, Path]:
+        self._ensure_binary_evidence_attributes()
         record_dir = self.evidence_dir / record_id
         record_dir.mkdir(parents=True, exist_ok=True)
         stdout_path = record_dir / "stdout.bin"
@@ -1012,6 +1404,15 @@ class TrustedExecutionContext:
             newline="\n",
         )
         return stdout_path, stderr_path
+
+    def _ensure_binary_evidence_attributes(self) -> None:
+        """Keep raw stdout/stderr byte-for-byte while Git treats them as binary."""
+
+        self.evidence_dir.mkdir(parents=True, exist_ok=True)
+        attributes_path = self.evidence_dir / ".gitattributes"
+        expected = "*.bin binary\n"
+        if not attributes_path.exists() or attributes_path.read_text(encoding="utf-8") != expected:
+            attributes_path.write_text(expected, encoding="utf-8", newline="\n")
 
     def _atomic_write(self, path: Path, content: str) -> None:
         """F6: atomic write using temp file + fsync + atomic replace."""

@@ -32084,6 +32084,8 @@ def _authentic_seal_record_dict(
         "stdout_digest": "sha256:" + "0" * 64,
         "stderr_digest": "sha256:" + "0" * 64,
         "authority_origin": "normal_plan",
+        "decision_id": "decision_seal_cli",
+        "round_id": "round_seal_cli",
     }
 
 

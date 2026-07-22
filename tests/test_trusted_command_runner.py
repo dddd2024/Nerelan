@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -104,7 +105,7 @@ def test_runner_reads_command_from_plan_by_id(tmp_path: Path) -> None:
         command_id="status.git_head",
         command="git rev-parse HEAD",
     )
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -122,7 +123,7 @@ def test_runner_rejects_unknown_command_id(tmp_path: Path) -> None:
 
     _init_repo(tmp_path)
     plan = _plan_with_command()
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -168,7 +169,7 @@ def test_runner_captures_real_stdout_and_computes_digest(tmp_path: Path) -> None
         command_id="status.git_head",
         command="git rev-parse HEAD",
     )
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -196,7 +197,7 @@ def test_runner_persists_raw_evidence_content_addressably(tmp_path: Path) -> Non
         command="git rev-parse HEAD",
     )
     evidence_dir = tmp_path / "evidence"
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=evidence_dir,
@@ -223,7 +224,7 @@ def test_runner_reads_real_git_head_before_and_after(tmp_path: Path) -> None:
         command_id="status.git_head",
         command="git rev-parse HEAD",
     )
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -247,7 +248,7 @@ def test_runner_computes_mutated_paths_from_git_diff(tmp_path: Path) -> None:
         command="python -c \"open('new_file.txt', 'w').write('hello')\"",
         allowed_mutated_paths=("new_file.txt",),
     )
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -263,7 +264,7 @@ def test_runner_stamps_real_utc_timestamps(tmp_path: Path) -> None:
 
     _init_repo(tmp_path)
     plan = _plan_with_command()
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -285,7 +286,7 @@ def test_runner_assigns_unique_record_id(tmp_path: Path) -> None:
 
     _init_repo(tmp_path)
     plan = _plan_with_command()
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -303,7 +304,7 @@ def test_runner_binds_plan_digest_to_record(tmp_path: Path) -> None:
 
     _init_repo(tmp_path)
     plan = _plan_with_command()
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -321,7 +322,7 @@ def test_runner_appends_to_execution_log(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     plan = _plan_with_command()
     log_path = tmp_path / "execution_log.json"
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -351,7 +352,7 @@ def test_runner_uses_plan_entry_authority_origin(tmp_path: Path) -> None:
 
     _init_repo(tmp_path)
     plan = _plan_with_command(authority_origin="normal_plan")
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -369,7 +370,7 @@ def test_runner_captures_nonzero_exit_code(tmp_path: Path) -> None:
         command_id="test.failing",
         command="python -c \"import sys; sys.exit(1)\"",
     )
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=tmp_path / "evidence",
@@ -385,7 +386,7 @@ def test_runner_metadata_includes_raw_evidence_paths(tmp_path: Path) -> None:
     _init_repo(tmp_path)
     plan = _plan_with_command()
     evidence_dir = tmp_path / "evidence"
-    runner = TrustedCommandRunner(
+    runner = TrustedCommandRunner.for_test(
         repo_root=tmp_path,
         plan=plan,
         evidence_dir=evidence_dir,
@@ -400,6 +401,7 @@ def test_runner_metadata_includes_raw_evidence_paths(tmp_path: Path) -> None:
     assert "stdout_digest" in metadata
     assert "stderr_digest" in metadata
     assert metadata["stdout_digest"] == record.stdout_digest
+    assert (evidence_dir / ".gitattributes").read_text(encoding="utf-8") == "*.bin binary\n"
 
 
 # ---------------------------------------------------------------------------
@@ -412,9 +414,10 @@ def _write_state_decision(
     *,
     decision_id: str = "decision_trusted",
     round_id: str = "round_trusted",
-    branch: str = "codex/example-v1",
-    base_sha: str = "a" * 40,
+    branch: str | None = None,
+    base_sha: str | None = None,
     allowed_commands: list[dict] | None = None,
+    bootstrap_exception_commands: list[str] | None = None,
 ) -> None:
     """Write a structured Decision packet + committed command plan."""
 
@@ -437,12 +440,21 @@ def _write_state_decision(
                 "produced_artifacts": [],
             },
         ]
+    repo_root = state_dir.parent
+    branch = branch or subprocess.run(
+        ["git", "branch", "--show-current"], cwd=str(repo_root),
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    base_sha = base_sha or subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=str(repo_root),
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
     contract = {
         "transition_kernel_required": True,
         "required_branch": branch,
         "activation_base_sha": base_sha,
         "bootstrap_exception_files": ["reverse_agent/project_gate.py"],
-        "bootstrap_exception_commands": [],
+        "bootstrap_exception_commands": bootstrap_exception_commands or [],
         "allowed_commands": allowed_commands,
         "allowed_mutated_paths": ["reverse_agent/control_plane/**"],
         "forbidden_mutated_paths": ["frontend/**"],
@@ -495,6 +507,38 @@ def _write_state_decision(
         _json.dumps(plan.to_dict(), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    (gates / "transition_preflight_result.json").write_text(
+        _json.dumps(
+            {
+                "schema_version": 1,
+                "gate_name": "transition-preflight",
+                "gate_status": "PRE_EXECUTION_AUTHORIZED",
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "checks": [
+                    {"name": name, "status": "PASS", "detail": "test fixture"}
+                    for name in (
+                        "decision_identity",
+                        "round_identity",
+                        "decision_approved",
+                        "branch_identity",
+                        "base_ancestry",
+                        "decision_ancestry",
+                        "command_plan_identity",
+                        "command_plan_contract",
+                        "capability_policy_enforced",
+                        "network_policy_enforced",
+                        "path_risk_floor_enforced",
+                    )
+                ],
+                "blocking_reasons": [],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def test_trusted_execution_context_from_state_dir_loads_authority(tmp_path: Path) -> None:
@@ -544,6 +588,17 @@ def test_trusted_execution_context_rejects_plan_mismatch(tmp_path: Path) -> None
         TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
 
 
+def test_injected_plan_runner_is_explicitly_test_only(tmp_path: Path) -> None:
+    _init_repo(tmp_path)
+    runner = TrustedCommandRunner(
+        repo_root=tmp_path,
+        plan=_plan_with_command(),
+        evidence_dir=tmp_path / "evidence",
+    )
+    with pytest.raises(RuntimeError, match="injected_plan_runner_disabled"):
+        runner.run_command(command_id="status.git_head")
+
+
 # ---------------------------------------------------------------------------
 # F5: authorize_before_execute — the pre-execution hard gate
 # ---------------------------------------------------------------------------
@@ -583,6 +638,55 @@ def test_authorize_before_execute_blocks_unknown_command_id(tmp_path: Path) -> N
 
     assert result.status == "BLOCKED"
     assert any("unknown_command_id" in r for r in result.reasons)
+
+
+def test_authorize_before_execute_blocks_stale_or_failed_preflight(tmp_path: Path) -> None:
+    """Authorization rechecks the persisted preflight contract, not status alone."""
+
+    from reverse_agent.control_plane.evidence_recorder import TrustedExecutionContext
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(state_dir)
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    preflight_path = state_dir / "gates" / "transition_preflight_result.json"
+    payload = json.loads(preflight_path.read_text(encoding="utf-8"))
+    payload["checks"][0]["status"] = "FAIL"
+    preflight_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = context.authorize_before_execute("status.git_head")
+    assert result.status == "BLOCKED"
+    assert "required_preflight_not_authorized" in result.reasons
+
+
+def test_authorize_before_execute_blocks_non_local_surface(tmp_path: Path) -> None:
+    from reverse_agent.control_plane.evidence_recorder import TrustedExecutionContext
+
+    _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(
+        state_dir,
+        allowed_commands=[
+            {
+                "command_id": "ci.test",
+                "command": "python -m pytest -q",
+                "phase": "test",
+                "required": False,
+                "required_evidence_source": "ci_check_attestation",
+                "expected_exit_codes": [0],
+                "execution_surface": "ci_only",
+                "operations": ["integration_test"],
+                "network_access": False,
+                "authority_origin": "normal_plan",
+                "allowed_mutated_paths": [],
+                "produced_artifacts": [],
+            }
+        ],
+    )
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    result = context.authorize_before_execute("ci.test")
+    assert result.status == "BLOCKED"
+    assert any("execution_surface_mismatch" in reason for reason in result.reasons)
 
 
 def test_authorize_before_execute_blocks_allowed_only_after_validation(tmp_path: Path) -> None:
@@ -704,6 +808,98 @@ def test_journal_log_header_binds_plan_digest(tmp_path: Path) -> None:
     assert log["round_id"] == context.round_id
 
 
+def test_replay_bootstrap_evidence_from_head_is_verified_and_resequenced(
+    tmp_path: Path,
+) -> None:
+    """Expired bootstrap is replayed from Git blobs, never rerun or supplied."""
+
+    from reverse_agent.control_plane.evidence_recorder import (
+        TrustedExecutionContext,
+        _plan_digest,
+    )
+
+    initial_head = _init_repo(tmp_path)
+    state_dir = tmp_path / "project_state"
+    bootstrap_command = "python -c \"print('bootstrap')\""
+    _write_state_decision(
+        state_dir,
+        bootstrap_exception_commands=[bootstrap_command],
+    )
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    bootstrap_entry = next(entry for entry in context.plan.commands if entry.bootstrap_exception)
+    record_id = "bootstraprecord1"
+    record_dir = state_dir / "gates" / "evidence" / record_id
+    record_dir.mkdir(parents=True)
+    stdout = b"bootstrap\n"
+    stderr = b""
+    (record_dir / "stdout.bin").write_bytes(stdout)
+    (record_dir / "stderr.bin").write_bytes(stderr)
+    (record_dir / "metadata.json").write_text("{}\n", encoding="utf-8")
+    old_record = ExecutionRecord(
+        command_id=bootstrap_entry.command_id,
+        command=bootstrap_entry.command,
+        execution_surface="local",
+        operations=(),
+        mutated_paths=(),
+        exit_code=0,
+        started_at="2026-07-22T01:00:00Z",
+        observed_at="2026-07-22T01:00:01Z",
+        head_before=initial_head,
+        head_after=initial_head,
+        stdout_digest=_sha256_digest(stdout),
+        stderr_digest=_sha256_digest(stderr),
+        authority_origin="bootstrap_exception",
+        record_id=record_id,
+        plan_digest=_plan_digest(context.plan),
+        decision_id=context.decision_id,
+        round_id=context.round_id,
+        sequence=0,
+        raw_stdout_path=f"project_state\\gates\\evidence\\{record_id}\\stdout.bin",
+        raw_stderr_path=f"project_state\\gates\\evidence\\{record_id}\\stderr.bin",
+        pre_state_digest="sha256:" + "1" * 64,
+        post_state_digest="sha256:" + "1" * 64,
+        mutation_delta_digest="sha256:" + "2" * 64,
+    )
+    (state_dir / "gates" / "execution_log.json").write_text(
+        json.dumps(
+            {
+                "decision_id": context.decision_id,
+                "round_id": context.round_id,
+                "plan_digest": context.plan_digest,
+                "generated_at": "2026-07-22T01:00:02Z",
+                "commands": [old_record.to_dict()],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (state_dir / "gates" / "bootstrap_state.json").write_text(
+        json.dumps(
+            {
+                "status": "BOOTSTRAP_EXPIRED",
+                "decision_id": context.decision_id,
+                "round_id": context.round_id,
+                "expired_at": "2026-07-22T02:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "project_state"], cwd=str(tmp_path), check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "bootstrap evidence"], cwd=str(tmp_path), check=True)
+
+    (state_dir / "gates" / "execution_log.json").unlink()
+    shutil.rmtree(state_dir / "gates" / "evidence")
+    current = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    current.run_command("status.git_head")
+    imported = current.replay_bootstrap_evidence_from_head()
+
+    assert len(imported) == 1
+    assert imported[0].record_id == record_id
+    assert "\\" not in imported[0].raw_stdout_path
+    log = json.loads((state_dir / "gates" / "execution_log.json").read_text(encoding="utf-8"))
+    assert [item["sequence"] for item in log["commands"]] == [0, 1]
+    assert log["commands"][0]["authority_origin"] == "bootstrap_exception"
+
+
 # ---------------------------------------------------------------------------
 # F7: Command-local mutation delta — pre/post state digests
 # ---------------------------------------------------------------------------
@@ -769,3 +965,37 @@ def test_runner_delta_excludes_pre_existing_dirty_paths(tmp_path: Path) -> None:
 
     # The pre-existing dirty file must NOT be attributed to this command.
     assert "pre_existing.txt" not in record.mutated_paths
+
+
+def test_runner_delta_attributes_second_edit_to_pre_existing_dirty_path(tmp_path: Path) -> None:
+    """Content snapshots detect edits even when the path was already dirty."""
+
+    from reverse_agent.control_plane.evidence_recorder import TrustedExecutionContext
+
+    _init_repo(tmp_path)
+    dirty = tmp_path / "README.md"
+    dirty.write_text("dirty before command\n", encoding="utf-8")
+    state_dir = tmp_path / "project_state"
+    _write_state_decision(
+        state_dir,
+        allowed_commands=[
+            {
+                "command_id": "test.edit_dirty",
+                "command": "python -c \"open('README.md', 'w').write('changed again')\"",
+                "phase": "test",
+                "required": True,
+                "required_evidence_source": "local_command_evidence",
+                "expected_exit_codes": [0],
+                "execution_surface": "local",
+                "operations": ["integration_test"],
+                "network_access": False,
+                "authority_origin": "normal_plan",
+                "allowed_mutated_paths": ["README.md"],
+                "produced_artifacts": [],
+            }
+        ],
+    )
+    context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=tmp_path)
+    record = context.run_command("test.edit_dirty")
+    assert record.mutated_paths == ("README.md",)
+    assert record.raw_stdout_path == record.raw_stdout_path.replace("\\", "/")

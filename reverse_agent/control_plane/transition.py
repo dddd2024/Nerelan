@@ -398,9 +398,19 @@ def validate_transition(
     # must be backed by its command's ``produced_artifacts ∪ allowed_mutated_paths``
     # (rule #1). ``generated_artifact_paths`` does NOT grant write permission.
     from .command_authority import validate_mutation_grants
+    # Pre-execution envelopes describe requested paths and have no observed
+    # exit code or trusted command ID yet.  They are authorization input, not
+    # mutation evidence.  Enforce command-local grants only for executions
+    # that have actually produced a result; post-execution records still fail
+    # closed on missing/unknown/duplicate command IDs with no string fallback.
+    executed_envelopes = (
+        envelopes
+        if mode == "post"
+        else tuple(envelope for envelope in envelopes if envelope.exit_code is not None)
+    )
     mutation_violations = validate_mutation_grants(
         authority.command_plan,
-        envelopes,
+        executed_envelopes,
         generated_artifact_paths=authority.generated_artifact_paths,
     )
     checks.append(_check(

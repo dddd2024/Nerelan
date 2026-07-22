@@ -85,6 +85,8 @@ def _authentic_record(
         stdout_digest="sha256:" + "0" * 64,
         stderr_digest="sha256:" + "0" * 64,
         authority_origin=authority_origin,
+        decision_id="decision_seal",
+        round_id="round_seal",
     )
 
 
