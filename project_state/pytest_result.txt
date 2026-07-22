@@ -1,5 +1,5 @@
 decision_id: decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1
 round_id: round_20260721_architecture_spine_trusted_execution_cutover_rework_v1
-head_sha: dd77ff3f4075d5c0a3f8e5e9b4ea91a1d1667245
+head_sha: d261b96ad889e5e7080668d6965888c28288d2c1
 local_status: LOCAL_VALIDATED
 note: pytest evidence is produced by the test commands themselves.

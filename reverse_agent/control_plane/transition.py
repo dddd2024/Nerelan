@@ -369,7 +369,17 @@ def validate_transition(
         *authority.runner_managed_artifact_paths,
     )))
     outside_scope = _paths_within_scope(mutated_paths, effective_allowed_scope)
-    forbidden_paths = _paths_in_forbidden(mutated_paths, authority.forbidden_paths)
+    # F9/F4: runner-managed artifact paths (executor provenance) are exempt
+    # from the forbidden_paths check because they are written by the trusted
+    # execution context itself, not by subprocess mutations. Without this
+    # exemption, runner-managed .bin evidence files would always be flagged
+    # as forbidden binary mutations, blocking the preflight even though the
+    # trusted runner is the sole legitimate writer of those paths.
+    non_runner_managed_mutated = tuple(
+        path for path in mutated_paths
+        if not any(_path_matches(path, pattern) for pattern in authority.runner_managed_artifact_paths)
+    )
+    forbidden_paths = _paths_in_forbidden(non_runner_managed_mutated, authority.forbidden_paths)
     checks.append(_check("allowed_path_scope", not outside_scope, f"outside={list(outside_scope)}"))
     checks.append(_check("forbidden_paths", not forbidden_paths, f"forbidden={list(forbidden_paths)}"))
 

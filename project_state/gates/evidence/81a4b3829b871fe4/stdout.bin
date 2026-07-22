@@ -1,0 +1,23 @@
+transition-preflight: PRE_EXECUTION_AUTHORIZED
+decision_id: decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+round_id: round_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+  [PASS] decision_identity: observed=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1 expected=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+  [PASS] round_identity: observed=round_20260721_architecture_spine_trusted_execution_cutover_rework_v1 expected=round_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+  [PASS] decision_approved: status=APPROVED
+  [PASS] active_skills: missing=[]
+  [PASS] legal_mainline: mainline=engineering_branch
+  [PASS] branch_identity: observed=codex/architecture-spine-v1 expected=codex/architecture-spine-v1
+  [PASS] base_ancestry: base=54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f merge_base=54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f
+  [PASS] decision_ancestry: decision_commit=8a5cb389dc218ae63de9cc68cd88a18baf985d4c
+  [PASS] command_plan_identity: plan=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1/round_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+  [PASS] command_plan_contract: errors=[]
+  [PASS] allowed_path_scope: outside=[]
+  [PASS] forbidden_paths: forbidden=[]
+  [PASS] reference_paths_read_only: violations=[]
+  [PASS] mutation_grants_enforced: violations=[]
+  [PASS] capability_policy_enforced: forbidden=[]
+  [PASS] network_policy_enforced: violations=[]
+  [PASS] path_risk_floor_enforced: violations=[]
+  [PASS] execution_evidence_present: pre_execution_mode_no_evidence_required
+recommended_next_action: None
+artifact: project_state/gates/transition_preflight_result.json

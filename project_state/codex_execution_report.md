@@ -2,21 +2,66 @@
 
 - decision_id: decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1
 - round_id: round_20260721_architecture_spine_trusted_execution_cutover_rework_v1
-- head_sha: dd77ff3f4075d5c0a3f8e5e9b4ea91a1d1667245
+- head_sha: d261b96ad889e5e7080668d6965888c28288d2c1
 - base_sha: 54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f
 - local_status: LOCAL_VALIDATED
-- changed_files_count: 19
-- subject_tree_digest: 815504ee288b661c1c2f548178f7d7422fb39ca91ae059e13357930cd738edf1
-- subject_diff_digest: c0bf1c8101921ce98fe38aa7bd278fb89a53edc9f385f1168031198924f86fd6
-- local_seal_digest: sha256:0628a0237b83489d8fe5b6daf417fb1b298494d42fd47b1f6a32fbe9fb08db9c
+- changed_files_count: 64
+- subject_tree_digest: dbd3255c87fb27b847e3b5aee644e1a7ffeaf0176b91f246dd7bc00a587ab695
+- subject_diff_digest: b8f84f586e1edb718986797df09d6d88cbd132df01c69488310f6e11be2c8711
+- local_seal_digest: sha256:647a75955193c4889b38784148826dcfff4c6f96ab6776a59c8783f8b462b0fd
 
 ## Changed Files
 
+- project_state/codex_execution_report.md
 - project_state/decision_packet.md
+- project_state/execution_report.md
 - project_state/gates/bootstrap_state.json
+- project_state/gates/changed_file_inventory.json
 - project_state/gates/command_plan.json
+- project_state/gates/evidence/36001e6712bb317d/metadata.json
+- project_state/gates/evidence/36001e6712bb317d/stderr.bin
+- project_state/gates/evidence/36001e6712bb317d/stdout.bin
+- project_state/gates/evidence/45d8831b96bdd4a8/metadata.json
+- project_state/gates/evidence/45d8831b96bdd4a8/stderr.bin
+- project_state/gates/evidence/45d8831b96bdd4a8/stdout.bin
+- project_state/gates/evidence/5ba2d1fd7b7c1b16/metadata.json
+- project_state/gates/evidence/5ba2d1fd7b7c1b16/stderr.bin
+- project_state/gates/evidence/5ba2d1fd7b7c1b16/stdout.bin
+- project_state/gates/evidence/6b205bf67638a5c2/metadata.json
+- project_state/gates/evidence/6b205bf67638a5c2/stderr.bin
+- project_state/gates/evidence/6b205bf67638a5c2/stdout.bin
+- project_state/gates/evidence/6d306cdd6098c9ab/metadata.json
+- project_state/gates/evidence/6d306cdd6098c9ab/stderr.bin
+- project_state/gates/evidence/6d306cdd6098c9ab/stdout.bin
+- project_state/gates/evidence/96b5ad717cd63840/metadata.json
+- project_state/gates/evidence/96b5ad717cd63840/stderr.bin
+- project_state/gates/evidence/96b5ad717cd63840/stdout.bin
+- project_state/gates/evidence/a06ee5ed8a3d2282/metadata.json
+- project_state/gates/evidence/a06ee5ed8a3d2282/stderr.bin
+- project_state/gates/evidence/a06ee5ed8a3d2282/stdout.bin
+- project_state/gates/evidence/a7c3fbfcf0be9bf2/metadata.json
+- project_state/gates/evidence/a7c3fbfcf0be9bf2/stderr.bin
+- project_state/gates/evidence/a7c3fbfcf0be9bf2/stdout.bin
+- project_state/gates/evidence/ac33b78fe5a5f09c/metadata.json
+- project_state/gates/evidence/ac33b78fe5a5f09c/stderr.bin
+- project_state/gates/evidence/ac33b78fe5a5f09c/stdout.bin
+- project_state/gates/evidence/cb0e6d7713d1cec4/metadata.json
+- project_state/gates/evidence/cb0e6d7713d1cec4/stderr.bin
+- project_state/gates/evidence/cb0e6d7713d1cec4/stdout.bin
+- project_state/gates/evidence/d4bf7d0876fc28a2/metadata.json
+- project_state/gates/evidence/d4bf7d0876fc28a2/stderr.bin
+- project_state/gates/evidence/d4bf7d0876fc28a2/stdout.bin
+- project_state/gates/evidence/eac345ee900dd189/metadata.json
+- project_state/gates/evidence/eac345ee900dd189/stderr.bin
+- project_state/gates/evidence/eac345ee900dd189/stdout.bin
+- project_state/gates/evidence/execution_log_archived_previous_round.json
+- project_state/gates/execution_log.json
+- project_state/gates/local_execution_seal.json
+- project_state/gates/reconciliation_candidate.json
+- project_state/gates/remote_observation_payload.json
 - project_state/gates/transition_command_plan_preview.json
 - project_state/gates/transition_preflight_result.json
+- project_state/pytest_result.txt
 - reverse_agent/control_plane/command_authority.py
 - reverse_agent/control_plane/evidence_recorder.py
 - reverse_agent/control_plane/legacy_adapter.py
