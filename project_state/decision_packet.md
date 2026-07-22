@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260722_architecture_constitution_gate_compatibility_rework_v1",
-  "round_id": "round_20260722_architecture_constitution_gate_compatibility_rework_v1",
+  "decision_id": "decision_20260722_p0_test_compatibility_and_completion_rework_v1",
+  "round_id": "round_20260722_p0_test_compatibility_and_completion_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,14 +13,16 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260722_architecture_constitution_and_migration_baseline_v1",
-  "follows_last_round_id": "round_20260722_architecture_constitution_and_migration_baseline_v1",
-  "previous_audit_outcome": "BLOCKED",
-  "workstream_id": "architecture-constitution-gate-compatibility-rework-v1",
-  "source_issue": 12,
+  "follows_last_decision_id": "decision_20260722_architecture_constitution_gate_compatibility_rework_v1",
+  "follows_last_round_id": "round_20260722_architecture_constitution_gate_compatibility_rework_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
+  "workstream_id": "p0-test-compatibility-and-completion-rework-v1",
+  "source_issue": 13,
   "source_pull_request": 11,
   "required_branch": "agent/architecture-constitution-plan-v1",
-  "activation_base_sha": "53606188e34a580e6e534bbef03a56af5eecbf41",
+  "activation_base_sha": "46380c4a7617d907ef2ce73434d05a546f01ca5a",
+  "starting_remote_head": "46380c4a7617d907ef2ce73434d05a546f01ca5a",
+  "frozen_pr9_head": "43418818af61d9be3208d2444fd6ce5120f73fab",
   "roadmap_basis": "docs/roadmap/p0_architecture_constitution_execution_plan_v1.md",
   "risk_tier": "R1",
   "required_profile": "fast",
@@ -33,9 +35,9 @@
   "closeout_allowed": false,
   "pytest_required": true,
   "explicit_pytest_command_required": true,
-  "documentation_only": true,
+  "documentation_only": false,
   "source_code_change_allowed": false,
-  "test_code_change_allowed": false,
+  "test_code_change_allowed": true,
   "runtime_mutation_allowed": false,
   "dependency_change_allowed": false,
   "workflow_change_allowed": false,
@@ -46,6 +48,9 @@
   "tool_provider_execution_allowed": false,
   "pr9_branch_mutation_allowed": false,
   "pr9_merge_allowed": false,
+  "allowed_test_files": [
+    "tests/test_project_gate.py"
+  ],
   "allowed_docs": [
     "docs/architecture/architecture-spine-v2.md",
     "docs/architecture/trust-model.md",
@@ -75,20 +80,27 @@
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
-    "project_state/rounds/round_20260722_architecture_constitution_gate_compatibility_rework_v1/*"
+    "project_state/rounds/round_20260722_p0_test_compatibility_and_completion_rework_v1/*"
   ],
   "read_only_reference_files": [
     "project_state/state_manifest.json",
     "project_state/context/current_context_packet.json",
     ".codex-skills/registry.json",
-    ".codex-skills/reverse-agent-iteration/SKILL.md"
+    ".codex-skills/reverse-agent-iteration/SKILL.md",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_reports.py",
+    "tests/test_project_state.py"
   ],
   "forbidden_mutated_paths": [
     "reverse_agent/*",
-    "tests/*",
+    "reverse_agent/**",
+    "tests/test_project_reports.py",
+    "tests/test_project_state.py",
     "frontend/*",
     ".github/workflows/*",
+    ".github/workflows/**",
     ".codex-skills/*",
+    ".codex-skills/**",
     "solve_reports/*",
     "training_materials/local_reverse/*",
     "pyproject.toml",
@@ -112,7 +124,7 @@
   ],
   "publication_authorization": {
     "granted_by_user": true,
-    "applies_to": "the replacement Decision commit and later validated documentation-only commits on PR #11",
+    "applies_to": "the replacement Decision activation commit and later validated P0 test/document/evidence commit on PR #11",
     "allowed_branch": "agent/architecture-constitution-plan-v1",
     "base_branch": "main",
     "decision_activation_commit_publication_allowed": true,
@@ -123,6 +135,7 @@
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
     "rebase_allowed": false,
+    "squash_allowed": false,
     "force_push_allowed": false,
     "tag_mutation_allowed": false,
     "release_allowed": false,
@@ -138,175 +151,247 @@
 
 ## 1. Goal
 
-以新的不可变 Decision 替换被 preflight 阻塞的 P0 v1 Decision，并继续执行 **P0：Architecture Constitution and Migration Baseline** 文档轮。
+以新的不可变 Decision 吸收 Issue #13 审计确认的单一测试 fixture 兼容性修复，并完成已由上一轮产生、尚未发布的 **P0：Architecture Constitution and Migration Baseline** 文档成果。
 
-本轮仍只冻结产品边界、模块边界、两条 Workflow、两个 trust bounded context、唯一事实源、存储归属、Evidence/Claim 版本规则、Sandbox 边界、Legacy 退出路线和 P1-P16 顺序。
+本轮只允许：
 
-本 Decision 专门修复两个授权兼容问题：
-
-1. 允许文档路径不得再触发 sample scope 误判；
-2. 显式 Profile、自动 Profile 与 Command Plan 必须一致。
+1. 对 `tests/test_project_gate.py` 中失败的 generated-audit semantic-alignment 测试及其最小相邻 helper/fixture 做 hermetic 修复；
+2. 保留、复核并发布已经完成的 P0 架构文档、ADR 和 roadmap；
+3. 生成本 replacement round 必需的 Gate、测试与报告证据。
 
 ## 2. Current Evidence
 
-- 当前工作分支为 `agent/architecture-constitution-plan-v1`。
-- PR #11 在本 Decision 激活前的 head 为 `53606188e34a580e6e534bbef03a56af5eecbf41`。
-- PR #9 仍冻结在 exact head `43418818af61d9be3208d2444fd6ce5120f73fab`。
-- 上一 Decision 的 decision-lint、显式 Gate Profile、Command Plan 和 startup snapshot 已通过。
-- 上一 Decision 的 preflight 在任何架构正文修改前阻塞。
-- 第一项阻塞来自允许文档文件名被旧 mainline-scope 规则误判。
-- 第二项阻塞来自显式 `standard` Profile 与 preflight 自动推导的 `fast` Profile 冲突。
-- 上一 Decision 声明激活后不可变，因此不得原地编辑；本 Decision 以新的 ID 和 Round 正式替换它。
-- P0 是 R1 文档轮。为与现有自动推导保持一致，本轮使用 `fast` Profile，不要求 run-closeout 或 close-round。
-- 未修改架构正文、ADR、源码、测试、依赖、Workflow、Skill 或 PR #9。
+- 用户已明确批准 `decision_20260722_p0_test_compatibility_and_completion_rework_v1` 与对应 round。
+- 执行工作树为既有 `F:\reverse-agent-p0`；它属于 `F:\reverse-agent` 同一仓库且承载全部未提交 P0 成果，没有创建新工作树。
+- 当前分支为 `agent/architecture-constitution-plan-v1`。
+- PR #11 远端 head、当前本地 HEAD 与 activation base 均为 `46380c4a7617d907ef2ce73434d05a546f01ca5a`。
+- PR #9 保持 Draft、open、unmerged，并冻结在 exact head `43418818af61d9be3208d2444fd6ce5120f73fab`。
+- 上一轮已通过 automatic fast Gate Profile、Command Plan、startup snapshot 与 preflight。
+- 上一轮 required pytest 实际结果为 `1488 passed, 1 failed`；唯一失败是 `tests/test_project_gate.py::test_closeout_order_provenance_generated_audit_is_semantically_aligned`。
+- Issue #13 已判定该测试读取 live `project_state/decision_packet.md` 并硬编码历史 `48` 问题数量，属于 fixture 设计缺陷。
+- PR #11 的远端 workflow 当前在 package installation 阶段失败，因为 `main` 缺少已冻结在 PR #9 中的 packaging baseline；本轮不得复制 packaging 或修改 workflow。
 
-## 3. Do Not Do
+## 3. Inherited Authorized WIP Inventory
+
+以下文件在本 Decision 激活前已经存在于工作树，分类统一为 `inherited_authorized_wip`。记录的 SHA-256 是激活前内容摘要；不得 reset、clean、discard、覆盖或从零重新生成这些文件。
+
+### Allowed Inherited Dirty Baseline Files
+
+- `docs/architecture/architecture-spine-v2.md` — Architecture Spine v2 — `a2383803113cfc92f2fd0364add9687190b1a631ecb41ca46a5e8ee124d30075`
+- `docs/architecture/trust-model.md` — Trust Model — `8899e2a2e01ebb6600ebe91735ed3bad8dbf160256535d6b6c9d486ccd79a51c`
+- `docs/architecture/data-contracts.md` — Analysis Data Contracts — `f82f8ea98e6abbe834a7c5895afce080ca146e2418922f035b1f08010c913752`
+- `docs/architecture/storage-and-artifact-ownership.md` — Storage and Artifact Ownership — `ecb91e06c315efbd449a2e75af97b92e5ff1829dea76626280dece7501680bea`
+- `docs/architecture/sandbox-and-execution-boundary.md` — Sandbox and Execution Boundary — `5551f9b5c66e4787bccaf69e87718227008b757dcdb9b26d33705d4bc0c90566`
+- `docs/architecture/migration-and-legacy-exit.md` — Migration and Legacy Control Plane Exit — `46e708a49a51140022f55ec1bc5b05ebee926c16cdcacfe8d79091d357b6d64b`
+- `docs/architecture/governance-cost-model.md` — Governance Cost Model — `4e01f9bc14d91fcc5f9bb52e7685aaba112ba04a6f8957508e2028e9ddfae810`
+- `docs/adr/ADR-001-modular-monolith.md` — ADR-001 Modular Monolith — `467efb53a7f909f4141451561f4d1f553798341bc590921147ca5e5caba0d781`
+- `docs/adr/ADR-002-separate-development-and-analysis-workflows.md` — ADR-002 Separate Development and Analysis Workflows — `4c47af50dd83985c3a2f47e0f2d8f26e9b1f45e7a4286a04f23c1ce2c5750f01`
+- `docs/adr/ADR-003-separate-trust-bounded-contexts.md` — ADR-003 Separate Trust Bounded Contexts — `c0c9192dafa3a1e7c2fbfa9331f93840a045184e44bc5a1e40a07df3c4a5f1a8`
+- `docs/adr/ADR-004-unique-source-of-truth.md` — ADR-004 Unique Source of Truth — `be515dd67a4beb22edd470c03845fff76f9e316da9d226470935420d51e41f1e`
+- `docs/adr/ADR-005-storage-ownership.md` — ADR-005 Storage Ownership — `93e5aafbfbdd6ecdfb16233765d5460ff569c0eedd22d053cabe67dd4710a0f2`
+- `docs/adr/ADR-006-evidence-and-claim-versioning.md` — ADR-006 Evidence and Claim Versioning — `2a77e952ae60710847ec7f41356b519bb513cfe241628cb19155f7e103c0312e`
+- `docs/adr/ADR-007-langgraph-workflow-ownership.md` — ADR-007 LangGraph Workflow Ownership — `ee19916a9801067fad5c4c150e80d5ed4a2724572c578bfaa2afe24671eed94a`
+- `docs/adr/ADR-008-sandbox-worker-boundary.md` — ADR-008 Sandbox Worker Boundary — `ba60e95d16d9cc8bd31117f5d4a2ffd45ab3d2c797f45989cd23646b082ce4f0`
+- `docs/adr/ADR-009-telemetry-is-not-analysis-evidence.md` — ADR-009 Telemetry Is Not Analysis Evidence — `50a4be4676cdbb7b0a4de7c43278579065545855224229458dfefe4b7de18cbf`
+- `docs/adr/ADR-010-legacy-control-plane-exit.md` — ADR-010 Legacy Control Plane Exit — `2136245727ae4ed8bae974f0f67727813cfb537d67620785dfc0e40b9f34e6cc`
+- `docs/roadmap/long-term-implementation-plan-v2.md` — Long-term Implementation Plan v2 — `00827ebe5e64b5758a274e93f2be33ab926041a9771a578e781141b12eb7730c`
+- `docs/roadmap/architecture_constitution_and_migration_baseline_v1.md` — Architecture Constitution and Migration Baseline v1 — `71d03453cfd32a630fd6a0b9d97bc966daba828ee0f3e4037e1a7bba72b1eea3`
+- `docs/roadmap/architecture_constitution_implementation_plan_v1.md` — Architecture Constitution Implementation Plan v1 — `ac973888ebe2eef873c573ed07e07f622dfde16c4802e55e64e6dda8ad43e56d`
+- `docs/roadmap/p0_architecture_constitution_execution_plan_v1.md` — P0 Architecture Constitution Execution Plan v1 — `c145a74fdb43cfeac438d2c39bd99984c1e8b19d0b1f578cc96d36122f02380f`
+
+### Inherited Gate and report evidence to refresh after activation
+
+以下旧轮证据已被单独识别，不得与 P0 文档混淆。它们仅可在 Decision activation commit 完成后，按新 Command Plan 生成当前轮版本：
+
+- `project_state/gates/gate_profile_plan.json`
+- `project_state/gates/command_plan.json`
+- `project_state/gates/startup_snapshot.json`
+- `project_state/gates/preflight_result.json`
+- `project_state/gates/round_baseline.json`
+- `project_state/pytest_result.txt`
+- `project_state/codex_execution_report.md`
+- `project_state/execution_report.md`
+
+## 4. Do Not Do
 
 不得：
 
-- 修改已经被阻塞的上一 Decision 的 Git 历史；
-- 在新 Command Plan 和 preflight 通过前修改架构正文、ADR 或长期路线正文；
-- 修改 Gate 源码、测试代码、依赖、Workflow 或 Skill；
-- 重新强制选择 `standard` 或 `full` Profile；
-- 在本轮运行 run-closeout 或 close-round；
-- 修改或合并 PR #9；
-- 实现 EvidenceUnit、Claim、数据库、CAS、Sandbox、Provider、Web 或新的 AgentRunner；
+- reset、clean、discard、覆盖或重新生成上述 `inherited_authorized_wip` 文档；
+- 在 Decision activation commit、新 automatic fast Gate Profile、新 Command Plan digest lock、startup snapshot 和 preflight 全部通过前修改测试或 P0 文档；
+- 修改 `tests/test_project_gate.py` 之外的任何测试文件；
+- 修改 `reverse_agent/**`、`.github/workflows/**`、`.codex-skills/**`、`pyproject.toml` 或 `requirements*.txt`；
+- 通过 skip、xfail、删除断言、弱化 production validation 或读取 live Decision 来规避失败；
+- 添加 packaging、修改 workflow 或复制 PR #9 内容以伪造远端 CI 通过；
+- 修改、合并或标记 ready PR #9；
+- 实现 Issue #14、EvidenceUnit、Claim、数据库、CAS、Sandbox、Provider、Web 或 AgentRunner；
 - 执行未知二进制或调用逆向工具；
-- 直接 push main、rebase、squash、force-push、tag 或 release；
-- 使用 `git add -A` 或提交无关文件。
+- 直接 push main、merge、rebase、squash、force-push、tag 或 release；
+- 使用 `git add -A`、`git add .` 或提交未明确授权路径。
 
-## 4. Files To Inspect
+## 5. Files To Inspect
 
-执行前必须检查：
+执行前及每个 Gate 阶段必须检查：
 
 - `project_state/decision_packet.md`
 - `project_state/gates/gate_profile_plan.json`
 - `project_state/gates/command_plan.json`
 - `project_state/gates/startup_snapshot.json`
 - `project_state/gates/preflight_result.json`
-- 三份现有 P0 规划文档
-- `.codex-skills/registry.json`
-- `.codex-skills/reverse-agent-iteration/SKILL.md`
+- 上述 20 个 `inherited_authorized_wip` 文档
+- `tests/test_project_gate.py`
+- `tests/test_project_reports.py`，只读
+- `tests/test_project_state.py`，只读
 - `reverse_agent/project_gate.py`，只读
-- `tests/test_project_gate.py`、`tests/test_project_reports.py`、`tests/test_project_state.py`，只读
-- PR #9、PR #11 和 Issue #12 的远端状态
+- PR #9、PR #11、Issue #13 的远端状态
 - `git status --short`
-- `git branch --show-current`
-- `git rev-parse HEAD`
+- `git diff --check`
+- `git diff --name-only`
 
-不得读取完整 `solve_reports/` 或 `PROJECT_PROGRESS_LOG.txt`。
+不得读取或修改完整 `solve_reports/`；本轮不是逆向求解轮。
 
-## 5. Required Audit
+## 6. Required Audit
 
 最终报告必须逐项回答：
 
 1. 当前 Decision 与 Round ID 是否为本 replacement Decision？
 2. 上一 Decision 是否保留在 Git 历史且未被原地改写？
-3. 当前分支和 activation base SHA 是否准确？
-4. 自动 Gate Profile 是否为 `fast`？
-5. Command Plan 是否不包含 run-closeout 和 close-round？
-6. 新 Command Plan 是否在所有正文修改和测试前生成并锁定？
-7. preflight 是否不再出现路径 scope 误判？
-8. preflight 是否不再出现 Profile/closeout 冲突？
-9. 实际变更是否仅位于允许的 docs、ADR 和当前轮证据文件？
-10. PR #9 是否保持 exact head 且未修改？
-11. Development Workflow 与 Binary Analysis Workflow 是否分离？
-12. Engineering Control Plane 与 Binary Analysis Trust Domain 是否分离？
-13. 每类动态事实是否只有一个可变权威？
-14. `Trust != Confidence != Validation` 是否明确？
-15. EvidenceUnit、ActionReceipt、ValidationResult 和 sealed CapsuleManifest 是否不可覆盖？
-16. Claim 是否仅通过 revision 演化？
-17. Metadata、Artifact、Checkpoint、Telemetry 和 Capsule 的归属是否唯一？
-18. Sandbox S0-S3 和 Worker 权限边界是否明确？
-19. Legacy 退出路线和治理成本上限是否明确？
-20. 本轮是否没有源码、测试代码、依赖、Workflow、数据库或运行时变更？
-21. 必要测试、文档一致性检查、execution-log 和 final-check 是否通过？
+3. 当前分支、PR #11 starting remote head 与 activation base SHA 是否准确？
+4. PR #9 是否保持 Draft、open、unmerged 且 exact head 未变？
+5. 20 个继承 P0 文件是否在激活前完成路径、标题和 SHA-256 盘点并标记为 `inherited_authorized_wip`？
+6. Decision activation commit 是否只包含 `project_state/decision_packet.md`？
+7. automatic Gate Profile 是否为 `fast`？
+8. 新 Command Plan 是否在任何测试修复和后续 P0 修改前生成并锁定？
+9. Command Plan 是否不包含 run-closeout 和 close-round？
+10. startup snapshot 与 preflight 是否通过且没有 scope/profile/closeout 冲突？
+11. 测试是否不再读取仓库 live `project_state/decision_packet.md`？
+12. fixture 是否显式定义 Required Audit 问题并由 fixture 推导数量与顺序？
+13. 历史 48-question 场景与至少一个 non-48 场景是否均被覆盖？
+14. 测试是否验证问题 identity、order、answer alignment 与 semantic correspondence，而不是固定总数？
+15. 是否只有 `tests/test_project_gate.py` 被修改且未弱化 production validation？
+16. required focused test 和完整 P0 pytest 命令是否均为零失败？
+17. Development Workflow 与 Binary Analysis Workflow 是否分离？
+18. Engineering Control Plane 与 Binary Analysis Trust Domain 是否分离？
+19. 每类动态事实是否只有一个可变权威？
+20. `Trust != Confidence != Validation` 是否明确？
+21. EvidenceUnit、ActionReceipt、ValidationResult 和 sealed CapsuleManifest 是否不可覆盖，Claim 是否只通过 revision 演化？
+22. Metadata、Artifact、Checkpoint、Telemetry 和 Capsule 的归属是否唯一？
+23. Sandbox S0-S3、Worker 权限、Legacy 退出路线和治理成本上限是否明确？
+24. P1-P16 顺序是否在全部文档中一致，且 PR #9 integration 是否仍为独立 P1 Decision？
+25. 实际变更是否仅位于允许测试、P0 文档及当前轮 Gate/report 证据？
+26. report-summary、execution-log 与 final-check 是否通过？
+27. 远端 package-install 失败是否被如实报告为 pre-P1 baseline debt，而没有宣称远端 CI 通过？
 
-## 6. Implementation Scope
+## 7. Implementation Scope
 
-允许完成：
+### Allowed test file
 
-- `docs/architecture/architecture-spine-v2.md`
-- `docs/architecture/trust-model.md`
-- `docs/architecture/data-contracts.md`
-- `docs/architecture/storage-and-artifact-ownership.md`
-- `docs/architecture/sandbox-and-execution-boundary.md`
-- `docs/architecture/migration-and-legacy-exit.md`
-- `docs/architecture/governance-cost-model.md`
-- ADR-001 至 ADR-010，其中 ADR-007 使用 workflow ownership 文件名
-- `docs/roadmap/long-term-implementation-plan-v2.md`
-- 对三份现有规划文件进行必要的文件名、交叉引用和状态修正
+- `tests/test_project_gate.py`
 
-执行顺序：
+只允许修复 `test_closeout_order_provenance_generated_audit_is_semantically_aligned` 及其最小相邻 helper/fixture：
+
+- 不读取 live `project_state/decision_packet.md`；
+- 使用临时隔离 Decision fixture；
+- 从 fixture 推导 expected count/order；
+- 覆盖历史 48-question 和至少一个 non-48 question shape；
+- 保持 semantic identity、ordering、answer alignment、semantic correspondence 检查。
+
+### Allowed inherited P0 documents
+
+允许复核和发布第 3 节列出的 20 个 `inherited_authorized_wip` 文件；不得从零重写。
+
+### Allowed generated/project-state files
+
+- `project_state/gates/*.json`
+- `project_state/pytest_result.txt`
+- `project_state/codex_execution_report.md`
+- `project_state/execution_report.md`
+- `project_state/rounds/round_20260722_p0_test_compatibility_and_completion_rework_v1/*`
+
+执行顺序不可调整：
 
 ```text
-replacement Decision activation
-→ discard or isolate stale v1 gate outputs
-→ automatic fast gate-profile
-→ new command-plan and digest lock
-→ startup snapshot
+verify exact heads
+→ inventory and hash inherited P0 WIP
+→ commit replacement Decision only
+→ automatic fast Gate Profile
+→ generate and lock replacement Command Plan
+→ refresh startup snapshot
 → preflight
-→ architecture documents and ADRs
-→ roadmap consistency
-→ tests and document checks
-→ reports, execution-log and final-check
-→ ARCHITECTURE_CONSTITUTION_ACCEPTED
+→ hermetic fixture repair
+→ focused pytest
+→ full required P0 pytest
+→ P0 document consistency review
+→ allowlist and git diff checks
+→ report-summary
+→ execution-log
+→ final-check
+→ explicit-path commit
+→ one push to existing PR #11
+→ stop branch mutation for independent audit
 ```
 
-## 7. Tests
+## 8. Tests
 
-在新 Command Plan 和 preflight 通过后，至少运行：
+只有 preflight 通过后才允许运行修复与验证：
 
 ```text
-git status --short
+python -m pytest tests/test_project_gate.py::test_closeout_order_provenance_generated_audit_is_semantically_aligned -q
+python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q
 git diff --check
 git diff --name-only
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate execution-log --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 ```
 
-不得运行 run-closeout 或 close-round。
+验收要求零失败，不要求或宣称固定的 passed 总数。不得运行 run-closeout 或 close-round。
 
-## 8. Acceptance Criteria
+## 9. Acceptance Criteria
 
 本轮只有在以下条件全部满足时才能标记：
 
 ```text
-ARCHITECTURE_CONSTITUTION_ACCEPTED
+P0_TEST_COMPATIBILITY_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
 ```
 
-- replacement Decision lint 通过；
-- 自动 `fast` Profile、Command Plan、startup snapshot 和 preflight 通过；
-- 两个原阻塞均消失；
-- 所有架构文档和 ADR 完成；
-- 三份旧规划文件的文件名引用已同步；
-- 测试、文档一致性检查、execution-log 和 final-check 通过；
-- PR #9 始终未修改；
-- 没有越权代码或运行时变更；
-- 最终报告逐项回答 Required Audit。
+- replacement Decision 单文件 activation commit 已完成；
+- automatic `fast` Profile、Command Plan digest lock、startup snapshot 和 preflight 全部通过；
+- hermetic fixture 不再依赖 live Decision，且保留 48 与 non-48 场景覆盖；
+- required focused test 与完整 P0 pytest 命令零失败；
+- 全部 P0 文档、ADR 和 roadmap 已复核并提交；
+- 只修改允许的测试、文档与当前轮证据路径；
+- final-check 通过；
+- PR #9 始终保持冻结 exact head；
+- 远端 package-install 失败被如实记录为 P1 前基线债务；
+- 最终报告完整回答本 Decision 的 Required Audit。
 
-## 9. Stop Conditions
+## 10. Stop Conditions
 
-遇到以下任一情况必须停止：
+遇到以下任一情况必须立即停止：
 
-- PR #9 accepted head 变化；
-- PR #11 出现无法解释的并行提交；
+- PR #9 或 PR #11 远端 head 意外变化；
 - 当前分支或 activation base 不一致；
-- replacement Decision lint、Command Plan、digest lock 或 preflight 阻塞；
-- 任何允许路径仍被 mainline scope 误判；
-- 自动 Profile 不是 `fast`；
-- Command Plan 仍包含 run-closeout 或 close-round；
-- 必须修改源码、测试、依赖、Workflow 或 Skill 才能继续；
-- 工作树存在无法隔离的无关改动；
-- required tests 出现无法在允许范围内解释的失败。
+- 继承 P0 文件无法与无关工作区分；
+- replacement Decision lint、automatic fast Profile、Command Plan、digest lock、startup snapshot 或 preflight 阻塞；
+- hermetic test 修复必须修改 `reverse_agent/**`；
+- required tests 出现与同一 live-Decision fixture 缺陷无关的新失败；
+- path scope 要求修改 Gate 源码；
+- 有人提议在 P1 前添加 packaging/workflow 变更以使 PR #11 远端 CI 变绿。
 
-## 10. Next Authorized Boundary
+## 11. Publication Boundary
 
-本 Decision 不授权 P1。
+本 Decision 允许在全部本地验收通过后：
 
-P0 接受后，下一步必须创建独立 Decision：
+- 仅显式暂存授权路径；
+- 提交 test repair、P0 文档和当前轮证据；
+- 向 `agent/architecture-constitution-plan-v1` 推送一次；
+- 更新现有 Draft PR #11 与 Issue #13 的精确最终 head 和真实验证状态。
+
+不得合并、mark ready、rebase、squash、force-push、tag、release、直接 push main 或修改 PR #9。
+
+## 12. Next Authorized Boundary
+
+P0 独立审计接受后停止。下一轮必须是单独批准的 Integration Decision：
 
 ```text
 P1: PR #9 Exact-head Integration and Architecture Spine Freeze
