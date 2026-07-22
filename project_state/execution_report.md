@@ -1,7 +1,9 @@
 # Execution Report
 
-- decision_id: decision_20260721_architecture_spine_attestation_policy_seal_v1
-- round_id: round_20260721_architecture_spine_attestation_policy_seal_v1
-- head_sha: c97edca2cb5ae7b3d6ab830a0f1ab52ce6eecabb
-- base_sha: ed634162b0189acaa60c11b4ad8e080479748f98
+- decision_id: decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+- round_id: round_20260721_architecture_spine_trusted_execution_cutover_rework_v1
+- head_sha: dd77ff3f4075d5c0a3f8e5e9b4ea91a1d1667245
+- base_sha: 54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f
 - internally_consistent: True
+- subject_tree_digest: 815504ee288b661c1c2f548178f7d7422fb39ca91ae059e13357930cd738edf1
+- subject_diff_digest: c0bf1c8101921ce98fe38aa7bd278fb89a53edc9f385f1168031198924f86fd6

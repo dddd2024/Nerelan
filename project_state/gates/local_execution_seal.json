@@ -1,12 +1,15 @@
 {
   "schema_version": 1,
   "gate_name": "transition-seal-local",
-  "status": "LOCAL_RECONCILED",
-  "decision_id": "decision_20260721_architecture_spine_attestation_policy_seal_v1",
-  "round_id": "round_20260721_architecture_spine_attestation_policy_seal_v1",
-  "activation_base_sha": "ed634162b0189acaa60c11b4ad8e080479748f98",
-  "subject_digest": "sha256:4e7dc3e36f8c7a6f5f1186556944d4061127225ea8819212450bd8c59f803bd3",
-  "plan_digest": "sha256:64a85876ce104b87d59dbe7f98f9b55557c521e4864bca067b43383da4e6e131",
-  "result_digest": "sha256:c6c1eca2815c33172f9b27d884cff51c740ca80aafef0d2711a7bad4d57a7d31",
-  "sealed_at": "2026-07-21T08:52:33Z"
+  "status": "LOCAL_RECONCILIATION_BLOCKED",
+  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "activation_base_sha": "54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f",
+  "subject_digest": "sha256:0628a0237b83489d8fe5b6daf417fb1b298494d42fd47b1f6a32fbe9fb08db9c",
+  "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+  "result_digest": "sha256:1f56ab077af7dcb96ba4acaab49c4a29c0da98e3a8b3d2e18cef9e34d9b2bcc8",
+  "sealed_at": "2026-07-22T01:58:11Z",
+  "blocking_reasons": [
+    "candidate_not_reconciled:BLOCKED"
+  ]
 }

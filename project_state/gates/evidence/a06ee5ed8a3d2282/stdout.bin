@@ -1,0 +1,10 @@
+ M project_state/codex_execution_report.md
+ M project_state/execution_report.md
+ M project_state/gates/changed_file_inventory.json
+ D project_state/gates/execution_log.json
+ M project_state/gates/local_execution_seal.json
+ M project_state/gates/reconciliation_candidate.json
+ M project_state/gates/remote_observation_payload.json
+ M project_state/pytest_result.txt
+ M reverse_agent/project_gate.py
+?? project_state/gates/evidence/

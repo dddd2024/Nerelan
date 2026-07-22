@@ -1,0 +1,9 @@
+{
+  "record_id": "45d8831b96bdd4a8",
+  "stderr_bytes": 0,
+  "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_path": "stderr.bin",
+  "stdout_bytes": 769,
+  "stdout_digest": "sha256:513561506559fe76c5460171c7b3de5a16367544674ceb6cde80718f6b1a6cc8",
+  "stdout_path": "stdout.bin"
+}

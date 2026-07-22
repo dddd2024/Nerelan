@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .control_plane.command_authority import validate_command_plan as validate_transition_command_plan
+from .control_plane.evidence_recorder import TrustedExecutionContext
 from .control_plane.legacy_adapter import (
     build_transition_command_plan,
     detect_control_plane_mode,
@@ -36998,6 +36999,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     transition_seal_local_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     transition_seal_local_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    transition_run_command_parser = subparsers.add_parser(
+        "transition-run-command",
+        help="Trusted execution: run a single command_id through the TrustedExecutionContext runner.",
+    )
+    transition_run_command_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    transition_run_command_parser.add_argument("--command-id", required=True, help="The command_id to execute through the trusted runner.")
+    transition_run_command_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
@@ -37089,6 +37097,32 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if "blocking_reasons" in result and result.get("blocking_reasons") and result["blocking_reasons"][0] == "missing_reconciliation_candidate":
             return 1
+        return 0
+    if args.command == "transition-run-command":
+        state_dir = Path(args.state_dir)
+        command_id = args.command_id
+        try:
+            context = TrustedExecutionContext.from_state_dir(state_dir, repo_root=Path.cwd())
+            record = context.run_command(command_id)
+        except Exception as exc:
+            print(f"transition-run-command: ERROR: {exc}", file=sys.stderr)
+            return 1
+        if args.json:
+            payload = {
+                "gate_status": "EXECUTED",
+                "command_id": record.command_id,
+                "exit_code": record.exit_code,
+                "record_id": record.record_id,
+                "sequence": record.sequence,
+                "started_at": record.started_at,
+                "observed_at": record.observed_at,
+            }
+            print(json.dumps(payload, ensure_ascii=True, indent=2))
+        else:
+            print(f"transition-run-command: EXECUTED")
+            print(f"command_id: {record.command_id}")
+            print(f"exit_code: {record.exit_code}")
+            print(f"record_id: {record.record_id}")
         return 0
     if args.command == "final-check":
         result = final_check(state_dir=Path(args.state_dir), repo_root=_derive_repo_root(Path(args.state_dir)))
