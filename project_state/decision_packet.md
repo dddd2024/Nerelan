@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,17 +13,16 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260723_p0_exact_tests_contract_and_publication_v6",
-  "follows_last_round_id": "round_20260723_p0_exact_tests_contract_and_publication_v6",
-  "previous_audit_outcome": "BLOCKED_PREFLIGHT_SCOPE_AND_INHERITED_BASELINE_PARSER_MISMATCH",
-  "workstream_id": "p0-exact-scope-inherited-baseline-and-publication-v7",
-  "source_issue": 15,
+  "follows_last_decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "follows_last_round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "previous_audit_outcome": "REWORK_REQUIRED_EVIDENCE_PROJECTION_AND_COMMAND_COVERAGE",
+  "workstream_id": "p0-evidence-derived-audit-and-command-coverage-rework-v8",
+  "source_issue": 16,
   "source_pull_request": 11,
   "required_branch": "agent/architecture-constitution-plan-v1",
-  "activation_base_sha": "e2424b3423436304c943a015e9880e32a03f5752",
-  "starting_remote_head": "e2424b3423436304c943a015e9880e32a03f5752",
+  "activation_base_sha": "b5ae4399e7f32df5ff16e6231e827d7c9458c722",
+  "starting_remote_head": "b5ae4399e7f32df5ff16e6231e827d7c9458c722",
   "frozen_pr9_head": "43418818af61d9be3208d2444fd6ce5120f73fab",
-  "roadmap_basis": "docs/roadmap/p0_architecture_constitution_execution_plan_v1.md",
   "risk_tier": "R1",
   "required_profile": "full",
   "decision_commit_must_precede_execution": true,
@@ -50,23 +49,34 @@
   "dependency_change_allowed": false,
   "workflow_change_allowed": false,
   "database_creation_allowed": false,
-  "langgraph_upgrade_allowed": false,
-  "bmad_install_allowed": false,
   "unknown_binary_execution_allowed": false,
   "tool_provider_execution_allowed": false,
   "pr9_branch_mutation_allowed": false,
   "pr9_merge_allowed": false,
+  "evidence_derived_required_audit_required": true,
+  "required_kind_command_plan_completeness_required": true,
+  "lifecycle_chronology_required": true,
+  "run_round_result_pass_required": true,
+  "doctor_command_block_required": true,
+  "lint_report_command_block_required": true,
+  "remote_observation_required_for_remote_pass": true,
   "allowed_source_files": [
     "reverse_agent/project_gate.py"
   ],
   "allowed_test_files": [
-    "tests/test_project_gate.py",
-    "tests/test_project_reports.py",
-    "tests/test_project_state.py",
-    "tests/test_project_context.py",
-    "tests/test_project_state_manifest.py"
+    "tests/test_project_gate.py"
   ],
-  "allowed_docs": [
+  "allowed_project_state_files": [
+    "project_state/decision_packet.md",
+    "project_state/state_manifest.json",
+    "project_state/context/current_context_packet.json",
+    "project_state/gates/*.json",
+    "project_state/pytest_result.txt",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/rounds/round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8/*"
+  ],
+  "read_only_reference_files": [
     "docs/architecture/architecture-spine-v2.md",
     "docs/architecture/trust-model.md",
     "docs/architecture/data-contracts.md",
@@ -87,28 +97,24 @@
     "docs/roadmap/architecture_constitution_and_migration_baseline_v1.md",
     "docs/roadmap/architecture_constitution_implementation_plan_v1.md",
     "docs/roadmap/p0_architecture_constitution_execution_plan_v1.md",
-    "docs/roadmap/long-term-implementation-plan-v2.md"
-  ],
-  "allowed_project_state_files": [
-    "project_state/decision_packet.md",
-    "project_state/state_manifest.json",
-    "project_state/context/current_context_packet.json",
-    "project_state/gates/*.json",
-    "project_state/pytest_result.txt",
-    "project_state/codex_execution_report.md",
-    "project_state/execution_report.md",
-    "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/*"
-  ],
-  "read_only_reference_files": [
-    ".codex-skills/registry.json",
-    ".codex-skills/reverse-agent-iteration/SKILL.md",
+    "docs/roadmap/long-term-implementation-plan-v2.md",
+    "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/**",
     "reverse_agent/project_state.py",
+    ".github/workflows/**",
     "project_state/task_packet.json",
     "project_state/current_state.json",
     "project_state/artifact_index.json",
     "project_state/negative_results.json"
   ],
   "forbidden_mutated_paths": [
+    "docs/architecture/*",
+    "docs/architecture/**",
+    "docs/adr/*",
+    "docs/adr/**",
+    "docs/roadmap/*",
+    "docs/roadmap/**",
+    "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/*",
+    "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/**",
     "reverse_agent/architecture/*",
     "reverse_agent/architecture/**",
     "reverse_agent/control_plane/*",
@@ -121,7 +127,6 @@
     ".codex-skills/*",
     ".codex-skills/**",
     "solve_reports/*",
-    "training_materials/local_reverse/*",
     "pyproject.toml",
     "setup.py",
     "requirements*.txt",
@@ -142,7 +147,7 @@
   ],
   "publication_authorization": {
     "granted_by_user": true,
-    "applies_to": "the v7 Decision activation commit and the later compiler-validated P0 source/test/document/evidence publication commit on PR #11",
+    "applies_to": "the local v8 Decision activation commit and the later compiler-validated v8 source/test/evidence commit on PR #11",
     "allowed_branch": "agent/architecture-constitution-plan-v1",
     "base_branch": "main",
     "decision_activation_commit_publication_allowed": true,
@@ -169,89 +174,67 @@
 
 ## 1. Goal
 
-以新的不可变 v7 Decision 取代因 preflight 解析合同不完整而阻塞的 v6，在不修改 parser/compiler、不扩大实现范围的前提下，使用当前 Gate 可精确解析的 `Implementation Scope`、`Allowed:` 路径清单和 `Allowed Inherited Dirty Baseline Files` 章节，重新生成 Command Plan、startup、preflight、full-profile 验证与 closeout，并发布既有 P0 成果到 PR #11。
-
-本轮不是新功能实现轮。v4-v6 已完成或保留的源码、测试、文档和证据修改必须作为继承 WIP 继续保留；不得 reset、clean、discard、覆盖或从零重新生成。
+修复 v7 独立审计确认的三个治理缺陷：Required Audit 的静态全 PASS 投影、full Profile 必需命令种类缺失，以及 execution-log 生命周期顺序错误。保持 21 个 P0 文档与 v7 archive 完全只读，生成新的 v8 当前轮证据并发布到现有 Draft PR #11。
 
 ## 2. Current Evidence
 
-- v6 Decision activation commit 为 `e2424b3423436304c943a015e9880e32a03f5752`，必须保留在 Git 历史，状态为 `BLOCKED_PREFLIGHT_SCOPE_AND_INHERITED_BASELINE_PARSER_MISMATCH`。
-- v6 的 `decision-lint` 已通过，automatic Profile 已正确推导为 `full`，Command Plan 和 startup snapshot 已生成；preflight 因两个治理文本解析问题失败，未运行后续测试、未提交最终成果、未推送最终成果。
-- 第一项失败：v6 使用 `Implementation Scope and Execution Order`，没有提供 compiler 可独立识别的精确 `Implementation Scope` 和直接 `Allowed:` 路径清单。
-- 第二项失败：`project_state/state_manifest.json` 与 `project_state/context/current_context_packet.json` 虽在 JSON allowlist 中，但没有出现在专用 `Allowed Inherited Dirty Baseline Files` 章节，导致 inherited-baseline 校验失败。
-- 本 v7 只修复上述治理合同表达，不授权修改 parser/compiler 来绕过 preflight。
-- 当前执行工作树必须是保存全部本地 WIP 的既有 `F:\reverse-agent-p0`。
-- PR #9 必须保持 Draft、open、unmerged，并冻结在 exact head `43418818af61d9be3208d2444fd6ce5120f73fab`。
-- PR #11 远端 workflow 在 `Install package` 阶段失败属于 P1 前 packaging baseline 债务；本轮不得复制 packaging 或修改 workflow。
+- PR #11 activation base 必须为 `b5ae4399e7f32df5ff16e6231e827d7c9458c722`。
+- PR #9 必须保持 Draft/open/unmerged，exact head 为 `43418818af61d9be3208d2444fd6ce5120f73fab`。
+- v7 的 bounded pytest 为 1547 passed，但独立审计判定 `REWORK_REQUIRED`。
+- v7 `run_round_result.json` 为 FAILED，却被静态 Required Audit 标为 PASS。
+- v7 full Gate Profile 要求 `run-round`、`doctor`、`lint-report`，但 Command Plan 和 transcript 未覆盖。
+- v7 execution-log 把 run-closeout 排在 preflight/pytest 前。
+- 远端 workflow 因缺少 packaging baseline 在 `Install package` 失败；本轮不得修 packaging 或 workflow。
+- 用户已明确授权 Issue #16 生成本 Decision 并执行。
 
 ## 3. Do Not Do
 
-不得：
-
-- 将 Issue 或 PR 评论作为执行权威；只读取本 Decision 和 compiler 锁定后的 Command Plan；
-- amend、reset、重写或删除 v1-v6 Decision 历史；
-- 修改 parser/compiler 以绕过本轮 preflight；
-- 人工覆盖 `full` Profile；
-- 手工编辑、删除或重排 compiler-generated Command Plan；
-- reset、clean、discard、覆盖、重新生成或静默遗漏继承 WIP；
-- 修改 `reverse_agent/project_gate.py` 之外的生产源码；
-- 修改 allowlist 之外的测试、文档或 project-state 文件；
-- 修改 workflow、packaging、dependency、Skill、PR #9 或 main；
-- 执行未知二进制、样本或逆向工具；
-- merge、mark ready、rebase、squash、force-push、tag 或 release；
-- 使用 `git add -A` 或 `git add .`；
-- 通过 skip、xfail、删除断言、弱化 Gate、伪造报告或忽略真实失败获得通过。
+不得修改 P0 文档、v7 archive、workflow、packaging、dependency、Skill、PR #9、main 或无关源码；不得执行未知二进制或逆向工具；不得 merge、mark-ready、rebase、squash、force-push、tag 或 release；不得使用 skip、xfail、删除断言、弱化 Gate 或伪造证据获得通过。
 
 ## 4. Files To Inspect
-
-执行前和每个 Gate 阶段至少检查：
 
 - `project_state/decision_packet.md`
 - `project_state/gates/gate_profile_plan.json`
 - `project_state/gates/command_plan.json`
 - `project_state/gates/startup_snapshot.json`
 - `project_state/gates/preflight_result.json`
+- `project_state/gates/run_round_result.json`
+- `project_state/gates/execution_log.json`
+- `project_state/gates/final_gate_result.json`
 - `project_state/state_manifest.json`
 - `project_state/context/current_context_packet.json`
 - `project_state/pytest_result.txt`
 - `project_state/codex_execution_report.md`
 - `project_state/execution_report.md`
 - `reverse_agent/project_gate.py`
-- 实际修改的 allowlisted tests
-- 21 个 P0 文档
+- `tests/test_project_gate.py`
 - `git status --short`
-- `git diff --check`
-- `git diff --name-only`
-- PR #11 和冻结 PR #9 的精确远端状态
-
-`reverse_agent/project_state.py` 只读。不得扫描完整 `solve_reports/`，不得执行样本。
+- PR #11 与 PR #9 exact-head 元数据
 
 ## 5. Required Audit
 
-最终报告必须逐项使用 `Question ID / Status / Answer / Evidence / Limitations` 回答：
+最终报告逐项使用 `Question ID / Status / Answer / Evidence / Limitations` 回答。每项状态必须从当前机器可读证据计算，只能为 `PASS`、`FAIL`、`BLOCKED` 或 `NOT_APPLICABLE`：
 
 1. 当前 Decision、Round、branch 与 activation base 是否准确？
-2. v6 是否保留且标记为 `BLOCKED_PREFLIGHT_SCOPE_AND_INHERITED_BASELINE_PARSER_MISMATCH`？
-3. v7 activation commit 是否只修改 `project_state/decision_packet.md`？
-4. PR #9 是否保持 Draft、open、unmerged 且 exact head 未变？
-5. 所有继承 WIP 是否在 v7 执行前完成路径、分类和 SHA-256 盘点？
-6. compiler 是否识别精确 `Implementation Scope` 和 `Allowed:` 路径清单？
-7. inherited-baseline parser 是否识别专用 `Allowed Inherited Dirty Baseline Files` 章节？
-8. automatic Gate Profile 是否为 `full` 且没有 override？
-9. Command Plan 是否由 compiler 生成并锁定，没有手工修改？
-10. startup snapshot 与 preflight 是否在 substantive execution 前通过？
-11. 实际修改是否严格限制在 `Allowed:` 路径清单？
-12. focused regressions 与 compiler-authorized full pytest 是否零失败？
-13. `doctor`、`lint-report`、bounded `run-round` 与 pre-closeout `final-check` 是否通过？
-14. compiler-required `run-closeout` / `close-round` 是否成功？
-15. round manifest、archived report、archived pytest_result 与 post-closeout evidence 是否当前且一致？
-16. execution-log、report-summary 与 final-check 重复生成是否语义稳定？
-17. `git diff --check` 是否通过，staged paths 是否全部在 allowlist？
-18. 21 个 P0 文档是否全部提交并推送到 PR #11？
-19. 远端 packaging 失败是否如实记录，而未宣称远端检查通过？
-20. 是否没有 merge、mark-ready、workflow、packaging、PR #9 或 main mutation？
-
-状态只能为 `PASS`、`FAIL`、`BLOCKED` 或 `NOT_APPLICABLE`。
+2. v7 是否保留为 `REWORK_REQUIRED_EVIDENCE_PROJECTION_AND_COMMAND_COVERAGE` 且 archive 未修改？
+3. automatic Gate Profile 是否为 `full` 且无 override？
+4. Command Plan 是否覆盖 full Profile 的全部 required command kinds？
+5. startup snapshot 与 preflight 是否在 substantive execution 前通过？
+6. Required Audit 是否由当前证据计算，缺失或失败证据能否阻止 PASS？
+7. doctor 与 lint-report 是否有显式成功 command block？
+8. bounded run-round 是否当前且 `gate_status=PASSED`、`run_status=PASSED`？
+9. lifecycle chronology 是否为 preflight → pytest/doctor/lint-report/run-round → pre-closeout final-check → run-closeout → close-round？
+10. compiler-authorized pytest 是否零失败？
+11. pre-closeout final-check、run-closeout 与 close-round 是否成功？
+12. v8 round manifest、archive、manifest 与 context 是否当前且一致？
+13. P0 21 个文档和 v7 archive 是否保持只读且内容未变？
+14. 实际修改和 staged paths 是否全部在 v8 allowlist？
+15. `git diff --check` 是否通过？
+16. PR #9 exact head 是否保持不变？
+17. 远端 PR/CI 结论是否来自不可变观察证据；没有证据时是否避免 PASS？
+18. 是否没有 workflow、packaging、dependency、PR #9 或 main mutation？
+19. 是否没有 merge、mark-ready、rebase、squash、force-push、tag 或 release？
+20. v8 最终 commit 是否推送到现有 Draft PR #11，且推送后停止分支变更？
 
 ## 6. Implementation Scope
 
@@ -259,169 +242,100 @@ Allowed:
 
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
-- `tests/test_project_reports.py`
-- `tests/test_project_state.py`
-- `tests/test_project_context.py`
-- `tests/test_project_state_manifest.py`
-- `docs/architecture/architecture-spine-v2.md`
-- `docs/architecture/trust-model.md`
-- `docs/architecture/data-contracts.md`
-- `docs/architecture/storage-and-artifact-ownership.md`
-- `docs/architecture/sandbox-and-execution-boundary.md`
-- `docs/architecture/migration-and-legacy-exit.md`
-- `docs/architecture/governance-cost-model.md`
-- `docs/adr/ADR-001-modular-monolith.md`
-- `docs/adr/ADR-002-separate-development-and-analysis-workflows.md`
-- `docs/adr/ADR-003-separate-trust-bounded-contexts.md`
-- `docs/adr/ADR-004-unique-source-of-truth.md`
-- `docs/adr/ADR-005-storage-ownership.md`
-- `docs/adr/ADR-006-evidence-and-claim-versioning.md`
-- `docs/adr/ADR-007-langgraph-workflow-ownership.md`
-- `docs/adr/ADR-008-sandbox-worker-boundary.md`
-- `docs/adr/ADR-009-telemetry-is-not-analysis-evidence.md`
-- `docs/adr/ADR-010-legacy-control-plane-exit.md`
-- `docs/roadmap/architecture_constitution_and_migration_baseline_v1.md`
-- `docs/roadmap/architecture_constitution_implementation_plan_v1.md`
-- `docs/roadmap/p0_architecture_constitution_execution_plan_v1.md`
-- `docs/roadmap/long-term-implementation-plan-v2.md`
+- `project_state/decision_packet.md`
 - `project_state/state_manifest.json`
 - `project_state/context/current_context_packet.json`
 - `project_state/gates/*.json`
 - `project_state/pytest_result.txt`
 - `project_state/codex_execution_report.md`
 - `project_state/execution_report.md`
-- `project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/*`
+- `project_state/rounds/round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8/*`
 
 Read-only:
 
+- `docs/architecture/**`
+- `docs/adr/**`
+- `docs/roadmap/**`
+- `project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/**`
+- `.github/workflows/**`
 - `reverse_agent/project_state.py`
-- `.codex-skills/registry.json`
-- `.codex-skills/reverse-agent-iteration/SKILL.md`
-- `project_state/task_packet.json`
-- `project_state/current_state.json`
-- `project_state/artifact_index.json`
-- `project_state/negative_results.json`
+- `.codex-skills/**`
 
 Execution order:
 
 ```text
 verify PR #11 and PR #9 exact heads
-→ inventory and hash inherited v4-v6 WIP
-→ confirm v7 Decision activation commit is present locally
+→ commit v8 Decision locally
 → decision-lint
 → automatic full Gate Profile without override
 → compiler-generate and digest-lock Command Plan
 → independently generate startup snapshot
 → preflight
-→ inspect inherited diff and map every path to Allowed
-→ run focused regressions required by the plan
-→ run complete compiler-authorized full pytest
-→ doctor and lint-report
-→ refresh v7 state_manifest and current_context_packet
-→ regenerate current-round Gate and report evidence
-→ run bounded run-round only if generated
-→ execution-log
-→ report-summary
-→ final-check
-→ compiler-authorized run-closeout / close-round
-→ regenerate post-closeout execution-log / report-summary / final-check as required
-→ repeat consistency generation to prove semantic idempotence
+→ implement evidence-derived audit, required-kind completeness and chronology
+→ focused negative and positive regressions
+→ compiler-authorized full pytest
+→ doctor
+→ lint-report
+→ bounded run-round
+→ pre-closeout final-check
+→ run-closeout
+→ close-round
+→ post-closeout execution-log/report-summary/final-check
+→ repeat consistency generation
 → git diff --check and explicit allowlist review
-→ explicitly stage authorized paths only
-→ commit final source/test/document/evidence result
-→ push once to existing PR #11
-→ publish a short human-readable status notification
-→ stop branch mutation for independent audit
+→ explicitly stage only authorized paths
+→ commit final source/test/evidence result
+→ push the local activation and final commits once to existing PR #11
+→ publish truthful status notification
+→ stop branch mutation
 ```
 
-具体 command kinds 和命令文本只能来自锁定后的 Command Plan。
-
-## Allowed Inherited Dirty Baseline Files
-
-以下路径在 v7 激活前已经存在于保存本地成果的工作树中，并由 startup snapshot / inherited-WIP inventory 证明。允许它们作为继承脏基线继续存在，但不得据此扩大最终提交范围：
-
-- `project_state/state_manifest.json`
-- `project_state/context/current_context_packet.json`
-
-本节只解决 preflight 对上述两个明确继承 project-state 文件的识别。其他 source、test、document 或 generated artifact 仍必须由 startup snapshot、当前 diff 和 `Implementation Scope` 共同校验；不得把新产生或未盘点的文件追认为 inherited dirty baseline。
+具体 command kinds 与命令文本只能来自锁定后的 Command Plan。
 
 ## 7. Tests
 
-本节标题必须保持精确的 `Tests`。实际执行权威为 compiler-generated full Command Plan。
+必须证明：
 
-至少必须证明：
+- missing/failed `run_round_result`、missing doctor output、changed PR head 或 missing archive 不能渲染 PASS；
+- full Profile 的每个 `required_command_kind` 都有具体 command，否则 Command Plan 编译失败；
+- `run-round`、`doctor`、`lint-report` 命令可执行且出现在 transcript；
+- preflight、pytest、doctor、lint-report、run-round 和 pre-closeout final-check 均早于 run-closeout；
+- close-round 只在成功 run-closeout 后出现；
+- 远端状态没有不可变观察证据时不渲染 PASS；
+- exact compiler-authorized pytest 零失败；
+- final-check、run-closeout、close-round 和 post-closeout final-check 成功；
+- v7 archive 与 21 个 P0 文档无改动；
+- `git diff --check` 和路径 allowlist 审查通过。
 
-- compiler 成功解析 `Implementation Scope` 的 `Allowed:` 路径；
-- preflight 成功识别两个明确列出的 inherited project-state baseline 文件；
-- startup evidence 独立有效，缺失或乱序仍失败；
-- 历史 artifact 不污染当前 v7 验收；
-- stale manifest/context 会失败，当前 v7 freshness 会通过；
-- execution-log、report-summary 与 final-check 重复生成后语义稳定；
-- Required Audit 结构化答案正确对齐；
-- 真正缺失必需证据仍失败，没有降低 Gate；
-- compiler-authorized full pytest 零失败；
-- compiler-required closeout 与 close-round 成功；
-- post-closeout 当前轮证据完整一致；
-- `git diff --check` 通过；
-- 最终 commit 只包含授权路径。
-
-v7 不要求固定通过数量，只要求实际命令零失败。
+不要求固定 pytest 通过数量。
 
 ## 8. Acceptance Criteria
 
-仅在以下条件全部满足时标记：
+仅在全部验证与收口通过后标记：
 
 ```text
-P0_EXACT_SCOPE_INHERITED_BASELINE_FULL_PROFILE_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
+P0_EVIDENCE_DERIVED_AUDIT_COMMAND_COVERAGE_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
 ```
-
-- v6 保留为 `BLOCKED_PREFLIGHT_SCOPE_AND_INHERITED_BASELINE_PARSER_MISMATCH`；
-- v7 activation commit 先于所有 v7 substantive execution；
-- compiler 成功解析精确 `Implementation Scope`、`Allowed:` 与 `Tests`；
-- inherited-baseline parser 成功识别专用 allowlist；
-- automatic Profile 为 `full`，没有 override；
-- inherited implementation 与 21 个 P0 文件完整保留并重新验证；
-- full tests 零失败；
-- final-check、closeout 与 close-round 成功；
-- post-closeout artifacts 绑定当前 v7 Decision/Round/Report；
-- 只提交允许路径；
-- 最终成果推送到现有 Draft PR #11；
-- PR #9 exact head 保持不变；
-- 远端 packaging 失败如实记录；
-- 没有 merge 或 mark-ready。
 
 ## 9. Stop Conditions
 
-遇到以下任一情况立即停止：
+以下任一情况立即停止且不扩大范围：
 
-- v7 激活前 PR #11 head 不是 `e2424b3423436304c943a015e9880e32a03f5752`；
+- v8 activation 前 PR #11 head 不等于 `b5ae4399e7f32df5ff16e6231e827d7c9458c722`；
 - PR #9 head 不等于 `43418818af61d9be3208d2444fd6ce5120f73fab`；
-- 本地 WIP 无法与无关用户改动区分；
-- decision-lint 失败；
-- compiler 仍不能识别精确 `Implementation Scope`、`Allowed:` 或 `Tests`；
-- preflight 仍不能识别两个明确列出的 inherited project-state baseline 文件；
-- automatic Profile 不是 `full`；
-- Command Plan 要求未授权路径或动作；
-- 完成任务需要修改 parser/compiler 或 `reverse_agent/project_gate.py` 之外的生产源码；
-- tests 出现新的无关失败；
-- 需要 workflow、packaging、dependency 或 Skill 修改；
-- closeout 后 evidence 无法在允许范围内收敛；
-- 有人提议修改或合并 PR #9、直接 push main、重写历史或发布版本。
+- compiler 要求 workflow、packaging 或未授权文件；
+- 修复必须超出 `reverse_agent/project_gate.py` 和 `tests/test_project_gate.py`；
+- v7 archive 或 P0 文档需要改写；
+- 无关测试失败；
+- 无法在不弱化 Gate 的前提下收敛证据。
 
 ## 10. Publication Boundary
 
-本 Decision 已获用户明确授权：
-
-- v7 Decision 作为单文件 activation commit 推送到 `agent/architecture-constitution-plan-v1`；
-- 全部本地验收通过后，显式暂存允许的 source、test、document 与 current-round evidence；
-- 创建一个最终成果 commit，并向现有 PR #11 分支推送一次；
-- 更新 GitHub 人类可读状态摘要。
-
-不得 merge、mark ready、rebase、squash、force-push、tag、release、直接 push main 或修改 PR #9。
+本 Decision 已获用户明确授权：本地创建单文件 activation commit；验收通过后创建最终实现 commit；仅向 `agent/architecture-constitution-plan-v1` 推送一次包含两项提交的 fast-forward 更新；保持 PR #11 Draft/open，不 merge 或 mark-ready。
 
 ## 11. Next Authorized Boundary
 
-P0 独立审计接受后停止。下一轮必须是单独批准的 Integration Decision：
+P0 独立审计接受后停止。下一轮仍为单独批准的：
 
 ```text
 P1: PR #9 Exact-head Integration and Architecture Spine Freeze
