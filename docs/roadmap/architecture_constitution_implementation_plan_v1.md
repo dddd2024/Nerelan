@@ -3,10 +3,10 @@
 ## 0. 文档状态
 
 ```text
-PLANNING_PROPOSAL_ONLY
+REFERENCE_ONLY — SEQUENCE_REFINED_BY_LONG_TERM_PLAN_V2
 ```
 
-本文把《架构宪章与迁移基线 v1》转换为可执行的长期工程实施顺序。
+本文把《架构宪章与迁移基线 v1》转换为实施参考。它不再直接授权执行；P0 使用 replacement Decision `decision_20260722_architecture_constitution_gate_compatibility_rework_v1`，后续规范顺序以 `docs/roadmap/long-term-implementation-plan-v2.md` 为准。
 
 本文不是：
 
@@ -222,7 +222,7 @@ docs/roadmap/**
 docs/architecture/architecture-spine-v2.md
 docs/architecture/trust-model.md
 docs/architecture/data-contracts.md
-docs/architecture/storage-and-runtime.md
+docs/architecture/storage-and-artifact-ownership.md
 docs/architecture/sandbox-and-execution-boundary.md
 docs/architecture/migration-and-legacy-exit.md
 docs/roadmap/long-term-implementation-plan-v2.md

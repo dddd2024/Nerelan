@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:40:09.844030Z",
+  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-23T12:01:08.605207Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-      "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-      "sha256": "573cac79267ff04b6df824dd8095c97ba279845522100b6dc49b736740571f3e"
+      "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+      "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+      "sha256": "391f4ff882b15f710b8a5523b8d6dc25fed551b51e8a029de6c6375c36dcae42"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-      "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-      "sha256": "d0830033385df59dbb07826ecfb83ae835697e40592ab588f5f26a90ce63b00f"
+      "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+      "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+      "sha256": "60f07ce1330362837a31f44cc568ee8450192e984f28623371c27542b4155de5"
     }
   },
   "prompt_sections": {

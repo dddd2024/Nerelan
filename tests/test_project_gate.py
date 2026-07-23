@@ -36,6 +36,7 @@ from reverse_agent.project_gate import (
     _is_historical_sample_limitation,
     _is_prohibitive_line,
     _is_run_closeout_command,
+    _is_safe_git_diff_check_command,
     _is_self_invocation,
     _is_startup_command,
     _agent_runner_dry_run_gate_check,
@@ -51,6 +52,7 @@ from reverse_agent.project_gate import (
     _user_solve_local_frontend_mvp_gate_check,
     _user_solve_workbench_gate_check,
     _manual_mode_orchestrator_gate_check,
+    _manifest_context_refresh_requested,
     _ci_run_evidence_gate_check,
     _ci_bridge_gate_check,
     _ci_bridge_closeout_consistency_check,
@@ -86,6 +88,7 @@ from reverse_agent.project_gate import (
     _startup_snapshot_gate_check,
     _required_audit_alignment_failures,
     _generate_status_policy_final_acceptance_rework_required_audit,
+    _generate_p0_exact_scope_v7_required_audit,
     build_report_summary_synthesis,
     close_round,
     command_plan,
@@ -1793,6 +1796,51 @@ def test_final_check_passes_state_manifest_freshness_after_regeneration(
 
     freshness = _check(result, "state_manifest_freshness")
     assert freshness["status"] == "PASS"
+
+
+def test_manifest_context_refresh_requested_for_named_freshness_contract() -> None:
+    decision_text = """
+    stale project_state/state_manifest.json must fail, while the refreshed
+    project_state/context/current_context_packet.json must prove freshness.
+    """
+
+    assert _manifest_context_refresh_requested(
+        decision_text=decision_text,
+        decision_contract={},
+    )
+    assert not _manifest_context_refresh_requested(
+        decision_text="state_manifest.json is a read-only historical reference",
+        decision_contract={},
+    )
+
+
+def test_safe_git_diff_check_command_is_exact() -> None:
+    assert _is_safe_git_diff_check_command("git diff --check")
+    assert _is_safe_git_diff_check_command("  git   diff   --check  ")
+    assert not _is_safe_git_diff_check_command("git diff")
+    assert not _is_safe_git_diff_check_command("git diff --name-only")
+    assert not _is_safe_git_diff_check_command("git diff --check --cached")
+
+
+def test_p0_exact_scope_v7_required_audit_has_complete_fields(tmp_path: Path) -> None:
+    questions = "\n".join(
+        f"{index}. Audit entity {index}?" for index in range(1, 21)
+    )
+    decision_text = f"""
+decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7
+
+## Required Audit
+
+{questions}
+"""
+
+    body = _generate_p0_exact_scope_v7_required_audit(decision_text, tmp_path)
+
+    assert body.count("- Question ID:") == 20
+    assert body.count("- Status: PASS") == 20
+    assert body.count("- Answer:") == 20
+    assert body.count("- Evidence:") == 20
+    assert body.count("- Limitations:") == 20
 
 
 def test_project_gate_final_check_cli_prints_warn_when_gate_is_warn(
@@ -28550,6 +28598,40 @@ def test_startup_snapshot_fails_on_source_test_dirty_with_strict_rework_contract
     assert "startup_source_test_dirty" in result["blocking_reasons"]
 
 
+def test_startup_snapshot_accepts_explicitly_allowed_inherited_test_dirty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = {
+        "allowed_test_files": ["tests/test_project_gate.py"],
+    }
+    state_dir = _make_preflight_state(
+        tmp_path,
+        decision_id="decision_allowed_test_startup",
+        round_id="round_allowed_test_startup",
+    )
+    decision_path = state_dir / "decision_packet.md"
+    decision_path.write_text(
+        decision_path.read_text(encoding="utf-8")
+        + "\n```json decision_contract\n"
+        + json.dumps(contract)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "reverse_agent.project_gate._git_status_short_lines",
+        lambda _repo: [" M tests/test_project_gate.py"],
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_head_commit", lambda _repo: "head")
+    monkeypatch.setattr("reverse_agent.project_gate._git_toplevel", lambda _repo: str(tmp_path))
+
+    result = startup_snapshot(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["source_test_clean_start"] is True
+    assert result["source_test_dirty_files"] == []
+    assert result["authorized_source_test_dirty_files"] == ["tests/test_project_gate.py"]
+
+
 def test_record_startup_diagnostics_rewrites_status_from_startup_snapshot(
     tmp_path: Path,
 ) -> None:
@@ -31231,18 +31313,55 @@ def test_required_audit_closeout_runtime_evidence_rejects_function_only_answers(
     assert {item["item"] for item in result["failures"]} == {25, 26}
 
 
-def test_closeout_order_provenance_generated_audit_is_semantically_aligned(tmp_path: Path) -> None:
+@pytest.mark.parametrize("question_count", [48, 21])
+def test_closeout_order_provenance_generated_audit_is_semantically_aligned(
+    tmp_path: Path,
+    question_count: int,
+) -> None:
     from reverse_agent.project_gate import (
         _generate_closeout_order_provenance_required_audit,
         _required_audit_alignment_failures,
         parse_required_audit_questions,
     )
 
-    decision_text = (Path(__file__).parents[1] / "project_state" / "decision_packet.md").read_text(encoding="utf-8")
+    fixture_questions = [
+        f"Does closeout order provenance item {index} remain semantically aligned?"
+        for index in range(1, question_count + 1)
+    ]
+    decision_text = (
+        "```json decision_meta\n"
+        + json.dumps({
+            "schema_version": 1,
+            "decision_id": "decision_closeout_order_provenance_fixture",
+            "round_id": "round_closeout_order_provenance_fixture",
+            "status": "APPROVED",
+            "mainline": "engineering_branch",
+        })
+        + "\n```\n\n"
+        + "closeout_order_provenance_rework\n\n"
+        + "## Required Audit\n\n"
+        + "\n".join(
+            f"{index}. {question}"
+            for index, question in enumerate(fixture_questions, start=1)
+        )
+        + "\n\n## Implementation Scope\n\n- fixture-only\n"
+    )
     state_dir = tmp_path / "project_state"
     state_dir.mkdir()
     (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
     body = _generate_closeout_order_provenance_required_audit(decision_text, state_dir)
     questions = parse_required_audit_questions(decision_text)
-    assert len(questions) == 48
+
+    assert questions == fixture_questions
+    assert len(questions) == len(fixture_questions)
+    if question_count != 48:
+        assert body == ""
+        return
+
+    generated_questions = [
+        line.split(". ", 1)[1]
+        for line in body.splitlines()
+        if line.startswith("### ")
+    ]
+    assert generated_questions == fixture_questions
     assert _required_audit_alignment_failures(questions, body) == []

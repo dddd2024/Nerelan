@@ -3,11 +3,11 @@
   "artifact_name": "current_handoff_packet.json",
   "gate_name": "current-handoff-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:40:09.840966Z",
+  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-23T12:01:08.549482Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "packet_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,25 +43,30 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/project_gate.py",
-      "reverse_agent/project_state.py"
+      "reverse_agent/project_gate.py"
     ],
     "generated_or_updated_artifacts": []
   },
   "forbidden_scope": {
     "preserve_only_files": [],
     "forbidden_mutated_paths": [
-      ".codex-skills/*",
-      ".github/workflows/*",
+      "reverse_agent/architecture/*",
+      "reverse_agent/architecture/**",
+      "reverse_agent/control_plane/*",
+      "reverse_agent/control_plane/**",
+      "reverse_agent/workflows/*",
+      "reverse_agent/workflows/**",
       "frontend/*",
+      ".github/workflows/*",
+      ".github/workflows/**",
+      ".codex-skills/*",
+      ".codex-skills/**",
       "solve_reports/*",
       "training_materials/local_reverse/*",
-      "reverse_agent/project_state_manifest.py",
-      "reverse_agent/project_jobs.py",
-      "reverse_agent/project_runner_contract.py",
-      "reverse_agent/project_agent_runner.py",
-      "reverse_agent/orchestrator_api.py",
-      "reverse_agent/user_solve_*.py",
+      "pyproject.toml",
+      "setup.py",
+      "requirements*.txt",
+      "package*.json",
       "project_state/current_state.json",
       "project_state/task_packet.json",
       "project_state/artifact_index.json",
@@ -74,8 +79,7 @@
       "project_state/deletions/*",
       "project_state/blob_store/*",
       "project_state/*.db",
-      "project_state/index.sqlite",
-      "docs/roadmap/*"
+      "project_state/index.sqlite"
     ],
     "non_dispatching": true,
     "remote_mutation_allowed": false
@@ -94,8 +98,8 @@
     "gate_artifacts": []
   },
   "artifact_freshness_policy": {
-    "current_decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "current_round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "current_decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "current_round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
     "historical_artifacts_nonblocking": true,
     "stale_current_handoff_packet_rejected": true
   },
@@ -113,8 +117,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
     "current": true
   },
   "closeout_expectations": {
@@ -122,7 +126,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1"
+    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

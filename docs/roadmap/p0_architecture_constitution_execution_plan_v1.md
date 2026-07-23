@@ -3,10 +3,10 @@
 ## 0. 文档状态
 
 ```text
-PLANNING_PROPOSAL_ONLY
+REFERENCE_ONLY — SUPERSEDED_EXECUTION_DETAILS
 ```
 
-本文是可以交给 Codex 或其他工程执行 Agent 使用的 P0 具体执行计划。
+本文保留为 P0 原始执行参考。实际执行权威已由 replacement Decision `decision_20260722_architecture_constitution_gate_compatibility_rework_v1` 接管：自动 Profile 为 `fast`，不运行 `run-closeout` 或 `close-round`，存储文档与 ADR-007 使用新的 workflow/ownership 文件名。本文中与 replacement Decision 冲突的旧 profile、closeout 和文件名指令均已被替代。
 
 本文不是：
 
@@ -233,7 +233,7 @@ R1
 docs/architecture/architecture-spine-v2.md
 docs/architecture/trust-model.md
 docs/architecture/data-contracts.md
-docs/architecture/storage-and-runtime.md
+docs/architecture/storage-and-artifact-ownership.md
 docs/architecture/sandbox-and-execution-boundary.md
 docs/architecture/migration-and-legacy-exit.md
 docs/architecture/governance-cost-model.md
@@ -248,7 +248,7 @@ docs/adr/ADR-003-separate-trust-bounded-contexts.md
 docs/adr/ADR-004-unique-source-of-truth.md
 docs/adr/ADR-005-storage-ownership.md
 docs/adr/ADR-006-evidence-and-claim-versioning.md
-docs/adr/ADR-007-langgraph-runtime-ownership.md
+docs/adr/ADR-007-langgraph-workflow-ownership.md
 docs/adr/ADR-008-sandbox-worker-boundary.md
 docs/adr/ADR-009-telemetry-is-not-analysis-evidence.md
 docs/adr/ADR-010-legacy-control-plane-exit.md
@@ -486,7 +486,7 @@ python -m reverse_agent.project_gate --help
 architecture-spine-v2.md
 trust-model.md
 data-contracts.md
-storage-and-runtime.md
+storage-and-artifact-ownership.md
 sandbox-and-execution-boundary.md
 migration-and-legacy-exit.md
 governance-cost-model.md
@@ -1322,10 +1322,10 @@ Define data contracts and storage ownership
 
 ```text
 docs/architecture/data-contracts.md
-docs/architecture/storage-and-runtime.md
+docs/architecture/storage-and-artifact-ownership.md
 docs/adr/ADR-005-storage-ownership.md
 docs/adr/ADR-006-evidence-and-claim-versioning.md
-docs/adr/ADR-007-langgraph-runtime-ownership.md
+docs/adr/ADR-007-langgraph-workflow-ownership.md
 docs/adr/ADR-009-telemetry-is-not-analysis-evidence.md
 ```
 

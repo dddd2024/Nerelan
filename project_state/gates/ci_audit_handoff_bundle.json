@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "generated_at": "2026-07-16T12:39:57.634788Z",
+  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "generated_at": "2026-07-23T12:00:34.942206Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {
@@ -158,9 +158,7 @@
       "acceptance_recommendation": "ACCEPTED",
       "recommendation": null,
       "errors": [],
-      "warnings": [
-        "status_policy_valid: current-round artifacts complete; historical/backlog artifacts non-blocking"
-      ]
+      "warnings": []
     },
     "run_closeout": {
       "artifact": "project_state/gates/run_closeout_result.json",

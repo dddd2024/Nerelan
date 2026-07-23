@@ -20,11 +20,11 @@
     "archived": {
       "latest_accepted_round_manifest": {
         "exists": true,
-        "path": "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json",
+        "path": "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/round_manifest.json",
         "required": false,
         "role": "archived",
-        "sha256": "b00b302cf18ae8f9d81bbaab1ca78eaa8e4a59645797a08f36a32a53b42e0811",
-        "size_bytes": 2623
+        "sha256": "eb63b05aee59172bd54320c2dcd712b54583a813a1a129fc96b4cc0bcf8141ee",
+        "size_bytes": 2742
       }
     },
     "current": {
@@ -33,72 +33,72 @@
         "path": "project_state/codex_execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "fdb7a0b1d50822f309890afa5bd030652454d35f15da9a8d88bae213fbb95957",
-        "size_bytes": 79210
+        "sha256": "13a13c435789cd324c847b0a2a0bdde6a7ac5b1f428ba563336665285e498ca2",
+        "size_bytes": 24152
       },
       "command_plan": {
         "exists": true,
         "path": "project_state/gates/command_plan.json",
         "required": true,
         "role": "current",
-        "sha256": "3c2ef6a4ad483d3abdddb63ac96794f024c0a81f139cf8ca1a9bd4546ecf8a45",
-        "size_bytes": 5705
+        "sha256": "cfb3acba0bc35d2cdaec89958098f8ba66f55572281a7ee0d725c7aa112675d6",
+        "size_bytes": 5455
       },
       "decision_packet": {
         "exists": true,
         "path": "project_state/decision_packet.md",
         "required": true,
         "role": "current",
-        "sha256": "9aafe83069b39e8b5a7ab0a25dd8b370e6820d63cea8f4acb5840bed9b496232",
-        "size_bytes": 23152
+        "sha256": "8bfd688ce5b534bd00dc12abdf2c33c8804e9127e416c1cb6cf0eac2524a24b8",
+        "size_bytes": 19650
       },
       "execution_log": {
         "exists": true,
         "path": "project_state/gates/execution_log.json",
         "required": false,
         "role": "current",
-        "sha256": "4da18f21099b90367b266eb5fbfef83bf2deaa58b507e51333f362d9b5ae9a7c",
-        "size_bytes": 9363
+        "sha256": "ba5d1a6cd7aef53a44ab7509d263ed490c2edde665cc9853c8337bd967a1d78f",
+        "size_bytes": 9051
       },
       "execution_report": {
         "exists": true,
         "path": "project_state/execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "257048e323119467d904f68105885b5629fc2043f0101ff4dd3eb2dc15aa4a0d",
-        "size_bytes": 79208
+        "sha256": "d55e0073f02271ad84b79b8aed4b717201b53fbec34e0316a47a6b616c6a77e3",
+        "size_bytes": 24150
       },
       "final_check": {
         "exists": true,
         "path": "project_state/gates/final_gate_result.json",
         "required": false,
         "role": "current",
-        "sha256": "0ae43e36771cf4287b87a326f6f2d343bbcf8799051054cacc0b977a68f0ee95",
-        "size_bytes": 88424
+        "sha256": "4c34134876775682225d48085442b6e2036b9a59cdb2a16ece732b3feec93533",
+        "size_bytes": 100814
       },
       "pytest_result": {
         "exists": true,
         "path": "project_state/pytest_result.txt",
         "required": false,
         "role": "current",
-        "sha256": "931cd3c435059bfb0f6bac84d6c8cc8583a8a9339226a322cf8fda98a875afbc",
-        "size_bytes": 17604
+        "sha256": "af2f458d5ec16cae34a84cba1ebac03797101fffd18b14942cad0cc62c5957f7",
+        "size_bytes": 13556
       },
       "report_summary": {
         "exists": true,
         "path": "project_state/gates/report_summary_synthesis.json",
         "required": false,
         "role": "current",
-        "sha256": "237cace1da86c373f6e69b1474a0824ecddb884da3cea2ba4be31ca9422ec997",
-        "size_bytes": 14572
+        "sha256": "f2524dc1e800981bc77a94530293493eda1f366064f45e835c27dd56ea63054b",
+        "size_bytes": 15465
       },
       "run_closeout": {
         "exists": true,
         "path": "project_state/gates/run_closeout_result.json",
         "required": false,
         "role": "current",
-        "sha256": "16f2527c8e8150514bdc92da447524677bc97ab50890ef09e5aa8d52c87bf6a9",
-        "size_bytes": 53810
+        "sha256": "5dde63f002963bad1914d9d2d63700c77f49f8d95e6389ce357f578c30754ba5",
+        "size_bytes": 66681
       }
     },
     "generated_or_updated": {
@@ -219,12 +219,12 @@
         "path": "project_state/context/current_context_packet.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "e62627981718f4242d936d01b160aa754898606e87d1e94de7616f3944cad224",
-        "size_bytes": 11732
+        "sha256": "47fca583ffab446e31fd1d51093f86fc54c4e88707ca8aea4753f89b47ae2f6b",
+        "size_bytes": 11920
       },
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260716_closeout_order_provenance_rework_v1.json",
+        "path": "project_state/jobs/job_20260723_p0_exact_scope_inherited_baseline_and_publication_v7.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -483,8 +483,8 @@
         "path": "project_state/state_manifest.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "27e87e463cb09a35ce1cc12fe63f6b81405140b2f66aa08fcc79be0ee80c4135",
-        "size_bytes": 41119
+        "sha256": "d7da60109f934f6d8151933f136408b562c968aec75e823cc051bb2d5caf1f30",
+        "size_bytes": 41290
       },
       "status_policy_reconcile": {
         "exists": true,
@@ -565,7 +565,7 @@
     "missing_optional": {
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260716_closeout_order_provenance_rework_v1.json",
+        "path": "project_state/jobs/job_20260723_p0_exact_scope_inherited_baseline_and_publication_v7.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -584,16 +584,16 @@
     "project_state_files_remain_audit_fact_sources": true,
     "state_manifest_indexes_current_state_only": true
   },
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "generated_at": "2026-07-16T12:40:10Z",
+  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "generated_at": "2026-07-23T12:03:31Z",
   "latest_accepted_baseline": {
     "decision_id": "",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-    "round_manifest": "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json"
+    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "round_manifest": "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/round_manifest.json"
   },
-  "mainline": "project_governance",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "mainline": "engineering_branch",
+  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
   "schema_version": 1,
   "scoped_metadata": {
     "artifact_index_scope_coverage": {},
@@ -1022,7 +1022,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/jobs/job_20260716_closeout_order_provenance_rework_v1.json": {
+      "project_state/jobs/job_20260723_p0_exact_scope_inherited_baseline_and_publication_v7.json": {
         "domain": "project_governance",
         "freshness": "current",
         "mainline": "project_governance",
@@ -1057,7 +1057,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json": {
+      "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/round_manifest.json": {
         "domain": "project_governance",
         "freshness": "archived",
         "mainline": "project_governance",

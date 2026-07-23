@@ -3,11 +3,11 @@
   "artifact_name": "local_execution_bundle.json",
   "gate_name": "local-execution-bundle",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "mainline": "project_governance",
-  "generated_at": "2026-07-16T12:40:09.842789Z",
+  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-07-23T12:01:08.576542Z",
   "decision_authority": {
     "path": "project_state/decision_packet.md",
     "role": "decision_authority",
@@ -19,8 +19,8 @@
     "role": "command_execution_authority",
     "bundle_can_override_command_plan": false,
     "plan_status": "PASSED",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
     "execution_order_policy": {
       "mode": "coverage_expected_exit_not_strict_wall_clock",
       "strict_wall_clock_order": false,
@@ -43,25 +43,30 @@
   },
   "allowed_scope": {
     "source_files": [
-      "reverse_agent/project_gate.py",
-      "reverse_agent/project_state.py"
+      "reverse_agent/project_gate.py"
     ],
     "generated_or_updated_artifacts": []
   },
   "forbidden_scope": {
     "preserve_only_files": [],
     "forbidden_mutated_paths": [
-      ".codex-skills/*",
-      ".github/workflows/*",
+      "reverse_agent/architecture/*",
+      "reverse_agent/architecture/**",
+      "reverse_agent/control_plane/*",
+      "reverse_agent/control_plane/**",
+      "reverse_agent/workflows/*",
+      "reverse_agent/workflows/**",
       "frontend/*",
+      ".github/workflows/*",
+      ".github/workflows/**",
+      ".codex-skills/*",
+      ".codex-skills/**",
       "solve_reports/*",
       "training_materials/local_reverse/*",
-      "reverse_agent/project_state_manifest.py",
-      "reverse_agent/project_jobs.py",
-      "reverse_agent/project_runner_contract.py",
-      "reverse_agent/project_agent_runner.py",
-      "reverse_agent/orchestrator_api.py",
-      "reverse_agent/user_solve_*.py",
+      "pyproject.toml",
+      "setup.py",
+      "requirements*.txt",
+      "package*.json",
       "project_state/current_state.json",
       "project_state/task_packet.json",
       "project_state/artifact_index.json",
@@ -74,8 +79,7 @@
       "project_state/deletions/*",
       "project_state/blob_store/*",
       "project_state/*.db",
-      "project_state/index.sqlite",
-      "docs/roadmap/*"
+      "project_state/index.sqlite"
     ],
     "no_runner_or_dispatcher": true,
     "remote_mutation_allowed": false
@@ -83,72 +87,65 @@
   "required_commands_summary": [
     {
       "index": 1,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 2,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "required": true
-    },
-    {
-      "index": 3,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "required": true
-    },
-    {
-      "index": 4,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
       "kind": "preflight",
       "phase": "preflight",
       "required": true
     },
     {
-      "index": 5,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
+      "index": 2,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7 --dry-run",
       "kind": "execute-decision",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 6,
+      "index": 3,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 7,
+      "index": 4,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 8,
+      "index": 5,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "kind": "final-check",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
       "kind": "run-closeout",
       "phase": "gate",
       "required": true
     },
     {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
+      "index": 7,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
       "kind": "close-round",
       "phase": "gate",
+      "required": true
+    },
+    {
+      "index": 8,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "required": true
+    },
+    {
+      "index": 9,
+      "command": "git diff --check",
+      "kind": "git diff",
+      "phase": "status",
       "required": true
     }
   ],
@@ -175,11 +172,11 @@
   },
   "current_handoff_packet": {
     "path": "project_state/gates/current_handoff_packet.json",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
     "gate_status": "PASSED",
     "current": true,
-    "sha256": "d0830033385df59dbb07826ecfb83ae835697e40592ab588f5f26a90ce63b00f"
+    "sha256": "60f07ce1330362837a31f44cc568ee8450192e984f28623371c27542b4155de5"
   },
   "codex_prompt_packet": {
     "path": "project_state/gates/codex_prompt_packet.json",
@@ -203,8 +200,8 @@
     "readiness_status": "READY",
     "recommendation": "ACCEPTED",
     "next_action": "no_action_required",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
+    "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
     "current": true
   },
   "closeout_expectations": {
@@ -212,7 +209,7 @@
     "run_closeout": "PASSED",
     "close_round": "CLOSED",
     "post_closeout_final_check": "PASSED",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1"
+    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7"
   },
   "stop_conditions": {
     "startup_path_or_repo_root_wrong": true,

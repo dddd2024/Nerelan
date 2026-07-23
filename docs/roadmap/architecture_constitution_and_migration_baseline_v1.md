@@ -3,10 +3,10 @@
 ## 0. 文档状态
 
 ```text
-PLANNING_PROPOSAL_ONLY
+REFERENCE_ONLY — IMPLEMENTED_BY_P0_CONSTITUTION
 ```
 
-本文是长期架构与迁移计划，不是 `Decision`、`Command Plan`、实现授权、合并授权或 PR #9 分支修改授权。
+本文是长期架构与迁移参考，不是 `Decision`、`Command Plan`、实现授权、合并授权或 PR #9 分支修改授权。P0 的唯一执行权威是 replacement Decision `decision_20260722_architecture_constitution_gate_compatibility_rework_v1`；已接受的权威结论位于 `docs/architecture/**`、`docs/adr/**` 和 `docs/roadmap/long-term-implementation-plan-v2.md`。
 
 对应讨论：GitHub Issue #10 — `Architecture Constitution and Migration Baseline v1`。
 
@@ -102,7 +102,7 @@ PR #9 集成方式
 docs/architecture/architecture-spine-v2.md
 docs/architecture/trust-model.md
 docs/architecture/data-contracts.md
-docs/architecture/storage-and-runtime.md
+docs/architecture/storage-and-artifact-ownership.md
 docs/architecture/sandbox-and-execution-boundary.md
 docs/architecture/migration-and-legacy-exit.md
 docs/roadmap/long-term-implementation-plan-v2.md

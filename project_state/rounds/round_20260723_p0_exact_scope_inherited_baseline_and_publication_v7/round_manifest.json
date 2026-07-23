@@ -1,0 +1,54 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archive_refresh_basis": "final_live_report_copy_after_report_finalization",
+  "archive_refreshed_at": "2026-07-23T12:01:12.269280Z",
+  "archived_at": "2026-07-23T11:59:22Z",
+  "archived_report_sha256": "13a13c435789cd324c847b0a2a0bdde6a7ac5b1f428ba563336665285e498ca2",
+  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7\\codex_execution_report.md",
+      "sha256": "13a13c435789cd324c847b0a2a0bdde6a7ac5b1f428ba563336665285e498ca2",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7\\decision_packet.md",
+      "sha256": "8bfd688ce5b534bd00dc12abdf2c33c8804e9127e416c1cb6cf0eac2524a24b8",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7\\pytest_result.txt",
+      "sha256": "f2af42940991498dd0d8f39ca63764cc6763dc77b509519e47b104bff54a57dc",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7\\execution_report.md",
+      "sha256": "d55e0073f02271ad84b79b8aed4b717201b53fbec34e0316a47a6b616c6a77e3",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "final_archive_refresh_status": "PASSED",
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "live_report_sha256_at_archive": "13a13c435789cd324c847b0a2a0bdde6a7ac5b1f428ba563336665285e498ca2",
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_finalized_at": "2026-07-23T12:01:07.701744Z",
+  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "schema_version": 1,
+  "source_git_commit": "1b76a49b6bd3",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}
