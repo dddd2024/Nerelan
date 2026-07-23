@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260722_p0_command_plan_contract_compatibility_rework_v3",
-  "round_id": "round_20260722_p0_command_plan_contract_compatibility_rework_v3",
+  "decision_id": "decision_20260722_p0_legacy_gate_convergence_and_completion_v4",
+  "round_id": "round_20260722_p0_legacy_gate_convergence_and_completion_v4",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,15 +13,15 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260722_p0_standard_profile_compatibility_rework_v2",
-  "follows_last_round_id": "round_20260722_p0_standard_profile_compatibility_rework_v2",
-  "previous_audit_outcome": "BLOCKED_STALE_COMMAND_PLAN_EXPECTATION",
-  "workstream_id": "p0-command-plan-contract-compatibility-rework-v3",
+  "follows_last_decision_id": "decision_20260722_p0_command_plan_contract_compatibility_rework_v3",
+  "follows_last_round_id": "round_20260722_p0_command_plan_contract_compatibility_rework_v3",
+  "previous_audit_outcome": "BLOCKED_LEGACY_FINAL_GATE_CONTRACT_DIVERGENCE",
+  "workstream_id": "p0-legacy-gate-convergence-and-completion-v4",
   "source_issue": 13,
   "source_pull_request": 11,
   "required_branch": "agent/architecture-constitution-plan-v1",
-  "activation_base_sha": "642405d545d6a50d511df976da255086ad3aeb6e",
-  "starting_remote_head": "642405d545d6a50d511df976da255086ad3aeb6e",
+  "activation_base_sha": "37aba70afb1c6fd0d95ff3657d6f1f9c63c64914",
+  "starting_remote_head": "37aba70afb1c6fd0d95ff3657d6f1f9c63c64914",
   "frozen_pr9_head": "43418818af61d9be3208d2444fd6ce5120f73fab",
   "roadmap_basis": "docs/roadmap/p0_architecture_constitution_execution_plan_v1.md",
   "risk_tier": "R1",
@@ -43,7 +43,7 @@
   "pytest_required": true,
   "explicit_pytest_command_required": true,
   "documentation_only": false,
-  "source_code_change_allowed": false,
+  "source_code_change_allowed": true,
   "test_code_change_allowed": true,
   "runtime_mutation_allowed": false,
   "dependency_change_allowed": false,
@@ -55,8 +55,15 @@
   "tool_provider_execution_allowed": false,
   "pr9_branch_mutation_allowed": false,
   "pr9_merge_allowed": false,
+  "allowed_source_files": [
+    "reverse_agent/project_gate.py"
+  ],
   "allowed_test_files": [
-    "tests/test_project_gate.py"
+    "tests/test_project_gate.py",
+    "tests/test_project_reports.py",
+    "tests/test_project_state.py",
+    "tests/test_project_context.py",
+    "tests/test_project_state_manifest.py"
   ],
   "allowed_docs": [
     "docs/architecture/architecture-spine-v2.md",
@@ -87,22 +94,24 @@
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
-    "project_state/rounds/round_20260722_p0_command_plan_contract_compatibility_rework_v3/*"
-  ],
-  "read_only_reference_files": [
     "project_state/state_manifest.json",
     "project_state/context/current_context_packet.json",
+    "project_state/rounds/round_20260722_p0_legacy_gate_convergence_and_completion_v4/*"
+  ],
+  "read_only_reference_files": [
     ".codex-skills/registry.json",
     ".codex-skills/reverse-agent-iteration/SKILL.md",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_reports.py",
-    "tests/test_project_state.py"
+    "project_state/task_packet.json",
+    "project_state/current_state.json",
+    "project_state/artifact_index.json"
   ],
   "forbidden_mutated_paths": [
-    "reverse_agent/*",
-    "reverse_agent/**",
-    "tests/test_project_reports.py",
-    "tests/test_project_state.py",
+    "reverse_agent/architecture/*",
+    "reverse_agent/architecture/**",
+    "reverse_agent/control_plane/*",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/workflows/*",
+    "reverse_agent/workflows/**",
     "frontend/*",
     ".github/workflows/*",
     ".github/workflows/**",
@@ -117,8 +126,6 @@
     "project_state/task_packet.json",
     "project_state/artifact_index.json",
     "project_state/negative_results.json",
-    "project_state/state_manifest.json",
-    "project_state/context/*",
     "project_state/roadmap/workstreams.json",
     "project_state/domains/*",
     "project_state/jobs/*",
@@ -131,7 +138,7 @@
   ],
   "publication_authorization": {
     "granted_by_user": true,
-    "applies_to": "the v3 command-plan-contract Decision activation commit and later validated P0 test/document/evidence commit on PR #11",
+    "applies_to": "the v4 legacy-gate-convergence Decision activation commit and later validated P0 source/test/document/evidence commit on PR #11",
     "allowed_branch": "agent/architecture-constitution-plan-v1",
     "base_branch": "main",
     "decision_activation_commit_publication_allowed": true,
@@ -158,27 +165,28 @@
 
 ## 1. Goal
 
-以新的不可变 v3 Decision 取代包含陈旧 Command Plan 预期的 v2 Decision，接受当前 compiler 对 `standard` Profile 的 bounded orchestration 投影，并继续 Issue #13 的单一测试 fixture 兼容性修复及尚未发布的 **P0：Architecture Constitution and Migration Baseline** 文档成果。
+以新的不可变 v4 Decision 收敛 v3 已证明的 Legacy Gate 合约偏差，并发布尚未提交的 **P0：Architecture Constitution and Migration Baseline** 成果。v4 仅允许修复 `project_gate` 中与本轮直接相关的 startup evidence、current-round artifact isolation、manifest/context freshness、execution-log/report idempotence、conditional legacy checks 与 Required Audit alignment。
 
 本轮只允许：
 
-1. 对 `tests/test_project_gate.py` 中失败的 generated-audit semantic-alignment 测试及其最小相邻 helper/fixture 做 hermetic 修复；
-2. 保留、复核并发布已经完成的 P0 架构文档、ADR 和 roadmap；
-3. 生成本 replacement round 必需的 Gate、测试与报告证据。
+1. 保留 v3 已通过的 hermetic generated-audit fixture 修复；
+2. 对 `reverse_agent/project_gate.py` 及明确列出的 Gate 测试实施最小 legacy-gate convergence；
+3. 刷新 current-round `state_manifest.json`、`current_context_packet.json`、Gate、测试与报告证据；
+4. 保留、复核并发布已经完成的 P0 架构文档、ADR 和 roadmap。
 
 ## 2. Current Evidence
 
-- 用户已明确批准 `decision_20260722_p0_command_plan_contract_compatibility_rework_v3` 与对应 round。
+- 用户已明确要求读取最新评论并完成对应计划，批准 `decision_20260722_p0_legacy_gate_convergence_and_completion_v4` 与对应 round。
 - v1 Decision 已作为单文件 commit `35977b412df6eb15f6dc5701572296df0be8cad0` 保留在 Git 历史；其 automatic Gate Profile 正确推导为 `standard`、`closeout_allowed=true`，与 v1 的 `fast`、`closeout_allowed=false` 冲突，因此 v1 状态为 `BLOCKED / SUPERSEDED`，不得 amend、reset 或重写。
 - v2 Decision commit `642405d545d6a50d511df976da255086ad3aeb6e` 保留在 Git 历史；其 automatic `standard` Profile 正确，但它错误要求 startup 必须出现在 `command_plan.commands` 并错误禁止 bounded `run-round`，因此 v2 状态为 `BLOCKED_STALE_COMMAND_PLAN_EXPECTATION`，不得 amend、reset 或重写。
-- 当前 v3 authority 继续接受 automatic `standard` Profile 和 `closeout_allowed=true`，同时保持 `closeout_required=false`、`close_round_required=false`。
+- v3 Decision commit `37aba70afb1c6fd0d95ff3657d6f1f9c63c64914` 保留在 Git 历史；其 tests、startup snapshot 与 preflight 已通过，但 final-check 暴露旧轮 manifest/context、startup transcript、artifact isolation 和 report idempotence 合约偏差，状态为 `BLOCKED_LEGACY_FINAL_GATE_CONTRACT_DIVERGENCE`。
+- 当前 v4 authority 继续接受 automatic `standard` Profile 和 `closeout_allowed=true`，同时保持 `closeout_required=false`、`close_round_required=false`。
 - 执行工作树为既有 `F:\reverse-agent-p0`；它属于 `F:\reverse-agent` 同一仓库且承载全部未提交 P0 成果，没有创建新工作树。
 - 当前分支为 `agent/architecture-constitution-plan-v1`。
-- PR #11 starting remote head 与 v3 activation base 均为未改写的 v2 commit `642405d545d6a50d511df976da255086ad3aeb6e`。
+- PR #11 starting remote head 与 v4 activation base 均为未改写的 v3 commit `37aba70afb1c6fd0d95ff3657d6f1f9c63c64914`。
 - PR #9 保持 Draft、open、unmerged，并冻结在 exact head `43418818af61d9be3208d2444fd6ce5120f73fab`。
-- 上一轮已通过 automatic fast Gate Profile、Command Plan、startup snapshot 与 preflight。
-- 上一轮 required pytest 实际结果为 `1488 passed, 1 failed`；唯一失败是 `tests/test_project_gate.py::test_closeout_order_provenance_generated_audit_is_semantically_aligned`。
-- Issue #13 已判定该测试读取 live `project_state/decision_packet.md` 并硬编码历史 `48` 问题数量，属于 fixture 设计缺陷。
+- v3 已通过 automatic standard Gate Profile、compiler-generated Command Plan、startup snapshot、preflight 和 locked-plan pytest（`1226 passed`）。
+- v3 final-check 如实失败：manifest/context 仍绑定 7 月 16 日旧轮，pytest transcript 缺少 startup command blocks，旧轮 artifacts 混入 current checks，execution/report synthesis 不幂等。
 - PR #11 的远端 workflow 当前在 package installation 阶段失败，因为 `main` 缺少已冻结在 PR #9 中的 packaging baseline；本轮不得复制 packaging 或修改 workflow。
 
 ## 3. Inherited Authorized WIP Inventory
@@ -227,9 +235,9 @@
 不得：
 
 - reset、clean、discard、覆盖或重新生成上述 `inherited_authorized_wip` 文档；
-- 在 v3 Decision activation commit 已推送、新 automatic standard Gate Profile、compiler-generated Command Plan digest lock、独立 startup snapshot 和 preflight 全部通过前修改测试或 P0 文档；
-- 修改 `tests/test_project_gate.py` 之外的任何测试文件；
-- 修改 `reverse_agent/**`、`.github/workflows/**`、`.codex-skills/**`、`pyproject.toml` 或 `requirements*.txt`；
+- 在 v4 Decision activation commit 已推送、新 automatic standard Gate Profile、compiler-generated Command Plan digest lock、独立 startup snapshot 和 preflight 全部通过前继续修改 source、测试或 P0 文档；
+- 修改 allowlist 之外的任何 source 或测试文件；
+- 修改 `reverse_agent/project_gate.py` 之外的 `reverse_agent/**`，或修改 `.github/workflows/**`、`.codex-skills/**`、`pyproject.toml`、`requirements*.txt`；
 - 通过 skip、xfail、删除断言、弱化 production validation 或读取 live Decision 来规避失败；
 - 添加 packaging、修改 workflow 或复制 PR #9 内容以伪造远端 CI 通过；
 - 修改、合并或标记 ready PR #9；
@@ -251,7 +259,7 @@
 - `tests/test_project_gate.py`
 - `tests/test_project_reports.py`，只读
 - `tests/test_project_state.py`，只读
-- `reverse_agent/project_gate.py`，只读
+- `reverse_agent/project_gate.py`，仅允许本轮 legacy-gate convergence 的最小修改
 - PR #9、PR #11、Issue #13 的远端状态
 - `git status --short`
 - `git diff --check`
@@ -264,13 +272,13 @@
 最终报告必须逐项回答：
 
 1. 当前 Decision 与 Round ID 是否为本 replacement Decision？
-2. v1 与 v2 Decision 是否保留在 Git 历史且未被 amend、reset 或重写，v2 是否标记为 `BLOCKED_STALE_COMMAND_PLAN_EXPECTATION`？
+2. v1、v2、v3 Decision 是否保留在 Git 历史且未被 amend、reset 或重写，v3 是否标记为 `BLOCKED_LEGACY_FINAL_GATE_CONTRACT_DIVERGENCE`？
 3. 当前分支、PR #11 starting remote head 与 activation base SHA 是否准确？
 4. PR #9 是否保持 Draft、open、unmerged 且 exact head 未变？
 5. 21 个唯一继承 P0 文件是否在激活前完成路径、标题和 SHA-256 盘点并标记为 `inherited_authorized_wip`，且是否解释了 Issue 文本中的计数差异？
 6. Decision activation commit 是否只包含 `project_state/decision_packet.md`？
 7. automatic Gate Profile 是否为 `standard` 且 `closeout_allowed=true`，没有使用强制 override？
-8. 新 Command Plan 是否由当前 compiler 自动生成、未被手工编辑/删除/重排，并在任何测试修复和后续 P0 修改前锁定？
+8. v4 Command Plan 是否由当前 compiler 自动生成、未被手工编辑/删除/重排，并在任何 v4 source/test 修改前锁定？
 9. Command Plan 是否不含 `run-closeout`、`close-round`、未知或越权命令，并正确允许 compiler 生成的 bounded `run-round`？
 10. startup 是否通过独立 startup snapshot 和实际启动 command blocks 验证，而不要求出现在 `command_plan.commands`；preflight 是否通过且没有 scope/profile/closeout 冲突？
 11. 测试是否不再读取仓库 live `project_state/decision_packet.md`？
@@ -288,12 +296,19 @@
 23. Sandbox S0-S3、Worker 权限、Legacy 退出路线和治理成本上限是否明确？
 24. P1-P16 顺序是否在全部文档中一致，且 PR #9 integration 是否仍为独立 P1 Decision？
 25. 实际变更是否仅位于允许测试、P0 文档及当前轮 Gate/report 证据？
-26. report-summary、execution-log 与 final-check 是否通过？
-27. 远端 package-install 失败是否被如实报告为 pre-P1 baseline debt，而没有宣称远端 CI 通过？
+26. startup evidence、current-round artifact isolation、manifest/context freshness、execution-log/report idempotence 和 conditional legacy checks 是否完成收敛？
+27. report-summary、execution-log 与 final-check 是否通过？
+28. 远端 package-install 失败是否被如实报告为 pre-P1 baseline debt，而没有宣称远端 CI 通过？
 
 ## 7. Implementation Scope
 
-### Allowed test file
+### Allowed Gate source
+
+- `reverse_agent/project_gate.py`
+
+只允许修复 v3 final-check 已证明的 startup evidence、current-round artifact isolation、manifest/context freshness、execution-log/report idempotence、conditional legacy checks 与 Required Audit alignment；不得扩展业务或控制面能力。
+
+### Allowed test files
 
 - `tests/test_project_gate.py`
 
@@ -315,7 +330,9 @@
 - `project_state/pytest_result.txt`
 - `project_state/codex_execution_report.md`
 - `project_state/execution_report.md`
-- `project_state/rounds/round_20260722_p0_command_plan_contract_compatibility_rework_v3/*`
+- `project_state/state_manifest.json`
+- `project_state/context/current_context_packet.json`
+- `project_state/rounds/round_20260722_p0_legacy_gate_convergence_and_completion_v4/*`
 
 执行顺序不可调整：
 
@@ -377,7 +394,7 @@ python -m reverse_agent.project_gate final-check --state-dir project_state
 P0_TEST_COMPATIBILITY_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
 ```
 
-- v1/v2 Decision commits 保留且未改写，v2 标记为 `BLOCKED_STALE_COMMAND_PLAN_EXPECTATION`，v3 replacement Decision 单文件 activation commit 已推送；
+- v1/v2/v3 Decision commits 保留且未改写，v3 标记为 `BLOCKED_LEGACY_FINAL_GATE_CONTRACT_DIVERGENCE`，v4 replacement Decision 单文件 activation commit 已推送；
 - automatic `standard` Profile、`closeout_allowed=true`、Command Plan digest lock、startup snapshot 和 preflight 全部通过；
 - hermetic fixture 不再依赖 live Decision，且保留 48 与 non-48 场景覆盖；
 - required focused test 与完整 P0 pytest 命令零失败；
@@ -397,7 +414,7 @@ P0_TEST_COMPATIBILITY_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
 - 继承 P0 文件无法与无关工作区分；
 - replacement Decision lint、automatic standard Profile、`closeout_allowed=true`、compiler-generated Command Plan、digest lock、独立 startup snapshot 或 preflight 阻塞；
 - Command Plan 包含 `run-closeout`、`close-round`、未知或越权命令，或被手工编辑、删除、重排；
-- hermetic test 修复必须修改 `reverse_agent/**`；
+- Gate 收敛需要修改 `reverse_agent/project_gate.py` 或明确 allowlist 之外的 source/test；
 - required tests 出现与同一 live-Decision fixture 缺陷无关的新失败；
 - path scope 要求修改 Gate 源码；
 - 有人提议在 P1 前添加 packaging/workflow 变更以使 PR #11 远端 CI 变绿。
