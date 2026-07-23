@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260723_p0_full_profile_convergence_and_publication_v5",
-  "round_id": "round_20260723_p0_full_profile_convergence_and_publication_v5",
+  "decision_id": "decision_20260723_p0_exact_tests_contract_and_publication_v6",
+  "round_id": "round_20260723_p0_exact_tests_contract_and_publication_v6",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -13,15 +13,15 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260722_p0_legacy_gate_convergence_and_completion_v4",
-  "follows_last_round_id": "round_20260722_p0_legacy_gate_convergence_and_completion_v4",
-  "previous_audit_outcome": "BLOCKED_IMMUTABLE_PROFILE_CONTRACT_MISMATCH",
-  "workstream_id": "p0-full-profile-convergence-and-publication-v5",
+  "follows_last_decision_id": "decision_20260723_p0_full_profile_convergence_and_publication_v5",
+  "follows_last_round_id": "round_20260723_p0_full_profile_convergence_and_publication_v5",
+  "previous_audit_outcome": "BLOCKED_PREPLAN_TESTS_SECTION_HEADING_MISMATCH",
+  "workstream_id": "p0-exact-tests-contract-and-publication-v6",
   "source_issue": 15,
   "source_pull_request": 11,
   "required_branch": "agent/architecture-constitution-plan-v1",
-  "activation_base_sha": "ce6562cf18efd46e40b037b55c17368c575da82b",
-  "starting_remote_head": "ce6562cf18efd46e40b037b55c17368c575da82b",
+  "activation_base_sha": "3d487e29e467b3a0eea325e3286afd63331b5367",
+  "starting_remote_head": "3d487e29e467b3a0eea325e3286afd63331b5367",
   "frozen_pr9_head": "43418818af61d9be3208d2444fd6ce5120f73fab",
   "roadmap_basis": "docs/roadmap/p0_architecture_constitution_execution_plan_v1.md",
   "risk_tier": "R1",
@@ -97,7 +97,7 @@
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
-    "project_state/rounds/round_20260723_p0_full_profile_convergence_and_publication_v5/*"
+    "project_state/rounds/round_20260723_p0_exact_tests_contract_and_publication_v6/*"
   ],
   "read_only_reference_files": [
     ".codex-skills/registry.json",
@@ -142,7 +142,7 @@
   ],
   "publication_authorization": {
     "granted_by_user": true,
-    "applies_to": "the v5 Decision activation commit and the later compiler-validated P0 source/test/document/evidence publication commit on PR #11",
+    "applies_to": "the v6 Decision activation commit and the later compiler-validated P0 source/test/document/evidence publication commit on PR #11",
     "allowed_branch": "agent/architecture-constitution-plan-v1",
     "base_branch": "main",
     "decision_activation_commit_publication_allowed": true,
@@ -169,95 +169,64 @@
 
 ## 1. Goal
 
-以新的不可变 v5 Decision 接管并保留 v4 已完成但因治理合同矛盾而未发布的本地成果，在当前 compiler 正确推导的 `full` Profile 下重新绑定、验证、收尾并发布 **P0：Architecture Constitution and Migration Baseline**。
+以新的不可变 v6 Decision 取代因测试章节标题不符合现有 compiler 精确解析契约而被阻塞的 v5 Decision。v6 保持 v5 的 `full` Profile、源码/测试/文档范围和发布目标不变，只修正 pre-plan 解析契约，并接管、保留和重新绑定尚未提交的 v4/v5 本地成果。
 
 本轮不是新的功能实现轮。只允许：
 
-1. 将 v4 本地 source、test、document 和 evidence 变更盘点为 `inherited_authorized_wip_from_v4`；
+1. 将现有 source、test、document 和 evidence 修改盘点为 `inherited_authorized_wip_from_v4_v5`；
 2. 在不扩大功能范围的前提下复核 `reverse_agent/project_gate.py` 的 legacy Gate convergence 修改；
-3. 重新运行 full Profile 所要求的测试、Gate、closeout 和 archive/round evidence；
-4. 刷新当前 v5 Decision/Round/Report 绑定的 manifest、context、execution-log、report 和 final evidence；
-5. 显式提交并推送已经完成的 21 个 P0 文档和经验证的源码、测试及证据到现有 PR #11；
+3. 按 compiler 生成的 `full` Command Plan 重新运行测试、Gate、closeout 和 round archive；
+4. 刷新当前 v6 Decision/Round/Report 绑定的 manifest、context、execution-log、report 和 final evidence；
+5. 显式提交并推送 21 个 P0 文档和经验证的源码、测试及证据到现有 PR #11；
 6. 推送后停止分支修改，等待独立审计。
 
 ## 2. Current Evidence
 
-- 用户已明确批准由本审计方给出的 v5 Decision，并要求将其直接提交到 GitHub；本仓库文件是正式执行权威，Issue 和 PR 评论仅作为人类可读记录。
-- v4 Decision activation commit 为 `ce6562cf18efd46e40b037b55c17368c575da82b`，必须保留在 Git 历史且不得 amend、reset 或重写。
-- v4 同时声明 `required_profile=standard` 并授权修改 `reverse_agent/project_gate.py`；仓库已验证的 Gate Profile 规则会将该路径归为 `full`，因此 v4 状态为 `BLOCKED_IMMUTABLE_PROFILE_CONTRACT_MISMATCH`。
-- 执行 Agent 在 v4 下正确停止，没有 profile override，也没有修改已激活 Decision。
-- 本地已报告的技术证据包括：`1544 passed`、`run-round=PASSED`、`report-summary=0`、`final-check=0`、`git diff --check=0`。这些属于历史本地证据，必须在 v5 下重新生成并绑定，不能直接作为 v5 验收结论。
-- 21 个 P0 架构、ADR 和 roadmap 文件仍保存在既有 `F:\reverse-agent-p0` 工作树；不得通过新工作树、reset、clean、discard 或重新生成丢失这些成果。
-- 当前目标分支为 `agent/architecture-constitution-plan-v1`，v5 activation base 为 `ce6562cf18efd46e40b037b55c17368c575da82b`。
+- v5 Decision activation commit 为 `3d487e29e467b3a0eea325e3286afd63331b5367`，必须保留在 Git 历史且不得 amend、reset 或重写。
+- v5 的 `decision-lint` 通过，automatic Gate Profile 正确为 `full`。
+- v5 的 Command Plan 编译在 substantive execution 前失败，唯一已知原因是 Decision 使用标题 `## 8. Tests and Evidence`，而现有 compiler 只接受精确标题 `## 8. Tests`。
+- v5 没有授权在 Command Plan、startup 和 preflight 之前修改 compiler，因此 Agent 正确停止；v5 状态为 `BLOCKED_PREPLAN_TESTS_SECTION_HEADING_MISMATCH`。
+- 当前 v6 使用精确章节标题 `## 8. Tests`，不要求或授权修改 parser/compiler 来绕过该问题。
+- 本地 v4/v5 WIP 已被报告为完整保留，尚未提交或推送；不得通过 reset、clean、discard、新工作树或重新生成丢失。
+- 历史本地技术证据 `1544 passed`、`run-round=PASSED`、`report-summary=0`、`final-check=0`、`git diff --check=0` 仅作为继承证据，必须在 v6 下重新绑定和验证。
+- 当前目标分支为 `agent/architecture-constitution-plan-v1`，v6 activation base 为 `3d487e29e467b3a0eea325e3286afd63331b5367`。
 - PR #9 必须保持 Draft、open、unmerged，并冻结在 exact head `43418818af61d9be3208d2444fd6ce5120f73fab`。
-- PR #11 的远端 CI、Decision Preflight 和 State Gate 当前在 `Install package` 阶段失败，因为 `main` 缺少 packaging baseline；该基线已存在于冻结 PR #9。本轮不得复制 packaging 或修改 workflow。
+- PR #11 远端检查在 `Install package` 阶段失败属于 P1 前 packaging baseline 债务；v6 不得修改 packaging 或 workflow。
 
-## 3. Inherited Authorized WIP From v4
+## 3. Inherited Authorized WIP
 
-在任何 substantive edit、reset、cleanup、stash、checkout、重新生成或测试执行前，必须对现有本地修改执行：
+在任何 substantive edit、cleanup、stash、checkout、重新生成或测试执行前，必须：
 
-1. 记录 `git status --short`、当前 HEAD、远端 PR #11 head 和 PR #9 exact head；
-2. 列出全部未提交路径；
-3. 为每个继承文件计算 SHA-256；
-4. 区分 v4 授权成果与无关用户改动；
-5. 将合法成果标记为 `inherited_authorized_wip_from_v4`；
-6. 将路径和摘要写入当前 v5 startup/baseline evidence；
-7. 不得 reset、clean、discard、覆盖、静默遗漏或从零重写继承成果。
+1. 记录当前 HEAD、PR #11 remote head、PR #9 exact head 和 `git status --short`；
+2. 列出全部未提交路径并计算 SHA-256；
+3. 区分 v4/v5 授权成果与无关用户改动；
+4. 将合法成果标记为 `inherited_authorized_wip_from_v4_v5`；
+5. 将路径和摘要写入 v6 startup/baseline evidence；
+6. 不得 reset、clean、discard、覆盖、静默遗漏或从零重写继承成果。
 
-预期继承范围可能包括：
-
-- `reverse_agent/project_gate.py`；
-- v4 allowlist 中实际修改的 Gate/state tests；
-- 当前本地 `state_manifest.json`、`current_context_packet.json` 和 Gate/report evidence；
-- 以下 21 个 P0 文件：
-
-```text
-docs/architecture/architecture-spine-v2.md
-docs/architecture/trust-model.md
-docs/architecture/data-contracts.md
-docs/architecture/storage-and-artifact-ownership.md
-docs/architecture/sandbox-and-execution-boundary.md
-docs/architecture/migration-and-legacy-exit.md
-docs/architecture/governance-cost-model.md
-docs/adr/ADR-001-modular-monolith.md
-docs/adr/ADR-002-separate-development-and-analysis-workflows.md
-docs/adr/ADR-003-separate-trust-bounded-contexts.md
-docs/adr/ADR-004-unique-source-of-truth.md
-docs/adr/ADR-005-storage-ownership.md
-docs/adr/ADR-006-evidence-and-claim-versioning.md
-docs/adr/ADR-007-langgraph-workflow-ownership.md
-docs/adr/ADR-008-sandbox-worker-boundary.md
-docs/adr/ADR-009-telemetry-is-not-analysis-evidence.md
-docs/adr/ADR-010-legacy-control-plane-exit.md
-docs/roadmap/architecture_constitution_and_migration_baseline_v1.md
-docs/roadmap/architecture_constitution_implementation_plan_v1.md
-docs/roadmap/p0_architecture_constitution_execution_plan_v1.md
-docs/roadmap/long-term-implementation-plan-v2.md
-```
-
-如继承成果无法与无关改动区分，立即停止并列出精确路径。
+预期范围包括 `reverse_agent/project_gate.py`、实际修改的 allowlisted tests、当前状态证据，以及 decision contract 中列出的 21 个 P0 文档。无法区分时立即停止并报告精确路径。
 
 ## 4. Do Not Do
 
 不得：
 
-- 将 Issue #15 或 PR 评论作为运行时执行权威；Agent 只读取本 `decision_packet.md` 和 compiler 锁定后的 Command Plan；
-- amend、reset、重写或删除 v1-v4 Decision 历史；
-- 人工覆盖 `full` Profile，或手工编辑、删除、重排 compiler-generated Command Plan；
-- 重新实现已在 v4 完成的代码，除非 v5 重新验证暴露同一范围内的真实缺陷；
+- 将 Issue 或 PR 评论作为运行时执行权威；只读取本 Decision 和锁定后的 Command Plan；
+- amend、reset、重写或删除 v1-v5 Decision 历史；
+- 人工覆盖 `full` Profile；
+- 手工编辑、删除或重排 compiler-generated Command Plan；
+- 为修复标题问题修改 compiler/parser；
 - 修改 `reverse_agent/project_gate.py` 之外的生产源码；
 - 修改 allowlist 之外的测试；
-- 修改 `.github/workflows/**`、`pyproject.toml`、`setup.py`、`requirements*.txt`、`.codex-skills/**` 或任何 packaging；
-- 修改、合并或标记 ready PR #9；
-- 实现 BMAD、LangGraph、EvidenceUnit、Claim、数据库、CAS、Sandbox、Provider、Web 或 AgentRunner；
-- 执行未知二进制、样本或调用逆向工具；
-- 直接 push main、merge、rebase、squash、force-push、tag 或 release；
+- 修改 workflow、Skill、dependency、packaging 或 PR #9；
+- 重新实现已完成的 v4 修改，除非 v6 验证暴露同一范围内的真实缺陷；
+- 执行未知二进制、样本或逆向工具；
+- push main、merge、mark ready、rebase、squash、force-push、tag 或 release；
 - 使用 `git add -A` 或 `git add .`；
-- 通过 skip、xfail、删除断言、弱化 Gate、伪造报告或忽略真实失败获得通过。
+- skip、xfail、删除断言、弱化 Gate、伪造证据或忽略真实失败。
 
 ## 5. Files To Inspect
 
-执行前和每个 Gate 阶段至少检查：
+至少检查：
 
 - `project_state/decision_packet.md`；
 - `project_state/gates/gate_profile_plan.json`；
@@ -270,10 +239,9 @@ docs/roadmap/long-term-implementation-plan-v2.md
 - `project_state/codex_execution_report.md`；
 - `project_state/execution_report.md`；
 - `reverse_agent/project_gate.py`；
-- v4 allowlist 中实际修改的测试；
-- 21 个 P0 文件；
-- `git status --short`、`git diff --check`、`git diff --name-only`；
-- PR #11 和冻结 PR #9 的精确远端状态。
+- 实际修改的 allowlisted tests；
+- 21 个 P0 文档；
+- Git diff/status 和 PR #9、PR #11 精确远端状态。
 
 `reverse_agent/project_state.py` 只读。不得扫描完整 `solve_reports/` 或执行样本。
 
@@ -282,51 +250,45 @@ docs/roadmap/long-term-implementation-plan-v2.md
 最终报告必须逐项使用 `Question ID / Status / Answer / Evidence / Limitations` 回答：
 
 1. 当前 Decision、Round、branch 和 activation base 是否准确？
-2. v4 是否保留且标记为 `BLOCKED_IMMUTABLE_PROFILE_CONTRACT_MISMATCH`？
-3. 本 v5 Decision activation commit 是否只修改 `project_state/decision_packet.md`？
+2. v5 是否保留且标记为 `BLOCKED_PREPLAN_TESTS_SECTION_HEADING_MISMATCH`？
+3. v6 activation commit 是否只修改 `project_state/decision_packet.md`？
 4. PR #9 是否保持 Draft、open、unmerged 且 exact head 未变？
-5. 所有 v4 本地成果是否在执行前完成路径、分类和 SHA-256 盘点？
-6. 是否不存在 reset、clean、discard、覆盖、重新生成或静默遗漏继承成果？
-7. automatic Gate Profile 是否为 `full` 且没有 override？
-8. Command Plan 是否由当前 compiler 生成并锁定，没有手工修改？
+5. 所有继承 WIP 是否在执行前完成路径、分类和 SHA-256 盘点？
+6. automatic Gate Profile 是否为 `full` 且没有 override？
+7. compiler 是否识别精确 `## 8. Tests` 章节并成功生成 Command Plan？
+8. Command Plan 是否由 compiler 生成并锁定，没有手工修改？
 9. startup snapshot 和 preflight 是否在 substantive execution 前通过？
-10. 实际修改是否严格限制在允许源码、测试、P0 文档及当前轮状态证据？
-11. startup evidence、current-round artifact isolation、manifest/context freshness 是否具备回归测试？
-12. execution-log、report-summary 和 final evidence 是否重复生成后保持语义幂等？
-13. 不适用于当前轮的历史检查是否被明确判定为 NOT_APPLICABLE，而不是伪造或删除？
-14. Required Audit 答案是否与问题 identity、顺序和语义一一对应？
-15. focused regressions 是否零失败？
-16. compiler-authorized full pytest 是否零失败？
-17. `doctor` 与 `lint-report` 是否完成且无未解释阻塞？
-18. `run-round` 是否仅在 Command Plan 授权时执行并保持 bounded？
-19. `final-check` 是否在 closeout 前通过？
-20. compiler-required `run-closeout` / `close-round` 是否成功完成？
-21. round manifest、archived report、archived pytest_result 和 post-closeout evidence 是否当前且相互一致？
-22. closeout 后重新生成的 execution-log、report-summary 和 final-check 是否通过且稳定？
-23. `git diff --check` 是否通过，最终 staged paths 是否全部在 allowlist 内？
-24. 21 个 P0 文档是否全部提交到 PR #11？
-25. 远端 package-install 失败是否如实记录为 P1 前基线债务，而未宣称远端检查通过？
-26. 是否没有 merge、mark-ready、workflow、packaging、PR #9 或 main mutation？
+10. 实际修改是否严格限制在 allowlist？
+11. focused regressions 和 full pytest 是否零失败？
+12. `doctor`、`lint-report`、bounded `run-round` 和 pre-closeout `final-check` 是否通过？
+13. compiler-required `run-closeout` / `close-round` 是否成功？
+14. round manifest、archived report、archived pytest_result 和 post-closeout evidence 是否当前且一致？
+15. execution-log、report-summary 和 final-check 重复生成是否语义稳定？
+16. `git diff --check` 是否通过，staged paths 是否全部在 allowlist？
+17. 21 个 P0 文档是否全部提交并推送到 PR #11？
+18. 远端 packaging 失败是否如实记录，而未宣称远端检查通过？
+19. 是否没有 merge、mark-ready、workflow、packaging、PR #9 或 main mutation？
 
-每项状态只能是 `PASS`、`FAIL`、`BLOCKED` 或 `NOT_APPLICABLE`，不得使用 TODO、TBD、PENDING 或推测性答案。
+状态只能为 `PASS`、`FAIL`、`BLOCKED` 或 `NOT_APPLICABLE`。
 
 ## 7. Implementation Scope and Execution Order
 
-本轮优先复核并重用 v4 已完成实现，不得无理由重新修改。执行顺序：
+执行顺序不可调整：
 
 ```text
 verify PR #11 and PR #9 exact heads
-→ inventory and hash inherited v4 WIP
-→ confirm v5 Decision activation commit is present locally
+→ inventory and hash inherited v4/v5 WIP
+→ confirm v6 Decision activation commit is present locally
+→ decision-lint
 → automatic full Gate Profile without override
 → compiler-generate and digest-lock Command Plan
 → independently generate startup snapshot
 → preflight
-→ inspect inherited diff and map every path to the allowlist
-→ run focused regressions generated or required by the plan
+→ inspect inherited diff and map every path to allowlist
+→ run focused regressions required by the plan
 → run complete compiler-authorized full pytest
 → doctor and lint-report
-→ refresh v5 state_manifest and current_context_packet
+→ refresh v6 state_manifest and current_context_packet
 → regenerate current-round Gate and report evidence
 → run bounded run-round only if generated
 → execution-log
@@ -334,66 +296,71 @@ verify PR #11 and PR #9 exact heads
 → final-check
 → compiler-authorized run-closeout / close-round
 → regenerate post-closeout execution-log / report-summary / final-check as required
-→ repeat consistency generation to prove semantic idempotence
+→ repeat consistency generation to prove idempotence
 → git diff --check and explicit allowlist review
 → explicitly stage authorized paths only
 → commit final source/test/document/evidence result
 → push once to existing PR #11
-→ publish a short status notification containing the exact final head and validation facts
+→ publish a short human-readable status notification
 → stop branch mutation for independent audit
 ```
 
-具体 command kinds 和命令文本只能来自当前锁定的 Command Plan，不由本 Decision 正文另行覆盖。
+具体 command kinds 和命令文本只能来自锁定的 Command Plan。
 
-## 8. Tests and Evidence
+## 8. Tests
 
-实际执行权威为 compiler-generated full Command Plan。至少必须证明：
+本节标题必须保持精确的 `## 8. Tests`，不得改名、添加后缀或嵌套为其他标题。实际执行权威为 compiler-generated full Command Plan。
+
+至少必须证明：
 
 - startup evidence 独立有效，缺失或乱序仍会失败；
-- 历史 artifact 不污染当前 v5 验收；
-- stale manifest/context 会失败，当前 v5 freshness 会通过；
-- execution-log/report-summary/final-check 的重复生成语义稳定；
+- 历史 artifact 不污染当前 v6 验收；
+- stale manifest/context 会失败，当前 v6 freshness 会通过；
+- execution-log、report-summary 和 final-check 重复生成后语义稳定；
 - Required Audit 结构化答案正确对齐；
 - 真正缺失必需证据仍会失败，没有降低 Gate；
-- full pytest 零失败；
-- closeout 和 close-round 成功；
+- compiler-authorized full pytest 零失败；
+- compiler-required closeout 和 close-round 成功；
 - post-closeout 当前轮证据完整一致；
 - `git diff --check` 通过；
 - 最终 commit 只包含授权路径。
 
-`1544 passed` 只能作为 v4 历史本地证据。v5 不要求固定通过数量，必须报告实际结果和零失败状态。
+历史 `1544 passed` 不能替代 v6 当前结果。v6 不要求固定通过数量，只要求实际命令零失败。
 
 ## 9. Acceptance Criteria
 
-本轮只有在以下条件全部满足时才能标记：
+仅在以下条件全部满足时标记：
 
 ```text
-P0_FULL_PROFILE_CONVERGENCE_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
+P0_EXACT_TESTS_CONTRACT_FULL_PROFILE_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
 ```
 
-- v4 保留为 `BLOCKED_IMMUTABLE_PROFILE_CONTRACT_MISMATCH`；
-- v5 Decision activation commit 先于所有 v5 evidence regeneration；
+- v5 保留为 `BLOCKED_PREPLAN_TESTS_SECTION_HEADING_MISMATCH`；
+- v6 activation commit 先于所有 v6 substantive execution；
+- compiler 成功识别 `## 8. Tests`；
 - automatic Profile 为 `full`，没有 override；
-- inherited v4 implementation 和 21 个 P0 文件被完整保留并重新验证；
+- inherited implementation 和 21 个 P0 文件完整保留并重新验证；
 - full tests 零失败；
-- final-check、compiler-required closeout 和 close-round 成功；
-- post-closeout artifacts 绑定当前 v5 Decision/Round/Report 并保持一致；
+- final-check、closeout 和 close-round 成功；
+- post-closeout artifacts 绑定当前 v6 Decision/Round/Report；
 - 只提交允许路径；
 - 最终成果推送到现有 Draft PR #11；
 - PR #9 exact head 保持不变；
-- 远端 packaging 失败被如实记录；
+- 远端 packaging 失败如实记录；
 - 没有 merge 或 mark-ready。
 
 ## 10. Stop Conditions
 
-遇到以下任一情况立即停止，不扩大范围：
+遇到以下任一情况立即停止：
 
-- v5 激活前 PR #11 head 不是 `ce6562cf18efd46e40b037b55c17368c575da82b`；
+- v6 激活前 PR #11 head 不是 `3d487e29e467b3a0eea325e3286afd63331b5367`；
 - PR #9 head 不等于 `43418818af61d9be3208d2444fd6ce5120f73fab`；
-- 本地 v4 WIP 无法与无关用户改动区分；
+- 本地 WIP 无法与无关用户改动区分；
+- decision-lint 失败；
+- compiler 仍不能识别精确 `## 8. Tests`；
 - automatic Profile 不是 `full`；
 - Command Plan 要求未授权路径或动作；
-- 完成任务需要修改 `reverse_agent/project_gate.py` 之外的生产源码；
+- 完成任务需要修改 parser/compiler 或 `reverse_agent/project_gate.py` 之外的生产源码；
 - tests 出现新的无关失败；
 - 需要 workflow、packaging、dependency 或 Skill 修改；
 - closeout 后 evidence 无法在允许范围内收敛；
@@ -403,8 +370,8 @@ P0_FULL_PROFILE_CONVERGENCE_AND_ARCHITECTURE_CONSTITUTION_ACCEPTED
 
 本 Decision 已获用户明确授权：
 
-- v5 Decision 作为单文件 activation commit 推送到 `agent/architecture-constitution-plan-v1`；
-- 在全部本地验收通过后，显式暂存允许的 source、test、document 和 current-round evidence；
+- v6 Decision 作为单文件 activation commit 推送到 `agent/architecture-constitution-plan-v1`；
+- 全部本地验收通过后，显式暂存允许的 source、test、document 和 current-round evidence；
 - 创建一个最终成果 commit，并向现有 PR #11 分支推送一次；
 - 更新 GitHub 人类可读状态摘要。
 
