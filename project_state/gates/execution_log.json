@@ -3,16 +3,16 @@
   "artifact_name": "execution_log.json",
   "gate_name": "execution-log",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "generated_at": "2026-07-23T12:03:23.319452Z",
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "generated_at": "2026-07-23T15:38:12.861748Z",
   "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
   "provenance": {
     "classification": "hybrid",
-    "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-    "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+    "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+    "report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
     "evidence_sources": [
       "pytest_result",
       "command_plan",
@@ -22,32 +22,32 @@
       "pytest_result": {
         "path": "project_state/pytest_result.txt",
         "exists": true,
-        "sha256": "af2f458d5ec16cae34a84cba1ebac03797101fffd18b14942cad0cc62c5957f7",
-        "size_bytes": 13556,
-        "command_block_count": 14
+        "sha256": "3d4cadfe788520be928bd031f6cc220c4c4ab6c0838887b2d0ee079ab6585a2d",
+        "size_bytes": 30655,
+        "command_block_count": 20
       },
       "command_plan": {
         "path": "project_state/gates/command_plan.json",
         "exists": true,
-        "sha256": "cfb3acba0bc35d2cdaec89958098f8ba66f55572281a7ee0d725c7aa112675d6",
-        "size_bytes": 5455,
-        "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-        "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+        "sha256": "f61cc0122ad3c313459df8a28deed8c777b17a75e1e0bb1b2d0a7c3a1a1d6724",
+        "size_bytes": 7806,
+        "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+        "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
         "plan_status": "PASSED",
-        "command_count": 9
+        "command_count": 15
       },
       "run_closeout_execution_log": {
         "path": "project_state/gates/run_closeout_execution_log.json",
         "exists": true,
-        "sha256": "93b9b13056a23032413073c6ddd9c67111c98b43e93bb6c414461cd72b70ac53",
-        "size_bytes": 48103,
-        "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-        "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-        "command_block_count": 14
+        "sha256": "855d4ad2d38e14836df88bd020a6109b25c25f213b87c4b58d303eb4bd8a0977",
+        "size_bytes": 56739,
+        "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+        "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+        "command_block_count": 17
       }
     },
-    "command_count": 14,
-    "command_digest": "cb26bd25aa9afc93aaf291b0959c0d978e7266b2f2ac0307a5f9ecb60559adce"
+    "command_count": 20,
+    "command_digest": "906d0b3d31f4d0638f60cb8699255e2d1a3e6e6d65b620b60d6aeafdc75cadb5"
   },
   "commands": [
     {
@@ -97,8 +97,8 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "kind": "run-closeout",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "kind": "startup-snapshot",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -119,9 +119,9 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
+      "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
+      "kind": "gate-profile",
+      "phase": "gate",
       "expected_exit_codes": [
         0
       ],
@@ -130,8 +130,8 @@
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7 --dry-run",
-      "kind": "execute-decision",
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -141,6 +141,61 @@
     },
     {
       "index": 10,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "kind": "pytest",
+      "phase": "test",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+      "kind": "doctor",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+      "kind": "lint-report",
+      "phase": "status",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+      "kind": "run-round",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8 --dry-run",
+      "kind": "execute-decision",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0
+      ],
+      "exit_code": 0,
+      "status": "PASSED"
+    },
+    {
+      "index": 15,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "phase": "gate",
@@ -152,7 +207,7 @@
       "status": "PASSED"
     },
     {
-      "index": 11,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "phase": "gate",
@@ -164,7 +219,7 @@
       "status": "PASSED"
     },
     {
-      "index": 12,
+      "index": 17,
       "command": "git diff --check",
       "kind": "git diff",
       "phase": "status",
@@ -175,9 +230,21 @@
       "status": "PASSED"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "kind": "close-round",
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "phase": "gate",
+      "expected_exit_codes": [
+        0,
+        1
+      ],
+      "exit_code": 1,
+      "status": "PASSED"
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "kind": "run-closeout",
       "phase": "gate",
       "expected_exit_codes": [
         0
@@ -186,13 +253,12 @@
       "status": "PASSED"
     },
     {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "kind": "close-round",
       "phase": "gate",
       "expected_exit_codes": [
-        0,
-        1
+        0
       ],
       "exit_code": 0,
       "status": "PASSED"
@@ -231,8 +297,8 @@
     },
     {
       "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "kind": "run-closeout",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "kind": "startup-snapshot",
       "exit_code": 0
     },
     {
@@ -243,48 +309,84 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-      "kind": "pytest",
+      "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
+      "kind": "gate-profile",
       "exit_code": 0
     },
     {
       "index": 9,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7 --dry-run",
-      "kind": "execute-decision",
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "kind": "command-plan",
       "exit_code": 0
     },
     {
       "index": 10,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py -q",
+      "kind": "pytest",
+      "exit_code": 0
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+      "kind": "doctor",
+      "exit_code": 0
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+      "kind": "lint-report",
+      "exit_code": 0
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+      "kind": "run-round",
+      "exit_code": 0
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8 --dry-run",
+      "kind": "execute-decision",
+      "exit_code": 0
+    },
+    {
+      "index": 15,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "kind": "report-summary",
       "exit_code": 0
     },
     {
-      "index": 11,
+      "index": 16,
       "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
       "kind": "execution-log",
       "exit_code": 0
     },
     {
-      "index": 12,
+      "index": 17,
       "command": "git diff --check",
       "kind": "git diff",
       "exit_code": 0
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "kind": "close-round",
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "kind": "final-check",
+      "exit_code": 1
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "kind": "run-closeout",
       "exit_code": 0
     },
     {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "kind": "close-round",
       "exit_code": 0
     }
   ],
-  "final_observed_command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+  "final_observed_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
   "warnings": [],
   "blocking_reasons": [],
   "recommended_next_action": "no_action_required"

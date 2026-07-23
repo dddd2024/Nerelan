@@ -3,23 +3,23 @@
   "artifact_name": "codex_prompt_packet.json",
   "gate_name": "codex-prompt-packet",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
   "mainline": "engineering_branch",
-  "generated_at": "2026-07-23T12:01:08.605207Z",
+  "generated_at": "2026-07-23T15:38:18.900035Z",
   "source_artifacts": {
     "local_execution_bundle": {
       "path": "project_state/gates/local_execution_bundle.json",
-      "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "sha256": "391f4ff882b15f710b8a5523b8d6dc25fed551b51e8a029de6c6375c36dcae42"
+      "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "sha256": "fb04461c685edb94610d9e8e43a5d153e98b0ddf36daada4390966bd0c7cf64e"
     },
     "current_handoff_packet": {
       "path": "project_state/gates/current_handoff_packet.json",
-      "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "sha256": "60f07ce1330362837a31f44cc568ee8450192e984f28623371c27542b4155de5"
+      "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "sha256": "ba1e93f5864a0303a63285ba5877d6b42b4d78dd4b75151dd765b14e612972a0"
     }
   },
   "prompt_sections": {

@@ -3,10 +3,10 @@
   "artifact_name": "ci_audit_handoff_bundle.json",
   "gate_name": "ci-audit-handoff-bundle",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "generated_at": "2026-07-23T12:00:34.942206Z",
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "generated_at": "2026-07-23T15:38:05.553451Z",
   "handoff_status": "REWORK_REQUIRED",
   "source_artifacts": {
     "ci_observation_schema": {

@@ -17,12 +17,12 @@
     "context_generated_after_final_gate": true,
     "context_sync_basis": "",
     "final_gate_current": true,
-    "final_gate_decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-    "final_gate_generated_at": "2026-07-23T12:03:30.766016Z",
-    "final_gate_report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-    "final_gate_round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "final_gate_decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+    "final_gate_generated_at": "2026-07-23T15:38:19.724844Z",
+    "final_gate_report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+    "final_gate_round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
     "final_gate_source_path": "project_state/gates/final_gate_result.json",
-    "final_gate_source_sha256": "4c34134876775682225d48085442b6e2036b9a59cdb2a16ece732b3feec93533",
+    "final_gate_source_sha256": "0e6b351147e070c2702ea47d4f652aafd523acb26e4da641e3e44aac3c42b517",
     "final_gate_status": "PASSED",
     "final_gate_status_source": "current_final_gate_result",
     "governance_artifacts_are_fact_source_replacements": false,
@@ -32,7 +32,7 @@
     ],
     "post_final_sync_evaluated_at": "",
     "post_final_sync_status": "CURRENT_POST_FINAL_SYNCED",
-    "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+    "report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
     "required_governance_artifacts": [
       "project_state/state_manifest.json",
       "project_state/context/current_context_packet.json",
@@ -82,7 +82,7 @@
     "timestamp_precision_policy": "precise_parsed_with_digest_fallback"
   },
   "bounded": true,
-  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
   "do_not_assume": [
     "missing sample artifacts are current blockers for this governance round",
     "roadmap workstreams grant execution authority",
@@ -123,6 +123,14 @@
   "external_analysis_tool_invocation": false,
   "forbidden_capabilities": [],
   "forbidden_mutated_paths": [
+    "docs/architecture/*",
+    "docs/architecture/**",
+    "docs/adr/*",
+    "docs/adr/**",
+    "docs/roadmap/*",
+    "docs/roadmap/**",
+    "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/*",
+    "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/**",
     "reverse_agent/architecture/*",
     "reverse_agent/architecture/**",
     "reverse_agent/control_plane/*",
@@ -135,7 +143,6 @@
     ".codex-skills/*",
     ".codex-skills/**",
     "solve_reports/*",
-    "training_materials/local_reverse/*",
     "pyproject.toml",
     "setup.py",
     "requirements*.txt",
@@ -154,7 +161,7 @@
     "project_state/*.db",
     "project_state/index.sqlite"
   ],
-  "generated_at": "2026-07-23T12:03:30.916383Z",
+  "generated_at": "2026-07-23T15:38:19.832549Z",
   "mainline": "engineering_branch",
   "model_api_invocation": false,
   "negative_results_constraints": [
@@ -215,48 +222,48 @@
     "next_action_policy": "follow command_plan; do not execute roadmap entries unless selected by decision_packet",
     "previous_accepted_baseline": {
       "decision_id": "",
-      "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-      "round_manifest": "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/round_manifest.json"
+      "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+      "round_manifest": "project_state/rounds/round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8/round_manifest.json"
     },
     "state_build_id": "state_20260618_134029_d6bd033d2532",
     "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
     "task_authority": "project_state/decision_packet.md",
     "task_packet_role": "background_only"
   },
-  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
   "runner_dispatch": false,
   "schema_version": 1,
   "source_files": {
     "codex_execution_report.md": {
       "exists": true,
       "path": "project_state/codex_execution_report.md",
-      "sha256": "13a13c435789cd324c847b0a2a0bdde6a7ac5b1f428ba563336665285e498ca2",
-      "size_bytes": 24152
+      "sha256": "76967f02fe37343e29e7ed7e70dcf9dfa12989caa7887c8599d5434160aa9265",
+      "size_bytes": 22619
     },
     "decision_packet.md": {
       "exists": true,
       "path": "project_state/decision_packet.md",
-      "sha256": "8bfd688ce5b534bd00dc12abdf2c33c8804e9127e416c1cb6cf0eac2524a24b8",
-      "size_bytes": 19650
+      "sha256": "cf04d1822f4b0002e90e148f2189ab047fa52bdb3eb362ae2b1b32d7877511d1",
+      "size_bytes": 14671
     },
     "gates/command_plan.json": {
       "exists": true,
       "path": "project_state/gates/command_plan.json",
-      "sha256": "cfb3acba0bc35d2cdaec89958098f8ba66f55572281a7ee0d725c7aa112675d6",
-      "size_bytes": 5455
+      "sha256": "f61cc0122ad3c313459df8a28deed8c777b17a75e1e0bb1b2d0a7c3a1a1d6724",
+      "size_bytes": 7806
     },
     "gates/final_gate_result.json": {
       "exists": true,
       "path": "project_state/gates/final_gate_result.json",
-      "sha256": "4c34134876775682225d48085442b6e2036b9a59cdb2a16ece732b3feec93533",
-      "size_bytes": 100814
+      "sha256": "0e6b351147e070c2702ea47d4f652aafd523acb26e4da641e3e44aac3c42b517",
+      "size_bytes": 84454
     },
     "gates/report_summary_synthesis.json": {
       "exists": true,
       "path": "project_state/gates/report_summary_synthesis.json",
-      "sha256": "f2524dc1e800981bc77a94530293493eda1f366064f45e835c27dd56ea63054b",
-      "size_bytes": 15465
+      "sha256": "5c9a1bef3dfa3a0afa293fd2ef643e0881f0d31b19b3ed2a49225ab9f1de3b32",
+      "size_bytes": 15153
     },
     "negative_results.json": {
       "exists": true,
@@ -267,8 +274,8 @@
     "pytest_result.txt": {
       "exists": true,
       "path": "project_state/pytest_result.txt",
-      "sha256": "af2f458d5ec16cae34a84cba1ebac03797101fffd18b14942cad0cc62c5957f7",
-      "size_bytes": 13556
+      "sha256": "3d4cadfe788520be928bd031f6cc220c4c4ab6c0838887b2d0ee079ab6585a2d",
+      "size_bytes": 30655
     }
   },
   "stop_conditions": []

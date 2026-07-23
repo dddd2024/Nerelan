@@ -20,11 +20,11 @@
     "archived": {
       "latest_accepted_round_manifest": {
         "exists": true,
-        "path": "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/round_manifest.json",
+        "path": "project_state/rounds/round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8/round_manifest.json",
         "required": false,
         "role": "archived",
-        "sha256": "eb63b05aee59172bd54320c2dcd712b54583a813a1a129fc96b4cc0bcf8141ee",
-        "size_bytes": 2742
+        "sha256": "fe007fb6b45d03eed1192784556f6bd3240b2fca1d1357866ab8fccba43da7a1",
+        "size_bytes": 2770
       }
     },
     "current": {
@@ -33,72 +33,72 @@
         "path": "project_state/codex_execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "13a13c435789cd324c847b0a2a0bdde6a7ac5b1f428ba563336665285e498ca2",
-        "size_bytes": 24152
+        "sha256": "76967f02fe37343e29e7ed7e70dcf9dfa12989caa7887c8599d5434160aa9265",
+        "size_bytes": 22619
       },
       "command_plan": {
         "exists": true,
         "path": "project_state/gates/command_plan.json",
         "required": true,
         "role": "current",
-        "sha256": "cfb3acba0bc35d2cdaec89958098f8ba66f55572281a7ee0d725c7aa112675d6",
-        "size_bytes": 5455
+        "sha256": "f61cc0122ad3c313459df8a28deed8c777b17a75e1e0bb1b2d0a7c3a1a1d6724",
+        "size_bytes": 7806
       },
       "decision_packet": {
         "exists": true,
         "path": "project_state/decision_packet.md",
         "required": true,
         "role": "current",
-        "sha256": "8bfd688ce5b534bd00dc12abdf2c33c8804e9127e416c1cb6cf0eac2524a24b8",
-        "size_bytes": 19650
+        "sha256": "cf04d1822f4b0002e90e148f2189ab047fa52bdb3eb362ae2b1b32d7877511d1",
+        "size_bytes": 14671
       },
       "execution_log": {
         "exists": true,
         "path": "project_state/gates/execution_log.json",
         "required": false,
         "role": "current",
-        "sha256": "ba5d1a6cd7aef53a44ab7509d263ed490c2edde665cc9853c8337bd967a1d78f",
-        "size_bytes": 9051
+        "sha256": "71c018ea851d36468e13e3f0db9fbaa09ce4112bbbab874e813b38f421ade20c",
+        "size_bytes": 11903
       },
       "execution_report": {
         "exists": true,
         "path": "project_state/execution_report.md",
         "required": false,
         "role": "current",
-        "sha256": "d55e0073f02271ad84b79b8aed4b717201b53fbec34e0316a47a6b616c6a77e3",
-        "size_bytes": 24150
+        "sha256": "7c3e74e593b877bd96b21b78ea26fa1cad1d6dc2b39006e1e6547dbd05a632b3",
+        "size_bytes": 22617
       },
       "final_check": {
         "exists": true,
         "path": "project_state/gates/final_gate_result.json",
         "required": false,
         "role": "current",
-        "sha256": "4c34134876775682225d48085442b6e2036b9a59cdb2a16ece732b3feec93533",
-        "size_bytes": 100814
+        "sha256": "0e6b351147e070c2702ea47d4f652aafd523acb26e4da641e3e44aac3c42b517",
+        "size_bytes": 84454
       },
       "pytest_result": {
         "exists": true,
         "path": "project_state/pytest_result.txt",
         "required": false,
         "role": "current",
-        "sha256": "af2f458d5ec16cae34a84cba1ebac03797101fffd18b14942cad0cc62c5957f7",
-        "size_bytes": 13556
+        "sha256": "3d4cadfe788520be928bd031f6cc220c4c4ab6c0838887b2d0ee079ab6585a2d",
+        "size_bytes": 30655
       },
       "report_summary": {
         "exists": true,
         "path": "project_state/gates/report_summary_synthesis.json",
         "required": false,
         "role": "current",
-        "sha256": "f2524dc1e800981bc77a94530293493eda1f366064f45e835c27dd56ea63054b",
-        "size_bytes": 15465
+        "sha256": "5c9a1bef3dfa3a0afa293fd2ef643e0881f0d31b19b3ed2a49225ab9f1de3b32",
+        "size_bytes": 15153
       },
       "run_closeout": {
         "exists": true,
         "path": "project_state/gates/run_closeout_result.json",
         "required": false,
         "role": "current",
-        "sha256": "5dde63f002963bad1914d9d2d63700c77f49f8d95e6389ce357f578c30754ba5",
-        "size_bytes": 66681
+        "sha256": "5acb3aac448c9d9b2ff0c18da2938cba008d37a8464fdfc63a9e78575c3268f7",
+        "size_bytes": 53341
       }
     },
     "generated_or_updated": {
@@ -219,12 +219,12 @@
         "path": "project_state/context/current_context_packet.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "47fca583ffab446e31fd1d51093f86fc54c4e88707ca8aea4753f89b47ae2f6b",
-        "size_bytes": 11920
+        "sha256": "8e1f9d64a856c08bfdce9e5dc3a647a11440fee50c2a30c041f3507b1514bddc",
+        "size_bytes": 12247
       },
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260723_p0_exact_scope_inherited_baseline_and_publication_v7.json",
+        "path": "project_state/jobs/job_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -483,8 +483,8 @@
         "path": "project_state/state_manifest.json",
         "required": false,
         "role": "generated_or_updated",
-        "sha256": "d7da60109f934f6d8151933f136408b562c968aec75e823cc051bb2d5caf1f30",
-        "size_bytes": 41290
+        "sha256": "950a507d04ee6a4c313d22b43916fead1a78912eaef51e2621113fe9b452d238",
+        "size_bytes": 41330
       },
       "status_policy_reconcile": {
         "exists": true,
@@ -565,7 +565,7 @@
     "missing_optional": {
       "current_planned_job": {
         "exists": false,
-        "path": "project_state/jobs/job_20260723_p0_exact_scope_inherited_baseline_and_publication_v7.json",
+        "path": "project_state/jobs/job_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8.json",
         "required": false,
         "role": "missing_optional",
         "sha256": "",
@@ -584,16 +584,16 @@
     "project_state_files_remain_audit_fact_sources": true,
     "state_manifest_indexes_current_state_only": true
   },
-  "decision_id": "decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "generated_at": "2026-07-23T12:03:31Z",
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "generated_at": "2026-07-23T15:38:19Z",
   "latest_accepted_baseline": {
     "decision_id": "",
-    "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-    "round_manifest": "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/round_manifest.json"
+    "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+    "round_manifest": "project_state/rounds/round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8/round_manifest.json"
   },
   "mainline": "engineering_branch",
-  "report_id": "codex_report_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
-  "round_id": "round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7",
+  "report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
   "schema_version": 1,
   "scoped_metadata": {
     "artifact_index_scope_coverage": {},
@@ -1022,7 +1022,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/jobs/job_20260723_p0_exact_scope_inherited_baseline_and_publication_v7.json": {
+      "project_state/jobs/job_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8.json": {
         "domain": "project_governance",
         "freshness": "current",
         "mainline": "project_governance",
@@ -1057,7 +1057,7 @@
         "role": "generated_or_updated",
         "scope": "global"
       },
-      "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/round_manifest.json": {
+      "project_state/rounds/round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8/round_manifest.json": {
         "domain": "project_governance",
         "freshness": "archived",
         "mainline": "project_governance",

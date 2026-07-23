@@ -1,0 +1,54 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archive_refresh_basis": "final_live_report_copy_after_report_finalization",
+  "archive_refreshed_at": "2026-07-23T15:38:20.153807Z",
+  "archived_at": "2026-07-23T15:37:34Z",
+  "archived_report_sha256": "76967f02fe37343e29e7ed7e70dcf9dfa12989caa7887c8599d5434160aa9265",
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8\\codex_execution_report.md",
+      "sha256": "76967f02fe37343e29e7ed7e70dcf9dfa12989caa7887c8599d5434160aa9265",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8\\decision_packet.md",
+      "sha256": "cf04d1822f4b0002e90e148f2189ab047fa52bdb3eb362ae2b1b32d7877511d1",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8\\pytest_result.txt",
+      "sha256": "3d4cadfe788520be928bd031f6cc220c4c4ab6c0838887b2d0ee079ab6585a2d",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "execution_report.md": {
+      "path": "project_state\\rounds\\round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8\\execution_report.md",
+      "sha256": "7c3e74e593b877bd96b21b78ea26fa1cad1d6dc2b39006e1e6547dbd05a632b3",
+      "source_path": "project_state\\execution_report.md"
+    }
+  },
+  "final_archive_refresh_status": "PASSED",
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "live_report_sha256_at_archive": "76967f02fe37343e29e7ed7e70dcf9dfa12989caa7887c8599d5434160aa9265",
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_finalized_at": "2026-07-23T15:38:18.173019Z",
+  "report_id": "codex_report_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "schema_version": 1,
+  "source_git_commit": "007e18754370",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260618_134029_d6bd033d2532",
+  "state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
+  "workflow_status": "REPORT_AVAILABLE"
+}

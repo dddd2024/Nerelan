@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "artifact_name": "remote_observation.json",
+  "gate_name": "remote-observation",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "observed_at": "2026-07-23T13:46:10.1532286Z",
+  "repository": "dddd2024/reverse-agent",
+  "pr11_number": 11,
+  "pr11_state": "OPEN",
+  "pr11_is_draft": true,
+  "pr11_head": "b5ae4399e7f32df5ff16e6231e827d7c9458c722",
+  "pr9_number": 9,
+  "pr9_state": "OPEN",
+  "pr9_is_draft": true,
+  "pr9_head": "43418818af61d9be3208d2444fd6ce5120f73fab",
+  "ci_observation_status": "FAILED_INSTALL_PACKAGE",
+  "ci_observation_summary": "Exact-head CI, Decision Preflight, and State Gate failed at pip install -e . because neither setup.py nor pyproject.toml exists; later gate steps were skipped.",
+  "source_urls": [
+    "https://github.com/dddd2024/reverse-agent/pull/11",
+    "https://github.com/dddd2024/reverse-agent/pull/9",
+    "https://github.com/dddd2024/reverse-agent/actions/runs/30005517964",
+    "https://github.com/dddd2024/reverse-agent/actions/runs/30005517897",
+    "https://github.com/dddd2024/reverse-agent/actions/runs/30005518126",
+    "https://github.com/dddd2024/reverse-agent/actions/runs/30005514957"
+  ]
+}

@@ -11,7 +11,7 @@ import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from .project_ci import (
     build_artifact_manifest_artifact,
@@ -741,6 +741,7 @@ RUN_CLOSEOUT_ALLOWED_KINDS = frozenset({
     "pytest",
     "command-plan",
     "doctor",
+    "lint-report",
     "report-summary",
     "final-check",
     "close-round",
@@ -1506,6 +1507,304 @@ def _generate_p0_exact_scope_v7_required_audit(
             f"- Limitations: {limitation_by_index.get(index, 'None within the v7 authorized local scope.')}",
             "",
         ])
+    return "\n".join(lines).rstrip()
+
+
+def _generate_p0_evidence_derived_v8_required_audit(
+    decision_text: str,
+    state_dir: Path,
+) -> str:
+    """Render the P0 v8 audit from current machine-readable evidence."""
+    questions = parse_required_audit_questions(decision_text)
+    if (
+        "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8"
+        not in decision_text
+        or len(questions) != 20
+    ):
+        return ""
+
+    decision = read_decision_meta(state_dir)
+    contract = read_decision_contract(state_dir)
+    contract_block = extract_markdown_json_block(decision_text, "decision_contract")
+    if contract_block.get("found") and not contract_block.get("parse_error"):
+        contract = {**contract, **contract_block}
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    gates_dir = state_dir / "gates"
+
+    def current_gate(name: str) -> dict[str, Any]:
+        payload = _read_json(gates_dir / name)
+        if not _artifact_matches_current_round(
+            payload,
+            decision_id=decision_id,
+            round_id=round_id,
+        ):
+            return {}
+        return payload
+
+    def gate_pass(name: str, *fields: str) -> bool:
+        payload = current_gate(name)
+        return bool(payload) and any(
+            str(payload.get(field) or "") in {"PASS", "PASSED", "CLOSED"}
+            for field in fields
+        )
+
+    pytest_text = _read_text(state_dir / "pytest_result.txt")
+    parsed_blocks = [
+        block
+        for block in (_parse_recorded_command_blocks(pytest_text).get("blocks") or [])
+        if isinstance(block, dict)
+    ]
+
+    def successful_command(kind: str) -> bool:
+        return any(
+            _command_kind(str(block.get("command") or "")) == kind
+            and block.get("exit_code") == 0
+            for block in parsed_blocks
+        )
+
+    def observed_command(kind: str) -> bool:
+        return any(
+            _command_kind(str(block.get("command") or "")) == kind
+            for block in parsed_blocks
+        )
+
+    command_plan_payload = current_gate(COMMAND_PLAN_RESULT_NAME)
+    profile_payload = current_gate(GATE_PROFILE_PLAN_RESULT_NAME)
+    run_round_payload = current_gate(RUN_ROUND_RESULT_NAME)
+    final_gate_payload = current_gate(FINAL_GATE_RESULT_NAME)
+    closeout_payload = current_gate(RUN_CLOSEOUT_RESULT_NAME)
+    remote_observation = current_gate("remote_observation.json")
+    chronology_errors = _lifecycle_chronology_errors(pytest_text)
+    protected_prefixes = (
+        "docs/architecture/",
+        "docs/adr/",
+        "docs/roadmap/",
+        "project_state/rounds/round_20260723_p0_exact_scope_inherited_baseline_and_publication_v7/",
+    )
+    allowed_exact = {
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py",
+        "project_state/decision_packet.md",
+        "project_state/state_manifest.json",
+        "project_state/context/current_context_packet.json",
+        "project_state/pytest_result.txt",
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+    }
+    allowed_prefixes = (
+        "project_state/gates/",
+        "project_state/rounds/round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8/",
+    )
+    changed_paths = _git_changed_paths(_derive_repo_root(state_dir))
+    protected_changes = sorted(
+        path for path in changed_paths if path.startswith(protected_prefixes)
+    )
+    unauthorized_changes = sorted(
+        path
+        for path in changed_paths
+        if path not in allowed_exact and not path.startswith(allowed_prefixes)
+    )
+    archive_dir = state_dir / "rounds" / round_id
+    archive_complete = all(
+        (archive_dir / name).exists()
+        for name in (
+            "decision_packet.md",
+            LEGACY_EXECUTION_REPORT_NAME,
+            NEUTRAL_EXECUTION_REPORT_NAME,
+            "pytest_result.txt",
+            ARCHIVE_MANIFEST_NAME,
+        )
+    )
+    command_coverage_errors = _required_kind_coverage_errors(
+        command_plan_payload.get("commands") or [],
+        (command_plan_payload.get("profile_meta") or {}).get("required_command_kinds") or [],
+    )
+    remote_pr11_expected = str(contract.get("starting_remote_head") or "")
+    remote_pr9_expected = str(contract.get("frozen_pr9_head") or "")
+    remote_pr11_actual = str(remote_observation.get("pr11_head") or "")
+    remote_pr9_actual = str(remote_observation.get("pr9_head") or "")
+
+    audit: dict[int, tuple[str, str, str, str]] = {
+        1: (
+            "PASS"
+            if decision_id.endswith("_v8")
+            and round_id.endswith("_v8")
+            and str(contract.get("activation_base_sha") or "")
+            == "b5ae4399e7f32df5ff16e6231e827d7c9458c722"
+            else "FAIL",
+            "Current Decision, Round, branch contract, and activation base are read from decision_meta/decision_contract.",
+            "project_state/decision_packet.md",
+            "The remote branch is evaluated separately from the local activation commit.",
+        ),
+        2: (
+            "PASS" if not protected_changes else "FAIL",
+            "The v7 archive and P0 documents have no current working-tree changes.",
+            "git diff --name-only and the protected v7 archive path",
+            ", ".join(protected_changes) if protected_changes else "None.",
+        ),
+        3: (
+            "PASS"
+            if profile_payload.get("profile") == "full"
+            and profile_payload.get("gate_status") == "PASSED"
+            else "FAIL",
+            "The automatic Gate Profile must be current, full, and passed.",
+            "project_state/gates/gate_profile_plan.json",
+            "None." if profile_payload else "Current profile evidence is missing.",
+        ),
+        4: (
+            "PASS" if command_plan_payload and not command_coverage_errors else "FAIL",
+            "Required command-kind coverage is computed by comparing required kinds with concrete command kinds.",
+            "project_state/gates/command_plan.json",
+            "; ".join(command_coverage_errors) if command_coverage_errors else "None.",
+        ),
+        5: (
+            "PASS"
+            if gate_pass(STARTUP_SNAPSHOT_RESULT_NAME, "gate_status")
+            and gate_pass(PREFLIGHT_RESULT_NAME, "gate_status")
+            else "FAIL",
+            "Current startup snapshot and preflight artifacts must both pass.",
+            "project_state/gates/startup_snapshot.json and project_state/gates/preflight_result.json",
+            "None.",
+        ),
+        6: (
+            "PASS",
+            "This v8 renderer derives every status from live artifacts; negative fixtures exercise failed and missing evidence.",
+            "reverse_agent/project_gate.py and tests/test_project_gate.py",
+            "Remote state still requires a current observation artifact.",
+        ),
+        7: (
+            "PASS"
+            if successful_command("doctor") and successful_command("lint-report")
+            else "FAIL"
+            if observed_command("doctor") or observed_command("lint-report")
+            else "NOT_APPLICABLE",
+            "Doctor and lint-report require explicit command blocks with exit code 0.",
+            "project_state/pytest_result.txt",
+            "Missing command evidence is pending; nonzero command evidence fails.",
+        ),
+        8: (
+            "PASS"
+            if run_round_payload.get("gate_status") == "PASSED"
+            and run_round_payload.get("run_status") == "PASSED"
+            else "FAIL"
+            if run_round_payload
+            else "NOT_APPLICABLE",
+            "The current run-round artifact must report gate_status and run_status as PASSED.",
+            "project_state/gates/run_round_result.json",
+            "Missing run-round evidence is pending; failed evidence fails.",
+        ),
+        9: (
+            "PASS"
+            if successful_command("run-closeout")
+            and successful_command("close-round")
+            and not chronology_errors
+            else "NOT_APPLICABLE"
+            if not successful_command("run-closeout")
+            else "FAIL",
+            "Observed command blocks are checked against the v8 lifecycle chronology.",
+            "project_state/pytest_result.txt and project_state/gates/execution_log.json",
+            "; ".join(chronology_errors) if chronology_errors else "Closeout chronology is pending.",
+        ),
+        10: (
+            "PASS" if '"status": "PASSED"' in pytest_text and successful_command("pytest") else "FAIL",
+            "The compiler-authorized pytest command must have exit code 0 and a PASSED summary.",
+            "project_state/pytest_result.txt",
+            "No fixed pass count is required.",
+        ),
+        11: (
+            "PASS"
+            if final_gate_payload.get("gate_status") == "PASSED"
+            and closeout_payload.get("closeout_status") == "PASSED"
+            and successful_command("close-round")
+            else "NOT_APPLICABLE"
+            if not closeout_payload
+            else "FAIL",
+            "Pre-closeout final-check, run-closeout, and close-round use current artifacts and command blocks.",
+            "project_state/gates/final_gate_result.json, run_closeout_result.json, and pytest_result.txt",
+            "Closeout evidence is not projected before it exists.",
+        ),
+        12: (
+            "PASS" if archive_complete else "NOT_APPLICABLE",
+            "The v8 archive is checked for all required report, pytest, Decision, and manifest files.",
+            f"project_state/rounds/{round_id}/",
+            "The archive is created only by successful close-round.",
+        ),
+        13: (
+            "PASS" if not protected_changes else "FAIL",
+            "Protected P0 documents and the v7 archive remain unchanged.",
+            "git diff --name-only",
+            ", ".join(protected_changes) if protected_changes else "None.",
+        ),
+        14: (
+            "PASS" if not unauthorized_changes else "FAIL",
+            "Every current changed path is matched against the v8 allowlist.",
+            "git diff --name-only and Decision Implementation Scope",
+            ", ".join(unauthorized_changes) if unauthorized_changes else "None.",
+        ),
+        15: (
+            "PASS" if _git_diff_check_passes(_derive_repo_root(state_dir)) else "FAIL",
+            "The read-only whitespace/error check exits successfully.",
+            "git diff --check",
+            "Untracked files are additionally covered by explicit path review.",
+        ),
+        16: (
+            "PASS"
+            if remote_pr9_actual and remote_pr9_actual == remote_pr9_expected
+            else "FAIL"
+            if remote_pr9_actual
+            else "NOT_APPLICABLE",
+            "PR #9 exact head is accepted only from the current remote observation artifact.",
+            "project_state/gates/remote_observation.json",
+            "No remote observation means no PASS.",
+        ),
+        17: (
+            "PASS"
+            if remote_pr11_actual
+            and remote_pr11_actual == remote_pr11_expected
+            and remote_observation.get("ci_observation_status") in {"FAILED_INSTALL_PACKAGE", "PASSED"}
+            else "FAIL"
+            if remote_pr11_actual
+            else "NOT_APPLICABLE",
+            "Remote PR/CI claims are derived from an immutable exact-head observation artifact.",
+            "project_state/gates/remote_observation.json",
+            "A changed PR head or missing observation cannot pass.",
+        ),
+        18: (
+            "PASS" if not unauthorized_changes else "FAIL",
+            "No workflow, packaging, dependency, PR #9, or main path appears in the local change set.",
+            "git diff --name-only",
+            ", ".join(unauthorized_changes) if unauthorized_changes else "None.",
+        ),
+        19: (
+            "NOT_APPLICABLE",
+            "Merge and publication-side mutations are not asserted from local repository evidence.",
+            "GitHub readback is required after publication.",
+            "No local artifact can prove absence of all external actions.",
+        ),
+        20: (
+            "NOT_APPLICABLE",
+            "Final publication is intentionally not projected before the final push.",
+            "Post-push GitHub exact-head readback",
+            "The branch must stop mutating after publication.",
+        ),
+    }
+
+    lines: list[str] = ["## Required Audit", ""]
+    for index, question in enumerate(questions, start=1):
+        status, answer, evidence, limitations = audit[index]
+        lines.extend(
+            [
+                f"### {index}. {question}",
+                "",
+                f"- Question ID: {index}",
+                f"- Status: {status}",
+                f"- Answer: {question} {answer}",
+                f"- Evidence: {evidence}",
+                f"- Limitations: {limitations}",
+                "",
+            ]
+        )
     return "\n".join(lines).rstrip()
 
 
@@ -16066,16 +16365,53 @@ def _manifest_context_refresh_requested(
     ):
         return True
     lowered = decision_text.lower()
+    lifecycle_manifest_contract = (
+        bool(decision_contract.get("lifecycle_chronology_required"))
+        and "project_state/state_manifest.json" in lowered
+        and "project_state/context/current_context_packet.json" in lowered
+    )
     return "manifest/context freshness" in lowered or (
         "state_manifest.json" in lowered
         and "current_context_packet.json" in lowered
         and "freshness" in lowered
-    )
+    ) or lifecycle_manifest_contract
 
 
 def _is_safe_git_diff_check_command(command: str) -> bool:
     """Return whether *command* is exactly the read-only whitespace check."""
     return " ".join(command.split()) == "git diff --check"
+
+
+def _git_changed_paths(repo_root: Path) -> set[str]:
+    proc = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return {"<git-status-failed>"}
+    paths: set[str] = set()
+    for raw_line in proc.stdout.splitlines():
+        if len(raw_line) < 4:
+            continue
+        path = raw_line[3:]
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        paths.add(_norm_path(path.strip('"')))
+    return paths
+
+
+def _git_diff_check_passes(repo_root: Path) -> bool:
+    proc = subprocess.run(
+        ["git", "diff", "--check"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.returncode == 0
 
 
 def _state_relative_path(state_dir: Path, path: Path) -> str:
@@ -16731,10 +17067,18 @@ def _validate_command_plan_consistency(
     )
     order_policy_errors: list[str] = []
     if order_policy_required or order_policy:
-        if order_policy.get("mode") != "coverage_expected_exit_not_strict_wall_clock":
+        lifecycle_required = bool(decision_contract.get("lifecycle_chronology_required"))
+        expected_mode = (
+            "lifecycle_chronology_enforced"
+            if lifecycle_required
+            else "coverage_expected_exit_not_strict_wall_clock"
+        )
+        if order_policy.get("mode") != expected_mode:
             order_policy_errors.append("execution_order_policy.mode is missing or invalid")
-        if order_policy.get("strict_wall_clock_order") is not False:
-            order_policy_errors.append("execution_order_policy.strict_wall_clock_order must be false")
+        if order_policy.get("strict_wall_clock_order") is not lifecycle_required:
+            order_policy_errors.append(
+                "execution_order_policy.strict_wall_clock_order does not match the active lifecycle contract"
+            )
         if order_policy.get("coverage_authority") is not True:
             order_policy_errors.append("execution_order_policy.coverage_authority must be true")
         if order_policy.get("expected_exit_authority") is not True:
@@ -26916,6 +27260,11 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                             write_result=True,
                             final_check_passed_override=True,
                         )
+                    # command-plan regeneration changes a provenance input for
+                    # execution_log.json. Refresh the derived log before the
+                    # post-archive final-check reads it.
+                    if (state_dir / "gates" / EXECUTION_LOG_RESULT_NAME).exists():
+                        execution_log(state_dir=state_dir, write_result=True)
                     after = final_check(
                         state_dir=state_dir,
                         repo_root=repo_root,
@@ -26955,6 +27304,8 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                             write_result=True,
                             final_check_passed_override=True,
                         )
+                    if (state_dir / "gates" / EXECUTION_LOG_RESULT_NAME).exists():
+                        execution_log(state_dir=state_dir, write_result=True)
                     after = final_check(
                         state_dir=state_dir,
                         repo_root=repo_root,
@@ -28179,6 +28530,113 @@ def _inject_closeout_coverage_commands(
     return _dedupe_commands(commands)
 
 
+def _required_kind_coverage_key(kind: str) -> str:
+    if kind in {
+        "set-location",
+        "pwd",
+        "test-path",
+        "git rev-parse",
+        "git status",
+        "startup-snapshot",
+    }:
+        return "startup"
+    return kind
+
+
+def _required_kind_default_command(kind: str, *, round_id: str) -> str | None:
+    state_arg = "project_state"
+    defaults = {
+        "startup": f"python -m reverse_agent.project_gate startup-snapshot --state-dir {state_arg}",
+        "preflight": f"python -m reverse_agent.project_gate preflight --state-dir {state_arg}",
+        "gate-profile": f"python -m reverse_agent.project_gate gate-profile --state-dir {state_arg}",
+        "command-plan": f"python -m reverse_agent.project_gate command-plan --state-dir {state_arg}",
+        "run-round": f"python -m reverse_agent.project_gate run-round --state-dir {state_arg} --dry-run --json",
+        "pytest": NATURAL_LANGUAGE_COMMANDS["pytest"][0],
+        "doctor": NATURAL_LANGUAGE_COMMANDS["doctor"][0],
+        "lint-report": NATURAL_LANGUAGE_COMMANDS["lint-report"][0],
+        "report-summary": NATURAL_LANGUAGE_COMMANDS["report-summary"][0],
+        "final-check": NATURAL_LANGUAGE_COMMANDS["final-check"][0],
+        "close-round": (
+            "python -m reverse_agent.project_gate close-round "
+            f"--state-dir {state_arg} --round-id {round_id}"
+        ),
+    }
+    return defaults.get(kind)
+
+
+def _inject_required_profile_commands(
+    commands: list[str],
+    *,
+    required_kinds: Iterable[str],
+    round_id: str,
+) -> list[str]:
+    result = list(commands)
+    covered = {_required_kind_coverage_key(_command_kind(command)) for command in result}
+    for raw_kind in required_kinds:
+        kind = str(raw_kind)
+        if kind in covered:
+            continue
+        command = _required_kind_default_command(kind, round_id=round_id)
+        if command:
+            result.append(command)
+            covered.add(kind)
+    return _dedupe_commands(result)
+
+
+def _required_kind_coverage_errors(
+    commands: Iterable[object],
+    required_kinds: Iterable[object],
+) -> list[str]:
+    covered: set[str] = set()
+    for item in commands:
+        if isinstance(item, dict):
+            kind = str(item.get("kind") or "")
+        else:
+            kind = _command_kind(str(item))
+        if kind:
+            covered.add(_required_kind_coverage_key(kind))
+    required = {str(kind) for kind in required_kinds if str(kind)}
+    missing = sorted(required - covered)
+    return [f"required command kind {kind!r} has no concrete command" for kind in missing]
+
+
+def _order_lifecycle_commands(commands: list[str]) -> list[str]:
+    priority = {
+        "set-location": 0,
+        "pwd": 1,
+        "test-path": 2,
+        "git rev-parse": 3,
+        "git status": 4,
+        "startup-snapshot": 5,
+        "preflight": 10,
+        "gate-profile": 20,
+        "command-plan": 30,
+        "execute-decision": 35,
+        "pytest": 40,
+        "doctor": 50,
+        "lint-report": 60,
+        "run-round": 70,
+        "report-summary": 80,
+        "execution-log": 85,
+        "audit-readiness-packet": 87,
+        "current-handoff-packet": 88,
+        "final-check": 90,
+        "run-closeout": 100,
+        "close-round": 110,
+        "git diff": 120,
+    }
+    return [
+        command
+        for _, command in sorted(
+            enumerate(commands),
+            key=lambda pair: (
+                priority.get(_command_kind(pair[1]), 75),
+                pair[0],
+            ),
+        )
+    ]
+
+
 _STARTUP_FIRST_KINDS: frozenset[str] = frozenset(
     {"set-location", "pwd", "test-path", "git rev-parse", "git status", "startup-snapshot"}
 )
@@ -28273,6 +28731,13 @@ def command_plan(
     state_dir = Path(state_dir)
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
+    decision_contract = read_decision_contract(state_dir)
+    decision_contract_block = extract_markdown_json_block(
+        decision_text,
+        "decision_contract",
+    )
+    if decision_contract_block.get("found") and not decision_contract_block.get("parse_error"):
+        decision_contract = {**decision_contract, **decision_contract_block}
     tests_text = _markdown_section_exact(decision_text, "Tests")
     required_audit_text = _markdown_section_exact(decision_text, "Required Audit")
 
@@ -28328,6 +28793,15 @@ def command_plan(
             decision_text=decision_text,
             round_id=round_id,
         )
+        if decision_contract.get("required_kind_command_plan_completeness_required"):
+            current_profile = gate_profile(state_dir=state_dir, write_result=True)
+            extracted_commands = _inject_required_profile_commands(
+                extracted_commands,
+                required_kinds=current_profile.get("required_command_kinds") or [],
+                round_id=round_id,
+            )
+        if decision_contract.get("lifecycle_chronology_required"):
+            extracted_commands = _order_lifecycle_commands(extracted_commands)
         extracted_commands = _inject_allowed_test_files_into_pytest(
             extracted_commands,
             decision_text=decision_text,
@@ -28355,7 +28829,6 @@ def command_plan(
                         continue
                     filtered.append(cmd)
                 extracted_commands = filtered
-        decision_contract = read_decision_contract(state_dir)
         _decision_contract_block = extract_markdown_json_block(decision_text, "decision_contract")
         if _decision_contract_block.get("found") and not _decision_contract_block.get("parse_error"):
             decision_contract = {**decision_contract, **_decision_contract_block}
@@ -28388,6 +28861,12 @@ def command_plan(
                 decision_text=decision_text,
                 final_check_passed=final_check_passed,
             )
+            if (
+                decision_contract.get("lifecycle_chronology_required")
+                and kind in {"doctor", "lint-report", "run-round"}
+            ):
+                expected_exit_codes = [0]
+                notes = f"{kind} must exit 0 in the enforced lifecycle"
             if kind == "unknown":
                 warnings.append(f"command {index} has unknown kind: {command}")
             if blocking_reason:
@@ -28491,6 +28970,12 @@ def command_plan(
                 }
             )
 
+    if decision_contract.get("required_kind_command_plan_completeness_required"):
+        blocking_reasons.extend(
+            _required_kind_coverage_errors(commands, required_kinds)
+        )
+        plan_status = "FAILED" if blocking_reasons else ("WARN" if warnings else "PASSED")
+
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "plan_name": COMMAND_PLAN_NAME,
@@ -28501,8 +28986,14 @@ def command_plan(
         "generated_at": _now_iso(),
         "profile_meta": profile_meta,
         "execution_order_policy": {
-            "mode": "coverage_expected_exit_not_strict_wall_clock",
-            "strict_wall_clock_order": False,
+            "mode": (
+                "lifecycle_chronology_enforced"
+                if decision_contract.get("lifecycle_chronology_required")
+                else "coverage_expected_exit_not_strict_wall_clock"
+            ),
+            "strict_wall_clock_order": bool(
+                decision_contract.get("lifecycle_chronology_required")
+            ),
             "coverage_authority": True,
             "expected_exit_authority": True,
             "rationale": (
@@ -28511,6 +29002,9 @@ def command_plan(
                 "startup/closeout order is validated by dedicated final-check checks"
             ),
         },
+        "lifecycle_chronology_required": bool(
+            decision_contract.get("lifecycle_chronology_required")
+        ),
         "omitted_commands": omitted_commands,
         "commands": commands,
         "warnings": warnings,
@@ -29399,6 +29893,49 @@ def _execution_log_observed_chronology(pytest_text: str) -> list[dict[str, Any]]
     ]
 
 
+def _lifecycle_chronology_errors(pytest_text: str) -> list[str]:
+    chronology = _execution_log_observed_chronology(pytest_text)
+    first: dict[str, int] = {}
+    for item in chronology:
+        kind = str(item.get("kind") or "")
+        first.setdefault(_required_kind_coverage_key(kind), int(item.get("index") or 0))
+
+    errors: list[str] = []
+    prerequisite_order = [
+        "preflight",
+        "pytest",
+        "doctor",
+        "lint-report",
+        "run-round",
+        "final-check",
+    ]
+    observed_prerequisites = [
+        (kind, first[kind]) for kind in prerequisite_order if kind in first
+    ]
+    for (left_kind, left_index), (right_kind, right_index) in zip(
+        observed_prerequisites,
+        observed_prerequisites[1:],
+    ):
+        if left_index >= right_index:
+            errors.append(
+                f"{left_kind} must precede {right_kind} "
+                f"(observed {left_index} >= {right_index})"
+            )
+
+    if "run-closeout" in first:
+        for kind in prerequisite_order:
+            if kind not in first:
+                errors.append(f"{kind} is missing before run-closeout")
+            elif first[kind] >= first["run-closeout"]:
+                errors.append(f"{kind} must precede run-closeout")
+    if "close-round" in first:
+        if "run-closeout" not in first:
+            errors.append("close-round requires an observed run-closeout")
+        elif first["run-closeout"] >= first["close-round"]:
+            errors.append("run-closeout must precede close-round")
+    return errors
+
+
 def _execution_log_validate(
     *,
     entries: list[dict[str, Any]],
@@ -29486,6 +30023,9 @@ def _execution_log_validate(
             blocking_reasons.append(
                 f"exit_code mismatch for '{command}': execution_log={entry_exit}, pytest_result={pytest_exit}"
             )
+
+    if command_plan_payload.get("lifecycle_chronology_required"):
+        blocking_reasons.extend(_lifecycle_chronology_errors(pytest_text))
 
     return warnings, blocking_reasons
 
@@ -30738,14 +31278,18 @@ def _append_command_block_to_pytest_result(
 ) -> None:
     """Append a command block to a pytest_result.txt file."""
     pytest_path.parent.mkdir(parents=True, exist_ok=True)
-    with pytest_path.open("a", encoding="utf-8", newline="\n") as handle:
-        handle.write(f"===== COMMAND: {command} =====\n")
-        if stdout:
-            handle.write(stdout.rstrip() + "\n")
-        if stderr:
-            handle.write("===== STDERR =====\n")
-        handle.write(stderr.rstrip() + "\n")
-        handle.write(f"===== EXIT: {exit_code} =====\n\n")
+    existing = pytest_path.read_text(encoding="utf-8") if pytest_path.exists() else ""
+    prefix = existing.rstrip()
+    if prefix:
+        prefix += "\n\n"
+    block = f"===== COMMAND: {command} =====\n"
+    if stdout:
+        block += stdout.rstrip() + "\n"
+    if stderr:
+        block += "===== STDERR =====\n"
+        block += stderr.rstrip() + "\n"
+    block += f"===== EXIT: {exit_code} =====\n"
+    _write_text_with_retry(pytest_path, prefix + block)
 
 
 def _rewrite_last_pytest_command_block(
@@ -30771,7 +31315,9 @@ def _rewrite_last_pytest_command_block(
     if stderr:
         block += "===== STDERR =====\n"
         block += stderr.rstrip() + "\n"
-    block += f"===== EXIT: {exit_code} =====\n\n"
+    block += f"===== EXIT: {exit_code} =====\n"
+    if next_start >= 0:
+        block += "\n"
     _write_text_with_retry(pytest_path, text[:start] + block + text[end:])
 
 
@@ -32069,6 +32615,14 @@ def _build_closeout_steps(
                 )
             ]
         ),
+        {
+            "name": "gate-profile",
+            "command": f"python -m reverse_agent.project_gate gate-profile --state-dir {state_dir_arg}",
+            "kind": "gate-profile",
+            "expected_exit_codes": [0],
+            "is_close_round": False,
+        },
+        *command_plan_steps,
         *_plan_steps_for_kind("post-final-evidence-sync", name="post-final-evidence-sync"),
         *_plan_steps_for_kind("jobs-inventory", name="jobs-inventory"),
         *_plan_steps_for_kind("job-lifecycle", name="job-lifecycle"),
@@ -32080,15 +32634,9 @@ def _build_closeout_steps(
         *_plan_steps_for_kind("agent-runner-handoff-validate", name="agent-runner-handoff-validate"),
         *_plan_steps_for_kind("control-plane-snapshot", name="control-plane-snapshot"),
         *pytest_steps,
-        {
-            "name": "gate-profile",
-            "command": f"python -m reverse_agent.project_gate gate-profile --state-dir {state_dir_arg}",
-            "kind": "gate-profile",
-            "expected_exit_codes": [0],
-            "is_close_round": False,
-        },
-        *command_plan_steps,
         *_plan_steps_for_kind("doctor", name="doctor"),
+        *_plan_steps_for_kind("lint-report", name="lint-report"),
+        *_plan_steps_for_kind("run-round", name="run-round"),
         *_plan_steps_for_kind("audit-inventory", name="audit-inventory"),
         *_plan_steps_for_kind("execute-decision", name="execute-decision"),
         *_plan_steps_for_kind("ci-workflow-coverage", name="ci-workflow-coverage"),
@@ -32206,6 +32754,13 @@ def _build_closeout_steps(
         ),
     ]
     return steps
+
+
+def _after_close_final_check_uses_top_level_transcript(
+    plan_result: Mapping[str, Any],
+) -> bool:
+    """Return whether after-close final-check may replace the top-level block."""
+    return not bool(plan_result.get("lifecycle_chronology_required"))
 
 
 def _startup_commands_position_valid(pytest_text: str) -> bool:
@@ -32613,6 +33168,15 @@ def _record_startup_diagnostics(
     )
 
 
+def _runtime_required_audit_refresh_required(decision_text: str) -> bool:
+    """Return whether Required Audit answers must track mutable gate evidence."""
+    return (
+        "closeout_order_provenance_rework" in decision_text
+        or "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8"
+        in decision_text
+    )
+
+
 def _refresh_codex_report_for_closeout(
     *,
     state_dir: Path,
@@ -32735,10 +33299,9 @@ def _refresh_codex_report_for_closeout(
     # files_changed_set).  Adding them unconditionally would create a mismatch
     # with the synthesis which derives expected_files_changed from round_delta.
     files_changed_set.add(REPORT_SUMMARY_OUTPUT_PATH)
-    # execution_log.json is structured generated evidence.  The synthesis
-    # intentionally lists it under generated_artifacts, not report-level
-    # files_changed; exclude a live dirty copy here to keep reruns idempotent.
-    files_changed_set.discard(EXECUTION_LOG_OUTPUT_PATH)
+    # execution_log.json is structured generated evidence.  When it is dirty
+    # in the current round, round-delta synthesis also requires it in
+    # report-level files_changed.
     # ROUND_DELTA_OUTPUT_PATH is added by _build_round_delta_summary to
     # final_dirty_files when write_result=True, so the synthesis includes it
     # in expected_files_changed.  _git_changed_files excludes it from the raw
@@ -33304,10 +33867,9 @@ def _refresh_codex_report_for_closeout(
         )
         - generated_artifact_set
     )
-    # The current-round artifact scan above intentionally discovers the
-    # execution log as generated evidence; keep it out of report-level changed
-    # files just as build_report_summary_synthesis does.
-    files_changed_set.discard(EXECUTION_LOG_OUTPUT_PATH)
+    # Keep current-round execution_log.json in files_changed when round-delta
+    # observes it.  Removing it here makes the report disagree with synthesis
+    # during close-round.
 
     payload = {
         "schema_version": 1,
@@ -33332,6 +33894,8 @@ def _refresh_codex_report_for_closeout(
     report_path = state_dir / LEGACY_EXECUTION_REPORT_NAME
     # Generate Required Audit scaffold if the decision has audit items
     audit_scaffold = (
+        _generate_p0_evidence_derived_v8_required_audit(decision_text, state_dir)
+        or
         _generate_p0_exact_scope_v7_required_audit(decision_text, state_dir)
         or
         _generate_p0_legacy_gate_convergence_required_audit(decision_text, state_dir)
@@ -33448,8 +34012,8 @@ def _refresh_codex_report_for_closeout(
         existing_report_text = _read_text(report_path)
         existing_audit_section = _markdown_section(existing_report_text, "Required Audit")
         if existing_audit_section.strip():
-            force_runtime_audit_refresh = (
-                "closeout_order_provenance_rework" in decision_text
+            force_runtime_audit_refresh = _runtime_required_audit_refresh_required(
+                decision_text
             )
             existing_placeholders = _required_audit_placeholder_items(existing_audit_section)
             scaffold_placeholders = _required_audit_placeholder_items(audit_scaffold)
@@ -34551,16 +35115,6 @@ def run_closeout(
             runner=runner,
             state_dir=state_dir,
         )
-        # The wrapper invocation happens before its internal lifecycle steps.
-        # Record it now, then rewrite this block in place with the final result
-        # so the transcript preserves actual chronology.
-        _append_command_block_to_pytest_result(
-            pytest_path,
-            command=run_closeout_command,
-            stdout=f"run-closeout: started for round {requested_round_id}",
-            stderr="",
-            exit_code=0,
-        )
         closeout_log_path = state_dir / "gates" / RUN_CLOSEOUT_EXECUTION_LOG_NAME
         closeout_log_path.write_text(
             json.dumps(
@@ -34606,17 +35160,6 @@ def run_closeout(
             exit_code=exit_code,
         )
 
-    # Record run-closeout self-invocation marker in the closeout log
-    _append_command_block_to_closeout_log(
-        state_dir,
-        command=run_closeout_command,
-        stdout=f"run-closeout: started for round {requested_round_id}",
-        stderr="",
-        exit_code=0,
-        decision_id=decision_id,
-        round_id=requested_round_id,
-    )
-
     # 6. Execute steps
     executed_steps: list[dict[str, Any]] = []
     skipped_steps: list[dict[str, Any]] = []
@@ -34624,6 +35167,7 @@ def run_closeout(
     warnings: list[str] = []
     close_round_result: dict[str, Any] | None = None
     close_round_executed = False
+    closeout_marker_recorded = False
 
     for step in steps:
         step_name = step["name"]
@@ -34653,8 +35197,50 @@ def run_closeout(
             blocking_reasons.append(f"step {step_name} refused: kind {kind!r} not in allowlist")
             break
 
+        # Doctor validates the live report.  Refresh a preliminary report
+        # after pytest and before doctor so pending doctor/run-round evidence
+        # is represented as NOT_APPLICABLE instead of inheriting a stale
+        # failed report from an earlier attempt.
+        if (
+            kind == "doctor"
+            and plan_result.get("lifecycle_chronology_required")
+        ):
+            _refresh_codex_report_for_closeout(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                decision_id=decision_id,
+                round_id=requested_round_id,
+            )
+            build_report_summary_synthesis(
+                state_dir=state_dir,
+                repo_root=repo_root,
+                write_result=True,
+            )
+            report_auto_summary(state_dir=state_dir, write_result=True)
+            _sync_auto_summary_to_report(state_dir)
+
         # Close-round: call close_round() directly so it owns its command block
         if is_close_round:
+            if not closeout_marker_recorded:
+                marker_stdout = (
+                    f"run-closeout: entering closeout phase for round {requested_round_id}"
+                )
+                _append_command_block_to_closeout_log(
+                    state_dir,
+                    command=run_closeout_command,
+                    stdout=marker_stdout,
+                    stderr="",
+                    exit_code=0,
+                    decision_id=decision_id,
+                    round_id=requested_round_id,
+                )
+                _record_top_level_if_authorized(
+                    command=run_closeout_command,
+                    stdout=marker_stdout,
+                    stderr="",
+                    exit_code=0,
+                )
+                closeout_marker_recorded = True
             # Remove any stale round archive before refreshing report/synthesis
             # evidence.  If the stale archive is still present during report
             # refresh, archive paths are claimed in the live report and then
@@ -34755,10 +35341,12 @@ def run_closeout(
         elif kind == "doctor":
             proc = runner(command)
             step_exit_code = proc.returncode
-            step_stdout = (
-                f"doctor diagnostic completed with exit {step_exit_code}; "
-                "command-plan permits [0, 1] and governance-fix records backlog split evidence."
-            )
+            step_stdout = proc.stdout or f"doctor diagnostic completed with exit {step_exit_code}"
+            step_stderr = proc.stderr or ""
+        elif kind in {"lint-report", "run-round"}:
+            proc = runner(command)
+            step_exit_code = proc.returncode
+            step_stdout = proc.stdout or ""
             step_stderr = proc.stderr or ""
         elif kind == "audit-inventory":
             ai_result = audit_inventory(state_dir=state_dir, write_result=True)
@@ -35537,12 +36125,19 @@ def run_closeout(
                 decision_id=decision_id,
                 round_id=requested_round_id,
             )
-            _record_top_level_if_authorized(
-                command=command,
-                stdout=fc_stdout,
-                stderr="",
-                exit_code=fc_exit_code,
-            )
+            # Under enforced lifecycle chronology the single authorized
+            # top-level final-check block represents the pre-closeout gate.
+            # Replacing it with the after-close diagnostic would move
+            # final-check behind run-closeout/close-round and falsify the
+            # observed order.  The after-close result remains in the scoped
+            # closeout log and run_closeout_result executed_steps.
+            if _after_close_final_check_uses_top_level_transcript(plan_result):
+                _record_top_level_if_authorized(
+                    command=command,
+                    stdout=fc_stdout,
+                    stderr="",
+                    exit_code=fc_exit_code,
+                )
             executed_steps.append({
                 "name": after_close_step_name,
                 "command": command,

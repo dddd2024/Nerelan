@@ -9,6 +9,7 @@ import pytest
 from reverse_agent.project_gate import (
     BUILD_OUTPUT_WHITELIST,
     _build_closeout_steps,
+    _append_command_block_to_pytest_result,
     _close_round_exit_code,
     _command_expected_exit_codes,
     _command_kind,
@@ -30,6 +31,7 @@ from reverse_agent.project_gate import (
     _extract_unfenced_commands,
     _filter_missing_pytest_file_args,
     _execution_log_missing_only_closeout_related,
+    _lifecycle_chronology_errors,
     _historical_sample_limitations_only,
     _is_close_round_command,
     _is_descriptive_backtick_line,
@@ -40,6 +42,7 @@ from reverse_agent.project_gate import (
     _is_self_invocation,
     _is_startup_command,
     _agent_runner_dry_run_gate_check,
+    _after_close_final_check_uses_top_level_transcript,
     _agent_runner_handoff_bundle_gate_check,
     _agent_runner_handoff_validation_gate_check,
     _audit_inventory_gate_check,
@@ -70,6 +73,7 @@ from reverse_agent.project_gate import (
     _round_baseline_matches_startup_snapshot_check,
     _read_round_close_snapshot,
     _remove_current_round_close_snapshot,
+    _rewrite_last_pytest_command_block,
     _read_execution_report_summary,
     _parse_recorded_command_blocks,
     _record_startup_diagnostics,
@@ -80,6 +84,7 @@ from reverse_agent.project_gate import (
     _report_status_from_gate_payload,
     _result_status,
     _round_close_snapshot_path,
+    _runtime_required_audit_refresh_required,
     _allowed_inherited_files,
     _validate_command_plan_consistency,
     _write_round_close_snapshot,
@@ -89,6 +94,9 @@ from reverse_agent.project_gate import (
     _required_audit_alignment_failures,
     _generate_status_policy_final_acceptance_rework_required_audit,
     _generate_p0_exact_scope_v7_required_audit,
+    _generate_p0_evidence_derived_v8_required_audit,
+    _inject_required_profile_commands,
+    _required_kind_coverage_errors,
     build_report_summary_synthesis,
     close_round,
     command_plan,
@@ -1812,6 +1820,13 @@ def test_manifest_context_refresh_requested_for_named_freshness_contract() -> No
         decision_text="state_manifest.json is a read-only historical reference",
         decision_contract={},
     )
+    assert _manifest_context_refresh_requested(
+        decision_text=(
+            "Allowed: project_state/state_manifest.json and "
+            "project_state/context/current_context_packet.json"
+        ),
+        decision_contract={"lifecycle_chronology_required": True},
+    )
 
 
 def test_safe_git_diff_check_command_is_exact() -> None:
@@ -1841,6 +1856,145 @@ decision_20260723_p0_exact_scope_inherited_baseline_and_publication_v7
     assert body.count("- Answer:") == 20
     assert body.count("- Evidence:") == 20
     assert body.count("- Limitations:") == 20
+
+
+def test_required_profile_commands_cover_every_full_kind() -> None:
+    required = [
+        "startup",
+        "preflight",
+        "gate-profile",
+        "command-plan",
+        "run-round",
+        "pytest",
+        "doctor",
+        "lint-report",
+        "report-summary",
+        "final-check",
+        "close-round",
+    ]
+
+    commands = _inject_required_profile_commands(
+        [],
+        required_kinds=required,
+        round_id="round_v8",
+    )
+
+    assert _required_kind_coverage_errors(commands, required) == []
+    assert _required_kind_coverage_errors(
+        [command for command in commands if " doctor " not in f" {command} "],
+        required,
+    ) == ["required command kind 'doctor' has no concrete command"]
+
+
+def test_lifecycle_chronology_rejects_closeout_before_prerequisites() -> None:
+    valid = "\n\n".join(
+        [
+            _command_block("python -m reverse_agent.project_gate preflight --state-dir project_state", "ok"),
+            _command_block("python -m pytest tests/test_project_gate.py -q", "ok"),
+            _command_block("python -m reverse_agent.project_state doctor --state-dir project_state", "ok"),
+            _command_block("python -m reverse_agent.project_state lint-report --state-dir project_state", "ok"),
+            _command_block("python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json", "ok"),
+            _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "ok"),
+            _command_block("python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id r", "ok"),
+            _command_block("python -m reverse_agent.project_gate close-round --state-dir project_state --round-id r", "ok"),
+        ]
+    )
+    invalid = "\n\n".join(
+        [
+            _command_block("python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id r", "bad"),
+            valid,
+        ]
+    )
+
+    assert _lifecycle_chronology_errors(valid) == []
+    errors = _lifecycle_chronology_errors(invalid)
+    assert any("preflight must precede run-closeout" in error for error in errors)
+
+
+def test_after_close_final_check_preserves_enforced_top_level_chronology() -> None:
+    assert not _after_close_final_check_uses_top_level_transcript(
+        {"lifecycle_chronology_required": True}
+    )
+    assert _after_close_final_check_uses_top_level_transcript(
+        {"lifecycle_chronology_required": False}
+    )
+    assert _runtime_required_audit_refresh_required(
+        "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8"
+    )
+    assert not _runtime_required_audit_refresh_required("decision_unrelated")
+
+
+def test_p0_v8_required_audit_failed_or_missing_evidence_cannot_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    questions = "\n".join(f"{index}. Evidence question {index}?" for index in range(1, 21))
+    decision_text = f"""```json decision_meta
+{{
+  "schema_version": 1,
+  "decision_id": "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "round_id": "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8",
+  "status": "APPROVED",
+  "mainline": "engineering_branch"
+}}
+```
+```json decision_contract
+{{
+  "activation_base_sha": "b5ae4399e7f32df5ff16e6231e827d7c9458c722",
+  "starting_remote_head": "expected-pr11",
+  "frozen_pr9_head": "expected-pr9"
+}}
+```
+## Required Audit
+{questions}
+"""
+    (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+    decision_id = "decision_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8"
+    round_id = "round_20260723_p0_evidence_derived_audit_and_command_coverage_rework_v8"
+    for name, payload in {
+        "gate_profile_plan.json": {"gate_status": "PASSED", "profile": "full"},
+        "startup_snapshot.json": {"gate_status": "PASSED"},
+        "preflight_result.json": {"gate_status": "PASSED"},
+        "run_round_result.json": {"gate_status": "FAILED", "run_status": "FAILED"},
+        "remote_observation.json": {
+            "pr11_head": "changed-pr11",
+            "pr9_head": "expected-pr9",
+            "ci_observation_status": "PASSED",
+        },
+    }.items():
+        _write_json(
+            state_dir / "gates" / name,
+            {"decision_id": decision_id, "round_id": round_id, **payload},
+        )
+    _write_json(
+        state_dir / "gates" / "command_plan.json",
+        {
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "profile_meta": {"required_command_kinds": ["startup"]},
+            "commands": [],
+        },
+    )
+    (state_dir / "pytest_result.txt").write_text(
+        '```json pytest_result_summary\n{"status":"PASSED"}\n```\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("reverse_agent.project_gate._git_changed_paths", lambda _root: set())
+    monkeypatch.setattr("reverse_agent.project_gate._git_diff_check_passes", lambda _root: True)
+
+    body = _generate_p0_evidence_derived_v8_required_audit(decision_text, state_dir)
+
+    item_7 = body.split("### 7.", 1)[1].split("### 8.", 1)[0]
+    item_8 = body.split("### 8.", 1)[1].split("### 9.", 1)[0]
+    item_12 = body.split("### 12.", 1)[1].split("### 13.", 1)[0]
+    item_17 = body.split("### 17.", 1)[1].split("### 18.", 1)[0]
+    assert "- Status: PASS" not in item_7
+    assert "- Status: NOT_APPLICABLE" in item_7
+    assert "- Status: FAIL" in item_8
+    assert "- Status: NOT_APPLICABLE" in item_12
+    assert "- Status: FAIL" in item_17
 
 
 def test_project_gate_final_check_cli_prints_warn_when_gate_is_warn(
@@ -5202,10 +5356,40 @@ def test_run_round_execute_records_to_pytest_result(tmp_path: Path) -> None:
     assert "===== EXIT:" in content, "pytest_result.txt should contain exit codes"
 
 
+def test_pytest_command_block_writes_single_final_newline(tmp_path: Path) -> None:
+    pytest_path = tmp_path / "pytest_result.txt"
+
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command="python -c \"print('one')\"",
+        stdout="one\n",
+        stderr="",
+        exit_code=0,
+    )
+    _append_command_block_to_pytest_result(
+        pytest_path,
+        command="python -c \"print('two')\"",
+        stdout="two\n",
+        stderr="",
+        exit_code=0,
+    )
+    _rewrite_last_pytest_command_block(
+        pytest_path,
+        command="python -c \"print('two')\"",
+        stdout="two updated\n",
+        stderr="",
+        exit_code=0,
+    )
+
+    content = pytest_path.read_text(encoding="utf-8")
+    assert content.endswith("\n")
+    assert not content.endswith("\n\n")
+    assert content.count("===== COMMAND:") == 2
+    assert len(_parse_recorded_command_blocks(content)["blocks"]) == 2
+
+
 def test_run_round_execute_replaces_stale_same_command_block(tmp_path: Path) -> None:
     """A retried command's current outer result replaces stale same-command evidence."""
-    from reverse_agent.project_gate import _append_command_block_to_pytest_result
-
     command = "python -c \"print('hello')\""
     state_dir = _make_command_plan_state(tmp_path, tests_block=command)
     pytest_result_path = tmp_path / "project_state" / "pytest_result.txt"
@@ -12040,6 +12224,7 @@ class TestStructuredExecutionLog:
         report = read_codex_report_summary(state_dir)
         ga = report.get("generated_artifacts", [])
         assert "project_state/gates/execution_log.json" in ga
+        assert "project_state/gates/execution_log.json" in report.get("files_changed", [])
 
     def test_command_kind_recognizes_execution_log(self) -> None:
         """_command_kind recognizes execution-log commands."""
@@ -17807,8 +17992,8 @@ def test_run_closeout_constants_and_allowlist():
     # Allowlist must include the bounded closeout step kinds
     expected = {
         "set-location", "pwd", "test-path", "git status", "git rev-parse",
-            "git diff", "preflight", "pytest", "command-plan", "report-summary",
-                "doctor", "final-check", "close-round", "decision-lint", "gate-profile",
+                "git diff", "preflight", "pytest", "command-plan", "report-summary",
+                    "doctor", "lint-report", "final-check", "close-round", "decision-lint", "gate-profile",
             "execution-log", "report-auto-summary", "jobs-inventory",
             "job-orchestration", "job-lifecycle", "runner-contract", "agent-runner-dry-run",
             "agent-runner-handoff-bundle", "agent-runner-handoff-validate",
@@ -18351,7 +18536,9 @@ def test_run_closeout_failure_stops_on_pytest_failure(tmp_path: Path):
     assert result["closeout_status"] == "FAILED"
     assert any("pytest" in r for r in result["blocking_reasons"])
     step_names = [s["name"] for s in result["executed_steps"]]
-    assert "gate-profile" not in step_names
+    assert "gate-profile" in step_names
+    assert "command-plan" in step_names
+    assert step_names.index("gate-profile") < step_names.index("pytest")
     assert "close-round" not in step_names
 
 
