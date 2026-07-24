@@ -3,6 +3,10 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+*.egg-info/
+*.egg-link
+build/
+dist/
 
 solve_reports/
 local_reverse_samples/

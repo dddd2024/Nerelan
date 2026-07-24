@@ -1,308 +1,845 @@
 {
-  "schema_version": 1,
   "artifact_name": "execution_log.json",
-  "gate_name": "execution-log",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-  "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-  "generated_at": "2026-07-16T12:40:04.102343Z",
-  "source": "hybrid_from_pytest_result_command_plan_and_run_closeout_execution_log",
-  "provenance": {
-    "classification": "hybrid",
-    "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-    "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-    "report_id": "codex_report_20260716_closeout_order_provenance_rework_v1",
-    "evidence_sources": [
-      "pytest_result",
-      "command_plan",
-      "run_closeout_execution_log"
-    ],
-    "artifacts": {
-      "pytest_result": {
-        "path": "project_state/pytest_result.txt",
-        "exists": true,
-        "sha256": "931cd3c435059bfb0f6bac84d6c8cc8583a8a9339226a322cf8fda98a875afbc",
-        "size_bytes": 17604,
-        "command_block_count": 15
-      },
-      "command_plan": {
-        "path": "project_state/gates/command_plan.json",
-        "exists": true,
-        "sha256": "3c2ef6a4ad483d3abdddb63ac96794f024c0a81f139cf8ca1a9bd4546ecf8a45",
-        "size_bytes": 5705,
-        "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-        "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-        "plan_status": "PASSED",
-        "command_count": 10
-      },
-      "run_closeout_execution_log": {
-        "path": "project_state/gates/run_closeout_execution_log.json",
-        "exists": true,
-        "sha256": "cf00891fa82f2af4f1d159040fe61355c523a3a89c1d0ea6a0dd9cea425cd4ef",
-        "size_bytes": 45278,
-        "decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-        "round_id": "round_20260716_closeout_order_provenance_rework_v1",
-        "command_block_count": 13
-      }
-    },
-    "command_count": 15,
-    "command_digest": "78ada790cf1edc1c3f64fe4f00f42cf5a883af001bf817fceddd8cbf05689ec2"
-  },
   "commands": [
     {
-      "index": 1,
-      "command": "Set-Location F:\\reverse-agent",
-      "kind": "set-location",
-      "phase": "status",
-      "expected_exit_codes": [],
+      "authority_origin": "bootstrap_exception",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
+      "command_id": "bootstrap.python -m pytest tests/test_project_gate.py tests/test_control_p",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "d261b96ad889e5e7080668d6965888c28288d2c1",
+      "head_before": "d261b96ad889e5e7080668d6965888c28288d2c1",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:d62c993398906f15ebba90acd9d30dbbedc1bd0352ad376d255b737f36c516b7",
+      "observed_at": "2026-07-22T02:18:26Z",
+      "operations": [],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:287d3bab71a1f28f8aa06b520d46e1dbb5593b5439bf410f958640e5f42188a9",
+      "pre_state_digest": "sha256:287d3bab71a1f28f8aa06b520d46e1dbb5593b5439bf410f958640e5f42188a9",
+      "raw_stderr_path": "project_state/gates/evidence/57d6fb01cc05e179/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/57d6fb01cc05e179/stdout.bin",
+      "record_id": "57d6fb01cc05e179",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 0,
+      "started_at": "2026-07-22T02:11:27Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:71c62ef8a41a187877fc0577ff3b89eb7ecf356e430f26ea3a11eccf34f06a49"
     },
     {
-      "index": 2,
-      "command": "Get-Location",
-      "kind": "pwd",
-      "phase": "status",
-      "expected_exit_codes": [],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 3,
-      "command": "Test-Path F:\\reverse-agent",
-      "kind": "test-path",
-      "phase": "status",
-      "expected_exit_codes": [],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 4,
-      "command": "git rev-parse --show-toplevel",
-      "kind": "git rev-parse",
-      "phase": "status",
-      "expected_exit_codes": [],
-      "exit_code": 0,
-      "status": "PASSED"
-    },
-    {
-      "index": 5,
+      "authority_origin": "normal_plan",
       "command": "git status --short",
-      "kind": "git status",
-      "phase": "status",
-      "expected_exit_codes": [],
+      "command_id": "status.git_status",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:34:43Z",
+      "operations": [
+        "repository_observation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:be766dea2014275cf60bfd106e0506d4748cfd96bc1e2a0caa19a7e3e338bc9f",
+      "pre_state_digest": "sha256:be766dea2014275cf60bfd106e0506d4748cfd96bc1e2a0caa19a7e3e338bc9f",
+      "raw_stderr_path": "project_state/gates/evidence/74f3c0b4487cf78c/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/74f3c0b4487cf78c/stdout.bin",
+      "record_id": "74f3c0b4487cf78c",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 1,
+      "started_at": "2026-07-22T04:34:43Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:046370478ca71d31d5777c8dccc907dc01ddd1cd1f31fe2a3fbe728139a7d288"
     },
     {
-      "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-      "kind": "run-closeout",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
+      "authority_origin": "normal_plan",
+      "command": "git rev-parse HEAD",
+      "command_id": "status.git_head",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:34:45Z",
+      "operations": [
+        "repository_observation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:5a480696aa28e45bec9f1c6c77452bef228873ac56c4cbf80aa74d854a141136",
+      "pre_state_digest": "sha256:5a480696aa28e45bec9f1c6c77452bef228873ac56c4cbf80aa74d854a141136",
+      "raw_stderr_path": "project_state/gates/evidence/12c88a71ab169875/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/12c88a71ab169875/stdout.bin",
+      "record_id": "12c88a71ab169875",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 2,
+      "started_at": "2026-07-22T04:34:45Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:4e78122f78cd9dfef4200c2b321263fa6951f4dec200de1ee0a2f4b754e3f37c"
     },
     {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "phase": "preflight",
-      "expected_exit_codes": [
-        0
-      ],
+      "authority_origin": "normal_plan",
+      "command": "git branch --show-current",
+      "command_id": "status.git_branch",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:34:47Z",
+      "operations": [
+        "repository_observation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:1fdd09eab4ec8f6bf940d4e99edd722490ba42840200c7b74757919ae7571ff9",
+      "pre_state_digest": "sha256:1fdd09eab4ec8f6bf940d4e99edd722490ba42840200c7b74757919ae7571ff9",
+      "raw_stderr_path": "project_state/gates/evidence/30f7a26a13d32e40/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/30f7a26a13d32e40/stdout.bin",
+      "record_id": "30f7a26a13d32e40",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 3,
+      "started_at": "2026-07-22T04:34:47Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:90b182b001496553929e23f6683334e8e411e5b1595b99b599f72afba5d1b4ef"
     },
     {
-      "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "phase": "test",
-      "expected_exit_codes": [
-        0
-      ],
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "command_id": "gate.command_plan",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:34:49Z",
+      "operations": [
+        "command_plan_generation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:ea6a84c0a4f87b6939217de0a8c30c1032190f3295171c99f537bd403eec7555",
+      "pre_state_digest": "sha256:ea6a84c0a4f87b6939217de0a8c30c1032190f3295171c99f537bd403eec7555",
+      "raw_stderr_path": "project_state/gates/evidence/6e338b7dde05932b/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/6e338b7dde05932b/stdout.bin",
+      "record_id": "6e338b7dde05932b",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 4,
+      "started_at": "2026-07-22T04:34:49Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:ab5f31903ea0d4edc2c4491d1ad0ef1baacf002911b24003e4ade40e62a0628e"
     },
     {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "command_id": "gate.transition_lint",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:34:52Z",
+      "operations": [
+        "authority_validation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:d72a4b078c255dafd27381ce2f4cbe3fce43886317aa6899e2caa9f6bf84154f",
+      "pre_state_digest": "sha256:d72a4b078c255dafd27381ce2f4cbe3fce43886317aa6899e2caa9f6bf84154f",
+      "raw_stderr_path": "project_state/gates/evidence/03d1b8793aa3a028/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/03d1b8793aa3a028/stdout.bin",
+      "record_id": "03d1b8793aa3a028",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 5,
+      "started_at": "2026-07-22T04:34:52Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:2fe6a3ade3001bc29f7fe62bce0e561d673785d69cbed9e8a1cd3ed85382f83d"
     },
     {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "command_id": "gate.pre_execution",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/bootstrap_state.json"
+      ],
+      "mutation_delta_digest": "sha256:486887abc20a5197f56f21763f9f8f87c4ad7b9ebde12aa81ee4134eeaed4eb3",
+      "observed_at": "2026-07-22T04:34:54Z",
+      "operations": [
+        "pre_execution_authorization"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:bc82de32fabb487db641e426e5bdd24b7c8121d5d24a32fd5843bb3b030e2a5e",
+      "pre_state_digest": "sha256:209ecfd7aa549ba8d8b8a26357c736f1b6dd36460d91d15c94a990759759b804",
+      "raw_stderr_path": "project_state/gates/evidence/bf62efedb1efd7f0/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/bf62efedb1efd7f0/stdout.bin",
+      "record_id": "bf62efedb1efd7f0",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 6,
+      "started_at": "2026-07-22T04:34:54Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:68c75df0329cda8ba6616959a275beed5039cc9e2aa27b7ec2b555b76e64310f"
     },
     {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
-      "kind": "execute-decision",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_trusted_command_runner.py tests/test_provenance_integration.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "command_id": "test.trusted_execution_cutover",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:35:18Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:b16a12457d7ae82f487cafba5c46da5217b44fa85812fe74d88240526b2bc03e",
+      "pre_state_digest": "sha256:b16a12457d7ae82f487cafba5c46da5217b44fa85812fe74d88240526b2bc03e",
+      "raw_stderr_path": "project_state/gates/evidence/2cbbad28ab6b6597/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/2cbbad28ab6b6597/stdout.bin",
+      "record_id": "2cbbad28ab6b6597",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 7,
+      "started_at": "2026-07-22T04:34:57Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:d1ccbbec737d2786fdcf3938c17fd401c661c260debcbfda8c7afd23b5de89df"
     },
     {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_runtime_risk_policy.py tests/test_policy_provider.py tests/test_development_graph.py tests/test_risk_classifier.py -q",
+      "command_id": "test.runtime_policy_integration",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:35:22Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:1ebeb6a8bda5817ac09c5ebd751dc3d387db7c7c187d6adc15b73dfca43a179b",
+      "pre_state_digest": "sha256:1ebeb6a8bda5817ac09c5ebd751dc3d387db7c7c187d6adc15b73dfca43a179b",
+      "raw_stderr_path": "project_state/gates/evidence/9a3e89297f651bcb/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/9a3e89297f651bcb/stdout.bin",
+      "record_id": "9a3e89297f651bcb",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 8,
+      "started_at": "2026-07-22T04:35:20Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:3dc41762b9174cb70e6655f061fae8058160256aeebf143bf734ee5b04b41c67"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
-      ],
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_command_mutation_grants.py tests/test_transition_report.py tests/test_report_truth.py tests/test_provenance_integration.py -q",
+      "command_id": "test.mutation_report_integration",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:35:27Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:9753a81ecaf3ce4ebd6b49903610d6beb732f2132345f4001ad1e3b852102e38",
+      "pre_state_digest": "sha256:9753a81ecaf3ce4ebd6b49903610d6beb732f2132345f4001ad1e3b852102e38",
+      "raw_stderr_path": "project_state/gates/evidence/a0a2d0f46143f07c/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/a0a2d0f46143f07c/stdout.bin",
+      "record_id": "a0a2d0f46143f07c",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 9,
+      "started_at": "2026-07-22T04:35:25Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:e0d7da906cef61258362021467f440f2cda5259ac4e71822714969a9c4fe7e6e"
     },
     {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-      "kind": "close-round",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0
-      ],
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
+      "command_id": "test.control_plane",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:44:10Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:2dd33235aa2f9b63fc15353c813bdda4daaad3027180ff59943d0c1c44bcb3b7",
+      "pre_state_digest": "sha256:2dd33235aa2f9b63fc15353c813bdda4daaad3027180ff59943d0c1c44bcb3b7",
+      "raw_stderr_path": "project_state/gates/evidence/8304fb6b48d73ca3/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/8304fb6b48d73ca3/stdout.bin",
+      "record_id": "8304fb6b48d73ca3",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 10,
+      "started_at": "2026-07-22T04:35:30Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:9813342a54a71312033c0b55dd1a79586ee6244d402a0eaa959c576850a3715c"
     },
     {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "phase": "gate",
-      "expected_exit_codes": [
-        0,
-        1
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest -q",
+      "command_id": "test.full_repository",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 1,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:55:11Z",
+      "operations": [
+        "full_repository_test"
       ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:f47e61dc50ec7692e5b6bf4728f9c7f88aae0ae25992dc4851981aae309753a4",
+      "pre_state_digest": "sha256:f47e61dc50ec7692e5b6bf4728f9c7f88aae0ae25992dc4851981aae309753a4",
+      "raw_stderr_path": "project_state/gates/evidence/9252b6f442877840/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/9252b6f442877840/stdout.bin",
+      "record_id": "9252b6f442877840",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 11,
+      "started_at": "2026-07-22T04:44:12Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:53f973d5439fab0077e704ff3bdbc59b303d937b4b054bc2c2fcfdb8180665ef"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-report --state-dir project_state",
+      "command_id": "report.generate_local",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
       "exit_code": 0,
-      "status": "PASSED"
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/gates/changed_file_inventory.json",
+        "project_state/gates/remote_observation_payload.json",
+        "project_state/pytest_result.txt"
+      ],
+      "mutation_delta_digest": "sha256:f778254a20c8ce90fc9a7d1ec5d3bec1e0fea86a653d1b9f9e0eb218e4917faa",
+      "observed_at": "2026-07-22T04:55:12Z",
+      "operations": [
+        "report_generation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:d7393cb4d81da8bbae231ca8808a4b2780a8c975423b53df2ae71c878044d23b",
+      "pre_state_digest": "sha256:c6b418a1d0cad929114049a5480b4e92e41f6bf74125bdeaf067bc51d2c51f96",
+      "raw_stderr_path": "project_state/gates/evidence/91de9c53fe37b200/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/91de9c53fe37b200/stdout.bin",
+      "record_id": "91de9c53fe37b200",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 12,
+      "started_at": "2026-07-22T04:55:12Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:15709034047499cdccd7a26593f4a17a69afd402953bf3e46c9cb34469ca0032"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "git diff --check",
+      "command_id": "validation.diff_check",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T04:55:14Z",
+      "operations": [
+        "diff_validation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:80ed7af345332ef72066769d31a045cad000b87581e9f70ec0f1b1cf41c25a32",
+      "pre_state_digest": "sha256:80ed7af345332ef72066769d31a045cad000b87581e9f70ec0f1b1cf41c25a32",
+      "raw_stderr_path": "project_state/gates/evidence/a11f71b36bc108e6/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/a11f71b36bc108e6/stdout.bin",
+      "record_id": "a11f71b36bc108e6",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 13,
+      "started_at": "2026-07-22T04:55:14Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-reconcile-evaluate --state-dir project_state",
+      "command_id": "gate.reconcile_evaluate",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/reconciliation_candidate.json"
+      ],
+      "mutation_delta_digest": "sha256:85edab06b8dcf56f53da64d22199e460b33e646f107196bbebf508547821cb48",
+      "observed_at": "2026-07-22T04:56:28Z",
+      "operations": [
+        "post_execution_evaluation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:d4f0ccd385e4e9f33aa9514f8a7d8b58bdcb15a7748ae8609bb6f176c01449be",
+      "pre_state_digest": "sha256:eaa0bc4e30224e6b9864d0ebf2d6ac2722a77d9f041ca1ea7d8337b5be7d99ba",
+      "raw_stderr_path": "project_state/gates/evidence/aa32cbfc9a013c63/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/aa32cbfc9a013c63/stdout.bin",
+      "record_id": "aa32cbfc9a013c63",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 14,
+      "started_at": "2026-07-22T04:56:28Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:30559dacfff1056aa81889efb59153b3fba575835cb07ff326c7ace3b8a466a8"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-seal-local --state-dir project_state",
+      "command_id": "gate.seal_local",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/local_execution_seal.json"
+      ],
+      "mutation_delta_digest": "sha256:76c0a08989eda98cf018b56d42d3588bc55a001af781047030b6519c1bd29bf8",
+      "observed_at": "2026-07-22T04:56:29Z",
+      "operations": [
+        "local_execution_seal"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:bff9ec00342cf632d7382dfb620d5d5bb67629e538eea1647583175d142ab310",
+      "pre_state_digest": "sha256:b604521d275f88d7e9bbfefb327397d82f9b706ce6a8d6d2b65ddec9a2276bcc",
+      "raw_stderr_path": "project_state/gates/evidence/a09348a63f34022e/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/a09348a63f34022e/stdout.bin",
+      "record_id": "a09348a63f34022e",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 15,
+      "started_at": "2026-07-22T04:56:29Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:85941fa544fa31bd5b9cdca20739b5f2886590dca793ba48665a221b1bbec72b"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-reconcile-evaluate --state-dir project_state",
+      "command_id": "gate.reconcile_evaluate",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/reconciliation_candidate.json"
+      ],
+      "mutation_delta_digest": "sha256:1287bae4ee2b8349b4089687c7c412e928b2e1174c98f26e74726afff18ca1df",
+      "observed_at": "2026-07-22T04:59:40Z",
+      "operations": [
+        "post_execution_evaluation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:8f13c11747689f0186217d3e290c57308ff5f4ae8c75b4835857effb26a50d9c",
+      "pre_state_digest": "sha256:664920f87ef5bdf08ab10618f3553ce09356120b93f16809d24718e51ecb45f3",
+      "raw_stderr_path": "project_state/gates/evidence/52212e0c49471684/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/52212e0c49471684/stdout.bin",
+      "record_id": "52212e0c49471684",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 16,
+      "started_at": "2026-07-22T04:59:40Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:30559dacfff1056aa81889efb59153b3fba575835cb07ff326c7ace3b8a466a8"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-seal-local --state-dir project_state",
+      "command_id": "gate.seal_local",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/local_execution_seal.json"
+      ],
+      "mutation_delta_digest": "sha256:de9ca663d531b4248a08790e463bd4c073c6bfcfca23d0b55ab369934be00ad0",
+      "observed_at": "2026-07-22T04:59:42Z",
+      "operations": [
+        "local_execution_seal"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:fa7c4d182c1101dfc9874b91ee470d250f23492269033c67007542b95e253195",
+      "pre_state_digest": "sha256:23b7478d219d030e0a938544c7c7fbdad23cdc5965600c750765e89203d53207",
+      "raw_stderr_path": "project_state/gates/evidence/fc04d2e9f3aa07dc/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/fc04d2e9f3aa07dc/stdout.bin",
+      "record_id": "fc04d2e9f3aa07dc",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 17,
+      "started_at": "2026-07-22T04:59:41Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:85941fa544fa31bd5b9cdca20739b5f2886590dca793ba48665a221b1bbec72b"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_trusted_command_runner.py tests/test_provenance_integration.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "command_id": "test.trusted_execution_cutover",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T05:00:54Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:fcc61eae798019fd4fedc6e289cdf02314e9431dfbf15aef7e2b50c871234026",
+      "pre_state_digest": "sha256:fcc61eae798019fd4fedc6e289cdf02314e9431dfbf15aef7e2b50c871234026",
+      "raw_stderr_path": "project_state/gates/evidence/25f0a41b98d37c50/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/25f0a41b98d37c50/stdout.bin",
+      "record_id": "25f0a41b98d37c50",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 18,
+      "started_at": "2026-07-22T05:00:30Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:675b94c6375411cd8d75df35ea83a99025d43cd0378fb40f8e4e33b6960b24c1"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_runtime_risk_policy.py tests/test_policy_provider.py tests/test_development_graph.py tests/test_risk_classifier.py -q",
+      "command_id": "test.runtime_policy_integration",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T05:00:58Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:f6c315a6d9098dbe31adfa79bfb92fd8ee601583acff58bcc406ba2743f12a5d",
+      "pre_state_digest": "sha256:f6c315a6d9098dbe31adfa79bfb92fd8ee601583acff58bcc406ba2743f12a5d",
+      "raw_stderr_path": "project_state/gates/evidence/f66c402b0ea36862/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/f66c402b0ea36862/stdout.bin",
+      "record_id": "f66c402b0ea36862",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 19,
+      "started_at": "2026-07-22T05:00:55Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:263b081074d8ee774780db8e9fe472882876dd31e961e43a1bf7954bf928c0cd"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_command_mutation_grants.py tests/test_transition_report.py tests/test_report_truth.py tests/test_provenance_integration.py -q",
+      "command_id": "test.mutation_report_integration",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T05:01:04Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:a12b4490642b18271faddf2fd787dd32e5a52974574ca55fd846a457785d8026",
+      "pre_state_digest": "sha256:a12b4490642b18271faddf2fd787dd32e5a52974574ca55fd846a457785d8026",
+      "raw_stderr_path": "project_state/gates/evidence/3609c8eeb2297846/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/3609c8eeb2297846/stdout.bin",
+      "record_id": "3609c8eeb2297846",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 20,
+      "started_at": "2026-07-22T05:01:01Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:1ae720703e8f795c4755b0da2ed11ec36ffd724e0b91b4abf66848e93c951002"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
+      "command_id": "test.control_plane",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T05:09:41Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:03184e7759aae298649cf1c4adad6c2599b191a8b47e343c10bdd16c5f0ceb8c",
+      "pre_state_digest": "sha256:03184e7759aae298649cf1c4adad6c2599b191a8b47e343c10bdd16c5f0ceb8c",
+      "raw_stderr_path": "project_state/gates/evidence/b388d370d91f7631/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/b388d370d91f7631/stdout.bin",
+      "record_id": "b388d370d91f7631",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 21,
+      "started_at": "2026-07-22T05:01:07Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:8c25ae0d95fa56ccb3a45a1cadd79765311f8da7f8a09b16c4fd8ff9030f3260"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "git diff --check",
+      "command_id": "validation.diff_check",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T05:09:43Z",
+      "operations": [
+        "diff_validation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:82974e141e9f6adf845a5885781bf754275e835350782ee6696a7f34a6ac6d32",
+      "pre_state_digest": "sha256:82974e141e9f6adf845a5885781bf754275e835350782ee6696a7f34a6ac6d32",
+      "raw_stderr_path": "project_state/gates/evidence/6f79b44d7d495f2b/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/6f79b44d7d495f2b/stdout.bin",
+      "record_id": "6f79b44d7d495f2b",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 22,
+      "started_at": "2026-07-22T05:09:43Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-reconcile-evaluate --state-dir project_state",
+      "command_id": "gate.reconcile_evaluate",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/reconciliation_candidate.json"
+      ],
+      "mutation_delta_digest": "sha256:a0700ef2abeb72ea6412e6e70e8701eacc94f24fccc1cc3603845ea2bcf05c97",
+      "observed_at": "2026-07-22T05:10:11Z",
+      "operations": [
+        "post_execution_evaluation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:e067ebc5d23fc2e274d30fe1ffc08002239c6c6bd03b518b334b83cdec3df53f",
+      "pre_state_digest": "sha256:e08da80bbf2028cf3b2bb3c7858794989b727efd0b0b3e378376b54ff1595c85",
+      "raw_stderr_path": "project_state/gates/evidence/bf36ece53f306589/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/bf36ece53f306589/stdout.bin",
+      "record_id": "bf36ece53f306589",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 23,
+      "started_at": "2026-07-22T05:10:11Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:30559dacfff1056aa81889efb59153b3fba575835cb07ff326c7ace3b8a466a8"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-seal-local --state-dir project_state",
+      "command_id": "gate.seal_local",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/local_execution_seal.json"
+      ],
+      "mutation_delta_digest": "sha256:5a53dbbeec6e11b6f2ce28e7821f72dcaa30c5d40793d5fbb44188a6f3ca4852",
+      "observed_at": "2026-07-22T05:10:13Z",
+      "operations": [
+        "local_execution_seal"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:660a5a5bc32f2427d1e080f735e14b5c2038c79c95e816b2a8ab10e3c2538578",
+      "pre_state_digest": "sha256:ab9d039275f20f85ae85be965da81edf3cace1b492c622853b441460967fead1",
+      "raw_stderr_path": "project_state/gates/evidence/33785d45cf40c390/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/33785d45cf40c390/stdout.bin",
+      "record_id": "33785d45cf40c390",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 24,
+      "started_at": "2026-07-22T05:10:12Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:85941fa544fa31bd5b9cdca20739b5f2886590dca793ba48665a221b1bbec72b"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "git rev-parse HEAD",
+      "command_id": "status.git_head",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T05:13:43Z",
+      "operations": [
+        "repository_observation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:1e3a2d954880d84e344968f2c8614a329ab266bff128c6ef628020a2d2a64bd1",
+      "pre_state_digest": "sha256:1e3a2d954880d84e344968f2c8614a329ab266bff128c6ef628020a2d2a64bd1",
+      "raw_stderr_path": "project_state/gates/evidence/6e74467b6074b793/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/6e74467b6074b793/stdout.bin",
+      "record_id": "6e74467b6074b793",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 25,
+      "started_at": "2026-07-22T05:13:43Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:4e78122f78cd9dfef4200c2b321263fa6951f4dec200de1ee0a2f4b754e3f37c"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m pytest tests/test_trusted_command_runner.py tests/test_provenance_integration.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "command_id": "test.trusted_execution_cutover",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T05:14:02Z",
+      "operations": [
+        "integration_test"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:ab42a8433c376560ec4d99688e5b939849de14a1ed5c67fee680913aa0ae0a30",
+      "pre_state_digest": "sha256:ab42a8433c376560ec4d99688e5b939849de14a1ed5c67fee680913aa0ae0a30",
+      "raw_stderr_path": "project_state/gates/evidence/8b963c82f98d749c/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/8b963c82f98d749c/stdout.bin",
+      "record_id": "8b963c82f98d749c",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 26,
+      "started_at": "2026-07-22T05:13:44Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:61c38018e81b7432ec47f8e4a76d91a7f703bfa8c6effbbaea9ef67b2ed098d6"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "git diff --check",
+      "command_id": "validation.diff_check",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [],
+      "mutation_delta_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "observed_at": "2026-07-22T05:14:03Z",
+      "operations": [
+        "diff_validation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:b1d85bea60a2888d6cb4697fa5778eae3bda5ec8e14e4970737b95cc8aba65ec",
+      "pre_state_digest": "sha256:b1d85bea60a2888d6cb4697fa5778eae3bda5ec8e14e4970737b95cc8aba65ec",
+      "raw_stderr_path": "project_state/gates/evidence/01aec8747832875c/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/01aec8747832875c/stdout.bin",
+      "record_id": "01aec8747832875c",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 27,
+      "started_at": "2026-07-22T05:14:02Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-reconcile-evaluate --state-dir project_state",
+      "command_id": "gate.reconcile_evaluate",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/reconciliation_candidate.json"
+      ],
+      "mutation_delta_digest": "sha256:fec3abcdf455c37d8fc53905ee0b794ff0580bb076eb222c57051b5a1d5c60b1",
+      "observed_at": "2026-07-22T05:14:21Z",
+      "operations": [
+        "post_execution_evaluation"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:47f57fba24175bf53247ae53b99c212fee068b1f6246f1596ce439efbd6880e6",
+      "pre_state_digest": "sha256:84ec095014289cd7a619e49b303f9c086c383cc00a923e08c32d9b7a1355eb9a",
+      "raw_stderr_path": "project_state/gates/evidence/159376cf5182f9b7/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/159376cf5182f9b7/stdout.bin",
+      "record_id": "159376cf5182f9b7",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 28,
+      "started_at": "2026-07-22T05:14:20Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:30559dacfff1056aa81889efb59153b3fba575835cb07ff326c7ace3b8a466a8"
+    },
+    {
+      "authority_origin": "normal_plan",
+      "command": "python -m reverse_agent.project_gate transition-seal-local --state-dir project_state",
+      "command_id": "gate.seal_local",
+      "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "execution_surface": "local",
+      "exit_code": 0,
+      "head_after": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "head_before": "76575aa17f03dddaa4b5ef8752695998cd244971",
+      "mutated_paths": [
+        "project_state/gates/local_execution_seal.json"
+      ],
+      "mutation_delta_digest": "sha256:55b2d68cf4c96b4a8a2ed14fedc6ba804697c271ea02caf559819432a1e9b4cc",
+      "observed_at": "2026-07-22T05:14:22Z",
+      "operations": [
+        "local_execution_seal"
+      ],
+      "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+      "post_state_digest": "sha256:d89a7840ee288ceb6c8303406ecbd1f59c6c626d9b1f5e72eb2d6e1097f2b238",
+      "pre_state_digest": "sha256:d2d0fb7beabed7cfeda699c7f8b90d7ab83a236142eff01e3da090fce12e31f0",
+      "raw_stderr_path": "project_state/gates/evidence/4b9b14203d8b51c7/stderr.bin",
+      "raw_stdout_path": "project_state/gates/evidence/4b9b14203d8b51c7/stdout.bin",
+      "record_id": "4b9b14203d8b51c7",
+      "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+      "sequence": 29,
+      "started_at": "2026-07-22T05:14:22Z",
+      "stderr_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_digest": "sha256:85941fa544fa31bd5b9cdca20739b5f2886590dca793ba48665a221b1bbec72b"
     }
   ],
-  "observed_chronology": [
-    {
-      "index": 1,
-      "command": "Set-Location F:\\reverse-agent",
-      "kind": "set-location",
-      "exit_code": 0
-    },
-    {
-      "index": 2,
-      "command": "Get-Location",
-      "kind": "pwd",
-      "exit_code": 0
-    },
-    {
-      "index": 3,
-      "command": "Test-Path F:\\reverse-agent",
-      "kind": "test-path",
-      "exit_code": 0
-    },
-    {
-      "index": 4,
-      "command": "git rev-parse --show-toplevel",
-      "kind": "git rev-parse",
-      "exit_code": 0
-    },
-    {
-      "index": 5,
-      "command": "git status --short",
-      "kind": "git status",
-      "exit_code": 0
-    },
-    {
-      "index": 6,
-      "command": "python -m reverse_agent.project_gate run-closeout --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-      "kind": "run-closeout",
-      "exit_code": 0
-    },
-    {
-      "index": 7,
-      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state --allow-consumed",
-      "kind": "preflight",
-      "exit_code": 0
-    },
-    {
-      "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_control_plane.py tests/test_project_context.py tests/test_project_state_manifest.py tests/test_project_state.py -q",
-      "kind": "pytest",
-      "exit_code": 0
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "kind": "command-plan",
-      "exit_code": 0
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "kind": "command-plan",
-      "exit_code": 0
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_gate execute-decision --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1 --dry-run",
-      "kind": "execute-decision",
-      "exit_code": 0
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "kind": "report-summary",
-      "exit_code": 0
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate execution-log --state-dir project_state",
-      "kind": "execution-log",
-      "exit_code": 0
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260716_closeout_order_provenance_rework_v1",
-      "kind": "close-round",
-      "exit_code": 0
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "kind": "final-check",
-      "exit_code": 0
-    }
-  ],
-  "final_observed_command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-  "warnings": [],
-  "blocking_reasons": [],
-  "recommended_next_action": "no_action_required"
+  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "gate_name": "transition-trusted-runner",
+  "gate_status": "PASSED",
+  "generated_at": "2026-07-22T05:14:22Z",
+  "plan_digest": "sha256:576f85b9ded215940f07b451079e3f6c8260c037e611754907c49927b9137801",
+  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "schema_version": 1,
+  "source": "trusted_command_runner"
 }

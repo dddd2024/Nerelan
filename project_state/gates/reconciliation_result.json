@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "gate_name": "transition-reconcile",
+  "gate_status": "BLOCKED",
+  "decision_id": "decision_20260721_architecture_spine_evidence_runtime_closeout_v1",
+  "round_id": "round_20260721_architecture_spine_evidence_runtime_closeout_v1",
+  "checks": [
+    {
+      "name": "decision_identity",
+      "status": "PASS",
+      "detail": "observed=decision_20260721_architecture_spine_evidence_runtime_closeout_v1 expected=decision_20260721_architecture_spine_evidence_runtime_closeout_v1"
+    },
+    {
+      "name": "round_identity",
+      "status": "PASS",
+      "detail": "observed=round_20260721_architecture_spine_evidence_runtime_closeout_v1 expected=round_20260721_architecture_spine_evidence_runtime_closeout_v1"
+    },
+    {
+      "name": "decision_approved",
+      "status": "PASS",
+      "detail": "status=APPROVED"
+    },
+    {
+      "name": "active_skills",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "name": "legal_mainline",
+      "status": "PASS",
+      "detail": "mainline=engineering_branch"
+    },
+    {
+      "name": "branch_identity",
+      "status": "PASS",
+      "detail": "observed=codex/architecture-spine-v1 expected=codex/architecture-spine-v1"
+    },
+    {
+      "name": "base_ancestry",
+      "status": "PASS",
+      "detail": "base=97c28ac0647c7653f6eedffac5314297ded8a508 merge_base=97c28ac0647c7653f6eedffac5314297ded8a508"
+    },
+    {
+      "name": "decision_ancestry",
+      "status": "PASS",
+      "detail": "decision_commit=5ee5cc9728249f9bf8b60bf052d561237cc830d4"
+    },
+    {
+      "name": "command_plan_identity",
+      "status": "PASS",
+      "detail": "plan=decision_20260721_architecture_spine_evidence_runtime_closeout_v1/round_20260721_architecture_spine_evidence_runtime_closeout_v1"
+    },
+    {
+      "name": "command_plan_contract",
+      "status": "PASS",
+      "detail": "errors=[]"
+    },
+    {
+      "name": "allowed_path_scope",
+      "status": "PASS",
+      "detail": "outside=[]"
+    },
+    {
+      "name": "forbidden_paths",
+      "status": "PASS",
+      "detail": "forbidden=[]"
+    },
+    {
+      "name": "reference_paths_read_only",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "capability_policy_enforced",
+      "status": "PASS",
+      "detail": "forbidden=[]"
+    },
+    {
+      "name": "network_policy_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "path_risk_floor_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "execution_reconciliation",
+      "status": "FAIL",
+      "detail": "status=BLOCKED reasons=['exit_code_mismatch:python -m reverse_agent.project_gate transition-reconcile --state-dir project_state --mode post:1']"
+    },
+    {
+      "name": "execution_evidence_present",
+      "status": "PASS",
+      "detail": "missing_evidence=False"
+    },
+    {
+      "name": "required_command_coverage",
+      "status": "FAIL",
+      "detail": "missing=['test.evidence_control_plane', 'test.runtime_risk_graph', 'test.report_truth', 'ci.install', 'ci.test', 'ci.transition_preflight']"
+    },
+    {
+      "name": "plan_network_policy_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "envelope_operations_declared",
+      "status": "PASS",
+      "detail": "violations=[]"
+    }
+  ],
+  "blocking_reasons": [
+    "execution_reconciliation: status=BLOCKED reasons=['exit_code_mismatch:python -m reverse_agent.project_gate transition-reconcile --state-dir project_state --mode post:1']",
+    "required_command_coverage: missing=['test.evidence_control_plane', 'test.runtime_risk_graph', 'test.report_truth', 'ci.install', 'ci.test', 'ci.transition_preflight']"
+  ]
+}

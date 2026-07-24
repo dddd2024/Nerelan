@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,78 +37,118 @@ jobs:
           python-version: "3.13"
 
       - name: Install package
-        run: python -m pip install -e .
+        run: python -m pip install -e ".[test]"
+
+      - name: Detect control-plane mode
+        id: control_plane
+        shell: bash
+        run: echo "mode=$(python -m reverse_agent.project_gate control-plane-mode --state-dir project_state)" >> "$GITHUB_OUTPUT"
+
+      - name: Transition lint
+        if: steps.control_plane.outputs.mode == 'transition'
+        run: python -m reverse_agent.project_gate transition-lint --state-dir project_state
+
+      - name: Transition command plan
+        if: steps.control_plane.outputs.mode == 'transition'
+        run: python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
+
+      - name: Transition preflight
+        if: steps.control_plane.outputs.mode == 'transition'
+        run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state
 
       - name: Project gate preflight
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate preflight --state-dir project_state
 
       - name: Project gate command plan
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate command-plan --state-dir project_state
 
       - name: Project gate post-final evidence sync
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate post-final-evidence-sync --state-dir project_state
 
       - name: Project gate job lifecycle
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate job-lifecycle --state-dir project_state
 
       - name: Project gate audit inventory
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate audit-inventory --state-dir project_state
 
       - name: Project gate audit readiness packet
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate audit-readiness-packet --state-dir project_state
 
       - name: Project gate current handoff packet
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate current-handoff-packet --state-dir project_state
 
       - name: Project gate local execution bundle
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate local-execution-bundle --state-dir project_state
 
       - name: Project gate Codex prompt packet
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate codex-prompt-packet --state-dir project_state
 
       - name: Project gate audit precheck
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate audit-precheck --state-dir project_state
 
       - name: Project gate report summary
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate report-summary --state-dir project_state
 
       - name: Project gate execution log
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate execution-log --state-dir project_state
 
       - name: CI workflow coverage
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-workflow-coverage --state-dir project_state
 
       - name: CI workflow readiness
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-workflow-readiness --state-dir project_state
 
       - name: Decision preflight
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate decision-preflight --state-dir project_state
 
       - name: CI run evidence
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-run-evidence --state-dir project_state
 
       - name: Local CI parity
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate local-ci-parity --state-dir project_state
 
       - name: CI observation schema
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-observation-schema --state-dir project_state
 
       - name: CI observation handoff
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-observation-handoff --state-dir project_state
 
       - name: CI observation reconcile
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-observation-reconcile --state-dir project_state
 
       - name: CI artifact manifest
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-artifact-manifest --state-dir project_state
 
       - name: CI audit handoff bundle
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate ci-audit-handoff-bundle --state-dir project_state
 
       - name: Focused gate tests
         run: python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q
 
       - name: Project gate final check
+        if: steps.control_plane.outputs.mode == 'legacy'
         run: python -m reverse_agent.project_gate final-check --state-dir project_state
 
       - name: Upload project gate evidence

@@ -1,130 +1,529 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260716_closeout_final_seal_and_publication_truth_rework_v2",
-  "round_id": "round_20260716_closeout_final_seal_and_publication_truth_rework_v2",
+  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
-  "mainline": "project_governance",
-  "skill_profiles": ["reverse-agent-iteration@v2"]
+  "mainline": "engineering_branch",
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ]
 }
 ```
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260716_closeout_order_provenance_rework_v1",
-  "follows_last_round_id": "round_20260716_closeout_order_provenance_rework_v1",
+  "follows_last_decision_id": "decision_20260721_architecture_spine_provenance_integration_final_rework_v1",
+  "follows_last_round_id": "round_20260721_architecture_spine_provenance_integration_final_rework_v1",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "required_profile": "full",
-  "closeout_required": true,
-  "close_round_required": true,
-  "closeout_allowed": true,
-  "pytest_required": true,
-  "explicit_pytest_command_required": true,
-  "command_plan_precedes_execution_required": true,
-  "command_plan_digest_lock_required": true,
-  "execution_log_chronology_required": true,
-  "required_audit_semantic_specificity_required": true,
-  "final_evidence_seal_required": true,
-  "publication_truth_required": true,
-  "publication_observation_scope_required": true,
-  "state_manifest_freshness_regression_preservation_required": true,
-  "context_packet_sync_required": true,
-  "post_final_evidence_sync_required": true,
-  "allowed_source_files": [
+  "workstream_id": "architecture-spine-trusted-execution-cutover-rework-v1",
+  "source_pull_request": 9,
+  "required_branch": "codex/architecture-spine-v1",
+  "activation_base_sha": "54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f",
+  "audited_implementation_head_sha": "70dd217b381d106085bce51857be5e8abdd2fa86",
+  "roadmap_path": "docs/roadmap/architecture_spine_trusted_execution_cutover_rework_v1.md",
+  "decision_commit_must_precede_implementation": true,
+  "decision_content_immutable_after_activation": true,
+  "transition_kernel_required": true,
+  "architecture_spine_new_module_expansion_allowed": false,
+  "trusted_execution_cutover_required": true,
+  "deterministic_command_projection_required": true,
+  "command_id_global_uniqueness_required": true,
+  "required_test_file_existence_required": true,
+  "stale_evidence_invalidation_required": true,
+  "cross_round_log_append_forbidden": true,
+  "production_plan_injection_forbidden": true,
+  "pre_execution_authorization_required": true,
+  "runner_surface_binding_required": true,
+  "runner_capability_policy_required": true,
+  "runner_bootstrap_state_required": true,
+  "runner_validation_state_required": true,
+  "atomic_evidence_journal_required": true,
+  "journal_lock_required": true,
+  "journal_monotonic_sequence_required": true,
+  "command_local_mutation_delta_required": true,
+  "command_string_fallback_forbidden": true,
+  "risk_floor_classification_not_auto_block_required": true,
+  "reference_paths_all_mutations_read_only_required": true,
+  "current_round_local_seal_required": true,
+  "current_round_report_binding_required": true,
+  "remote_publication_seal_externalized_required": true,
+  "bootstrap_exception_authorized": true,
+  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
+  "bootstrap_exception_reason": "The audited implementation contains reusable TrustedCommandRunner, authenticity, policy-provider, mutation-grant, and report-binding components, but the committed plan is not the deterministic projection of the active Decision, a required test file is absent, production execution still accepts an injected plan object, the journal can append across rounds without atomic locking, mutation attribution is based on post-command dirty state instead of a before/after delta, and all current evidence artifacts still belong to the previous Decision. A bounded bootstrap is required to recover deterministic authority and implement the production execution context before current-round commands can be rerun.",
+  "bootstrap_exception_expires_when": "A command plan generated from this Decision exactly matches its deterministic projection; transition-lint passes; transition-preflight --mode pre passes; command-id uniqueness and required-test-file checks pass; TrustedExecutionContext and atomic journal tests pass; all previous-round evidence is rejected as stale; bootstrap state is persisted as BOOTSTRAP_EXPIRED; and no subsequent command can claim bootstrap authority.",
+  "bootstrap_exception_files": [
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py"
-  ],
-  "allowed_test_files": [
+    "reverse_agent/control_plane/models.py",
+    "reverse_agent/control_plane/legacy_adapter.py",
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/evidence_recorder.py",
+    "reverse_agent/control_plane/execution_reconciliation.py",
+    "reverse_agent/control_plane/local_seal.py",
+    "reverse_agent/control_plane/transition.py",
     "tests/test_project_gate.py",
-    "tests/test_project_reports.py",
-    "tests/test_project_state.py"
+    "tests/test_control_plane_transition.py",
+    "tests/test_execution_evidence.py",
+    "tests/test_evidence_authenticity.py",
+    "tests/test_trusted_command_runner.py",
+    "tests/test_local_execution_seal.py",
+    "tests/test_provenance_integration.py",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json"
   ],
-  "allowed_project_state_files": [
-    "project_state/state_manifest.json",
-    "project_state/context/current_context_packet.json",
-    "project_state/gates/*.json",
-    "project_state/pytest_result.txt",
+  "bootstrap_exception_commands": [
+    "git status --short",
+    "git rev-parse HEAD",
+    "git branch --show-current",
+    "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
+    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+    "git diff --check"
+  ],
+  "allowed_commands": [
+    {
+      "command_id": "status.git_status",
+      "command": "git status --short",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "status.git_head",
+      "command": "git rev-parse HEAD",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "status.git_branch",
+      "command": "git branch --show-current",
+      "phase": "status",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "gate.command_plan",
+      "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["command_plan_generation"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
+    },
+    {
+      "command_id": "gate.transition_lint",
+      "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["authority_validation"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "gate.pre_execution",
+      "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["pre_execution_authorization"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ]
+    },
+    {
+      "command_id": "test.trusted_execution_cutover",
+      "command": "python -m pytest tests/test_trusted_command_runner.py tests/test_provenance_integration.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["integration_test"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.runtime_policy_integration",
+      "command": "python -m pytest tests/test_runtime_risk_policy.py tests/test_policy_provider.py tests/test_development_graph.py tests/test_risk_classifier.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["integration_test"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.mutation_report_integration",
+      "command": "python -m pytest tests/test_command_mutation_grants.py tests/test_transition_report.py tests/test_report_truth.py tests/test_provenance_integration.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["integration_test"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.control_plane",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["integration_test"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "test.full_repository",
+      "command": "python -m pytest -q",
+      "phase": "diagnostic",
+      "required": false,
+      "diagnostic_only": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["full_repository_test"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "report.generate_local",
+      "command": "python -m reverse_agent.project_gate transition-report --state-dir project_state",
+      "phase": "report",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["report_generation"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [
+        "project_state/gates/changed_file_inventory.json",
+        "project_state/gates/remote_observation_payload.json",
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/pytest_result.txt"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/changed_file_inventory.json",
+        "project_state/gates/remote_observation_payload.json",
+        "project_state/codex_execution_report.md",
+        "project_state/execution_report.md",
+        "project_state/pytest_result.txt"
+      ]
+    },
+    {
+      "command_id": "validation.diff_check",
+      "command": "git diff --check",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["diff_validation"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "gate.reconcile_evaluate",
+      "command": "python -m reverse_agent.project_gate transition-reconcile-evaluate --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["post_execution_evaluation"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "subject_to_reconciliation": false,
+      "allowed_mutated_paths": [
+        "project_state/gates/reconciliation_candidate.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/reconciliation_candidate.json"
+      ]
+    },
+    {
+      "command_id": "gate.seal_local",
+      "command": "python -m reverse_agent.project_gate transition-seal-local --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [0, 1],
+      "execution_surface": "local",
+      "operations": ["local_execution_seal"],
+      "network_access": false,
+      "authority_origin": "normal_plan",
+      "subject_to_reconciliation": false,
+      "allowed_mutated_paths": [
+        "project_state/gates/local_execution_seal.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/local_execution_seal.json"
+      ]
+    },
+    {
+      "command_id": "publication.push_branch",
+      "command": "git push origin codex/architecture-spine-v1",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["push", "network_access"],
+      "network_access": true,
+      "allowed_only_after_validation": true,
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    }
+  ],
+  "runner_managed_artifact_paths": [
+    "project_state/gates/execution_log.json",
+    "project_state/gates/evidence/**"
+  ],
+  "runner_managed_artifact_policy": "Only TrustedExecutionContext may write these paths. They are executor provenance and are excluded from subprocess mutation delta while remaining part of the local evidence bundle.",
+  "reference_paths": [
+    "docs/roadmap/architecture_spine_trusted_execution_cutover_rework_v1.md",
+    "docs/roadmap/reverse_agent_unified_architecture_and_trust_roadmap.md",
+    "docs/architecture/**",
+    "project_state/decision_packet.md"
+  ],
+  "allowed_mutated_paths": [
+    "reverse_agent/project_gate.py",
+    "reverse_agent/control_plane/models.py",
+    "reverse_agent/control_plane/legacy_adapter.py",
+    "reverse_agent/control_plane/command_authority.py",
+    "reverse_agent/control_plane/evidence_recorder.py",
+    "reverse_agent/control_plane/evidence_source.py",
+    "reverse_agent/control_plane/execution_reconciliation.py",
+    "reverse_agent/control_plane/local_seal.py",
+    "reverse_agent/control_plane/report_binding.py",
+    "reverse_agent/control_plane/transition.py",
+    "reverse_agent/architecture/contracts.py",
+    "reverse_agent/architecture/policy_provider.py",
+    "reverse_agent/workflows/development_graph.py",
+    "reverse_agent/workflows/nodes/load_work_item.py",
+    "reverse_agent/workflows/nodes/classify_risk.py",
+    "tests/test_project_gate.py",
+    "tests/test_control_plane_transition.py",
+    "tests/test_authority_closure.py",
+    "tests/test_execution_evidence.py",
+    "tests/test_evidence_authenticity.py",
+    "tests/test_trusted_command_runner.py",
+    "tests/test_local_execution_seal.py",
+    "tests/test_runtime_risk_policy.py",
+    "tests/test_policy_provider.py",
+    "tests/test_development_graph.py",
+    "tests/test_risk_classifier.py",
+    "tests/test_command_mutation_grants.py",
+    "tests/test_transition_report.py",
+    "tests/test_report_truth.py",
+    "tests/test_provenance_integration.py",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json",
+    "project_state/gates/execution_log.json",
+    "project_state/gates/evidence/**",
+    "project_state/gates/reconciliation_candidate.json",
+    "project_state/gates/local_execution_seal.json",
+    "project_state/gates/changed_file_inventory.json",
+    "project_state/gates/remote_observation_payload.json",
     "project_state/codex_execution_report.md",
     "project_state/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/*"
+    "project_state/pytest_result.txt"
   ],
-  "read_only_evidence_files": [
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/execution_report.md",
-    "project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt",
+  "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
+    "project_state/gates/transition_command_plan_preview.json",
+    "project_state/gates/transition_preflight_result.json",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/execution_log.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/gates/run_closeout_result.json",
-    "project_state/context/current_context_packet.json",
-    "project_state/state_manifest.json",
-    ".codex-skills/registry.json",
-    ".codex-skills/reverse-agent-iteration/SKILL.md",
-    "reverse_agent/project_runner_contract.py"
+    "project_state/gates/evidence/**",
+    "project_state/gates/reconciliation_candidate.json",
+    "project_state/gates/local_execution_seal.json",
+    "project_state/gates/changed_file_inventory.json",
+    "project_state/gates/remote_observation_payload.json",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/pytest_result.txt"
   ],
+  "generated_artifact_paths_are_inventory_only": true,
   "forbidden_mutated_paths": [
-    ".codex-skills/*",
-    ".github/workflows/*",
-    "frontend/*",
-    "solve_reports/*",
-    "training_materials/local_reverse/*",
-    "reverse_agent/project_state_manifest.py",
-    "reverse_agent/project_jobs.py",
-    "reverse_agent/project_runner_contract.py",
-    "reverse_agent/project_agent_runner.py",
-    "reverse_agent/orchestrator_api.py",
+    "project_state/decision_packet.md",
+    "docs/roadmap/**",
+    "docs/architecture/**",
+    ".github/workflows/**",
+    "pyproject.toml",
+    "frontend/**",
+    "solve_reports/**",
+    "local_reverse_samples/**",
+    "training_materials/**",
     "reverse_agent/user_solve_*.py",
+    "reverse_agent/orchestrator_api.py",
+    "reverse_agent/project_agent_runner.py",
+    "reverse_agent/project_runner_contract.py",
     "project_state/current_state.json",
-    "project_state/task_packet.json",
     "project_state/artifact_index.json",
-    "project_state/negative_results.json",
-    "project_state/roadmap/workstreams.json",
-    "project_state/domains/*",
-    "project_state/jobs/*",
-    "project_state/user_sessions/*",
-    "project_state/archives/*",
-    "project_state/deletions/*",
-    "project_state/blob_store/*",
-    "project_state/*.db",
-    "project_state/index.sqlite",
-    "docs/roadmap/*"
+    "project_state/state_manifest.json",
+    "project_state/context/**",
+    "project_state/rounds/**",
+    "project_state/audits/**",
+    ".codex-skills/**",
+    ".env",
+    "**/secrets/**",
+    "**/credentials/**",
+    "**/*.exe",
+    "**/*.dll",
+    "**/*.bin"
   ],
-  "publication_authorization": {
-    "granted_by_user": true,
-    "applies_to": "manually_invoked_execution_agent_after_required_validation",
-    "branch_strategy": "one_short_lived_branch_per_decision_or_pull_request",
-    "allowed_branch": "agent/closeout-final-seal-publication-truth-rework-v2",
-    "base_branch": "main",
-    "multiple_commits_on_same_branch_allowed": true,
-    "reuse_same_branch_for_review_fixes_allowed": true,
-    "new_branch_per_commit_required": false,
-    "commit_allowed": true,
-    "push_allowed": true,
-    "draft_pr_allowed": true,
-    "direct_push_to_main_allowed": false,
-    "force_push_allowed": false,
-    "merge_allowed": false,
-    "rebase_allowed": false,
-    "tag_mutation_allowed": false,
-    "remote_branch_deletion_allowed": false,
-    "workflow_mutation_allowed": false,
-    "secrets_mutation_allowed": false,
-    "git_add_all_allowed": false,
-    "stage_only_explicit_allowed_paths": true,
-    "publish_only_after_required_validation": true,
-    "command_plan_must_explicitly_authorize_publication_commands": true,
-    "publication_status_values": [
-      "NOT_OBSERVED",
-      "NOT_PERFORMED",
-      "PUSHED",
-      "DRAFT_PR_OPENED",
-      "FAILED"
+  "capability_policy": {
+    "runner_dispatch_allowed": false,
+    "model_api_invocation_allowed": false,
+    "external_reverse_tool_invocation_allowed": false,
+    "unknown_binary_execution_allowed": false,
+    "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
+    "network_access_default_allowed": false,
+    "local_network_exceptions": [
+      "git push origin codex/architecture-spine-v1"
     ],
-    "delete_branch_after_merge_recommended": true
-  }
+    "ci_network_exceptions": [],
+    "remote_observation_read_only_allowed": true,
+    "direct_push_to_main_allowed": false,
+    "merge_allowed": false,
+    "force_push_allowed": false,
+    "rebase_during_execution_allowed": false,
+    "tag_or_release_allowed": false
+  },
+  "authorized_risk_tier": "R2",
+  "risk_authorization_source": "active_approved_decision",
+  "authorized_risk_paths": [
+    "reverse_agent/project_gate.py",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/architecture/**",
+    "reverse_agent/workflows/**",
+    "tests/**",
+    "project_state/gates/**",
+    "project_state/codex_execution_report.md",
+    "project_state/execution_report.md",
+    "project_state/pytest_result.txt"
+  ],
+  "path_risk_floor": [
+    {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
+    {"pattern": "pyproject.toml", "minimum_risk": "R2"},
+    {"pattern": "**/*lock*", "minimum_risk": "R2"},
+    {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
+    {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
+    {"pattern": ".env", "minimum_risk": "R3"},
+    {"pattern": "**/secrets/**", "minimum_risk": "R3"},
+    {"pattern": "**/credentials/**", "minimum_risk": "R3"},
+    {"pattern": "local_reverse_samples/**", "minimum_risk": "R3"},
+    {"pattern": "training_materials/local_reverse/**", "minimum_risk": "R3"},
+    {"pattern": "**/*.exe", "minimum_risk": "R3"},
+    {"pattern": "**/*.dll", "minimum_risk": "R3"},
+    {"pattern": "**/*.bin", "minimum_risk": "R3"}
+  ],
+  "capability_risk_rules": [
+    {"operation": "workflow_change", "risk_tier": "R2"},
+    {"operation": "dependency_change", "risk_tier": "R2"},
+    {"operation": "network_access", "risk_tier": "R2"},
+    {"operation": "push", "risk_tier": "R2"},
+    {"operation": "permission_policy", "risk_tier": "R2"},
+    {"operation": "unknown_binary_execution", "risk_tier": "R3"},
+    {"operation": "debugger", "risk_tier": "R3"},
+    {"operation": "emulator", "risk_tier": "R3"},
+    {"operation": "secrets", "risk_tier": "R3"},
+    {"operation": "destructive_delete", "risk_tier": "R3"}
+  ],
+  "risk_combination_policy": "max(operation_risk,path_risk,capability_flag_risk)",
+  "unknown_operation_policy": "BLOCKED",
+  "unknown_sensitive_path_policy": "BLOCKED",
+  "current_round_evidence_identity_required": true,
+  "current_round_plan_digest_required": true,
+  "local_seal_status_required": "LOCAL_RECONCILED",
+  "remote_publication_seal_required": true,
+  "remote_publication_seal_location": "pull_request_comment",
+  "required_remote_checks": [
+    "CI",
+    "State Gate",
+    "Decision Preflight"
+  ],
+  "draft_pull_request_allowed": true,
+  "existing_pull_request_only": 9,
+  "new_pull_request_allowed": false,
+  "scope_policy": "trusted_execution_cutover_only",
+  "stop_after_independent_audit_handoff": true
 }
 ```
 
@@ -132,395 +531,128 @@
 
 ## 1. Goal
 
-Complete one bounded `project_governance` rework round that repairs the four remaining truth-chain defects found by the independent audit of `round_20260716_closeout_order_provenance_rework_v1`:
+Complete the Architecture Spine trusted-execution cutover without adding another governance layer.
 
-1. current command authority was generated after substantive execution had already started;
-2. the Required Audit body used repeated generic templates instead of item-specific observed facts;
-3. the final round manifest changed after final-check and post-final context sync, leaving the final live evidence unsealed;
-4. the report claimed publication did not occur even though a later remote commit placed the round output on `main`.
-
-Establish the following controlled lifecycle:
+The required chain is:
 
 ```text
-startup status
-→ decision-lint
-→ gate-profile
-→ current command-plan generation
-→ command-plan digest lock
-→ startup snapshot and round baseline
-→ implementation and tests
-→ report and closeout evidence generation
-→ report finalization
-→ final archive refresh
-→ final-check
-→ post-final context sync
-→ state-manifest refresh
-→ terminal final-evidence seal
-→ optional controlled branch publication
-→ optional publication receipt
+active Decision
+→ deterministic current command plan
+→ TrustedExecutionContext
+→ authorize-before-execute
+→ trusted runner
+→ atomic current-round evidence journal
+→ command-local mutation delta
+→ authenticity and mutation reconciliation
+→ current LOCAL_RECONCILED seal
+→ current subject-bound report
+→ independent exact-head publication seal
 ```
 
-The final-evidence seal must use a non-self-referential terminal boundary. It may bind a pre-seal transcript/event-chain prefix plus a terminal seal event, but it must not claim a whole-file digest that becomes invalid merely because the seal command itself is recorded.
+The implementation at `70dd217b381d106085bce51857be5e8abdd2fa86` is retained as the starting point. Only the defects listed in `docs/roadmap/architecture_spine_trusted_execution_cutover_rework_v1.md` may be repaired.
 
-## 2. Current Evidence
+---
 
-- Current task authority is `project_state/decision_packet.md`; `project_state/task_packet.json` remains background only.
-- Current mainline is `project_governance`.
-- The previous independent audit outcome is `REWORK_REQUIRED`.
-- The previous report, pytest result, command-plan, execution log, final gate, context packet, state manifest, and round archive all carry the previous round IDs and are evidence inputs only for this rework.
-- The previous round passed its selected test suite with `1542 passed`, so this is not a general test-failure round.
-- The previous `execution_log.json` preserves an observed outer order in which `run-closeout` occurred before the current command-plan was generated. The command-plan therefore acted as retrospective coverage evidence rather than proven pre-execution authority.
-- The previous `run_closeout_result.json` also executed pytest before generating command-plan evidence.
-- The previous Required Audit body repeated substantially identical Evidence and Answer text across unrelated questions. Presence of 48 headings did not prove item-specific audit quality.
-- The previous final gate was generated at `2026-07-16T12:40:10.684722Z`; the post-final context packet was generated at `2026-07-16T12:40:10.799950Z`; the current previous-round manifest records a later `archive_refreshed_at` of `2026-07-16T12:40:11.116119Z`. The final live manifest therefore changed after the artifacts that claimed to validate and synchronize it.
-- The previous report classified publication as not performed and local-only, but repository commit `59b508fb8893dd0fc6e2e2b62a7a91482b294e42` contains the previous round output on `main`. The actor cannot be attributed from current project_state evidence, so the correct historical classification is `UNATTRIBUTED_REMOTE_MUTATION`, not proof of a particular Agent violation.
-- Existing foundations must be reused: decision-lint, gate-profile, command-plan, execution-log synthesis, report-summary synthesis, run-closeout, close-round archive, final-check, state-manifest freshness, context builder, post-final sync, policy-lint, and prompt-consistency.
-- `reverse_agent/project_runner_contract.py` remains a non-dispatching foundation. This round must not claim automated Runner publication support.
-- The known Skill compatibility/drift issue is real but out of scope. `.codex-skills/*` is read-only in this round and must be handled by a later independent decision.
-- Missing reverse-solving artifacts and legacy negative-result scope metadata are non-blocking for this governance round.
-- No reverse tool, model API, Web runtime, database, cleanup apply, Scheduler, multi-workstream implementation, or automated Runner dispatch is authorized.
-- Closeout and publication are allowed only after the current command-plan exists, its digest is locked, and all required validation passes.
+## 2. Bootstrap Phase
 
-## 3. Do Not Do
+Use the bootstrap exception only to:
+
+1. make all command fields round-trip through generator and committed plan;
+2. enforce globally unique command IDs;
+3. add the missing `tests/test_provenance_integration.py`;
+4. implement `TrustedExecutionContext.from_state_dir()`;
+5. implement authorize-before-execute checks;
+6. make the evidence journal cross-round safe, locked, monotonic and atomic;
+7. invalidate all previous-round evidence as completion evidence;
+8. generate this Decision's command plan and preflight result.
+
+After bootstrap expiry, no command may execute outside the production trusted-runner path.
+
+---
+
+## 3. Normal Implementation
+
+After transition-lint and pre-execution authorization pass:
+
+1. remove production plan injection;
+2. bind command ID to execution surface;
+3. remove transition command-string fallback;
+4. compute command-local pre/post mutation delta;
+5. distinguish runner-managed evidence writes from subprocess mutations;
+6. change path-risk handling from automatic blocking to classification plus explicit active-Decision authorization;
+7. check reference read-only status against every observed mutation;
+8. wire report subject binding into the real transition-report command;
+9. run every required command through the trusted runner;
+10. produce a current-round evidence bundle and local seal;
+11. push once and stop for independent audit.
+
+---
+
+## 4. Evidence Rules
+
+A current-round execution record is acceptable only when:
+
+```text
+decision_id matches active Decision
+round_id matches active round
+plan_digest matches current deterministic plan
+command_id is globally unique and present
+execution surface matches
+raw evidence exists
+digests match raw bytes
+timestamps are real and monotonic
+Git objects exist
+bootstrap timing is valid
+sequence is unique and monotonic
+mutation delta is command-local
+```
+
+Records from previous Decisions must be rejected, not rewritten or re-labeled.
+
+---
+
+## 5. Do Not Do
 
 Do not:
 
-- modify `.codex-skills/*`, `.github/workflows/*`, frontend, Runner, Job, User Solve, solver, harness, sample, or reverse-tool code;
-- implement Skill Compatibility Gate, Goal/Plan/Task contracts, Scheduler, multi-workstream namespaces, Code Review Plane, LangGraph, databases, queues, or real Runner dispatch;
-- modify `task_packet.json`, `current_state.json`, `artifact_index.json`, `negative_results.json`, `workstreams.json`, or domain/job/session state;
-- read the full `solve_reports/` tree or `PROJECT_PROGRESS_LOG.txt`;
-- run runtime reverse probes, debuggers, emulators, hooks, or model APIs;
-- execute pytest, implementation, run-closeout, close-round, or publication commands before the current command-plan and digest lock exist;
-- generate command-plan after substantive commands and use it to retroactively authorize them;
-- replace the command-plan during execution without recording an explicit invalidation and restart;
-- reorder transcript or execution-log entries to match planned order;
-- accept repeated generic Required Audit answers such as “the listed fields prove this item”;
-- infer `NOT_PERFORMED` from absence of local publication commands when no external repository observation exists;
-- claim that a specific Agent performed the previous unattributed remote mutation;
-- create a self-referential seal that embeds its own whole-file digest;
-- modify any sealed artifact after the terminal seal;
-- push directly to `main`;
-- force-push, merge, rebase, tag, edit workflows or secrets, or delete remote branches;
-- create a new branch per commit;
-- use `git add -A` or stage unrelated files;
-- publish before validation or execute publication commands absent from command-plan.
+- alter this Decision after activation;
+- add another governance abstraction or workflow runtime;
+- modify GitHub workflows or dependencies;
+- weaken transition-lint, path scope, mutation grants or capability policy;
+- install BMAD;
+- dispatch Agents or call model APIs;
+- execute binaries or reverse tools;
+- modify frontend, User Solve or reverse-solving business logic;
+- modify unrelated legacy closeout systems;
+- create another branch or PR;
+- push directly to main;
+- merge, rebase, force-push, tag or release;
+- begin Evidence Trust Schema or Binary Evidence Firewall work.
 
-## 4. Files To Inspect
+---
 
-Required current and previous-round evidence:
+## 6. Completion Criteria
 
-- `project_state/decision_packet.md`
-- `project_state/codex_execution_report.md`
-- `project_state/execution_report.md`
-- `project_state/pytest_result.txt`
-- `project_state/state_manifest.json`
-- `project_state/context/current_context_packet.json`
-- `project_state/gates/command_plan.json`
-- `project_state/gates/gate_profile_plan.json`
-- `project_state/gates/preflight_result.json`
-- `project_state/gates/execution_log.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/run_closeout_result.json`
-- `project_state/gates/run_closeout_execution_log.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/post_final_evidence_sync_result.json`
-- `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/round_manifest.json`
-- `project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/codex_execution_report.md`
-- `project_state/rounds/round_20260716_closeout_order_provenance_rework_v1/pytest_result.txt`
-- `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py`
-- `tests/test_project_gate.py`
-- `tests/test_project_reports.py`
-- `tests/test_project_state.py`
-- `.codex-skills/registry.json`
+Recommend `ACCEPTED` only if:
 
-Read-only context:
+1. committed plan exactly equals the active Decision projection;
+2. all required test files exist;
+3. transition-lint and preflight pass;
+4. production runner loads authority from state_dir and rejects injected plans;
+5. authorization occurs before subprocess execution;
+6. the journal is current-round only, atomic and locked;
+7. mutation attribution uses before/after delta;
+8. command IDs are unique and no string fallback exists;
+9. path risk is correctly classified and authorized by the active Decision;
+10. reference paths remain read-only across all mutations;
+11. every required command has authentic current evidence;
+12. reconciliation is `RECONCILED`;
+13. local seal is `LOCAL_RECONCILED` for this Decision;
+14. reports bind the real implementation subject;
+15. exact-head CI, State Gate and Decision Preflight all succeed;
+16. the independent PR publication seal binds exact HEAD and run IDs;
+17. PR #9 remains Draft and unmerged.
 
-- `.codex-skills/reverse-agent-iteration/SKILL.md`
-- `reverse_agent/project_runner_contract.py`
-- `git log --oneline --decorate -n 20`
-- `git status --short`
-- remote branch and PR metadata only when publication is actually attempted or externally observed.
+Otherwise the result remains `REWORK_REQUIRED`.
 
-Do not inspect unrelated source trees unless a failing required test identifies an in-scope dependency and a Stop Condition is not triggered.
-
-## 5. Required Audit
-
-The final execution report must answer every item below separately. Each answer must identify the relevant artifact path, field name, observed value, and conclusion. Reusing one generic answer across unrelated items is not acceptable.
-
-1. Is `decision_meta` valid JSON with the exact current decision and round IDs?
-2. Is status `APPROVED`, mainline `project_governance`, and `reverse-agent-iteration@v2` active in registry?
-3. Is `decision_packet.md` the sole current task authority and `task_packet.json` background only?
-4. Is the previous audit outcome recorded as `REWORK_REQUIRED`?
-5. Was the previous remote mutation classified as `UNATTRIBUTED_REMOTE_MUTATION` without assigning an unsupported actor?
-6. Was the current gate profile generated before command-plan?
-7. Was the current command-plan generated before every substantive implementation, pytest, closeout, or publication command?
-8. Does the command-plan carry the exact current decision ID and round ID?
-9. Was a canonical command-plan digest locked before substantive execution?
-10. Did the locked command-plan remain unchanged, or was any invalidation followed by an explicit restart from startup?
-11. Does every executed command appear in the locked command-plan or an explicitly permitted startup/status set?
-12. Were all omitted commands withheld?
-13. Does `pytest_result.txt` preserve actual observed order?
-14. Does `execution_log.json` preserve the same chronology without reordering?
-15. Does `run-closeout` reject or restart when no current locked command-plan exists?
-16. Do Required Audit answers contain item-specific paths, fields, observed values, and conclusions?
-17. Are duplicate or normalized-template audit answers absent except where the underlying question is genuinely identical?
-18. Do questions about IDs, statuses, timestamps, digests, commands, and paths include the corresponding concrete values?
-19. Do the final report aliases and report summaries agree semantically?
-20. Is stable run-closeout evidence generated before report finalization?
-21. Does report finalization bind the current run-closeout path, digest, generated time, and status?
-22. Does final archive refresh occur after report finalization?
-23. Do archived and live report and pytest aliases match at the archive boundary?
-24. Is final-check generated after the final archive refresh it validates?
-25. Is post-final context sync generated after the final gate state it references?
-26. Is state-manifest refreshed after all sealed current artifacts reach their final pre-seal state?
-27. Is `final_evidence_seal.json` generated after final-check, context sync, state-manifest refresh, and final archive refresh?
-28. Does the seal bind the required artifact digests and the non-self-referential transcript/event-chain boundary?
-29. Does the execution log end with a valid terminal seal event linked to the pre-seal chain head?
-30. Does the pytest transcript contain no command after the permitted terminal seal block?
-31. Were any sealed artifacts modified after the seal?
-32. Does final-check or seal verification fail when any sealed digest, timestamp ordering, or terminal boundary is altered?
-33. Does publication truth distinguish `NOT_OBSERVED` from `NOT_PERFORMED`?
-34. If publication was performed, does the receipt record the allowed branch, base branch, implementation commit SHA, status, timestamp, and Draft PR metadata when available?
-35. If publication was not externally observed, does the report avoid claiming that no remote mutation occurred?
-36. Were direct push to `main`, force push, merge, rebase, tag, workflow mutation, secret mutation, remote branch deletion, and `git add -A` avoided?
-37. Were only explicitly allowed source, test, state, and publication-receipt paths modified?
-38. Were Skill files, CI workflows, Runner, frontend, User Solve, reverse-solving, databases, and other mainlines left untouched?
-39. Did the selected pytest command pass and cover every changed test file?
-40. Do final-check, run-closeout, close-round, final seal, reports, context, state manifest, and round manifest agree on the final recommendation?
-
-## 6. Implementation Scope
-
-### 6.1 Pre-execution command authority
-
-Strengthen existing command-plan handling; do not create a second command system.
-
-Required lifecycle:
-
-```text
-startup status
-→ decision-lint
-→ gate-profile
-→ command-plan
-→ command-plan --json
-→ command-plan digest lock
-→ startup snapshot
-→ round baseline
-→ substantive execution
-```
-
-Implement or validate structured fields equivalent to:
-
-```text
-command_plan_path
-command_plan_sha256
-command_plan_generated_at
-command_plan_locked_at
-command_plan_lock_status
-command_plan_decision_id
-command_plan_round_id
-first_substantive_command_at
-```
-
-Hard-fail when:
-
-- a substantive command precedes the current plan lock;
-- `run-closeout` begins before plan lock;
-- pytest occurs before plan lock;
-- the plan digest changes after lock without explicit invalidation and restart;
-- a later plan is used to retroactively authorize earlier commands.
-
-Startup path checks and read-only Git status commands may remain outside command-plan only if they are explicitly classified as the fixed startup set.
-
-### 6.2 Required Audit semantic specificity
-
-Extend the existing report/final-check validation instead of creating a separate report framework.
-
-For every Required Audit item require:
-
-```text
-question_number
-artifact_path
-field_name_or_observation
-observed_value
-status
-item_specific_answer
-```
-
-Reject:
-
-- empty or placeholder answers;
-- answers that merely restate the question;
-- generic phrases that refer to an undifferentiated evidence list;
-- normalized duplicate answers across unrelated questions;
-- answers to ID/status/time/digest/path questions that omit the concrete value;
-- evidence lists dominated by unrelated artifacts.
-
-Legacy reports remain readable, but current decisions with `required_audit_semantic_specificity_required=true` must use the strict policy.
-
-### 6.3 Terminal final-evidence seal
-
-Add or strengthen a terminal artifact such as:
-
-```text
-project_state/gates/final_evidence_seal.json
-```
-
-The seal must bind at least:
-
-```text
-decision_id
-round_id
-report_id
-sealed_at
-final_gate_path and sha256
-run_closeout_path and sha256
-context_packet_path and sha256
-state_manifest_path and sha256
-round_manifest_path and sha256
-live_report_path and sha256
-archived_report_path and sha256
-live_pytest_path and archive parity evidence
-report_summary_path and sha256
-command_plan_path and locked sha256
-execution_event_chain_head_before_seal
-pytest_transcript_prefix_sha256
-seal_status
-```
-
-Avoid self-reference by using an explicit terminal boundary:
-
-- the seal binds the execution event-chain head before the terminal seal event;
-- the terminal execution event records the seal digest and previous chain head;
-- the pytest transcript may append only one terminal seal command block after the sealed prefix;
-- no substantive or lifecycle-mutating command may follow that block;
-- no artifact listed in `sealed_artifacts` may change after seal generation.
-
-Publication-receipt artifacts may be explicitly outside `sealed_artifacts`, but they must not modify any sealed artifact or retroactively alter the accepted closeout facts.
-
-### 6.4 Publication truth and receipt
-
-Use truthful observation scopes:
-
-```text
-NOT_OBSERVED: local evidence cannot determine whether external publication occurred
-NOT_PERFORMED: both local execution and required external observation prove no publication occurred
-PUSHED: the allowed branch was pushed
-DRAFT_PR_OPENED: the allowed branch was pushed and a Draft PR was opened
-FAILED: publication was attempted but did not complete
-```
-
-Add or validate an artifact equivalent to:
-
-```text
-project_state/gates/publication_result.json
-```
-
-When publication is performed, record:
-
-```text
-publication_status
-observation_scope
-branch
-base_branch
-implementation_commit_sha
-published_at
-push_result
-pr_number
-pr_url
-pr_state
-command_plan_authorization
-receipt_parent_sha
-```
-
-A publication receipt may be committed in a later commit on the same short-lived branch. It must describe the implementation commit and PR observation without attempting to embed the receipt commit's own SHA.
-
-The execution Agent may publish only through:
-
-```text
-agent/closeout-final-seal-publication-truth-rework-v2
-→ Draft PR
-→ main
-```
-
-The Agent may create multiple intentional commits on that same branch. It must not create a new branch per commit and must not merge the PR.
-
-### 6.5 Compatibility and bounded scope
-
-- Preserve existing CLI names and public artifact fields unless an additive field or strict-mode check is required.
-- Keep legacy artifacts readable.
-- Reuse existing gate, report, archive, context, and state-manifest mechanisms.
-- Do not migrate unrelated project_state files.
-- Do not modify Skill files even though their compatibility issue is known.
-- Generated artifacts are limited to current gate/report/context/state-manifest files, current round archive, final seal, and publication receipt.
-
-## 7. Tests
-
-Generate and lock the current command-plan before running substantive tests. The selected command must include at least:
-
-```text
-python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_state.py -q
-```
-
-A broader command-plan-selected regression command may include the existing control-plane, context, and state-manifest suites, but it must remain within current authority.
-
-Add regression coverage for all of the following:
-
-1. pytest before command-plan lock fails.
-2. run-closeout before command-plan lock fails.
-3. a later command-plan cannot retroactively authorize earlier commands.
-4. command-plan digest change after lock fails unless the round explicitly restarts.
-5. execution-log and transcript preserve actual chronology.
-6. repeated generic Required Audit answers fail strict validation.
-7. an answer that lacks the concrete requested ID, status, timestamp, digest, command, or path fails.
-8. item-specific answers with concrete observed values pass.
-9. final archive refresh after final-check fails terminal ordering.
-10. context sync before the final gate it references fails.
-11. state-manifest or round-manifest mutation after seal fails.
-12. any sealed artifact digest mismatch fails.
-13. invalid execution event-chain terminal linkage fails.
-14. a substantive command after the terminal seal transcript block fails.
-15. the seal does not require or embed its own whole-file digest.
-16. `NOT_OBSERVED` is not treated as `NOT_PERFORMED`.
-17. external publication uncertainty cannot be reported as proof of no remote mutation.
-18. publication on any branch other than the allowed branch fails.
-19. direct push to `main`, force push, merge, rebase, tag mutation, workflow mutation, secret mutation, remote branch deletion, and `git add -A` remain prohibited.
-20. a valid controlled branch push and Draft PR receipt is accepted when exact commands are authorized.
-21. the previous unattributed remote mutation is reported without unsupported actor attribution.
-22. existing state-manifest freshness, report alias parity, archive parity, and post-final context sync tests remain passing.
-23. existing legacy artifacts remain readable.
-24. the correct complete lifecycle passes.
-
-Required generated evidence:
-
-- `project_state/pytest_result.txt`
-- `project_state/codex_execution_report.md`
-- `project_state/execution_report.md`
-- current `project_state/gates/*.json` required by the selected profile
-- `project_state/gates/final_evidence_seal.json`
-- `project_state/gates/publication_result.json` when publication is attempted or externally observed
-- `project_state/rounds/round_20260716_closeout_final_seal_and_publication_truth_rework_v2/round_manifest.json`
-- final archived report and pytest aliases for the current round.
-
-## 8. Stop Conditions
-
-Stop implementation and report `BLOCKED` or `REWORK_REQUIRED` as appropriate if:
-
-- `decision-lint`, gate-profile, command-plan generation, or command-plan lock cannot validate the current decision and round;
-- substantive execution has already occurred before current plan lock and cannot be discarded by a clean explicit restart;
-- completing the fix requires modifying a forbidden path;
-- completing the fix requires changing Skill files, workflows, Runner contracts, Job schemas, frontend, User Solve, reverse-solving, databases, or another mainline;
-- strict Required Audit validation cannot distinguish item-specific evidence from repeated templates;
-- the final seal requires a self-referential digest cycle that is not resolved by the approved terminal-boundary design;
-- any sealed artifact must be modified after seal generation;
-- transcript, execution log, final gate, context, state manifest, round manifest, reports, or seal disagree;
-- required tests fail;
-- final-check, closeout, archive parity, context sync, state-manifest freshness, or seal verification fails;
-- publication is requested but exact publication commands are absent from command-plan;
-- publication credentials are unavailable;
-- the named branch cannot be created or reused without force push, rebase, or overwriting unrelated work;
-- the working tree contains unrelated changes that cannot be excluded from explicit staging;
-- publication would require direct push to `main`, merge, workflow mutation, secret mutation, or another prohibited action.
-
-Do not expand scope to solve a Stop Condition. Record the blocker in the execution report and preserve current execution evidence. Do not start Skill Compatibility Gate or multi-workstream planning until this rework is independently accepted.
+After acceptance, stop Architecture Spine governance repair and hand off to a separately authorized product phase.

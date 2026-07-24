@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "gate_name": "transition-preflight",
+  "gate_status": "PRE_EXECUTION_AUTHORIZED",
+  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "checks": [
+    {
+      "name": "decision_identity",
+      "status": "PASS",
+      "detail": "observed=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1 expected=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
+    },
+    {
+      "name": "round_identity",
+      "status": "PASS",
+      "detail": "observed=round_20260721_architecture_spine_trusted_execution_cutover_rework_v1 expected=round_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
+    },
+    {
+      "name": "decision_approved",
+      "status": "PASS",
+      "detail": "status=APPROVED"
+    },
+    {
+      "name": "active_skills",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "name": "legal_mainline",
+      "status": "PASS",
+      "detail": "mainline=engineering_branch"
+    },
+    {
+      "name": "branch_identity",
+      "status": "PASS",
+      "detail": "observed=codex/architecture-spine-v1 expected=codex/architecture-spine-v1"
+    },
+    {
+      "name": "base_ancestry",
+      "status": "PASS",
+      "detail": "base=54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f merge_base=54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f"
+    },
+    {
+      "name": "decision_ancestry",
+      "status": "PASS",
+      "detail": "decision_commit=8a5cb389dc218ae63de9cc68cd88a18baf985d4c"
+    },
+    {
+      "name": "command_plan_identity",
+      "status": "PASS",
+      "detail": "plan=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1/round_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
+    },
+    {
+      "name": "command_plan_contract",
+      "status": "PASS",
+      "detail": "errors=[]"
+    },
+    {
+      "name": "allowed_path_scope",
+      "status": "PASS",
+      "detail": "outside=[]"
+    },
+    {
+      "name": "forbidden_paths",
+      "status": "PASS",
+      "detail": "forbidden=[]"
+    },
+    {
+      "name": "reference_paths_read_only",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "mutation_grants_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "capability_policy_enforced",
+      "status": "PASS",
+      "detail": "forbidden=[]"
+    },
+    {
+      "name": "network_policy_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "path_risk_floor_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "execution_evidence_present",
+      "status": "PASS",
+      "detail": "pre_execution_mode_no_evidence_required"
+    }
+  ],
+  "blocking_reasons": []
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transition_command_plan.schema.json",
+  "title": "Transition Command Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "decision_id", "round_id", "commands"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "decision_id": {"type": "string", "minLength": 1},
+    "round_id": {"type": "string", "minLength": 1},
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "phase", "required", "expected_exit_codes", "execution_surface"],
+        "properties": {
+          "command": {"type": "string", "minLength": 1},
+          "phase": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"},
+          "expected_exit_codes": {"type": "array", "items": {"type": "integer"}, "minItems": 1, "uniqueItems": true},
+          "execution_surface": {"enum": ["local", "ci_only"]}
+        }
+      }
+    }
+  }
+}

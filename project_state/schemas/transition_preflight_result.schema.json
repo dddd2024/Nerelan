@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transition_preflight_result.schema.json",
+  "title": "Transition Preflight Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "gate_name", "gate_status", "decision_id", "round_id", "checks", "blocking_reasons"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "gate_name": {"const": "transition-preflight"},
+    "gate_status": {"enum": ["PASSED", "BLOCKED"]},
+    "decision_id": {"type": "string", "minLength": 1},
+    "round_id": {"type": "string", "minLength": 1},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status", "detail"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "status": {"enum": ["PASS", "FAIL"]},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "blocking_reasons": {"type": "array", "items": {"type": "string"}}
+  }
+}

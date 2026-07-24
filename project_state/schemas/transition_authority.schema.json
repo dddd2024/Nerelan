@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "transition_authority.schema.json",
+  "title": "Transition Authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision",
+    "command_plan",
+    "expected_decision_id",
+    "expected_round_id",
+    "active_skills",
+    "legal_mainlines",
+    "expected_branch",
+    "actual_branch",
+    "base_sha",
+    "merge_base_sha",
+    "decision_commit_sha",
+    "decision_is_ancestor",
+    "observed_paths",
+    "allowed_paths",
+    "forbidden_paths",
+    "forbidden_operations"
+  ],
+  "properties": {
+    "decision": {"$ref": "#/$defs/decision"},
+    "command_plan": {"$ref": "transition_command_plan.schema.json"},
+    "expected_decision_id": {"type": "string", "minLength": 1},
+    "expected_round_id": {"type": "string", "minLength": 1},
+    "active_skills": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "legal_mainlines": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "expected_branch": {"type": "string", "minLength": 1},
+    "actual_branch": {"type": "string", "minLength": 1},
+    "base_sha": {"type": "string", "minLength": 7},
+    "merge_base_sha": {"type": "string", "minLength": 7},
+    "decision_commit_sha": {"type": "string", "minLength": 7},
+    "decision_is_ancestor": {"type": "boolean"},
+    "observed_paths": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "allowed_paths": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "forbidden_paths": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "forbidden_operations": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id", "round_id", "status", "mainline", "skill_profiles"],
+      "properties": {
+        "decision_id": {"type": "string", "minLength": 1},
+        "round_id": {"type": "string", "minLength": 1},
+        "status": {"const": "APPROVED"},
+        "mainline": {"type": "string", "minLength": 1},
+        "skill_profiles": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true}
+      }
+    }
+  }
+}
