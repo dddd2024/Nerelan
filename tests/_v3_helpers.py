@@ -121,11 +121,17 @@ def make_attestation(
     }
 
 
+def _workflow_file_for(name: str) -> str:
+    """Derive the workflow file path from a workflow name (matches make_fake_verifier)."""
+    slug = name.lower().replace(" ", "_").replace("(", "").replace(")", "")
+    return f".github/workflows/{slug}.yml"
+
+
 def make_workflow_observation(
     *,
     name: str = "CI",
     run_id: int = 1001,
-    workflow_file: str = ".github/workflows/ci.yml",
+    workflow_file: str | None = None,
     event: str = "pull_request",
     run_attempt: int = 1,
     conclusion: str = "success",
@@ -134,7 +140,7 @@ def make_workflow_observation(
     return {
         "name": name,
         "run_id": run_id,
-        "workflow_file": workflow_file,
+        "workflow_file": workflow_file or _workflow_file_for(name),
         "event": event,
         "run_attempt": run_attempt,
         "conclusion": conclusion,
@@ -272,7 +278,7 @@ def make_fake_verifier(
             "run_id": run_id,
             "name": name,
             "head_sha": head_sha,
-            "workflow_file": f".github/workflows/{name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.yml",
+            "workflow_file": _workflow_file_for(name),
             "event": "pull_request",
             "run_attempt": 1,
             "conclusion": "success",

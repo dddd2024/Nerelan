@@ -36095,6 +36095,435 @@ def _git_show_tree(repo_root: Path, tree_ish: str, path: str) -> str | None:
     return result.stdout
 
 
+# ---------------------------------------------------------------------------
+# v3 exact-head external merge approval (Issue #23)
+# ---------------------------------------------------------------------------
+
+_V3_MERGE_INTENT_PATH = "project_state/mainline_merge_intents/active.json"
+_V3_ALLOWED_APPROVERS = ("dddd2024",)
+_V3_REQUIRED_WORKFLOWS = (
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)",
+    "State Gate (push)",
+)
+
+
+def _load_v3_schema(state_dir: Path, name: str) -> dict[str, Any]:
+    schema_path = state_dir / "schemas" / name
+    return _read_json(schema_path)
+
+
+def _validate_jsonschema(data: dict[str, Any], schema: dict[str, Any]) -> list[str]:
+    try:
+        import jsonschema
+        jsonschema.validate(instance=data, schema=schema)
+        return []
+    except Exception as exc:
+        return [f"schema_invalid:{exc}"]
+
+
+def validate_merge_intent(
+    *,
+    intent: dict[str, Any],
+    expected_base_sha: str | None = None,
+    expected_decision_id: str | None = None,
+    state_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Validate a committed MergeIntent artifact (v3 architecture A)."""
+
+    reasons: list[str] = []
+    checks: list[dict[str, Any]] = []
+
+    if state_dir is not None:
+        schema = _load_v3_schema(state_dir, "merge_intent.schema.json")
+        schema_errors = _validate_jsonschema(intent, schema)
+        checks.append({
+            "name": "schema_valid",
+            "status": "PASS" if not schema_errors else "FAIL",
+        })
+        reasons.extend(schema_errors)
+
+    locked = intent.get("locked_base_sha", "")
+    if expected_base_sha is not None and locked != expected_base_sha:
+        reasons.append(f"locked_base_sha_mismatch:{locked}!={expected_base_sha}")
+        checks.append({"name": "locked_base_sha", "status": "FAIL"})
+    else:
+        checks.append({"name": "locked_base_sha", "status": "PASS"})
+
+    decision_id = intent.get("decision_identity", {}).get("decision_id", "")
+    if expected_decision_id is not None and decision_id != expected_decision_id:
+        reasons.append(f"decision_id_mismatch:{decision_id}!={expected_decision_id}")
+        checks.append({"name": "decision_identity", "status": "FAIL"})
+    else:
+        checks.append({"name": "decision_identity", "status": "PASS"})
+
+    return {"valid": not reasons, "reasons": reasons, "checks": checks}
+
+
+def validate_external_attestation(
+    *,
+    attestation: dict[str, Any],
+    verifier: Any,
+    validation_time: str | None = None,
+    state_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Validate an external MergeApprovalAttestation (v3 architecture B).
+
+    Uses the ``verifier`` to prove every workflow run and PR approval fact
+    against the GitHub API.  Hermetic tests inject a fake verifier.
+    """
+
+    reasons: list[str] = []
+    checks: list[dict[str, Any]] = []
+
+    # Schema validation
+    if state_dir is not None:
+        schema = _load_v3_schema(state_dir, "merge_approval_attestation.schema.json")
+        schema_errors = _validate_jsonschema(attestation, schema)
+        checks.append({
+            "name": "schema_valid",
+            "status": "PASS" if not schema_errors else "FAIL",
+        })
+        reasons.extend(schema_errors)
+        if schema_errors:
+            return {"valid": False, "reasons": reasons, "checks": checks}
+
+    accepted_head = attestation.get("accepted_exact_head_sha", "")
+    locked_base = attestation.get("locked_base_sha", "")
+    source_pr = attestation.get("source_pr", 0)
+
+    # Authorization status
+    status = attestation.get("authorization_status", "")
+    if status != "active":
+        reasons.append(f"authorization_status_not_active:{status}")
+        checks.append({"name": "authorization_status", "status": "FAIL"})
+    else:
+        checks.append({"name": "authorization_status", "status": "PASS"})
+
+    # Supersession
+    superseded_by = attestation.get("superseded_by")
+    if superseded_by:
+        reasons.append(f"superseded_by:{superseded_by}")
+        checks.append({"name": "superseded", "status": "FAIL"})
+    else:
+        checks.append({"name": "superseded", "status": "PASS"})
+
+    # Expiry
+    expires_at = attestation.get("expires_at")
+    if expires_at and validation_time and expires_at <= validation_time:
+        reasons.append(f"expired:{expires_at}<={validation_time}")
+        checks.append({"name": "expiry", "status": "FAIL"})
+    else:
+        checks.append({"name": "expiry", "status": "PASS"})
+
+    # Workflow observations
+    observations = attestation.get("workflow_observations", [])
+
+    # Required workflow coverage: every required workflow name must have at
+    # least one observation.  An attestation that omits a required workflow
+    # observation is incomplete and must be rejected even if every present
+    # observation verifies successfully.
+    observed_names = {obs.get("name", "") for obs in observations}
+    missing_workflows = [
+        name for name in _V3_REQUIRED_WORKFLOWS if name not in observed_names
+    ]
+    if missing_workflows:
+        reasons.append(f"missing_required_workflow_observations:{','.join(missing_workflows)}")
+        checks.append({
+            "name": "required_workflow_coverage",
+            "status": "FAIL",
+            "missing": missing_workflows,
+        })
+    else:
+        checks.append({"name": "required_workflow_coverage", "status": "PASS"})
+
+    for obs in observations:
+        obs_head = obs.get("head_sha", "")
+        if obs_head != accepted_head:
+            reasons.append(f"observation_head_mismatch:{obs.get('name')}:{obs_head}!={accepted_head}")
+            checks.append({"name": f"observation_binding:{obs.get('name')}", "status": "FAIL"})
+            continue
+
+        run_result = verifier.verify_workflow_run(
+            run_id=obs.get("run_id", 0),
+            expected_head_sha=accepted_head,
+            expected_workflow_file=obs.get("workflow_file", ""),
+            expected_event=obs.get("event", ""),
+            expected_conclusion=obs.get("conclusion", "success"),
+        )
+        if not run_result.get("verified"):
+            reasons.append(f"workflow_run_not_verified:{obs.get('name')}:{run_result.get('reason', '')}")
+            checks.append({"name": f"workflow_run:{obs.get('name')}", "status": "FAIL"})
+        else:
+            # Verify run_attempt matches (the verifier may not check this)
+            run_data = run_result.get("run", {})
+            expected_attempt = obs.get("run_attempt", 1)
+            actual_attempt = run_data.get("run_attempt", 1)
+            if expected_attempt != actual_attempt:
+                reasons.append(f"run_attempt_mismatch:{obs.get('name')}:{expected_attempt}!={actual_attempt}")
+                checks.append({"name": f"run_attempt:{obs.get('name')}", "status": "FAIL"})
+            else:
+                checks.append({"name": f"workflow_run:{obs.get('name')}", "status": "PASS"})
+
+    # PR verification
+    pr_result = verifier.verify_pr(
+        pr_number=source_pr,
+        expected_head_sha=accepted_head,
+        expected_base_sha=locked_base,
+    )
+    if not pr_result.get("verified"):
+        reasons.append(f"pr_not_verified:{pr_result.get('reason', '')}")
+        checks.append({"name": "pr_binding", "status": "FAIL"})
+    else:
+        checks.append({"name": "pr_binding", "status": "PASS"})
+
+    # Approval verification
+    approval = attestation.get("human_r2_approval", {})
+    approval_ref = approval.get("approval_object_id", "")
+    merge_method = attestation.get("allowed_merge_method", "merge")
+    # Try to get merge method from the intent if attestation doesn't have it
+    if not merge_method or merge_method == "merge":
+        merge_method = "merge"
+
+    approval_result = verifier.verify_pr_approval(
+        pr_number=source_pr,
+        approval_reference=approval_ref,
+        expected_head_sha=accepted_head,
+        expected_base_sha=locked_base,
+        expected_merge_method=merge_method,
+        allowed_approvers=list(_V3_ALLOWED_APPROVERS),
+    )
+    if not approval_result.get("verified"):
+        reasons.append(f"approval_not_verified:{approval_result.get('reason', '')}")
+        checks.append({"name": "approval_binding", "status": "FAIL"})
+    else:
+        checks.append({"name": "approval_binding", "status": "PASS"})
+
+    return {"valid": not reasons, "reasons": reasons, "checks": checks}
+
+
+def _git_merge_parents(repo_root: Path, commit_sha: str) -> list[str]:
+    """Return the parent SHAs of a merge commit."""
+
+    result = subprocess.run(
+        ["git", "rev-list", "--parents", "-n", "1", commit_sha],
+        cwd=repo_root, capture_output=True, text=True, check=True,
+    )
+    parts = result.stdout.strip().split()
+    # parts[0] is the commit itself; the rest are parents
+    return parts[1:] if len(parts) > 1 else []
+
+
+def _git_tree_sha(repo_root: Path, commit_ish: str) -> str:
+    """Return the tree SHA of a commit-ish."""
+
+    return _transition_git(repo_root, "rev-parse", f"{commit_ish}^{{tree}}")
+
+
+def mainline_merge_validation(
+    *,
+    repo_root: Path,
+    state_dir: Path | None = None,
+    commit_sha: str | None = None,
+    attestation: dict[str, Any] | None = None,
+    verifier: Any | None = None,
+    validation_time: str | None = None,
+) -> dict[str, Any]:
+    """Validate a merge commit against the v3 three-object architecture.
+
+    Checks that:
+    1. The commit has exactly two parents (it is a merge commit).
+    2. The second parent equals ``attestation.accepted_exact_head_sha``.
+    3. The first parent equals ``attestation.locked_base_sha``.
+    4. A MergeIntent exists in the second parent's tree.
+    5. The MergeIntent's locked_base_sha and decision_identity are valid.
+    6. The attestation is verified by the RemoteAcceptanceVerifier.
+    7. The merge tree equals the accepted head tree (for
+       ``equal_to_accepted_head_tree`` policy).
+    """
+
+    if state_dir is None:
+        state_dir = repo_root / "project_state"
+    if commit_sha is None:
+        commit_sha = _transition_git(repo_root, "rev-parse", "HEAD")
+
+    checks: list[dict[str, Any]] = []
+    blocking_reasons: list[str] = []
+
+    # 1. Two parents
+    parents = _git_merge_parents(repo_root, commit_sha)
+    if len(parents) != 2:
+        blocking_reasons.append(f"not_two_parent_merge:{len(parents)}_parents")
+        checks.append({"name": "merge_structure", "status": "FAIL"})
+        return {
+            "gate_status": "BLOCKED",
+            "checks": checks,
+            "blocking_reasons": blocking_reasons,
+        }
+    checks.append({"name": "merge_structure", "status": "PASS"})
+
+    first_parent = parents[0]
+    second_parent = parents[1]
+
+    if attestation is None:
+        blocking_reasons.append("attestation_missing")
+        return {
+            "gate_status": "BLOCKED",
+            "checks": checks,
+            "blocking_reasons": blocking_reasons,
+        }
+
+    accepted_head = attestation.get("accepted_exact_head_sha", "")
+    locked_base = attestation.get("locked_base_sha", "")
+
+    # 2. Second parent == accepted_exact_head
+    if second_parent != accepted_head:
+        blocking_reasons.append(f"second_parent_mismatch:{second_parent}!={accepted_head}")
+        checks.append({"name": "second_parent_identity", "status": "FAIL"})
+    else:
+        checks.append({"name": "second_parent_identity", "status": "PASS"})
+
+    # 3. First parent == locked_base
+    if first_parent != locked_base:
+        blocking_reasons.append(f"first_parent_mismatch:{first_parent}!={locked_base}")
+        checks.append({"name": "first_parent_identity", "status": "FAIL"})
+    else:
+        checks.append({"name": "first_parent_identity", "status": "PASS"})
+
+    # 4. MergeIntent exists in second parent's tree
+    intent_text = _git_show_tree(repo_root, second_parent, _V3_MERGE_INTENT_PATH)
+    if intent_text is None:
+        blocking_reasons.append("merge_intent_not_found_in_second_parent")
+        checks.append({"name": "merge_intent_present", "status": "FAIL"})
+        intent = None
+    else:
+        checks.append({"name": "merge_intent_present", "status": "PASS"})
+        intent = json.loads(intent_text)
+
+    # 5. Validate MergeIntent
+    if intent is not None:
+        intent_result = validate_merge_intent(
+            intent=intent,
+            expected_base_sha=locked_base,
+            state_dir=state_dir,
+        )
+        if not intent_result["valid"]:
+            blocking_reasons.extend(intent_result["reasons"])
+            checks.append({"name": "merge_intent_valid", "status": "FAIL"})
+        else:
+            checks.append({"name": "merge_intent_valid", "status": "PASS"})
+
+        # Tree policy: merge tree == accepted head tree
+        policy = intent.get("merge_tree_policy", "equal_to_accepted_head_tree")
+        if policy == "equal_to_accepted_head_tree":
+            merge_tree = _git_tree_sha(repo_root, commit_sha)
+            head_tree = _git_tree_sha(repo_root, second_parent)
+            if merge_tree != head_tree:
+                blocking_reasons.append(f"merge_tree_mismatch:{merge_tree}!={head_tree}")
+                checks.append({"name": "merge_tree_policy", "status": "FAIL"})
+            else:
+                checks.append({"name": "merge_tree_policy", "status": "PASS"})
+        else:
+            checks.append({"name": "merge_tree_policy", "status": "PASS"})
+
+    # 6. Validate attestation with verifier
+    if verifier is not None:
+        attestation_result = validate_external_attestation(
+            attestation=attestation,
+            verifier=verifier,
+            validation_time=validation_time,
+            state_dir=state_dir,
+        )
+        if not attestation_result["valid"]:
+            blocking_reasons.extend(attestation_result["reasons"])
+            checks.append({"name": "attestation_verified", "status": "FAIL"})
+        else:
+            checks.append({"name": "attestation_verified", "status": "PASS"})
+    else:
+        blocking_reasons.append("verifier_missing")
+        checks.append({"name": "attestation_verified", "status": "FAIL"})
+
+    gate_status = "PASSED" if not blocking_reasons else "BLOCKED"
+    return {
+        "gate_status": gate_status,
+        "checks": checks,
+        "blocking_reasons": blocking_reasons,
+    }
+
+
+def emit_mainline_integration_receipt(
+    *,
+    repo_root: Path,
+    state_dir: Path | None = None,
+    merge_commit_sha: str | None = None,
+    attestation: dict[str, Any] | None = None,
+    verifier: Any | None = None,
+    validation_time: str | None = None,
+) -> dict[str, Any]:
+    """Emit a post-merge integration receipt (output only, v3 architecture C).
+
+    The receipt is NOT a prerequisite for ``mainline_merge_validation``.
+    It is produced after validation passes and does not create a new git
+    commit.
+    """
+
+    if state_dir is None:
+        state_dir = repo_root / "project_state"
+    if merge_commit_sha is None:
+        merge_commit_sha = _transition_git(repo_root, "rev-parse", "HEAD")
+
+    validation = mainline_merge_validation(
+        repo_root=repo_root,
+        state_dir=state_dir,
+        commit_sha=merge_commit_sha,
+        attestation=attestation,
+        verifier=verifier,
+        validation_time=validation_time,
+    )
+
+    validation_status = validation["gate_status"]
+    parents = _git_merge_parents(repo_root, merge_commit_sha)
+    first_parent = parents[0] if len(parents) >= 1 else ""
+    second_parent = parents[1] if len(parents) >= 2 else ""
+
+    accepted_head = attestation.get("accepted_exact_head_sha", "") if attestation else ""
+    locked_base = attestation.get("locked_base_sha", "") if attestation else ""
+
+    receipt: dict[str, Any] = {
+        "schema_version": 1,
+        "receipt_id": f"receipt_{merge_commit_sha[:12]}",
+        "receipt_status": "EMITTED" if validation_status == "PASSED" else "BLOCKED",
+        "validation_status": validation_status,
+        "merge_commit_sha": merge_commit_sha,
+        "first_parent_sha": first_parent,
+        "second_parent_sha": second_parent,
+        "accepted_head_sha": accepted_head,
+        "locked_base_sha": locked_base,
+        "merge_tree_sha": _git_tree_sha(repo_root, merge_commit_sha) if merge_commit_sha else "",
+        "accepted_head_tree_sha": _git_tree_sha(repo_root, second_parent) if second_parent else "",
+        "attestation_id": attestation.get("attestation_id", "") if attestation else "",
+        "intent_id": "",
+        "decision_identity": attestation.get("decision_identity", {}) if attestation else {},
+        "observation_references": attestation.get("workflow_observations", []) if attestation else [],
+        "blocking_reasons": validation["blocking_reasons"],
+        "emitted_at": validation_time or "",
+        "receipt_context_sha": _transition_git(repo_root, "rev-parse", "HEAD"),
+    }
+
+    # Try to read intent_id from the MergeIntent in the second parent
+    if second_parent:
+        intent_text = _git_show_tree(repo_root, second_parent, _V3_MERGE_INTENT_PATH)
+        if intent_text:
+            try:
+                intent = json.loads(intent_text)
+                receipt["intent_id"] = intent.get("intent_id", "")
+            except json.JSONDecodeError:
+                pass
+
+    return receipt
+
+
 def _active_transition_skills(repo_root: Path) -> tuple[str, ...]:
     registry = _read_json(repo_root / ".codex-skills" / "registry.json")
     skills = registry.get("skills") if isinstance(registry.get("skills"), dict) else {}
