@@ -36119,6 +36119,160 @@ def integration_baseline(
     }
 
 
+MAINLINE_RECEIPT_SCHEMA_NAME = "mainline_integration_receipt.schema.json"
+MAINLINE_RECEIPTS_DIR_NAME = "mainline_receipts"
+MAINLINE_REQUIRED_RUN_NAMES = (
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)",
+    "State Gate (push)",
+)
+
+
+def _mainline_receipt_digest(receipt: dict[str, Any]) -> str:
+    """Deterministic SHA-256 over the identity fields of a merge receipt."""
+
+    import hashlib
+
+    identity = json.dumps(
+        {
+            "source_pr": receipt.get("source_pr"),
+            "decision_identity": receipt.get("decision_identity"),
+            "base_sha": receipt.get("base_sha"),
+            "accepted_head_sha": receipt.get("accepted_head_sha"),
+            "merge_commit_sha": receipt.get("merge_commit_sha"),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(identity).hexdigest()
+
+
+def current_merge_validation(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Bind the current ``main`` HEAD to an accepted current-merge receipt.
+
+    The historical ``integration_baseline`` gate only proves the frozen PR #9
+    merge remains in ancestry.  This gate fail-closes when ``HEAD`` cannot be
+    tied to an accepted current merge receipt, so that a later unrelated commit
+    on ``main`` cannot pass merely because the old merge is still an ancestor
+    (Issue #20).
+    """
+
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    schema_path = state_dir / "schemas" / MAINLINE_RECEIPT_SCHEMA_NAME
+    receipts_dir = state_dir / MAINLINE_RECEIPTS_DIR_NAME
+
+    def check(name: str, passed: bool, detail: str) -> dict[str, str]:
+        return {"name": name, "status": "PASS" if passed else "FAIL", "detail": detail}
+
+    head_sha = _transition_git(repo_root, "rev-parse", "HEAD")
+
+    receipt_path = receipts_dir / f"{head_sha}.json"
+    if not receipt_path.exists():
+        return {
+            "schema_version": 1,
+            "gate_name": "current-merge-validation",
+            "gate_status": "BLOCKED",
+            "head_sha": head_sha,
+            "merge_commit_sha": "",
+            "accepted_head_sha": "",
+            "checks": [],
+            "blocking_reasons": [f"no_receipt_for_head:{head_sha}"],
+            "recommended_next_action": "commit_accepted_receipt_for_current_head",
+        }
+
+    try:
+        receipt = _read_json(receipt_path)
+        schema = _read_json(schema_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "schema_version": 1,
+            "gate_name": "current-merge-validation",
+            "gate_status": "BLOCKED",
+            "head_sha": head_sha,
+            "merge_commit_sha": "",
+            "accepted_head_sha": "",
+            "checks": [],
+            "blocking_reasons": [f"invalid_receipt_artifact:{exc}"],
+            "recommended_next_action": "repair_or_replace_invalid_receipt",
+        }
+
+    schema_errors = _json_schema_subset_errors(receipt, schema)
+    merge_commit = str(receipt.get("merge_commit_sha") or "")
+    accepted_head = str(receipt.get("accepted_head_sha") or "")
+    base_sha = str(receipt.get("base_sha") or "")
+    ordered_parents = receipt.get("ordered_parent_shas") or []
+    accepted_head_tree = str(receipt.get("accepted_head_tree_sha") or "")
+    declared_merge_tree = str(receipt.get("merge_tree_sha") or "")
+    require_tree_equality = bool(receipt.get("require_tree_equality"))
+    stored_digest = str(receipt.get("receipt_digest") or "")
+
+    actual_parents = _transition_git(repo_root, "show", "-s", "--format=%P", merge_commit).split()
+    actual_merge_tree = _transition_git(repo_root, "show", "-s", "--format=%T", merge_commit, check=False)
+    actual_subject_tree = _transition_git(repo_root, "show", "-s", "--format=%T", accepted_head, check=False)
+    recomputed_digest = _mainline_receipt_digest(receipt)
+
+    runs = receipt.get("required_exact_head_runs")
+    runs = runs if isinstance(runs, list) else []
+    runs_bind_subject = bool(runs) and all(
+        isinstance(run, dict)
+        and run.get("head_sha") == accepted_head
+        and run.get("conclusion") == "success"
+        for run in runs
+    )
+    run_names = [run.get("name") for run in runs if isinstance(run, dict)]
+
+    checks = [
+        check("schema_valid", not schema_errors, f"errors={schema_errors}"),
+        check("head_matches_merge_commit", head_sha == merge_commit, f"head={head_sha} merge={merge_commit}"),
+        check(
+            "receipt_identity",
+            stored_digest == recomputed_digest,
+            f"stored={stored_digest} recomputed={recomputed_digest}",
+        ),
+        check(
+            "second_parent_matches_accepted_head",
+            len(actual_parents) >= 2 and actual_parents[1] == accepted_head,
+            f"second_parent={actual_parents[1] if len(actual_parents) >= 2 else ''} accepted_head={accepted_head}",
+        ),
+        check(
+            "parent_order",
+            actual_parents == list(ordered_parents),
+            f"actual={actual_parents} declared={ordered_parents}",
+        ),
+        check(
+            "tree_identity",
+            bool(actual_merge_tree)
+            and actual_merge_tree == declared_merge_tree
+            and (not require_tree_equality or actual_merge_tree == actual_subject_tree == accepted_head_tree),
+            f"merge={actual_merge_tree} subject={actual_subject_tree} declared={declared_merge_tree} expected_subject={accepted_head_tree}",
+        ),
+        check("exact_head_runs", runs_bind_subject, f"run_count={len(runs)} subject={accepted_head}"),
+        check(
+            "required_run_names",
+            set(str(name) for name in run_names) == set(MAINLINE_REQUIRED_RUN_NAMES),
+            f"observed={sorted(str(name) for name in run_names)}",
+        ),
+    ]
+    blocking = [f"{item['name']}: {item['detail']}" for item in checks if item["status"] == "FAIL"]
+    return {
+        "schema_version": 1,
+        "gate_name": "current-merge-validation",
+        "gate_status": "PASSED" if not blocking else "BLOCKED",
+        "head_sha": head_sha,
+        "merge_commit_sha": merge_commit,
+        "accepted_head_sha": accepted_head,
+        "base_sha": base_sha,
+        "checks": checks,
+        "blocking_reasons": blocking,
+        "recommended_next_action": None if not blocking else "repair_or_replace_invalid_receipt",
+    }
+
+
 def _active_transition_skills(repo_root: Path) -> tuple[str, ...]:
     registry = _read_json(repo_root / ".codex-skills" / "registry.json")
     skills = registry.get("skills") if isinstance(registry.get("skills"), dict) else {}
@@ -37195,6 +37349,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Receipt filename under project_state/integration_baselines.",
     )
     integration_baseline_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    current_merge_validation_parser = subparsers.add_parser(
+        "current-merge-validation",
+        help="Bind the current main HEAD to an accepted current-merge receipt (Issue #20).",
+    )
+    current_merge_validation_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    current_merge_validation_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     transition_run_command_parser = subparsers.add_parser(
         "transition-run-command",
         help="Trusted execution: run a single command_id through the TrustedExecutionContext runner.",
@@ -37308,6 +37468,25 @@ def main(argv: list[str] | None = None) -> int:
             print(f"baseline_id: {result.get('baseline_id')}")
             print(f"merge_commit_sha: {result.get('merge_commit_sha')}")
             print(f"subject_head_sha: {result.get('subject_head_sha')}")
+            for item in result.get("checks", []):
+                print(f"  [{item.get('status')}] {item.get('name')}: {item.get('detail')}")
+            for reason in result.get("blocking_reasons", []):
+                print(f"  [BLOCK] {reason}")
+            print(f"recommended_next_action: {result.get('recommended_next_action')}")
+        return 0 if result.get("gate_status") == "PASSED" else 1
+    if args.command == "current-merge-validation":
+        state_dir = Path(args.state_dir)
+        result = current_merge_validation(
+            state_dir=state_dir,
+            repo_root=_derive_repo_root(state_dir),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            print(f"current-merge-validation: {result.get('gate_status')}")
+            print(f"head_sha: {result.get('head_sha')}")
+            print(f"merge_commit_sha: {result.get('merge_commit_sha')}")
+            print(f"accepted_head_sha: {result.get('accepted_head_sha')}")
             for item in result.get("checks", []):
                 print(f"  [{item.get('status')}] {item.get('name')}: {item.get('detail')}")
             for reason in result.get("blocking_reasons", []):
