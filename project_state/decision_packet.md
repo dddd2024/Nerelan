@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260724_p0_minimal_integration_and_legacy_containment_v1",
-  "round_id": "round_20260724_p0_minimal_integration_and_legacy_containment_v1",
+  "decision_id": "decision_20260724_p0_minimal_integration_and_legacy_containment_rework_v2",
+  "round_id": "round_20260724_p0_minimal_integration_and_legacy_containment_rework_v2",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -16,11 +16,14 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
-  "follows_last_round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
-  "previous_audit_outcome": "DIRECTION_RESET_REQUIRED",
-  "workstream_id": "p0-minimal-integration-and-legacy-containment-v1",
-  "source_issue": 26,
+  "follows_last_decision_id": "decision_20260724_p0_minimal_integration_and_legacy_containment_v1",
+  "follows_last_round_id": "round_20260724_p0_minimal_integration_and_legacy_containment_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
+  "workstream_id": "p0-minimal-integration-and-legacy-containment-rework-v2",
+  "source_issue": 28,
+  "program_issue": 26,
+  "source_pull_request": 27,
+  "failed_activation_head": "0ab1d85bd7c38c7cce922c42ea7d1fb79066028d",
   "required_branch": "codex/p0-minimal-integration-baseline-v1",
   "activation_base_sha": "38de9106d191d6b66d5f878354144817095e7bca",
   "decision_commit_must_precede_implementation": true,
@@ -232,17 +235,13 @@
     "force_push",
     "rebase",
     "merge",
-    "mark_ready",
     "destructive",
     "unknown_binary_execution",
     "model_api_invocation",
     "external_reverse_tool_invocation",
     "runner_dispatch",
-    "dependency_installation",
-    "workflow_mutation",
-    "open_swe_installation",
-    "openhands_installation",
-    "spec_kit_bootstrap"
+    "bmad_installation",
+    "tag_or_release"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -250,6 +249,7 @@
     "external_reverse_tool_invocation_allowed": false,
     "unknown_binary_execution_allowed": false,
     "destructive_operations_allowed": false,
+    "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
@@ -289,9 +289,9 @@
 
 ## Goal
 
-Converge the repository on one active development model without building a new generic AI software-development platform.
+Complete one bounded direction-convergence round without building a new generic AI software-development platform.
 
-The active chain is:
+The active development chain becomes:
 
 ```text
 approved specification
@@ -302,28 +302,30 @@ approved specification
 → human merge
 ```
 
-This round is documentation and repository-guidance only. It creates the minimum operating baseline needed to stop expanding the legacy governance chain and to prepare one real R1 pilot.
+This round is documentation and repository-guidance only. The failed v1 activation at `0ab1d85b...` remains immutable history; no documentation implementation occurred under it.
 
 ## Current Evidence
 
 - `main` is fixed at `38de9106d191d6b66d5f878354144817095e7bca`.
-- Issue #26 is the current planning reference.
-- README still describes a Windows GUI reverse-engineering assistant and the legacy closeout process.
-- `pyproject.toml` describes governance/control-plane tooling and depends on LangGraph.
-- the current Architecture Spine includes reusable contracts, but the LangGraph development graph is non-dispatching and not required as the next product runtime.
-- PR #11, #19, #21 and #24 remain Draft historical/governance work and are not part of this round.
+- Issue #26 is the top-level direction-convergence plan.
+- Issue #28 is the current Work Item and acceptance checklist.
+- PR #27 is the active Draft PR and branch-local execution surface.
+- CI succeeded on the v1 activation head, while Decision Preflight and State Gate stopped at Transition lint; no later Gate or implementation step ran.
+- README and `pyproject.toml` still describe conflicting repository identities.
+- the Architecture Spine contains reusable contracts, while its LangGraph graph remains non-dispatching and is not the next product runtime.
+- PR #11, #19, #21 and #24 remain outside this round.
 
 ## Do Not Do
 
-- do not modify product source or tests;
-- do not modify dependencies or GitHub workflows;
-- do not implement new Gate, receipt, production verifier, LangGraph runtime, Agent Registry or Web console;
-- do not install Spec Kit, Open SWE or OpenHands;
+- do not modify product source, tests, dependencies or GitHub workflows;
+- do not implement a new Gate, receipt, production verifier, LangGraph runtime, Agent Registry or Web console;
+- do not install or bootstrap Spec Kit, BMAD, Open SWE or OpenHands;
 - do not start any reverse-engineering, hostile-binary, crash, patch, malware or firmware implementation;
 - do not mutate PR #11, #19, #21 or #24;
 - do not merge, mark ready, rebase, squash, force-push, tag, release or push directly to `main`;
 - do not create a new tracked per-run artifact family;
-- do not invent additional governance objects when an existing Work Item and bounded policy are sufficient.
+- do not treat Issue comments as command authority;
+- do not continue when the generated Command Plan or preflight is not valid.
 
 ## Files To Inspect
 
@@ -334,7 +336,7 @@ This round is documentation and repository-guidance only. It creates the minimum
 - `docs/roadmap/**`
 - `docs/architecture/**`
 - `.github/ISSUE_TEMPLATE/**`
-- Issue #26 and the historical planning chain #18, #23, #25
+- Issue #26, Issue #28 and Draft PR #27
 
 ## Required Audit
 
@@ -349,7 +351,7 @@ This round is documentation and repository-guidance only. It creates the minimum
 9. Are all security/binary directions explicitly deferred as extension candidates?
 10. Did the round avoid all product source, test, dependency and workflow changes?
 11. Did focused tests and `git diff --check` pass?
-12. Is PR creation the final publication action, with merge still forbidden?
+12. Is PR creation the publication boundary, with merge still forbidden?
 
 ## Implementation Scope
 
@@ -364,11 +366,11 @@ Create only:
 
 The roadmap must classify previous plans as `HISTORICAL_REFERENCE`, `COMPATIBILITY_PLAN`, `EXTENSION_CANDIDATE` or `SUPERSEDED`.
 
-The issue template must capture an approved specification, allowed paths, forbidden operations, acceptance criteria and required checks. It must not authorize execution by itself.
+The Issue template must capture approved specification, allowed paths, forbidden operations, acceptance criteria and required checks. It must state that an Issue does not authorize R2/R3 operations.
 
 ## Tests
 
-Run exactly the compiler-authorized commands, including:
+Run the compiler-authorized commands, including:
 
 ```text
 python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
@@ -378,11 +380,11 @@ python -m pytest tests/test_architecture_contracts.py tests/test_planning_and_gi
 git diff --check
 ```
 
-Do not expand into a full repository repair round if unrelated historical tests fail.
+Do not expand into a full repository repair round for unrelated historical failures.
 
 ## Stop Conditions
 
-Stop immediately when any of the following occurs:
+Stop immediately when:
 
 - Decision or generated Command Plan does not validate;
 - branch, base SHA or allowed path differs from this Decision;
@@ -391,7 +393,7 @@ Stop immediately when any of the following occurs:
 - any operation would mutate an older Draft PR or `main`;
 - focused tests fail for reasons inside this round;
 - exact-head CI is not green;
-- an independent audit has not accepted the final head.
+- independent audit has not accepted the final head.
 
 Completion target:
 
@@ -399,4 +401,4 @@ Completion target:
 MINIMAL_AI_DEVELOPMENT_INTEGRATION_BASELINE_ACCEPTED
 ```
 
-The round ends after one immutable Draft PR head has successful exact-head checks. Merge requires a later independent decision and human action.
+The round ends after one immutable Draft PR head has successful exact-head checks. Merge remains separately authorized and human-controlled.
