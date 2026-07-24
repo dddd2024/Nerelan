@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "baseline_id": "architecture_spine_v1",
+  "status": "FROZEN_BASELINE",
+  "program_issue": 18,
+  "program_bundle_url": "https://github.com/dddd2024/reverse-agent/issues/18#issuecomment-5065551166",
+  "program_bundle_sha256": "394f02387230710cb158782affc77a11a651819a6e66221fae9ed95912295c97",
+  "source_pull_request": 9,
+  "previous_main_sha": "5884cf2abb37945652ef166cf0e78fa24593b0d5",
+  "subject_head_sha": "43418818af61d9be3208d2444fd6ce5120f73fab",
+  "merge_commit_sha": "38de9106d191d6b66d5f878354144817095e7bca",
+  "expected_parent_shas": [
+    "5884cf2abb37945652ef166cf0e78fa24593b0d5",
+    "43418818af61d9be3208d2444fd6ce5120f73fab"
+  ],
+  "expected_tree_sha": "9721f4f3e3ef4cd200416ada745b35684c5e190a",
+  "frozen_pr11_head_sha": "d500c145a3201f59f90fcb330fc400596fba10b8",
+  "merged_at": "2026-07-24T02:29:12Z",
+  "verified_at": "2026-07-24T02:29:30Z",
+  "successful_exact_head_runs": [
+    {
+      "name": "CI",
+      "run_id": 29893275240,
+      "head_sha": "43418818af61d9be3208d2444fd6ce5120f73fab",
+      "conclusion": "success",
+      "url": "https://github.com/dddd2024/reverse-agent/actions/runs/29893275240"
+    },
+    {
+      "name": "Decision Preflight",
+      "run_id": 29893275238,
+      "head_sha": "43418818af61d9be3208d2444fd6ce5120f73fab",
+      "conclusion": "success",
+      "url": "https://github.com/dddd2024/reverse-agent/actions/runs/29893275238"
+    },
+    {
+      "name": "State Gate (pull_request)",
+      "run_id": 29893275245,
+      "head_sha": "43418818af61d9be3208d2444fd6ce5120f73fab",
+      "conclusion": "success",
+      "url": "https://github.com/dddd2024/reverse-agent/actions/runs/29893275245"
+    },
+    {
+      "name": "State Gate (push)",
+      "run_id": 29893273309,
+      "head_sha": "43418818af61d9be3208d2444fd6ce5120f73fab",
+      "conclusion": "success",
+      "url": "https://github.com/dddd2024/reverse-agent/actions/runs/29893273309"
+    }
+  ]
+}

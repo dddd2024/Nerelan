@@ -35873,6 +35873,8 @@ def _preflight_exit_code(gate_status: object) -> int:
 
 TRANSITION_COMMAND_PLAN_PREVIEW_NAME = "transition_command_plan_preview.json"
 TRANSITION_PREFLIGHT_RESULT_NAME = "transition_preflight_result.json"
+INTEGRATION_BASELINE_SCHEMA_NAME = "integration_baseline.schema.json"
+INTEGRATION_BASELINE_DIR_NAME = "integration_baselines"
 TRANSITION_EXPECTED_BRANCH = "codex/control-plane-transition-kernel-v1"
 TRANSITION_ALLOWED_PATHS = (
     ".gitignore",
@@ -35932,6 +35934,189 @@ def _transition_git(repo_root: Path, *args: str, check: bool = True) -> str:
     if check and completed.returncode != 0:
         raise RuntimeError(completed.stderr.strip() or f"git {' '.join(args)} failed")
     return completed.stdout.strip()
+
+
+def _json_schema_subset_errors(instance: Any, schema: dict[str, Any], path: str = "$") -> list[str]:
+    """Validate the deterministic JSON-Schema subset used by baseline receipts."""
+
+    errors: list[str] = []
+    expected_type = schema.get("type")
+    type_matches = {
+        "object": lambda value: isinstance(value, dict),
+        "array": lambda value: isinstance(value, list),
+        "string": lambda value: isinstance(value, str),
+        "integer": lambda value: isinstance(value, int) and not isinstance(value, bool),
+        "boolean": lambda value: isinstance(value, bool),
+    }
+    if expected_type in type_matches and not type_matches[expected_type](instance):
+        return [f"{path}:expected_{expected_type}"]
+    if "const" in schema and instance != schema["const"]:
+        errors.append(f"{path}:const_mismatch")
+    if "enum" in schema and instance not in schema["enum"]:
+        errors.append(f"{path}:enum_mismatch")
+    if isinstance(instance, str):
+        if isinstance(schema.get("minLength"), int) and len(instance) < schema["minLength"]:
+            errors.append(f"{path}:min_length")
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and re.fullmatch(pattern, instance) is None:
+            errors.append(f"{path}:pattern_mismatch")
+    if isinstance(instance, dict):
+        properties = schema.get("properties")
+        properties = properties if isinstance(properties, dict) else {}
+        required = schema.get("required")
+        required = required if isinstance(required, list) else []
+        for name in required:
+            if name not in instance:
+                errors.append(f"{path}.{name}:required")
+        if schema.get("additionalProperties") is False:
+            for name in instance:
+                if name not in properties:
+                    errors.append(f"{path}.{name}:additional_property")
+        for name, value in instance.items():
+            child_schema = properties.get(name)
+            if isinstance(child_schema, dict):
+                errors.extend(_json_schema_subset_errors(value, child_schema, f"{path}.{name}"))
+    if isinstance(instance, list):
+        if isinstance(schema.get("minItems"), int) and len(instance) < schema["minItems"]:
+            errors.append(f"{path}:min_items")
+        if isinstance(schema.get("maxItems"), int) and len(instance) > schema["maxItems"]:
+            errors.append(f"{path}:max_items")
+        if schema.get("uniqueItems") is True:
+            encoded = [json.dumps(item, sort_keys=True, separators=(",", ":")) for item in instance]
+            if len(encoded) != len(set(encoded)):
+                errors.append(f"{path}:duplicate_items")
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for index, value in enumerate(instance):
+                errors.extend(_json_schema_subset_errors(value, item_schema, f"{path}[{index}]"))
+    return errors
+
+
+def integration_baseline(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    baseline_name: str = "architecture_spine_v1.json",
+) -> dict[str, Any]:
+    """Verify an immutable mainline integration receipt against local Git objects."""
+
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    receipt_path = state_dir / INTEGRATION_BASELINE_DIR_NAME / baseline_name
+    schema_path = state_dir / "schemas" / INTEGRATION_BASELINE_SCHEMA_NAME
+
+    def check(name: str, passed: bool, detail: str) -> dict[str, str]:
+        return {"name": name, "status": "PASS" if passed else "FAIL", "detail": detail}
+
+    try:
+        receipt = _read_json(receipt_path)
+        schema = _read_json(schema_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "schema_version": 1,
+            "gate_name": "integration-baseline",
+            "gate_status": "BLOCKED",
+            "baseline_id": "",
+            "checks": [],
+            "blocking_reasons": [f"invalid_baseline_artifact:{exc}"],
+        }
+
+    schema_errors = _json_schema_subset_errors(receipt, schema)
+    previous_main = str(receipt.get("previous_main_sha") or "")
+    subject_head = str(receipt.get("subject_head_sha") or "")
+    merge_commit = str(receipt.get("merge_commit_sha") or "")
+    expected_tree = str(receipt.get("expected_tree_sha") or "")
+
+    def commit_exists(sha: str) -> bool:
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            return False
+        return subprocess.run(
+            ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+            cwd=repo_root,
+            capture_output=True,
+            check=False,
+        ).returncode == 0
+
+    objects_exist = {
+        "previous_main": commit_exists(previous_main),
+        "subject_head": commit_exists(subject_head),
+        "merge_commit": commit_exists(merge_commit),
+    }
+    parents = _transition_git(repo_root, "show", "-s", "--format=%P", merge_commit, check=False)
+    merge_tree = _transition_git(repo_root, "show", "-s", "--format=%T", merge_commit, check=False)
+    subject_tree = _transition_git(repo_root, "show", "-s", "--format=%T", subject_head, check=False)
+    merge_in_head = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", merge_commit, "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    ).returncode == 0
+    previous_in_merge = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", previous_main, merge_commit],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    ).returncode == 0
+    subject_in_merge = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", subject_head, merge_commit],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    ).returncode == 0
+    runs = receipt.get("successful_exact_head_runs")
+    runs = runs if isinstance(runs, list) else []
+    runs_bind_subject = bool(runs) and all(
+        isinstance(run, dict)
+        and run.get("head_sha") == subject_head
+        and run.get("conclusion") == "success"
+        for run in runs
+    )
+    run_names = [run.get("name") for run in runs if isinstance(run, dict)]
+    required_run_names = {"CI", "Decision Preflight", "State Gate (pull_request)", "State Gate (push)"}
+
+    checks = [
+        check("schema_valid", not schema_errors, f"errors={schema_errors}"),
+        check("frozen_status", receipt.get("status") == "FROZEN_BASELINE", f"status={receipt.get('status')}"),
+        check("git_objects_exist", all(objects_exist.values()), f"objects={objects_exist}"),
+        check(
+            "declared_parent_identity",
+            receipt.get("expected_parent_shas") == [previous_main, subject_head],
+            f"declared={receipt.get('expected_parent_shas')}",
+        ),
+        check(
+            "merge_parent_identity",
+            parents == f"{previous_main} {subject_head}",
+            f"observed={parents} expected={previous_main} {subject_head}",
+        ),
+        check(
+            "tree_identity",
+            bool(merge_tree) and merge_tree == subject_tree == expected_tree,
+            f"merge={merge_tree} subject={subject_tree} expected={expected_tree}",
+        ),
+        check("merge_reachable_from_head", merge_in_head, f"merge_commit={merge_commit}"),
+        check(
+            "parent_ancestry",
+            previous_in_merge and subject_in_merge,
+            f"previous_main={previous_in_merge} subject_head={subject_in_merge}",
+        ),
+        check("exact_head_runs", runs_bind_subject, f"run_count={len(runs)} subject={subject_head}"),
+        check(
+            "required_run_names",
+            set(run_names) == required_run_names,
+            f"observed={sorted(str(name) for name in run_names)}",
+        ),
+    ]
+    blocking = [f"{item['name']}: {item['detail']}" for item in checks if item["status"] == "FAIL"]
+    return {
+        "schema_version": 1,
+        "gate_name": "integration-baseline",
+        "gate_status": "PASSED" if not blocking else "BLOCKED",
+        "baseline_id": str(receipt.get("baseline_id") or ""),
+        "merge_commit_sha": merge_commit,
+        "subject_head_sha": subject_head,
+        "checks": checks,
+        "blocking_reasons": blocking,
+        "recommended_next_action": None if not blocking else "repair_or_replace_invalid_baseline_receipt",
+    }
 
 
 def _active_transition_skills(repo_root: Path) -> tuple[str, ...]:
@@ -36999,6 +37184,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     transition_seal_local_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     transition_seal_local_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    integration_baseline_parser = subparsers.add_parser(
+        "integration-baseline",
+        help="Verify the frozen mainline integration receipt against local Git objects.",
+    )
+    integration_baseline_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    integration_baseline_parser.add_argument(
+        "--baseline-name",
+        default="architecture_spine_v1.json",
+        help="Receipt filename under project_state/integration_baselines.",
+    )
+    integration_baseline_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     transition_run_command_parser = subparsers.add_parser(
         "transition-run-command",
         help="Trusted execution: run a single command_id through the TrustedExecutionContext runner.",
@@ -37098,6 +37294,26 @@ def main(argv: list[str] | None = None) -> int:
         if "blocking_reasons" in result and result.get("blocking_reasons") and result["blocking_reasons"][0] == "missing_reconciliation_candidate":
             return 1
         return 0
+    if args.command == "integration-baseline":
+        state_dir = Path(args.state_dir)
+        result = integration_baseline(
+            state_dir=state_dir,
+            repo_root=_derive_repo_root(state_dir),
+            baseline_name=args.baseline_name,
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            print(f"integration-baseline: {result.get('gate_status')}")
+            print(f"baseline_id: {result.get('baseline_id')}")
+            print(f"merge_commit_sha: {result.get('merge_commit_sha')}")
+            print(f"subject_head_sha: {result.get('subject_head_sha')}")
+            for item in result.get("checks", []):
+                print(f"  [{item.get('status')}] {item.get('name')}: {item.get('detail')}")
+            for reason in result.get("blocking_reasons", []):
+                print(f"  [BLOCK] {reason}")
+            print(f"recommended_next_action: {result.get('recommended_next_action')}")
+        return 0 if result.get("gate_status") == "PASSED" else 1
     if args.command == "transition-run-command":
         state_dir = Path(args.state_dir)
         command_id = args.command_id

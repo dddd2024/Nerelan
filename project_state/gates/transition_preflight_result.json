@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
-  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "decision_id": "decision_20260724_stage_a_freeze_baseline_ci_repair_v2",
+  "round_id": "round_20260724_stage_a_freeze_baseline_ci_repair_v2",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1 expected=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
+      "detail": "observed=decision_20260724_stage_a_freeze_baseline_ci_repair_v2 expected=decision_20260724_stage_a_freeze_baseline_ci_repair_v2"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260721_architecture_spine_trusted_execution_cutover_rework_v1 expected=round_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
+      "detail": "observed=round_20260724_stage_a_freeze_baseline_ci_repair_v2 expected=round_20260724_stage_a_freeze_baseline_ci_repair_v2"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=codex/architecture-spine-v1 expected=codex/architecture-spine-v1"
+      "detail": "observed=codex/stage-a-freeze-baseline-v1 expected=codex/stage-a-freeze-baseline-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f merge_base=54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f"
+      "detail": "base=38de9106d191d6b66d5f878354144817095e7bca merge_base=38de9106d191d6b66d5f878354144817095e7bca"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=8a5cb389dc218ae63de9cc68cd88a18baf985d4c"
+      "detail": "decision_commit=4a493bc226732d77383af6f34d38906c6a601332"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1/round_20260721_architecture_spine_trusted_execution_cutover_rework_v1"
+      "detail": "plan=decision_20260724_stage_a_freeze_baseline_ci_repair_v2/round_20260724_stage_a_freeze_baseline_ci_repair_v2"
     },
     {
       "name": "command_plan_contract",
