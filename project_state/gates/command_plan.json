@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260724_stage_a_freeze_baseline_ci_repair_v1",
-  "round_id": "round_20260724_stage_a_freeze_baseline_ci_repair_v1",
+  "decision_id": "decision_20260724_stage_a_freeze_baseline_ci_repair_v2",
+  "round_id": "round_20260724_stage_a_freeze_baseline_ci_repair_v2",
   "commands": [
     {
       "command_id": "status.git_status",

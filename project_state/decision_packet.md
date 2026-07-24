@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260724_stage_a_freeze_baseline_ci_repair_v1",
-  "round_id": "round_20260724_stage_a_freeze_baseline_ci_repair_v1",
+  "decision_id": "decision_20260724_stage_a_freeze_baseline_ci_repair_v2",
+  "round_id": "round_20260724_stage_a_freeze_baseline_ci_repair_v2",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -16,9 +16,9 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
-  "follows_last_round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
-  "previous_audit_outcome": "ACCEPTED",
+  "follows_last_decision_id": "decision_20260724_stage_a_freeze_baseline_ci_repair_v1",
+  "follows_last_round_id": "round_20260724_stage_a_freeze_baseline_ci_repair_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED",
   "workstream_id": "stage-a-freeze-baseline-ci-repair-v1",
   "source_issue": 18,
   "source_pull_request": 9,
@@ -163,6 +163,7 @@
     }
   ],
   "allowed_mutated_paths": [
+    ".github/workflows/decision-preflight.yml",
     ".github/workflows/state-gate.yml",
     "docs/architecture/main-integration-baseline.md",
     "project_state/decision_packet.md",
@@ -239,6 +240,7 @@
   },
   "authorized_risk_tier": "R2",
   "authorized_risk_paths": [
+    ".github/workflows/decision-preflight.yml",
     ".github/workflows/state-gate.yml",
     "project_state/decision_packet.md",
     "project_state/gates/**",
