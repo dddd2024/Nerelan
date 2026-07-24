@@ -35934,6 +35934,167 @@ def _transition_git(repo_root: Path, *args: str, check: bool = True) -> str:
     return completed.stdout.strip()
 
 
+# ---------------------------------------------------------------------------
+# Stage A frozen integration baseline (historical PR #9 invariant)
+# ---------------------------------------------------------------------------
+
+INTEGRATION_BASELINE_SCHEMA_NAME = "integration_baseline.schema.json"
+INTEGRATION_BASELINES_DIR_NAME = "integration_baselines"
+BASELINE_REQUIRED_RUN_NAMES = (
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)",
+    "State Gate (push)",
+)
+
+
+def _baseline_subject_tree_from_receipt(receipt: dict[str, Any]) -> str:
+    return str(receipt.get("subject_head_tree_sha") or receipt.get("accepted_head_tree_sha") or "")
+
+
+def integration_baseline(*, state_dir: Path, repo_root: Path | None = None) -> dict[str, Any]:
+    """Validate the frozen PR #9 integration baseline invariant.
+
+    This is a historical invariant that proves the accepted PR #9 integration
+    remains present and unchanged in the current HEAD ancestry.  It does not
+    authorize later merges (see :func:`mainline_merge_validation`).
+    """
+
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    schema_path = state_dir / "schemas" / INTEGRATION_BASELINE_SCHEMA_NAME
+    baselines_dir = state_dir / INTEGRATION_BASELINES_DIR_NAME
+
+    def check(name: str, passed: bool, detail: str) -> dict[str, str]:
+        return {"name": name, "status": "PASS" if passed else "FAIL", "detail": detail}
+
+    if not baselines_dir.is_dir():
+        return {
+            "schema_version": 1,
+            "gate_name": "integration-baseline",
+            "gate_status": "BLOCKED",
+            "baseline_id": "",
+            "merge_commit_sha": "",
+            "subject_head_sha": "",
+            "checks": [],
+            "blocking_reasons": ["no_baselines_directory"],
+            "recommended_next_action": "commit_frozen_baseline_receipt",
+        }
+
+    receipts = sorted(baselines_dir.glob("*.json"))
+    if not receipts:
+        return {
+            "schema_version": 1,
+            "gate_name": "integration-baseline",
+            "gate_status": "BLOCKED",
+            "baseline_id": "",
+            "merge_commit_sha": "",
+            "subject_head_sha": "",
+            "checks": [],
+            "blocking_reasons": ["no_baseline_receipts"],
+            "recommended_next_action": "commit_frozen_baseline_receipt",
+        }
+
+    receipt_path = receipts[0]
+    try:
+        receipt = _read_json(receipt_path)
+        schema = _read_json(schema_path) if schema_path.exists() else {}
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "schema_version": 1,
+            "gate_name": "integration-baseline",
+            "gate_status": "BLOCKED",
+            "baseline_id": "",
+            "merge_commit_sha": "",
+            "subject_head_sha": "",
+            "checks": [],
+            "blocking_reasons": [f"invalid_receipt:{exc}"],
+            "recommended_next_action": "repair_or_replace_invalid_baseline_receipt",
+        }
+
+    baseline_id = str(receipt.get("baseline_id") or receipt_path.stem)
+    merge_commit = str(receipt.get("merge_commit_sha") or "")
+    subject_head = str(receipt.get("subject_head_sha") or receipt.get("accepted_head_sha") or "")
+    previous_main = str(receipt.get("previous_main_sha") or receipt.get("base_sha") or "")
+    declared_parents = receipt.get("ordered_parent_shas") or receipt.get("expected_parent_shas") or [previous_main, subject_head]
+    declared_merge_tree = str(receipt.get("merge_tree_sha") or receipt.get("expected_tree_sha") or "")
+    subject_tree = _baseline_subject_tree_from_receipt(receipt)
+    require_tree_equality = bool(receipt.get("require_tree_equality", True))
+
+    actual_parents = _transition_git(repo_root, "show", "-s", "--format=%P", merge_commit, check=False).split()
+    actual_merge_tree = _transition_git(repo_root, "show", "-s", "--format=%T", merge_commit, check=False)
+    # Compute the subject head's tree from git when the receipt doesn't carry
+    # it explicitly, so tree-equality can be verified against the actual object.
+    if not subject_tree and subject_head:
+        subject_tree = _transition_git(repo_root, "show", "-s", "--format=%T", subject_head, check=False)
+
+    merge_reachable = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", merge_commit, "HEAD"],
+        cwd=repo_root, check=False,
+    ).returncode == 0
+
+    runs = receipt.get("required_exact_head_runs") or receipt.get("required_workflow_observations") or receipt.get("successful_exact_head_runs") or []
+    runs_ok = bool(runs) and all(
+        isinstance(r, dict) and r.get("head_sha") == subject_head and r.get("conclusion") == "success"
+        for r in runs
+    )
+    run_names = [str(r.get("name")) for r in runs if isinstance(r, dict)]
+
+    # Lightweight schema validation: enforce additionalProperties=false.
+    schema_errors: list[str] = []
+    if schema:
+        allowed = set((schema.get("properties") or {}).keys())
+        if schema.get("additionalProperties") is False and allowed:
+            extra = set(receipt.keys()) - allowed
+            if extra:
+                schema_errors.append(f"additional_properties={sorted(extra)}")
+        for field in schema.get("required", []):
+            if field not in receipt:
+                schema_errors.append(f"missing_required={field}")
+    schema_ok = not schema_errors
+
+    checks = [
+        check("schema_valid", schema_ok, f"errors={schema_errors}"),
+        check("frozen_status", str(receipt.get("status") or receipt.get("baseline_status") or "FROZEN_BASELINE") in ("FROZEN_BASELINE", "active", "frozen"), ""),
+        check("git_objects_exist", bool(actual_parents), ""),
+        check("declared_parent_identity", actual_parents == list(declared_parents) or len(actual_parents) >= 2, ""),
+        check("merge_parent_identity", len(actual_parents) >= 2 and actual_parents == [previous_main, subject_head], ""),
+        check("tree_identity", bool(actual_merge_tree) and actual_merge_tree == declared_merge_tree and (not require_tree_equality or actual_merge_tree == subject_tree), ""),
+        check("merge_reachable_from_head", merge_reachable, ""),
+        check("parent_ancestry", len(actual_parents) >= 2, ""),
+        check("exact_head_runs", runs_ok, f"run_count={len(runs)}"),
+        check("required_run_names", set(run_names) == set(BASELINE_REQUIRED_RUN_NAMES), f"observed={sorted(run_names)}"),
+    ]
+    blocking = [f"{c['name']}: {c['detail']}" for c in checks if c["status"] == "FAIL"]
+    return {
+        "schema_version": 1,
+        "gate_name": "integration-baseline",
+        "gate_status": "PASSED" if not blocking else "BLOCKED",
+        "baseline_id": baseline_id,
+        "merge_commit_sha": merge_commit,
+        "subject_head_sha": subject_head,
+        "checks": checks,
+        "blocking_reasons": blocking,
+        "recommended_next_action": None if not blocking else "repair_or_replace_invalid_baseline_receipt",
+    }
+
+
+def _sha256_text(text: str) -> str:
+    import hashlib
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _git_show_tree(repo_root: Path, tree_ish: str, path: str) -> str | None:
+    """Read a file from a git tree without checking it out.  Returns None if absent."""
+
+    result = subprocess.run(
+        ["git", "show", f"{tree_ish}:{path}"],
+        cwd=repo_root, capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def _active_transition_skills(repo_root: Path) -> tuple[str, ...]:
     registry = _read_json(repo_root / ".codex-skills" / "registry.json")
     skills = registry.get("skills") if isinstance(registry.get("skills"), dict) else {}
@@ -37006,6 +37167,12 @@ def main(argv: list[str] | None = None) -> int:
     transition_run_command_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     transition_run_command_parser.add_argument("--command-id", required=True, help="The command_id to execute through the trusted runner.")
     transition_run_command_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    integration_baseline_parser = subparsers.add_parser(
+        "integration-baseline",
+        help="Validate the frozen PR #9 integration baseline invariant.",
+    )
+    integration_baseline_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    integration_baseline_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
@@ -37098,6 +37265,22 @@ def main(argv: list[str] | None = None) -> int:
         if "blocking_reasons" in result and result.get("blocking_reasons") and result["blocking_reasons"][0] == "missing_reconciliation_candidate":
             return 1
         return 0
+    if args.command == "integration-baseline":
+        state_dir = Path(args.state_dir)
+        result = integration_baseline(state_dir=state_dir, repo_root=_derive_repo_root(state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            print(f"integration-baseline: {result.get('gate_status')}")
+            print(f"baseline_id: {result.get('baseline_id')}")
+            print(f"merge_commit_sha: {result.get('merge_commit_sha')}")
+            print(f"subject_head_sha: {result.get('subject_head_sha')}")
+            for item in result.get("checks", []):
+                print(f"  [{item.get('status')}] {item.get('name')}: {item.get('detail')}")
+            for reason in result.get("blocking_reasons", []):
+                print(f"  [BLOCK] {reason}")
+            print(f"recommended_next_action: {result.get('recommended_next_action')}")
+        return 0 if result.get("gate_status") == "PASSED" else 1
     if args.command == "transition-run-command":
         state_dir = Path(args.state_dir)
         command_id = args.command_id
