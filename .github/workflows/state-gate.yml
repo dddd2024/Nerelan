@@ -53,8 +53,20 @@ jobs:
         run: python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
 
       - name: Transition preflight
-        if: steps.control_plane.outputs.mode == 'transition'
+        if: steps.control_plane.outputs.mode == 'transition' && github.ref != 'refs/heads/main'
         run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state
+
+      - name: Main integration baseline
+        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        run: python -m reverse_agent.project_gate integration-baseline --state-dir project_state
+
+      - name: Current merge validation
+        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        run: python -m reverse_agent.project_gate current-merge-validation --state-dir project_state
+
+      - name: Integration baseline tests
+        if: steps.control_plane.outputs.mode == 'transition'
+        run: python -m pytest tests/test_integration_baseline.py tests/test_current_merge_validation.py -q
 
       - name: Project gate preflight
         if: steps.control_plane.outputs.mode == 'legacy'

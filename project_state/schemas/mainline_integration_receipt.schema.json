@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mainline_integration_receipt.schema.json",
+  "title": "Mainline integration receipt",
+  "description": "Binds the current main HEAD to an accepted merge so that a later unrelated commit on main cannot pass merely because an older merge remains in ancestry (Issue #20).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "source_pr",
+    "decision_identity",
+    "base_sha",
+    "accepted_head_sha",
+    "merge_commit_sha",
+    "ordered_parent_shas",
+    "accepted_head_tree_sha",
+    "merge_tree_sha",
+    "require_tree_equality",
+    "receipt_digest",
+    "required_exact_head_runs",
+    "observed_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "receipt_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_pr": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "decision_identity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_sha": {
+      "type": "string",
+      "pattern": "[0-9a-f]{40}"
+    },
+    "accepted_head_sha": {
+      "type": "string",
+      "pattern": "[0-9a-f]{40}"
+    },
+    "merge_commit_sha": {
+      "type": "string",
+      "pattern": "[0-9a-f]{40}"
+    },
+    "ordered_parent_shas": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "[0-9a-f]{40}"
+      }
+    },
+    "accepted_head_tree_sha": {
+      "type": "string",
+      "pattern": "[0-9a-f]{40}"
+    },
+    "merge_tree_sha": {
+      "type": "string",
+      "pattern": "[0-9a-f]{40}"
+    },
+    "require_tree_equality": {
+      "type": "boolean"
+    },
+    "receipt_digest": {
+      "type": "string",
+      "pattern": "sha256:[0-9a-f]{64}"
+    },
+    "required_exact_head_runs": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "run_id",
+          "head_sha",
+          "conclusion"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "CI",
+              "Decision Preflight",
+              "State Gate (pull_request)",
+              "State Gate (push)"
+            ]
+          },
+          "run_id": {
+            "type": "integer"
+          },
+          "head_sha": {
+            "type": "string",
+            "pattern": "[0-9a-f]{40}"
+          },
+          "conclusion": {
+            "type": "string",
+            "const": "success"
+          }
+        }
+      }
+    },
+    "observed_at": {
+      "type": "string",
+      "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"
+    }
+  }
+}
