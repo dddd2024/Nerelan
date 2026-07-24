@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
-  "round_id": "round_20260721_architecture_spine_trusted_execution_cutover_rework_v1",
+  "decision_id": "decision_20260724_p1a_exact_head_external_merge_approval_rework_v3",
+  "round_id": "round_20260724_p1a_exact_head_external_merge_approval_rework_v3",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -15,115 +15,62 @@
 
 ```json decision_contract
 {
-  "follows_last_decision_id": "decision_20260721_architecture_spine_provenance_integration_final_rework_v1",
-  "follows_last_round_id": "round_20260721_architecture_spine_provenance_integration_final_rework_v1",
+  "transition_kernel_required": true,
+  "follows_last_decision_id": "decision_20260724_p1a_premerge_authorization_mainline_validation_rework_v2",
+  "follows_last_round_id": "round_20260724_p1a_premerge_authorization_mainline_validation_rework_v2",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "workstream_id": "architecture-spine-trusted-execution-cutover-rework-v1",
-  "source_pull_request": 9,
-  "required_branch": "codex/architecture-spine-v1",
-  "activation_base_sha": "54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f",
-  "audited_implementation_head_sha": "70dd217b381d106085bce51857be5e8abdd2fa86",
-  "roadmap_path": "docs/roadmap/architecture_spine_trusted_execution_cutover_rework_v1.md",
+  "workstream_id": "p1a-v3-exact-head-external-merge-approval",
+  "source_issue": 23,
+  "program_issue": 18,
+  "source_pull_request": 21,
+  "frozen_pr21_head_sha": "976fb86021d6e230b1a1b574960c78c8457e8983",
+  "frozen_v2_prototype_head": "708aeefaaa69f571c520d9ab55b07d6e7c082371",
+  "program_bundle_sha256": "394f02387230710cb158782affc77a11a651819a6e66221fae9ed95912295c97",
+  "required_branch": "codex/p1a-v3-exact-head-external-approval",
+  "activation_base_sha": "38de9106d191d6b66d5f878354144817095e7bca",
+  "frozen_previous_main_sha": "5884cf2abb37945652ef166cf0e78fa24593b0d5",
+  "frozen_subject_head_sha": "43418818af61d9be3208d2444fd6ce5120f73fab",
+  "frozen_merge_commit_sha": "38de9106d191d6b66d5f878354144817095e7bca",
+  "frozen_pr11_head_sha": "d500c145a3201f59f90fcb330fc400596fba10b8",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "transition_kernel_required": true,
-  "architecture_spine_new_module_expansion_allowed": false,
-  "trusted_execution_cutover_required": true,
-  "deterministic_command_projection_required": true,
-  "command_id_global_uniqueness_required": true,
-  "required_test_file_existence_required": true,
-  "stale_evidence_invalidation_required": true,
-  "cross_round_log_append_forbidden": true,
-  "production_plan_injection_forbidden": true,
-  "pre_execution_authorization_required": true,
-  "runner_surface_binding_required": true,
-  "runner_capability_policy_required": true,
-  "runner_bootstrap_state_required": true,
-  "runner_validation_state_required": true,
-  "atomic_evidence_journal_required": true,
-  "journal_lock_required": true,
-  "journal_monotonic_sequence_required": true,
-  "command_local_mutation_delta_required": true,
-  "command_string_fallback_forbidden": true,
-  "risk_floor_classification_not_auto_block_required": true,
-  "reference_paths_all_mutations_read_only_required": true,
-  "current_round_local_seal_required": true,
-  "current_round_report_binding_required": true,
-  "remote_publication_seal_externalized_required": true,
-  "bootstrap_exception_authorized": true,
-  "bootstrap_state_initial": "BOOTSTRAP_OPEN",
-  "bootstrap_exception_reason": "The audited implementation contains reusable TrustedCommandRunner, authenticity, policy-provider, mutation-grant, and report-binding components, but the committed plan is not the deterministic projection of the active Decision, a required test file is absent, production execution still accepts an injected plan object, the journal can append across rounds without atomic locking, mutation attribution is based on post-command dirty state instead of a before/after delta, and all current evidence artifacts still belong to the previous Decision. A bounded bootstrap is required to recover deterministic authority and implement the production execution context before current-round commands can be rerun.",
-  "bootstrap_exception_expires_when": "A command plan generated from this Decision exactly matches its deterministic projection; transition-lint passes; transition-preflight --mode pre passes; command-id uniqueness and required-test-file checks pass; TrustedExecutionContext and atomic journal tests pass; all previous-round evidence is rejected as stale; bootstrap state is persisted as BOOTSTRAP_EXPIRED; and no subsequent command can claim bootstrap authority.",
+  "pr_creation_allowed": true,
+  "merge_allowed": false,
+  "stop_after_exact_head_ci": true,
   "bootstrap_exception_files": [
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/models.py",
-    "reverse_agent/control_plane/legacy_adapter.py",
-    "reverse_agent/control_plane/command_authority.py",
-    "reverse_agent/control_plane/evidence_recorder.py",
-    "reverse_agent/control_plane/execution_reconciliation.py",
-    "reverse_agent/control_plane/local_seal.py",
-    "reverse_agent/control_plane/transition.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_execution_evidence.py",
-    "tests/test_evidence_authenticity.py",
-    "tests/test_trusted_command_runner.py",
-    "tests/test_local_execution_seal.py",
-    "tests/test_provenance_integration.py",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "project_state/gates/bootstrap_state.json"
+    "project_state/decision_packet.md",
+    "project_state/gates/command_plan.json"
   ],
-  "bootstrap_exception_commands": [
-    "git status --short",
-    "git rev-parse HEAD",
-    "git branch --show-current",
-    "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
-    "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
-    "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
-    "git diff --check"
-  ],
+  "bootstrap_exception_commands": [],
   "allowed_commands": [
+    {
+      "command_id": "gate.startup_snapshot",
+      "command": "python -m reverse_agent.project_gate startup-snapshot --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
+      "required_evidence_source": "local_command_evidence",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [
+        "project_state/gates/startup_snapshot.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/startup_snapshot.json"
+      ]
+    },
     {
       "command_id": "status.git_status",
       "command": "git status --short",
       "phase": "status",
       "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["repository_observation"],
+      "network_access": false,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "status.git_head",
-      "command": "git rev-parse HEAD",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "status.git_branch",
-      "command": "git branch --show-current",
-      "phase": "status",
-      "required": true,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [0],
-      "execution_surface": "local",
-      "operations": ["repository_observation"],
-      "network_access": false,
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
@@ -133,11 +80,11 @@
       "command": "python -m reverse_agent.project_gate transition-command-plan --state-dir project_state",
       "phase": "gate",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["command_plan_generation"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [
         "project_state/gates/command_plan.json",
@@ -153,11 +100,11 @@
       "command": "python -m reverse_agent.project_gate transition-lint --state-dir project_state",
       "phase": "gate",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["authority_validation"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
@@ -167,11 +114,11 @@
       "command": "python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre",
       "phase": "gate",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["pre_execution_authorization"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [
         "project_state/gates/transition_preflight_result.json",
@@ -183,262 +130,184 @@
       ]
     },
     {
-      "command_id": "test.trusted_execution_cutover",
-      "command": "python -m pytest tests/test_trusted_command_runner.py tests/test_provenance_integration.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_local_execution_seal.py -q",
+      "command_id": "test.exact_head_lifecycle",
+      "command": "python -m pytest tests/test_exact_head_lifecycle.py -q",
       "phase": "test",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["integration_test"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "test.runtime_policy_integration",
-      "command": "python -m pytest tests/test_runtime_risk_policy.py tests/test_policy_provider.py tests/test_development_graph.py tests/test_risk_classifier.py -q",
+      "command_id": "test.remote_evidence_authenticity",
+      "command": "python -m pytest tests/test_remote_evidence_authenticity.py -q",
       "phase": "test",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["integration_test"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "test.mutation_report_integration",
-      "command": "python -m pytest tests/test_command_mutation_grants.py tests/test_transition_report.py tests/test_report_truth.py tests/test_provenance_integration.py -q",
+      "command_id": "test.pr_approval_binding",
+      "command": "python -m pytest tests/test_pr_approval_binding.py -q",
       "phase": "test",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["integration_test"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "test.control_plane",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_control_plane_transition.py tests/test_authority_closure.py tests/test_execution_evidence.py tests/test_evidence_authenticity.py tests/test_trusted_command_runner.py tests/test_local_execution_seal.py tests/test_provenance_integration.py -q",
+      "command_id": "test.expiry_and_receipt",
+      "command": "python -m pytest tests/test_expiry_and_receipt.py -q",
       "phase": "test",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["integration_test"],
       "network_access": false,
-      "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "test.full_repository",
-      "command": "python -m pytest -q",
-      "phase": "diagnostic",
-      "required": false,
-      "diagnostic_only": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [0, 1],
-      "execution_surface": "local",
-      "operations": ["full_repository_test"],
-      "network_access": false,
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "report.generate_local",
-      "command": "python -m reverse_agent.project_gate transition-report --state-dir project_state",
-      "phase": "report",
+      "command_id": "test.integration_baseline_regression",
+      "command": "python -m pytest tests/test_integration_baseline.py -q",
+      "phase": "test",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [0, 1],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": ["report_generation"],
+      "operations": ["regression_test"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
-      "allowed_mutated_paths": [
-        "project_state/gates/changed_file_inventory.json",
-        "project_state/gates/remote_observation_payload.json",
-        "project_state/codex_execution_report.md",
-        "project_state/execution_report.md",
-        "project_state/pytest_result.txt"
-      ],
-      "produced_artifacts": [
-        "project_state/gates/changed_file_inventory.json",
-        "project_state/gates/remote_observation_payload.json",
-        "project_state/codex_execution_report.md",
-        "project_state/execution_report.md",
-        "project_state/pytest_result.txt"
-      ]
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "gate.integration_baseline",
+      "command": "python -m reverse_agent.project_gate integration-baseline --state-dir project_state",
+      "phase": "gate",
+      "required": true,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["baseline_validation"],
+      "network_access": false,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     },
     {
       "command_id": "validation.diff_check",
       "command": "git diff --check",
       "phase": "validation",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["diff_validation"],
       "network_access": false,
+      "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "gate.reconcile_evaluate",
-      "command": "python -m reverse_agent.project_gate transition-reconcile-evaluate --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [0, 1],
-      "execution_surface": "local",
-      "operations": ["post_execution_evaluation"],
-      "network_access": false,
-      "authority_origin": "normal_plan",
-      "subject_to_reconciliation": false,
-      "allowed_mutated_paths": [
-        "project_state/gates/reconciliation_candidate.json"
-      ],
-      "produced_artifacts": [
-        "project_state/gates/reconciliation_candidate.json"
-      ]
-    },
-    {
-      "command_id": "gate.seal_local",
-      "command": "python -m reverse_agent.project_gate transition-seal-local --state-dir project_state",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [0, 1],
-      "execution_surface": "local",
-      "operations": ["local_execution_seal"],
-      "network_access": false,
-      "authority_origin": "normal_plan",
-      "subject_to_reconciliation": false,
-      "allowed_mutated_paths": [
-        "project_state/gates/local_execution_seal.json"
-      ],
-      "produced_artifacts": [
-        "project_state/gates/local_execution_seal.json"
-      ]
-    },
-    {
       "command_id": "publication.push_branch",
-      "command": "git push origin codex/architecture-spine-v1",
+      "command": "git push origin codex/p1a-v3-exact-head-external-approval",
       "phase": "publication",
       "required": false,
-      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": ["push", "network_access"],
       "network_access": true,
-      "allowed_only_after_validation": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "publication.create_draft_pr",
+      "command": "gh pr create --draft --base main --head codex/p1a-v3-exact-head-external-approval",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["pr_creation", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     }
   ],
-  "runner_managed_artifact_paths": [
-    "project_state/gates/execution_log.json",
-    "project_state/gates/evidence/**"
-  ],
-  "runner_managed_artifact_policy": "Only TrustedExecutionContext may write these paths. They are executor provenance and are excluded from subprocess mutation delta while remaining part of the local evidence bundle.",
-  "reference_paths": [
-    "docs/roadmap/architecture_spine_trusted_execution_cutover_rework_v1.md",
-    "docs/roadmap/reverse_agent_unified_architecture_and_trust_roadmap.md",
-    "docs/architecture/**",
-    "project_state/decision_packet.md"
-  ],
   "allowed_mutated_paths": [
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/models.py",
-    "reverse_agent/control_plane/legacy_adapter.py",
-    "reverse_agent/control_plane/command_authority.py",
-    "reverse_agent/control_plane/evidence_recorder.py",
-    "reverse_agent/control_plane/evidence_source.py",
-    "reverse_agent/control_plane/execution_reconciliation.py",
-    "reverse_agent/control_plane/local_seal.py",
-    "reverse_agent/control_plane/report_binding.py",
-    "reverse_agent/control_plane/transition.py",
-    "reverse_agent/architecture/contracts.py",
-    "reverse_agent/architecture/policy_provider.py",
-    "reverse_agent/workflows/development_graph.py",
-    "reverse_agent/workflows/nodes/load_work_item.py",
-    "reverse_agent/workflows/nodes/classify_risk.py",
-    "tests/test_project_gate.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_authority_closure.py",
-    "tests/test_execution_evidence.py",
-    "tests/test_evidence_authenticity.py",
-    "tests/test_trusted_command_runner.py",
-    "tests/test_local_execution_seal.py",
-    "tests/test_runtime_risk_policy.py",
-    "tests/test_policy_provider.py",
-    "tests/test_development_graph.py",
-    "tests/test_risk_classifier.py",
-    "tests/test_command_mutation_grants.py",
-    "tests/test_transition_report.py",
-    "tests/test_report_truth.py",
-    "tests/test_provenance_integration.py",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml",
+    "docs/architecture/exact-head-external-approval.md",
+    "docs/architecture/main-integration-baseline.md",
+    "project_state/decision_packet.md",
+    "project_state/gates/startup_snapshot.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
     "project_state/gates/bootstrap_state.json",
-    "project_state/gates/execution_log.json",
-    "project_state/gates/evidence/**",
-    "project_state/gates/reconciliation_candidate.json",
-    "project_state/gates/local_execution_seal.json",
-    "project_state/gates/changed_file_inventory.json",
-    "project_state/gates/remote_observation_payload.json",
-    "project_state/codex_execution_report.md",
-    "project_state/execution_report.md",
-    "project_state/pytest_result.txt"
+    "project_state/integration_baselines/architecture_spine_v1.json",
+    "project_state/schemas/integration_baseline.schema.json",
+    "project_state/schemas/merge_intent.schema.json",
+    "project_state/schemas/merge_approval_attestation.schema.json",
+    "project_state/schemas/mainline_integration_receipt.schema.json",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/remote_acceptance_verifier.py",
+    "tests/test_exact_head_lifecycle.py",
+    "tests/test_remote_evidence_authenticity.py",
+    "tests/test_pr_approval_binding.py",
+    "tests/test_expiry_and_receipt.py",
+    "tests/test_integration_baseline.py"
+  ],
+  "reference_paths": [
+    "project_state/current_state.json",
+    "project_state/artifactindex.json",
+    "project_state/state_manifest.json"
   ],
   "generated_artifact_paths": [
+    "project_state/gates/startup_snapshot.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "project_state/gates/bootstrap_state.json",
-    "project_state/gates/execution_log.json",
-    "project_state/gates/evidence/**",
-    "project_state/gates/reconciliation_candidate.json",
-    "project_state/gates/local_execution_seal.json",
-    "project_state/gates/changed_file_inventory.json",
-    "project_state/gates/remote_observation_payload.json",
-    "project_state/codex_execution_report.md",
-    "project_state/execution_report.md",
-    "project_state/pytest_result.txt"
+    "project_state/gates/bootstrap_state.json"
   ],
-  "generated_artifact_paths_are_inventory_only": true,
   "forbidden_mutated_paths": [
-    "project_state/decision_packet.md",
-    "docs/roadmap/**",
-    "docs/architecture/**",
-    ".github/workflows/**",
-    "pyproject.toml",
     "frontend/**",
     "solve_reports/**",
     "local_reverse_samples/**",
     "training_materials/**",
     "reverse_agent/user_solve_*.py",
-    "reverse_agent/orchestrator_api.py",
-    "reverse_agent/project_agent_runner.py",
-    "reverse_agent/project_runner_contract.py",
+    "reverse_agent/strategies/**",
     "project_state/current_state.json",
-    "project_state/artifact_index.json",
+    "project_state/artifactindex.json",
     "project_state/state_manifest.json",
     "project_state/context/**",
     "project_state/rounds/**",
     "project_state/audits/**",
+    "project_state/mainline_authorizations/**",
+    "project_state/mainline_receipts/**",
+    "project_state/mainline_merge_intents/**",
     ".codex-skills/**",
     ".env",
     "**/secrets/**",
@@ -446,6 +315,18 @@
     "**/*.exe",
     "**/*.dll",
     "**/*.bin"
+  ],
+  "forbidden_operations": [
+    "direct_push_main",
+    "force_push",
+    "rebase",
+    "destructive",
+    "unknown_binary_execution",
+    "model_api_invocation",
+    "external_reverse_tool_invocation",
+    "runner_dispatch",
+    "bmad_installation",
+    "merge"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -455,204 +336,204 @@
     "destructive_operations_allowed": false,
     "bmad_installation_allowed": false,
     "network_access_default_allowed": false,
-    "local_network_exceptions": [
-      "git push origin codex/architecture-spine-v1"
-    ],
-    "ci_network_exceptions": [],
-    "remote_observation_read_only_allowed": true,
     "direct_push_to_main_allowed": false,
     "merge_allowed": false,
     "force_push_allowed": false,
     "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false
+    "tag_or_release_allowed": false,
+    "pr_creation_allowed": true,
+    "local_network_exceptions": [
+      "git push origin codex/p1a-v3-exact-head-external-approval",
+      "gh pr create --draft --base main --head codex/p1a-v3-exact-head-external-approval"
+    ],
+    "ci_network_exceptions": [],
+    "remote_observation_read_only_allowed": true
   },
   "authorized_risk_tier": "R2",
-  "risk_authorization_source": "active_approved_decision",
   "authorized_risk_paths": [
-    "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/architecture/**",
-    "reverse_agent/workflows/**",
-    "tests/**",
+    ".github/workflows/decision-preflight.yml",
+    ".github/workflows/state-gate.yml",
+    "project_state/decision_packet.md",
     "project_state/gates/**",
-    "project_state/codex_execution_report.md",
-    "project_state/execution_report.md",
-    "project_state/pytest_result.txt"
+    "project_state/integration_baselines/**",
+    "project_state/schemas/**",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/remote_acceptance_verifier.py",
+    "tests/test_exact_head_lifecycle.py",
+    "tests/test_remote_evidence_authenticity.py",
+    "tests/test_pr_approval_binding.py",
+    "tests/test_expiry_and_receipt.py",
+    "tests/test_integration_baseline.py",
+    "docs/architecture/exact-head-external-approval.md",
+    "docs/architecture/main-integration-baseline.md"
   ],
   "path_risk_floor": [
     {"pattern": ".github/workflows/**", "minimum_risk": "R2"},
-    {"pattern": "pyproject.toml", "minimum_risk": "R2"},
-    {"pattern": "**/*lock*", "minimum_risk": "R2"},
     {"pattern": "project_state/decision_packet.md", "minimum_risk": "R2"},
     {"pattern": "project_state/gates/**", "minimum_risk": "R2"},
+    {"pattern": "project_state/mainline_merge_intents/**", "minimum_risk": "R2"},
     {"pattern": ".env", "minimum_risk": "R3"},
     {"pattern": "**/secrets/**", "minimum_risk": "R3"},
     {"pattern": "**/credentials/**", "minimum_risk": "R3"},
-    {"pattern": "local_reverse_samples/**", "minimum_risk": "R3"},
-    {"pattern": "training_materials/local_reverse/**", "minimum_risk": "R3"},
     {"pattern": "**/*.exe", "minimum_risk": "R3"},
     {"pattern": "**/*.dll", "minimum_risk": "R3"},
     {"pattern": "**/*.bin", "minimum_risk": "R3"}
   ],
-  "capability_risk_rules": [
-    {"operation": "workflow_change", "risk_tier": "R2"},
-    {"operation": "dependency_change", "risk_tier": "R2"},
-    {"operation": "network_access", "risk_tier": "R2"},
-    {"operation": "push", "risk_tier": "R2"},
-    {"operation": "permission_policy", "risk_tier": "R2"},
-    {"operation": "unknown_binary_execution", "risk_tier": "R3"},
-    {"operation": "debugger", "risk_tier": "R3"},
-    {"operation": "emulator", "risk_tier": "R3"},
-    {"operation": "secrets", "risk_tier": "R3"},
-    {"operation": "destructive_delete", "risk_tier": "R3"}
-  ],
-  "risk_combination_policy": "max(operation_risk,path_risk,capability_flag_risk)",
-  "unknown_operation_policy": "BLOCKED",
-  "unknown_sensitive_path_policy": "BLOCKED",
-  "current_round_evidence_identity_required": true,
-  "current_round_plan_digest_required": true,
-  "local_seal_status_required": "LOCAL_RECONCILED",
-  "remote_publication_seal_required": true,
-  "remote_publication_seal_location": "pull_request_comment",
-  "required_remote_checks": [
-    "CI",
-    "State Gate",
-    "Decision Preflight"
-  ],
-  "draft_pull_request_allowed": true,
-  "existing_pull_request_only": 9,
-  "new_pull_request_allowed": false,
-  "scope_policy": "trusted_execution_cutover_only",
-  "stop_after_independent_audit_handoff": true
+  "scope_policy": "p1a_v3_exact_head_external_merge_approval_only",
+  "stop_after_exact_head_ci": true
 }
 ```
 
 # DECISION_PACKET
 
-## 1. Goal
+## Goal
 
-Complete the Architecture Spine trusted-execution cutover without adding another governance layer.
+Bind mainline merge approval to the actual exact PR head and verified GitHub
+evidence. The v2 prototype (commit `708aeefa`, branch
+`codex/p1a-v2-premerge-authorization`) is frozen as audit evidence; it is not
+merged, not marked ready, and not used as the v3 base.
 
-The required chain is:
+The v2 audit (Issue #22 comment, 2026-07-24T08:27:29Z) found seven blocking
+issues (F1-F7). This v3 Decision addresses all seven by replacing the
+single-artifact authorization model with a three-object lifecycle that
+separates committed merge intent (pre-CI) from external acceptance evidence
+(post-CI), and by adding a real remote-observation verifier.
 
-```text
-active Decision
-→ deterministic current command plan
-→ TrustedExecutionContext
-→ authorize-before-execute
-→ trusted runner
-→ atomic current-round evidence journal
-→ command-local mutation delta
-→ authenticity and mutation reconciliation
-→ current LOCAL_RECONCILED seal
-→ current subject-bound report
-→ independent exact-head publication seal
-```
+## v3 Architecture: three separate objects
 
-The implementation at `70dd217b381d106085bce51857be5e8abdd2fa86` is retained as the starting point. Only the defects listed in `docs/roadmap/architecture_spine_trusted_execution_cutover_rework_v1.md` may be repaired.
+### A. Committed Merge Intent (in PR head, before CI)
 
----
+A `MergeIntent` artifact committed at
+`project_state/mainline_merge_intents/active.json` in the exact PR head before
+final CI. It binds:
 
-## 2. Bootstrap Phase
+- `source_pr`, `locked_base_sha`, `allowed_merge_method`;
+- Decision identity and Command Plan digest;
+- `merge_tree_policy`, `expiry_policy`;
+- required workflow names (NOT run IDs — those come post-CI).
 
-Use the bootstrap exception only to:
+It must NOT contain its own future commit SHA or post-CI run IDs. The exact PR
+head is the commit that becomes the merge's second parent — no branch commit
+is allowed after exact-head acceptance.
 
-1. make all command fields round-trip through generator and committed plan;
-2. enforce globally unique command IDs;
-3. add the missing `tests/test_provenance_integration.py`;
-4. implement `TrustedExecutionContext.from_state_dir()`;
-5. implement authorize-before-execute checks;
-6. make the evidence journal cross-round safe, locked, monotonic and atomic;
-7. invalidate all previous-round evidence as completion evidence;
-8. generate this Decision's command plan and preflight result.
+### B. External Merge Approval Attestation (post-CI, outside Git tree)
 
-After bootstrap expiry, no command may execute outside the production trusted-runner path.
+A `MergeApprovalAttestation` created only after final exact-head CI succeeds.
+Stored as a GitHub PR comment or Actions artifact (NOT in the PR Git tree).
+It binds:
 
----
+- repository, `source_pr`, `locked_base_sha`, `accepted_exact_head_sha`;
+- required workflow run IDs, workflow file/name, event type, run attempt,
+  conclusion;
+- human approver identity, approval object/comment ID;
+- content digest, expiry/supersession.
 
-## 3. Normal Implementation
+### C. Post-merge Integration Receipt (output only)
 
-After transition-lint and pre-execution authorization pass:
+The `MainlineIntegrationReceipt` remains audit output (kept from v2). It is
+NOT a prerequisite for validating the merge. Produced after validating the
+actual merge, stored as Actions artifact or Issue/PR comment, not as a new
+ordinary `main` commit.
 
-1. remove production plan injection;
-2. bind command ID to execution surface;
-3. remove transition command-string fallback;
-4. compute command-local pre/post mutation delta;
-5. distinguish runner-managed evidence writes from subprocess mutations;
-6. change path-risk handling from automatic blocking to classification plus explicit active-Decision authorization;
-7. check reference read-only status against every observed mutation;
-8. wire report subject binding into the real transition-report command;
-9. run every required command through the trusted runner;
-10. produce a current-round evidence bundle and local seal;
-11. push once and stop for independent audit.
+## RemoteAcceptanceVerifier
 
----
+A narrow interface in `reverse_agent/remote_acceptance_verifier.py`. The
+production GitHub Actions implementation queries GitHub using read-only
+permissions (`contents: read`, `actions: read`, `pull-requests: read`,
+`issues: read`) and proves every run/approval fact. Hermetic tests use a
+fixture implementation. API failure, missing permission, unknown run, or
+mismatched identity fails closed.
 
-## 4. Evidence Rules
+## PR and R2 approval binding
 
-A current-round execution record is acceptable only when:
+The gate proves:
 
-```text
-decision_id matches active Decision
-round_id matches active round
-plan_digest matches current deterministic plan
-command_id is globally unique and present
-execution surface matches
-raw evidence exists
-digests match raw bytes
-timestamps are real and monotonic
-Git objects exist
-bootstrap timing is valid
-sequence is unique and monotonic
-mutation delta is command-local
-```
+- PR exists in `dddd2024/reverse-agent`;
+- PR head == `accepted_exact_head_sha`;
+- PR base == `locked_base_sha`;
+- approval reference exists;
+- approval was produced by an allowed approver;
+- approval content binds the same base/head/PR/method.
 
-Records from previous Decisions must be rejected, not rewritten or re-labeled.
+A non-empty string is insufficient.
 
----
+## Time-based expiry
 
-## 5. Do Not Do
+Reject when `authorization_status != active` OR `expires_at <= validation_time`
+OR `superseded_by` is set. Uses an injected clock in tests.
 
-Do not:
+## Addresses v2 audit findings
 
-- alter this Decision after activation;
-- add another governance abstraction or workflow runtime;
-- modify GitHub workflows or dependencies;
-- weaken transition-lint, path scope, mutation grants or capability policy;
-- install BMAD;
-- dispatch Agents or call model APIs;
-- execute binaries or reverse tools;
-- modify frontend, User Solve or reverse-solving business logic;
-- modify unrelated legacy closeout systems;
-- create another branch or PR;
-- push directly to main;
-- merge, rebase, force-push, tag or release;
-- begin Evidence Trust Schema or Binary Evidence Firewall work.
+- **F1**: Merge Intent path is `active.json` (fixed, non-self-referential);
+  validation binds `second_parent == accepted_exact_head` (the actual PR head),
+  not `second_parent's_parent`.
+- **F2**: The exact PR head IS the merge second parent — no post-CI
+  authorization commit exists in the Git tree.
+- **F3**: `RemoteAcceptanceVerifier` queries GitHub API to verify run identity;
+  `trust_source` is no longer a self-authored label.
+- **F4**: `source_pr` and `human_r2_approval_reference` are verified against
+  GitHub PR and comment data.
+- **F5**: Test 21 implements the coherent forgery case (rewrite Decision/PR
+  fields, recompute digests, still fails without matching external approval).
+- **F6**: Test 22 explicitly covers `active` + past `expires_at`.
+- **F7**: Draft PR creation is authorized (`pr_creation_allowed: true`).
 
----
+## Required tests (26, from Issue #23)
 
-## 6. Completion Criteria
+### Exact-head lifecycle (tests 1-7) — `tests/test_exact_head_lifecycle.py`
+1. Final PR head contains all code and committed merge intent.
+2. All required remote observations bind that exact final head.
+3. Actual merge second parent equals that exact final head.
+4. Mainline validation passes at the real two-parent merge commit.
+5. Any commit added after accepted exact-head checks causes failure.
+6. An "authorization-only" post-CI commit causes failure.
+7. A post-CI commit containing unrelated source changes causes failure.
 
-Recommend `ACCEPTED` only if:
+### Remote evidence authenticity (tests 8-15) — `tests/test_remote_evidence_authenticity.py`
+8. `trust_source=github_actions_run` with nonexistent run ID fails.
+9. Run from another repository fails.
+10. Run for another SHA fails.
+11. Wrong workflow name or workflow file fails.
+12. Wrong event type fails.
+13. Failed/cancelled/skipped/in-progress run fails.
+14. Stale run attempt or superseded run fails where applicable.
+15. Missing one required run fails.
 
-1. committed plan exactly equals the active Decision projection;
-2. all required test files exist;
-3. transition-lint and preflight pass;
-4. production runner loads authority from state_dir and rejects injected plans;
-5. authorization occurs before subprocess execution;
-6. the journal is current-round only, atomic and locked;
-7. mutation attribution uses before/after delta;
-8. command IDs are unique and no string fallback exists;
-9. path risk is correctly classified and authorized by the active Decision;
-10. reference paths remain read-only across all mutations;
-11. every required command has authentic current evidence;
-12. reconciliation is `RECONCILED`;
-13. local seal is `LOCAL_RECONCILED` for this Decision;
-14. reports bind the real implementation subject;
-15. exact-head CI, State Gate and Decision Preflight all succeed;
-16. the independent PR publication seal binds exact HEAD and run IDs;
-17. PR #9 remains Draft and unmerged.
+### PR and approval binding (tests 16-21) — `tests/test_pr_approval_binding.py`
+16. Wrong `source_pr` fails even if other digests are recomputed.
+17. PR head/base mismatch fails.
+18. Nonexistent approval reference fails.
+19. Approval by an unauthorized identity fails.
+20. Approval digest/base/head/method mismatch fails.
+21. Coherently rewritten local Decision/PR fields and recomputed ordinary
+    digests still fail without matching external approval.
 
-Otherwise the result remains `REWORK_REQUIRED`.
+### Expiry and receipt (tests 22-26) — `tests/test_expiry_and_receipt.py`
+22. `authorization_status=active` with past `expires_at` fails.
+23. Superseded approval fails.
+24. Post-merge receipt is emitted as output without becoming a validation
+    prerequisite.
+25. Receipt publication does not create an ordinary `main` commit that
+    immediately violates the merge-at-HEAD gate.
+26. Historical `integration-baseline(architecture_spine_v1)` remains active.
 
-After acceptance, stop Architecture Spine governance repair and hand off to a separately authorized product phase.
+## Do not do
+
+Do not modify PR #9, PR #11, PR #19, PR #21, or the v2 prototype branch. Do
+not mutate solve artifacts, samples, frontend, reverse-solving logic,
+dependencies, secrets, binaries, tags, or releases. Do not execute unknown
+binaries. Do not push directly to main, force-push, rebase, squash, or merge
+under this Decision. Do not create Trust Layer, Stage C protocol, Web, tool
+integration, or unknown-binary execution work. Do not add a post-CI branch
+commit containing authorization data.
+
+## Completion
+
+This Decision is complete only when:
+- local focused tests pass (26 v3 tests + integration baseline regression);
+- the branch is published and a Draft PR is created;
+- exact-head CI, State Gate, and Decision Preflight are green on the same
+  exact head;
+- the historical Architecture Spine baseline remains active.
+
+The PR then waits for a separately authorized R2 merge Decision.
