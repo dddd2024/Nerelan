@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mainline_merge_authorization.schema.json",
+  "title": "Mainline merge authorization",
+  "description": "Pre-merge authorization artifact committed in the accepted PR head before merge. Bound deterministically by accepted_head_sha so a stale authorization cannot validate a later unrelated commit (Issue #22).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authorization_id",
+    "source_pr",
+    "accepted_head_sha",
+    "locked_base_sha",
+    "allowed_merge_method",
+    "decision_identity",
+    "command_plan_digest",
+    "required_workflow_observations",
+    "minimum_trust_source",
+    "human_r2_approval_reference",
+    "merge_tree_policy",
+    "authorization_status",
+    "committed_at"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "authorization_id": {"type": "string", "minLength": 1},
+    "source_pr": {"type": "integer", "minimum": 1},
+    "accepted_head_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "locked_base_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "allowed_merge_method": {"type": "string", "enum": ["merge"]},
+    "decision_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id", "decision_content_digest"],
+      "properties": {
+        "decision_id": {"type": "string", "minLength": 1},
+        "decision_content_digest": {"type": "string", "pattern": "sha256:[0-9a-f]{64}"}
+      }
+    },
+    "command_plan_digest": {"type": "string", "pattern": "sha256:[0-9a-f]{64}"},
+    "required_workflow_observations": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "trust_source", "head_sha", "conclusion", "run_id"],
+        "properties": {
+          "name": {"type": "string", "enum": ["CI", "Decision Preflight", "State Gate (pull_request)", "State Gate (push)"]},
+          "trust_source": {"type": "string", "enum": ["github_actions_run", "local_asserted"]},
+          "head_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+          "conclusion": {"type": "string", "const": "success"},
+          "run_id": {"type": "integer"}
+        }
+      }
+    },
+    "minimum_trust_source": {"type": "string", "enum": ["github_actions_run", "local_asserted"]},
+    "human_r2_approval_reference": {"type": "string", "minLength": 1},
+    "merge_tree_policy": {"type": "string", "enum": ["equal_to_accepted_head_tree", "allow_conflict_resolution"]},
+    "authorization_status": {"type": "string", "enum": ["active", "expired", "superseded"]},
+    "expires_at": {"type": ["string", "null"]},
+    "superseded_by": {"type": ["string", "null"]},
+    "committed_at": {"type": "string", "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"}
+  }
+}

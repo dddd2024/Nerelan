@@ -35934,6 +35934,430 @@ def _transition_git(repo_root: Path, *args: str, check: bool = True) -> str:
     return completed.stdout.strip()
 
 
+# ---------------------------------------------------------------------------
+# Stage A frozen integration baseline (historical PR #9 invariant)
+# ---------------------------------------------------------------------------
+
+INTEGRATION_BASELINE_SCHEMA_NAME = "integration_baseline.schema.json"
+INTEGRATION_BASELINES_DIR_NAME = "integration_baselines"
+BASELINE_REQUIRED_RUN_NAMES = (
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)",
+    "State Gate (push)",
+)
+
+
+def _baseline_subject_tree_from_receipt(receipt: dict[str, Any]) -> str:
+    return str(receipt.get("subject_head_tree_sha") or receipt.get("accepted_head_tree_sha") or "")
+
+
+def integration_baseline(*, state_dir: Path, repo_root: Path | None = None) -> dict[str, Any]:
+    """Validate the frozen PR #9 integration baseline invariant.
+
+    This is a historical invariant that proves the accepted PR #9 integration
+    remains present and unchanged in the current HEAD ancestry.  It does not
+    authorize later merges (see :func:`mainline_merge_validation`).
+    """
+
+    repo_root = repo_root or _derive_repo_root(state_dir)
+    schema_path = state_dir / "schemas" / INTEGRATION_BASELINE_SCHEMA_NAME
+    baselines_dir = state_dir / INTEGRATION_BASELINES_DIR_NAME
+
+    def check(name: str, passed: bool, detail: str) -> dict[str, str]:
+        return {"name": name, "status": "PASS" if passed else "FAIL", "detail": detail}
+
+    if not baselines_dir.is_dir():
+        return {
+            "schema_version": 1,
+            "gate_name": "integration-baseline",
+            "gate_status": "BLOCKED",
+            "baseline_id": "",
+            "merge_commit_sha": "",
+            "subject_head_sha": "",
+            "checks": [],
+            "blocking_reasons": ["no_baselines_directory"],
+            "recommended_next_action": "commit_frozen_baseline_receipt",
+        }
+
+    receipts = sorted(baselines_dir.glob("*.json"))
+    if not receipts:
+        return {
+            "schema_version": 1,
+            "gate_name": "integration-baseline",
+            "gate_status": "BLOCKED",
+            "baseline_id": "",
+            "merge_commit_sha": "",
+            "subject_head_sha": "",
+            "checks": [],
+            "blocking_reasons": ["no_baseline_receipts"],
+            "recommended_next_action": "commit_frozen_baseline_receipt",
+        }
+
+    receipt_path = receipts[0]
+    try:
+        receipt = _read_json(receipt_path)
+        schema = _read_json(schema_path) if schema_path.exists() else {}
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "schema_version": 1,
+            "gate_name": "integration-baseline",
+            "gate_status": "BLOCKED",
+            "baseline_id": "",
+            "merge_commit_sha": "",
+            "subject_head_sha": "",
+            "checks": [],
+            "blocking_reasons": [f"invalid_receipt:{exc}"],
+            "recommended_next_action": "repair_or_replace_invalid_baseline_receipt",
+        }
+
+    baseline_id = str(receipt.get("baseline_id") or receipt_path.stem)
+    merge_commit = str(receipt.get("merge_commit_sha") or "")
+    subject_head = str(receipt.get("subject_head_sha") or receipt.get("accepted_head_sha") or "")
+    previous_main = str(receipt.get("previous_main_sha") or receipt.get("base_sha") or "")
+    declared_parents = receipt.get("ordered_parent_shas") or receipt.get("expected_parent_shas") or [previous_main, subject_head]
+    declared_merge_tree = str(receipt.get("merge_tree_sha") or receipt.get("expected_tree_sha") or "")
+    subject_tree = _baseline_subject_tree_from_receipt(receipt)
+    require_tree_equality = bool(receipt.get("require_tree_equality", True))
+
+    actual_parents = _transition_git(repo_root, "show", "-s", "--format=%P", merge_commit, check=False).split()
+    actual_merge_tree = _transition_git(repo_root, "show", "-s", "--format=%T", merge_commit, check=False)
+    # Compute the subject head's tree from git when the receipt doesn't carry
+    # it explicitly, so tree-equality can be verified against the actual object.
+    if not subject_tree and subject_head:
+        subject_tree = _transition_git(repo_root, "show", "-s", "--format=%T", subject_head, check=False)
+
+    merge_reachable = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", merge_commit, "HEAD"],
+        cwd=repo_root, check=False,
+    ).returncode == 0
+
+    runs = receipt.get("required_exact_head_runs") or receipt.get("required_workflow_observations") or receipt.get("successful_exact_head_runs") or []
+    runs_ok = bool(runs) and all(
+        isinstance(r, dict) and r.get("head_sha") == subject_head and r.get("conclusion") == "success"
+        for r in runs
+    )
+    run_names = [str(r.get("name")) for r in runs if isinstance(r, dict)]
+
+    # Lightweight schema validation: enforce additionalProperties=false.
+    schema_errors: list[str] = []
+    if schema:
+        allowed = set((schema.get("properties") or {}).keys())
+        if schema.get("additionalProperties") is False and allowed:
+            extra = set(receipt.keys()) - allowed
+            if extra:
+                schema_errors.append(f"additional_properties={sorted(extra)}")
+        for field in schema.get("required", []):
+            if field not in receipt:
+                schema_errors.append(f"missing_required={field}")
+    schema_ok = not schema_errors
+
+    checks = [
+        check("schema_valid", schema_ok, f"errors={schema_errors}"),
+        check("frozen_status", str(receipt.get("status") or receipt.get("baseline_status") or "FROZEN_BASELINE") in ("FROZEN_BASELINE", "active", "frozen"), ""),
+        check("git_objects_exist", bool(actual_parents), ""),
+        check("declared_parent_identity", actual_parents == list(declared_parents) or len(actual_parents) >= 2, ""),
+        check("merge_parent_identity", len(actual_parents) >= 2 and actual_parents == [previous_main, subject_head], ""),
+        check("tree_identity", bool(actual_merge_tree) and actual_merge_tree == declared_merge_tree and (not require_tree_equality or actual_merge_tree == subject_tree), ""),
+        check("merge_reachable_from_head", merge_reachable, ""),
+        check("parent_ancestry", len(actual_parents) >= 2, ""),
+        check("exact_head_runs", runs_ok, f"run_count={len(runs)}"),
+        check("required_run_names", set(run_names) == set(BASELINE_REQUIRED_RUN_NAMES), f"observed={sorted(run_names)}"),
+    ]
+    blocking = [f"{c['name']}: {c['detail']}" for c in checks if c["status"] == "FAIL"]
+    return {
+        "schema_version": 1,
+        "gate_name": "integration-baseline",
+        "gate_status": "PASSED" if not blocking else "BLOCKED",
+        "baseline_id": baseline_id,
+        "merge_commit_sha": merge_commit,
+        "subject_head_sha": subject_head,
+        "checks": checks,
+        "blocking_reasons": blocking,
+        "recommended_next_action": None if not blocking else "repair_or_replace_invalid_baseline_receipt",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Pre-merge authorization mainline merge validation (Issue #22)
+# ---------------------------------------------------------------------------
+
+MERGE_AUTHORIZATION_SCHEMA_NAME = "mainline_merge_authorization.schema.json"
+MERGE_AUTHORIZATIONS_DIR_NAME = "mainline_authorizations"
+MERGE_REQUIRED_RUN_NAMES = (
+    "CI",
+    "Decision Preflight",
+    "State Gate (pull_request)",
+    "State Gate (push)",
+)
+_TRUST_ORDER = {"local_asserted": 1, "github_actions_run": 2}
+
+
+def _sha256_text(text: str) -> str:
+    import hashlib
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _git_show_tree(repo_root: Path, tree_ish: str, path: str) -> str | None:
+    """Read a file from a git tree without checking it out.  Returns None if absent."""
+
+    result = subprocess.run(
+        ["git", "show", f"{tree_ish}:{path}"],
+        cwd=repo_root, capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
+def mainline_merge_validation(*, repo_root: Path, state_dir: Path | None = None, commit_sha: str | None = None) -> dict[str, Any]:
+    """Validate the actual two-parent merge commit at HEAD (or at
+    ``commit_sha``) against a pre-merge ``MainlineMergeAuthorization``
+    committed in the accepted PR head.
+
+    The authorization is looked up deterministically by the second parent
+    (accepted head sha) of the merge commit, so a stale authorization
+    cannot validate a later unrelated commit (Issue #22).
+    """
+
+    def check(name: str, passed: bool, detail: str) -> dict[str, str]:
+        return {"name": name, "status": "PASS" if passed else "FAIL", "detail": detail}
+
+    head_sha = commit_sha if commit_sha is not None else _transition_git(repo_root, "rev-parse", "HEAD")
+    parents = _transition_git(repo_root, "show", "-s", "--format=%P", head_sha).split()
+    head_tree = _transition_git(repo_root, "show", "-s", "--format=%T", head_sha)
+
+    # HEAD must be a two-parent merge commit.
+    if len(parents) != 2:
+        return {
+            "schema_version": 1,
+            "gate_name": "mainline-merge-validation",
+            "gate_status": "BLOCKED",
+            "head_sha": head_sha,
+            "merge_commit_sha": head_sha,
+            "accepted_head_sha": "",
+            "blocking_reasons": [f"head_is_not_two_parent_merge:parent_count={len(parents)}"],
+            "checks": [check("head_is_two_parent_merge", False, f"parent_count={len(parents)}")],
+            "recommended_next_action": "use_merge_commit_not_squash_or_rebase",
+        }
+
+    first_parent, second_parent = parents[0], parents[1]
+    # The authorization lives at a fixed path inside the accepted PR head's
+    # tree.  Naming the file by the accepted head sha is self-referential
+    # (the sha depends on the tree which contains the file), so a fixed
+    # ``active.json`` path is used instead.  Stale-authorisation prevention
+    # comes from ``locked_base_sha`` matching the first parent and from the
+    # Decision/Command Plan digest checks -- not from the filename.
+    authz_path = "project_state/mainline_authorizations/active.json"
+    authz_text = _git_show_tree(repo_root, second_parent, authz_path)
+
+    if authz_text is None:
+        return {
+            "schema_version": 1,
+            "gate_name": "mainline-merge-validation",
+            "gate_status": "BLOCKED",
+            "head_sha": head_sha,
+            "merge_commit_sha": head_sha,
+            "accepted_head_sha": second_parent,
+            "blocking_reasons": [f"no_authorization_for_accepted_head:{second_parent}"],
+            "checks": [check("authorization_present", False, f"path={authz_path}")],
+            "recommended_next_action": "commit_authorization_in_accepted_head",
+        }
+
+    try:
+        authz = json.loads(authz_text)
+    except ValueError as exc:
+        return {
+            "schema_version": 1,
+            "gate_name": "mainline-merge-validation",
+            "gate_status": "BLOCKED",
+            "head_sha": head_sha,
+            "merge_commit_sha": head_sha,
+            "accepted_head_sha": second_parent,
+            "blocking_reasons": [f"invalid_authorization:{exc}"],
+            "checks": [],
+            "recommended_next_action": "repair_authorization",
+        }
+
+    locked_base = str(authz.get("locked_base_sha") or "")
+    # ``accepted_head_sha`` is advisory: it declares the implementation head
+    # the observations bind to.  It cannot equal ``second_parent`` (the
+    # containing commit's sha) because that would be self-referential.  The
+    # validator uses ``second_parent`` as the ground-truth accepted head and
+    # requires the authz commit (``second_parent``) to sit directly on top of
+    # the declared implementation head, so a stale authorization copied into a
+    # different branch cannot validate an unrelated merge (Issue #22 finding).
+    declared_accepted_head = str(authz.get("accepted_head_sha") or "")
+    declared_method = str(authz.get("allowed_merge_method") or "")
+    merge_tree_policy = str(authz.get("merge_tree_policy") or "")
+    min_trust = str(authz.get("minimum_trust_source") or "local_asserted")
+    authz_status = str(authz.get("authorization_status") or "")
+
+    decision_id = str((authz.get("decision_identity") or {}).get("decision_id") or "")
+    declared_decision_digest = str((authz.get("decision_identity") or {}).get("decision_content_digest") or "")
+    declared_cp_digest = str(authz.get("command_plan_digest") or "")
+
+    # Read committed Decision and Command Plan from the accepted head's tree.
+    decision_text = _git_show_tree(repo_root, second_parent, "project_state/decision_packet.md") or ""
+    cp_text = _git_show_tree(repo_root, second_parent, "project_state/gates/command_plan.json") or ""
+    actual_decision_digest = _sha256_text(decision_text)
+    actual_cp_digest = _sha256_text(cp_text)
+
+    # Extract the decision_id from the committed decision file so the
+    # authorization's declared identity can be bound to the actual content
+    # (Issue #22 finding #5: a recomputable SHA-256 is integrity only, not
+    # authenticity -- the decision_id must also match).
+    import re as _re
+    _id_match = _re.search(r'"decision_id"\s*:\s*"([^"]+)"', decision_text)
+    actual_decision_id = _id_match.group(1) if _id_match else ""
+
+    accepted_head_tree = _transition_git(repo_root, "show", "-s", "--format=%T", second_parent, check=False)
+    # The authz commit (``second_parent``) must be a direct child of the
+    # declared implementation head.  This binds the authorization to the exact
+    # branch tip the observations were recorded for and prevents a stale authz
+    # from being copied into an unrelated branch (Issue #22).
+    second_parent_parent = _transition_git(repo_root, "rev-parse", f"{second_parent}^", check=False)
+
+    observations = authz.get("required_workflow_observations") or []
+    observations = [o for o in observations if isinstance(o, dict)]
+    obs_names = [str(o.get("name")) for o in observations]
+    # Observations must bind to the declared accepted head (advisory field).
+    obs_heads_ok = all(str(o.get("head_sha")) == declared_accepted_head for o in observations)
+    obs_conclusions_ok = all(str(o.get("conclusion")) == "success" for o in observations)
+    obs_trust_ok = all(
+        _TRUST_ORDER.get(str(o.get("trust_source")), 0) >= _TRUST_ORDER.get(min_trust, 0)
+        for o in observations
+    )
+    required_names_ok = set(obs_names) == set(MERGE_REQUIRED_RUN_NAMES) and len(observations) >= 4
+
+    tree_policy_ok = True
+    if merge_tree_policy == "equal_to_accepted_head_tree":
+        tree_policy_ok = head_tree == accepted_head_tree
+
+    checks = [
+        check("head_is_two_parent_merge", len(parents) == 2, f"parent_count={len(parents)}"),
+        check("authorization_present", True, f"path={authz_path}"),
+        check("first_parent_matches_locked_base", first_parent == locked_base, f"first={first_parent} locked={locked_base}"),
+        check("second_parent_parent_matches_accepted_head", second_parent_parent == declared_accepted_head, f"second_parent_parent={second_parent_parent} declared={declared_accepted_head}"),
+        check("merge_method", declared_method == "merge", f"method={declared_method}"),
+        check("merge_tree_policy", tree_policy_ok, f"head_tree={head_tree} accepted_tree={accepted_head_tree} policy={merge_tree_policy}"),
+        check("decision_digest", declared_decision_digest == actual_decision_digest, f"declared={declared_decision_digest} actual={actual_decision_digest}"),
+        check("decision_identity", decision_id == actual_decision_id and bool(decision_id), f"declared={decision_id} actual={actual_decision_id}"),
+        check("command_plan_digest", declared_cp_digest == actual_cp_digest, f"declared={declared_cp_digest} actual={actual_cp_digest}"),
+        check("authorization_status", authz_status == "active", f"status={authz_status}"),
+        check("required_workflow_observations", required_names_ok and obs_conclusions_ok, f"names={sorted(obs_names)} conclusions_ok={obs_conclusions_ok}"),
+        check("workflow_observation_heads", obs_heads_ok, f"all_bind={declared_accepted_head}"),
+        check("observation_trust_boundary", obs_trust_ok, f"min_trust={min_trust}"),
+        check("r2_approval_reference", bool(authz.get("human_r2_approval_reference")), ""),
+    ]
+    blocking = [f"{c['name']}: {c['detail']}" for c in checks if c["status"] == "FAIL"]
+    return {
+        "schema_version": 1,
+        "gate_name": "mainline-merge-validation",
+        "gate_status": "PASSED" if not blocking else "BLOCKED",
+        "head_sha": head_sha,
+        "merge_commit_sha": head_sha,
+        "accepted_head_sha": second_parent,
+        "locked_base_sha": locked_base,
+        "checks": checks,
+        "blocking_reasons": blocking,
+        "recommended_next_action": None if not blocking else "repair_authorization_or_merge_method",
+    }
+
+
+def emit_mainline_integration_receipt(
+    *, repo_root: Path, state_dir: Path | None = None, merge_commit_sha: str | None = None
+) -> dict[str, Any]:
+    """Emit a post-merge ``MainlineIntegrationReceipt`` audit output.
+
+    The receipt is an *output* -- it is NOT a prerequisite for
+    :func:`mainline_merge_validation`.  It records the actual merge commit,
+    ordered parents, trees, and observation references so a later audit can
+    reconstruct what was validated (Issue #22).
+
+    If ``merge_commit_sha`` is ``None`` the merge commit at HEAD is used.
+    Otherwise the receipt references the specified merge commit, allowing the
+    receipt to be emitted from a *later* commit (e.g. one that stores the
+    receipt) without requiring ``receipt_commit_HEAD == merge_commit_sha``.
+    """
+
+    context_sha = _transition_git(repo_root, "rev-parse", "HEAD")
+    target = merge_commit_sha if merge_commit_sha is not None else context_sha
+
+    # Run validation against the target merge commit.
+    validation = mainline_merge_validation(
+        repo_root=repo_root, state_dir=state_dir, commit_sha=target
+    )
+
+    validation_status = str(validation.get("gate_status") or "BLOCKED")
+    blocking = list(validation.get("blocking_reasons") or [])
+
+    # Extract merge-graph identity from the validation result and git.
+    merge_sha = str(validation.get("merge_commit_sha") or target)
+    accepted_head = str(validation.get("accepted_head_sha") or "")
+    locked_base = str(validation.get("locked_base_sha") or "")
+
+    parents_line = _transition_git(repo_root, "show", "-s", "--format=%P", merge_sha, check=False)
+    parent_list = parents_line.split() if parents_line else []
+    first_parent = parent_list[0] if len(parent_list) >= 1 else ""
+    second_parent = parent_list[1] if len(parent_list) >= 2 else ""
+
+    merge_tree = _transition_git(repo_root, "show", "-s", "--format=%T", merge_sha, check=False)
+    accepted_head_tree = _transition_git(repo_root, "show", "-s", "--format=%T", accepted_head, check=False) if accepted_head else ""
+
+    # Read the authorization from the second parent's tree for identity fields.
+    authz_id = ""
+    decision_identity: dict[str, str] = {"decision_id": "", "decision_content_digest": ""}
+    observation_refs: list[dict[str, Any]] = []
+    authz_text = _git_show_tree(repo_root, second_parent, "project_state/mainline_authorizations/active.json") if second_parent else None
+    if authz_text:
+        try:
+            authz = json.loads(authz_text)
+            authz_id = str(authz.get("authorization_id") or "")
+            di = authz.get("decision_identity") or {}
+            decision_identity = {
+                "decision_id": str(di.get("decision_id") or ""),
+                "decision_content_digest": str(di.get("decision_content_digest") or ""),
+            }
+            for obs in authz.get("required_workflow_observations") or []:
+                if isinstance(obs, dict):
+                    observation_refs.append({
+                        "name": str(obs.get("name") or ""),
+                        "trust_source": str(obs.get("trust_source") or ""),
+                        "head_sha": str(obs.get("head_sha") or ""),
+                        "conclusion": str(obs.get("conclusion") or ""),
+                        "run_id": int(obs.get("run_id") or 0),
+                    })
+        except ValueError:
+            pass
+
+    import datetime as _dt
+    emitted_at = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    receipt_status = "EMITTED" if validation_status == "PASSED" else "BLOCKED"
+    receipt_id = f"receipt-{merge_sha[:12]}"
+
+    return {
+        "schema_version": 1,
+        "receipt_id": receipt_id,
+        "receipt_status": receipt_status,
+        "validation_status": validation_status,
+        "merge_commit_sha": merge_sha,
+        "first_parent_sha": first_parent,
+        "second_parent_sha": second_parent,
+        "accepted_head_sha": accepted_head,
+        "locked_base_sha": locked_base,
+        "merge_tree_sha": merge_tree,
+        "accepted_head_tree_sha": accepted_head_tree,
+        "authorization_id": authz_id,
+        "decision_identity": decision_identity,
+        "observation_references": observation_refs,
+        "blocking_reasons": blocking,
+        "emitted_at": emitted_at,
+        "receipt_context_sha": context_sha,
+    }
+
+
 def _active_transition_skills(repo_root: Path) -> tuple[str, ...]:
     registry = _read_json(repo_root / ".codex-skills" / "registry.json")
     skills = registry.get("skills") if isinstance(registry.get("skills"), dict) else {}
@@ -37006,6 +37430,18 @@ def main(argv: list[str] | None = None) -> int:
     transition_run_command_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     transition_run_command_parser.add_argument("--command-id", required=True, help="The command_id to execute through the trusted runner.")
     transition_run_command_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    integration_baseline_parser = subparsers.add_parser(
+        "integration-baseline",
+        help="Validate the frozen PR #9 integration baseline invariant.",
+    )
+    integration_baseline_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    integration_baseline_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    mainline_merge_validation_parser = subparsers.add_parser(
+        "mainline-merge-validation",
+        help="Validate the actual two-parent merge commit at HEAD against a pre-merge authorization (Issue #22).",
+    )
+    mainline_merge_validation_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    mainline_merge_validation_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
@@ -37098,6 +37534,38 @@ def main(argv: list[str] | None = None) -> int:
         if "blocking_reasons" in result and result.get("blocking_reasons") and result["blocking_reasons"][0] == "missing_reconciliation_candidate":
             return 1
         return 0
+    if args.command == "integration-baseline":
+        state_dir = Path(args.state_dir)
+        result = integration_baseline(state_dir=state_dir, repo_root=_derive_repo_root(state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            print(f"integration-baseline: {result.get('gate_status')}")
+            print(f"baseline_id: {result.get('baseline_id')}")
+            print(f"merge_commit_sha: {result.get('merge_commit_sha')}")
+            print(f"subject_head_sha: {result.get('subject_head_sha')}")
+            for item in result.get("checks", []):
+                print(f"  [{item.get('status')}] {item.get('name')}: {item.get('detail')}")
+            for reason in result.get("blocking_reasons", []):
+                print(f"  [BLOCK] {reason}")
+            print(f"recommended_next_action: {result.get('recommended_next_action')}")
+        return 0 if result.get("gate_status") == "PASSED" else 1
+    if args.command == "mainline-merge-validation":
+        state_dir = Path(args.state_dir)
+        result = mainline_merge_validation(repo_root=_derive_repo_root(state_dir), state_dir=state_dir)
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            print(f"mainline-merge-validation: {result.get('gate_status')}")
+            print(f"head_sha: {result.get('head_sha')}")
+            print(f"merge_commit_sha: {result.get('merge_commit_sha')}")
+            print(f"accepted_head_sha: {result.get('accepted_head_sha')}")
+            for item in result.get("checks", []):
+                print(f"  [{item.get('status')}] {item.get('name')}: {item.get('detail')}")
+            for reason in result.get("blocking_reasons", []):
+                print(f"  [BLOCK] {reason}")
+            print(f"recommended_next_action: {result.get('recommended_next_action')}")
+        return 0 if result.get("gate_status") == "PASSED" else 1
     if args.command == "transition-run-command":
         state_dir = Path(args.state_dir)
         command_id = args.command_id

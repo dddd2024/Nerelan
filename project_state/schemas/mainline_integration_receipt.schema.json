@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mainline_integration_receipt.schema.json",
+  "title": "Mainline integration receipt",
+  "description": "Post-merge audit output emitted after a mainline merge is validated. The receipt is NOT a prerequisite for mainline_merge_validation -- it records what was validated so a later audit can reconstruct the merge-graph identity without re-running the gate (Issue #22).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "receipt_status",
+    "validation_status",
+    "merge_commit_sha",
+    "first_parent_sha",
+    "second_parent_sha",
+    "accepted_head_sha",
+    "locked_base_sha",
+    "merge_tree_sha",
+    "accepted_head_tree_sha",
+    "authorization_id",
+    "decision_identity",
+    "observation_references",
+    "blocking_reasons",
+    "emitted_at",
+    "receipt_context_sha"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "receipt_id": {"type": "string", "minLength": 1},
+    "receipt_status": {"type": "string", "enum": ["EMITTED", "BLOCKED"]},
+    "validation_status": {"type": "string", "enum": ["PASSED", "BLOCKED"]},
+    "merge_commit_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "first_parent_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "second_parent_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "accepted_head_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "locked_base_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "merge_tree_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "accepted_head_tree_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "authorization_id": {"type": "string"},
+    "decision_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id", "decision_content_digest"],
+      "properties": {
+        "decision_id": {"type": "string", "minLength": 1},
+        "decision_content_digest": {"type": "string", "pattern": "sha256:[0-9a-f]{64}"}
+      }
+    },
+    "observation_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "trust_source", "head_sha", "conclusion", "run_id"],
+        "properties": {
+          "name": {"type": "string"},
+          "trust_source": {"type": "string", "enum": ["github_actions_run", "local_asserted"]},
+          "head_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+          "conclusion": {"type": "string", "const": "success"},
+          "run_id": {"type": "integer"}
+        }
+      }
+    },
+    "blocking_reasons": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "emitted_at": {"type": "string", "pattern": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"},
+    "receipt_context_sha": {"type": "string", "pattern": "[0-9a-f]{40}"}
+  }
+}
