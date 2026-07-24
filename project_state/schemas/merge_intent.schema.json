@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "merge_intent.schema.json",
+  "title": "Merge intent",
+  "description": "Committed merge intent artifact stored at project_state/mainline_merge_intents/active.json in the exact PR head before final CI. Binds the source work item, locked base, merge method, Decision/Command Plan identity, merge tree policy, expiry policy, and required workflow names. It must NOT contain its own future commit SHA or post-CI run IDs (Issue #23, v3 architecture A).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "intent_id",
+    "source_pr",
+    "locked_base_sha",
+    "allowed_merge_method",
+    "decision_identity",
+    "command_plan_digest",
+    "merge_tree_policy",
+    "expiry_policy",
+    "required_workflows"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "intent_id": {"type": "string", "minLength": 1},
+    "source_pr": {"type": "integer", "minimum": 1},
+    "locked_base_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "allowed_merge_method": {"type": "string", "enum": ["merge"]},
+    "decision_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id", "decision_content_digest"],
+      "properties": {
+        "decision_id": {"type": "string", "minLength": 1},
+        "decision_content_digest": {"type": "string", "pattern": "sha256:[0-9a-f]{64}"}
+      }
+    },
+    "command_plan_digest": {"type": "string", "pattern": "sha256:[0-9a-f]{64}"},
+    "merge_tree_policy": {"type": "string", "enum": ["equal_to_accepted_head_tree", "allow_conflict_resolution"]},
+    "expiry_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expires_at", "max_age_seconds"],
+      "properties": {
+        "expires_at": {"type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"},
+        "max_age_seconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "required_workflows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

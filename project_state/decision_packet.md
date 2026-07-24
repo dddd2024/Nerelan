@@ -278,7 +278,8 @@
     "tests/test_remote_evidence_authenticity.py",
     "tests/test_pr_approval_binding.py",
     "tests/test_expiry_and_receipt.py",
-    "tests/test_integration_baseline.py"
+    "tests/test_integration_baseline.py",
+    "tests/_v3_helpers.py"
   ],
   "reference_paths": [
     "project_state/current_state.json",
@@ -364,6 +365,7 @@
     "tests/test_pr_approval_binding.py",
     "tests/test_expiry_and_receipt.py",
     "tests/test_integration_baseline.py",
+    "tests/_v3_helpers.py",
     "docs/architecture/exact-head-external-approval.md",
     "docs/architecture/main-integration-baseline.md"
   ],
