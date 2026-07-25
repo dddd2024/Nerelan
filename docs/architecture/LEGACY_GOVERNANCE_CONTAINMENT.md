@@ -105,3 +105,6 @@ ACTIVE_COMPATIBILITY
 3. The compatibility adapter has exactly three responsibilities: (1) identify explicit transition Decisions; (2) convert the machine-generated command plan into typed command contracts; (3) dispatch an explicitly selected transition validator while leaving the legacy validator unchanged for every other Decision. No fourth responsibility may be added.
 4. Transition mode is opt-in via `decision_contract.transition_kernel_required`. Missing, malformed, or non-boolean values fail nonzero; there is no silent pipeline choice.
 5. Rollback of the transition kernel = restore unconditional legacy workflow routing, leaving the kernel modules installed.
+6. `NO_NEW_FEATURES` is a **containment tier** label used in this document, not a reuse disposition. The reuse inventory (`ARCHITECTURE_SPINE_REUSE_INVENTORY.md`) uses only `KEEP / ADAPT / DEFER / ARCHIVE_CANDIDATE`.
+7. After the transition round, ordinary R0/R1 work does not require `decision_packet.md` or `command_plan.json`. Those files are authority for transition rounds and R2/R3 only. R0/R1 Work Items are authorized by an approved GitHub Issue (R1 template) and deterministic checks. R2/R3 remain fail-closed.
+8. Feature-branch push and Draft PR creation are R1 operations. Direct `main` push, merge, force push, rebase, squash, tag, and release remain R2 or higher.

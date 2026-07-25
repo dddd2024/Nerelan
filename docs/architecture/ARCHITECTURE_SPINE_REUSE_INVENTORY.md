@@ -63,7 +63,7 @@ The graph is explicitly **non-dispatching**. It validates fixtures, classifies r
 | Module | Disposition | Note |
 |--------|-------------|------|
 | `project_gate.py` (transition routing: `transition-lint`, `transition-command-plan`, `transition-preflight`) | KEEP | Thin routing for transition kernel |
-| `project_gate.py` (legacy closeout/final-check/seal/report chain) | NO_NEW_FEATURES (via containment) | Legacy chain; no new features |
+| `project_gate.py` (legacy closeout/final-check/seal/report chain) | ARCHIVE_CANDIDATE | Legacy chain; containment tier is the no-new-features tier (see containment doc); reuse disposition is ARCHIVE_CANDIDATE because the chain is a candidate for archive after R0/R1 pilots stabilize. |
 | Transition kernel validation implementation | KEEP | Fail-closed authorization path |
 | Compatibility adapter (three responsibilities only) | KEEP | Identify transition Decisions; convert command plan; dispatch selected validator |
 | Legacy closeout / final-seal / report-synthesis | ARCHIVE_CANDIDATE | Candidate for archive after R0/R1 pilots stabilize |

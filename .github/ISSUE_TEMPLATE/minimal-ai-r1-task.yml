@@ -8,12 +8,19 @@ body:
       value: |
         ## Minimal AI R1 Task
 
-        This Issue is a planning reference and Work Item for a bounded R1 (bounded local edits) task.
-        It does **not** authorize R2/R3 operations, merge, direct `main` push, force push, rebase,
-        unknown-binary execution, model API invocation, or any operation outside the allowed paths.
+        This Issue is a Work Item and the **primary authority** for a bounded R1 task
+        (bounded local edits + feature-branch push + Draft PR creation). After the transition
+        round, ordinary R0/R1 work does not require `project_state/decision_packet.md` or
+        `project_state/gates/command_plan.json`; those files are authority for transition
+        rounds and R2/R3 only.
 
-        Execution authority lives in `project_state/decision_packet.md` and
-        `project_state/gates/command_plan.json`. An Issue is not command authority.
+        This Issue does **not** authorize R2/R3 operations, merge, direct `main` push, force
+        push, rebase, squash, tag, release, unknown-binary execution, model API invocation, or
+        any operation outside the allowed paths. R2/R3 operations fail closed and require a
+        bounded Decision.
+
+        Feature-branch push (`git push origin <feature-branch>`) and Draft PR creation
+        (`gh pr create --draft`) are R1 operations and are authorized by this Issue.
 
   - type: textarea
     id: specification

@@ -38,12 +38,14 @@ The project does not build a generic AI software-development platform. The curre
 
 | Tier | Scope | Authorization |
 |------|-------|---------------|
-| R0 | read-only observation | standard path |
-| R1 | bounded local edits (docs, tests, config) | standard path |
+| R0 | read-only observation | standard path (no Decision required) |
+| R1 | bounded local edits (docs, tests, config) + feature-branch push + Draft PR creation | standard path (no Decision required) |
 | R2 | workflow/dependency/network/publication | bounded Decision + Trust Authorization |
 | R3 | binary execution, debugging, secrets, destructive | bounded Decision + Trust Authorization |
 
-After the one-time transition round (Issue #26 / Issue #28 / PR #27), ordinary R0/R1 development no longer requires a full Decision/Command Plan. R2/R3 remain fail-closed.
+After the one-time transition round (Issue #26 / Issue #28 / PR #27), ordinary R0/R1 development no longer requires a full Decision/Command Plan. An R0/R1 Work Item is authorized by an approved GitHub Issue (using the R1 template), its `allowed_paths` and `forbidden_operations`, and deterministic checks. `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are authority for transition rounds and R2/R3 only, not ordinary R0/R1. R2/R3 remain fail-closed.
+
+Feature-branch push (`git push origin <feature-branch>`) and Draft PR creation (`gh pr create --draft`) are R1 operations and do not require R2 authorization. Direct `main` push, merge, force push, rebase, squash, tag, and release remain R2 or higher.
 
 ## Legacy roadmap classification
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260724_p0_minimal_integration_and_legacy_containment_rework_v2",
-  "round_id": "round_20260724_p0_minimal_integration_and_legacy_containment_rework_v2",
+  "decision_id": "decision_20260725_p0_minimal_integration_acceptance_rework_v3",
+  "round_id": "round_20260725_p0_minimal_integration_acceptance_rework_v3",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -131,7 +131,7 @@
     },
     {
       "command_id": "test.minimal_integration_contracts",
-      "command": "python -m pytest tests/test_architecture_contracts.py tests/test_planning_and_github_adapters.py tests/test_risk_classifier.py -q",
+      "command": "python -m pytest tests/test_architecture_contracts.py tests/test_planning_and_github_adapters.py tests/test_risk_classifier.py tests/test_minimal_integration_baseline_docs.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -197,24 +197,101 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.create_draft_pr",
-      "command": "gh pr create --draft --base main --head codex/p0-minimal-integration-baseline-v1",
-      "phase": "publication",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
+      "command_id": "bootstrap.gate.startup_snapshot",
+      "command": "gate.startup_snapshot",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
-      "operations": [
-        "pr_creation",
-        "network_access"
-      ],
-      "network_access": true,
+      "operations": [],
+      "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.status.git_status",
+      "command": "status.git_status",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.gate.command_plan",
+      "command": "gate.command_plan",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.gate.transition_lint",
+      "command": "gate.transition_lint",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "bootstrap.gate.pre_execution",
+      "command": "gate.pre_execution",
+      "phase": "gate",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "bootstrap_exception",
+      "bootstrap_exception": true,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []

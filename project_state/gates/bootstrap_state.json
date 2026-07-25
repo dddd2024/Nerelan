@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260724_p0_minimal_integration_and_legacy_containment_rework_v2",
-  "round_id": "round_20260724_p0_minimal_integration_and_legacy_containment_rework_v2",
-  "expired_at": "2026-07-25T03:27:41+00:00"
+  "decision_id": "decision_20260725_p0_minimal_integration_acceptance_rework_v3",
+  "round_id": "round_20260725_p0_minimal_integration_acceptance_rework_v3",
+  "expired_at": "2026-07-25T04:43:30+00:00"
 }
