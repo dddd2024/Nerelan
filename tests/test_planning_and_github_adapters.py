@@ -6,6 +6,11 @@ from reverse_agent.adapters.bmad_planning import load_planning_reference
 from reverse_agent.adapters.github_truth import GitHubTruthObservation
 from reverse_agent.adapters.github_work_item import load_github_work_item
 
+# CI intentionally selects this stable adapter test module. Re-export the
+# minimal-integration semantic contract tests here so they remain enforced
+# without changing the repository's locked five-step workflow contract.
+from test_minimal_integration_baseline_docs import *  # noqa: F401,F403,E402
+
 
 def test_bmad_adapter_accepts_structured_context_only() -> None:
     reference = load_planning_reference(
