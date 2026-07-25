@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260725_p0_minimal_integration_r1_authority_closure_rework_v5",
-  "round_id": "round_20260725_p0_minimal_integration_r1_authority_closure_rework_v5",
+  "decision_id": "decision_20260725_p0_minimal_integration_ci_validation_closure_v6",
+  "round_id": "round_20260725_p0_minimal_integration_ci_validation_closure_v6",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
