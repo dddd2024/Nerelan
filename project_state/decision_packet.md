@@ -1,22 +1,22 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260725_p0_minimal_integration_test_observability_and_closure_v8","round_id":"round_20260725_p0_minimal_integration_test_observability_and_closure_v8","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{"schema_version":1,"decision_id":"decision_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9","round_id":"round_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260725_p0_minimal_integration_authority_field_correction_v7",
-  "follows_last_round_id": "round_20260725_p0_minimal_integration_authority_field_correction_v7",
-  "previous_audit_outcome": "TEST_FAILURE_NOT_OBSERVABLE",
-  "failed_validation_head": "3827a33797b5821cbf314d0af2dc80a2f3d55035",
-  "workstream_id": "p0-minimal-integration-test-observability-and-closure-v8",
+  "follows_last_decision_id": "decision_20260725_p0_minimal_integration_test_observability_and_closure_v8",
+  "follows_last_round_id": "round_20260725_p0_minimal_integration_test_observability_and_closure_v8",
+  "previous_audit_outcome": "WORKFLOW_CONTRACT_FAILURE",
+  "failed_validation_head": "30da718512f0c1112e3444954f6f06a6766868f2",
+  "workstream_id": "p0-minimal-integration-ci-contract-compatible-enforcement-v9",
   "source_issue": 35,
   "program_issue": 26,
   "source_pull_request": 27,
   "required_branch": "codex/p0-minimal-integration-baseline-v1",
-  "starting_head": "3827a33797b5821cbf314d0af2dc80a2f3d55035",
+  "starting_head": "30da718512f0c1112e3444954f6f06a6766868f2",
   "activation_base_sha": "38de9106d191d6b66d5f878354144817095e7bca",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
@@ -35,16 +35,16 @@
     {"command_id":"validation.diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"publication.push_branch","command":"git push origin codex/p0-minimal-integration-baseline-v1","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]}
   ],
-  "allowed_mutated_paths": [".github/workflows/ci.yml","AGENTS.md","docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md","docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml","tests/test_minimal_integration_baseline_docs.py","project_state/decision_packet.md","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],
-  "reference_paths": ["docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md","docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md"],
+  "allowed_mutated_paths": [".github/workflows/ci.yml","tests/test_planning_and_github_adapters.py","project_state/decision_packet.md","project_state/gates/command_plan.json","project_state/gates/startup_snapshot.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],
+  "reference_paths": ["tests/test_minimal_integration_baseline_docs.py","tests/test_project_gate.py","AGENTS.md","docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md","docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml"],
   "generated_artifact_paths": ["project_state/gates/startup_snapshot.json","project_state/gates/command_plan.json","project_state/gates/bootstrap_state.json","project_state/gates/transition_command_plan_preview.json","project_state/gates/transition_preflight_result.json"],
-  "forbidden_mutated_paths": ["reverse_agent/**",".github/workflows/state-gate.yml",".github/workflows/decision-preflight.yml",".codex-skills/**","docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md","docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md","pyproject.toml","pytest.ini","setup.cfg"],
+  "forbidden_mutated_paths": ["reverse_agent/**",".github/workflows/state-gate.yml",".github/workflows/decision-preflight.yml",".codex-skills/**","AGENTS.md",".github/ISSUE_TEMPLATE/**","docs/**","tests/test_project_gate.py","tests/test_minimal_integration_baseline_docs.py","pyproject.toml","pytest.ini","setup.cfg"],
   "forbidden_operations": ["direct push to main","force push","rebase","squash","merge","tag","release","unknown_binary_execution","model_api_invocation","external_reverse_tool_invocation","runner_dispatch","workflow_dispatch","automatic_merge","mark_pr_ready_for_review","branch_creation","git_config_modification","history_rewrite","secret_access","destructive_operations","product_source_changes","dependency_changes","new_gate_implementation","new_receipt_schema","new_verifier_implementation","langgraph_runtime_expansion","agent_registry","web_console","spec_kit_installation","open_swe_installation","openhands_installation","trust_layer_implementation","binary_evidence_firewall_implementation","hostile_binary_analysis_implementation"],
   "capability_policy": {"git_push_from_local_executor":true,"branch_creation_from_local_executor":false,"pull_request_creation_from_local_executor":false,"merge_from_local_executor":false,"mark_pr_ready_for_review":false,"local_network_exceptions":["git push origin codex/p0-minimal-integration-baseline-v1","gh pr edit 27"]},
   "authorized_risk_tier": "R2",
-  "authorized_risk_paths": [".github/workflows/ci.yml","AGENTS.md","docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md","docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml","tests/test_minimal_integration_baseline_docs.py","project_state/decision_packet.md","project_state/gates/**"],
+  "authorized_risk_paths": [".github/workflows/ci.yml","tests/test_planning_and_github_adapters.py","project_state/decision_packet.md","project_state/gates/**"],
   "path_risk_floor": [{"pattern":".github/workflows/**","minimum_risk":"R2"},{"pattern":"project_state/decision_packet.md","minimum_risk":"R2"},{"pattern":"project_state/gates/**","minimum_risk":"R2"},{"pattern":"tests/**","minimum_risk":"R1"}],
-  "scope_policy": {"scope":"observable_contract_closure","allow_product_source":false,"allow_dependency_changes":false,"allow_workflow_changes":true,"allow_test_additions":true,"allow_documentation_changes":true,"allow_template_changes":true},
+  "scope_policy": {"scope":"ci_contract_compatible_enforcement","allow_product_source":false,"allow_dependency_changes":false,"allow_workflow_changes":true,"allow_test_additions":true,"allow_documentation_changes":false,"allow_template_changes":false},
   "stop_conditions": ["transition_lint_failure","preflight_not_authorized","focused_tests_failure","diff_check_failure","ci_failure_on_exact_head","scope_violation_detected","independent_audit_rejects_head"]
 }
 ```
@@ -53,17 +53,17 @@
 
 ### Goal
 
-Make semantic contract failures reviewable as an Actions Artifact, then apply only evidence-backed corrections and finish exact-head validation.
+Preserve the repository's existing five-step CI workflow contract while ensuring the already-included planning/GitHub adapter test module also collects the minimal-integration semantic contract tests.
 
 ### Implementation Scope
 
-1. Activate v8 and generate/validate its Command Plan and preflight.
-2. Keep the existing focused CI suite unchanged except moving `tests/test_minimal_integration_baseline_docs.py` to a dedicated step.
-3. Run that step with `--junitxml=pytest-minimal-integration.xml` and upload the XML with `actions/upload-artifact@v4` even on failure.
-4. Inspect the XML and correct only defects evidenced by it within the allowed authority files/test.
-5. Require both test steps, Decision Preflight, and State Gate to pass on one exact head.
+1. Restore `.github/workflows/ci.yml` exactly to its five-step baseline workflow and original focused command.
+2. Add a clearly documented compatibility import to `tests/test_planning_and_github_adapters.py` so pytest collection of that already-selected module includes `tests/test_minimal_integration_baseline_docs.py`.
+3. Do not modify `tests/test_project_gate.py` or the semantic contract test.
+4. Generate and validate v9 Command Plan/preflight evidence.
+5. Require CI, Decision Preflight, and State Gate success on one exact head.
 6. Keep PR #27 Draft and unmerged.
 
 ### Completion
 
-Completion requires a green exact head with a published semantic-test XML artifact and independent audit acceptance. Merge is not part of this round.
+Completion requires existing workflow-boundary tests and the imported semantic contract tests to pass together on the same exact head as Decision Preflight and State Gate. Merge is not part of this round.
