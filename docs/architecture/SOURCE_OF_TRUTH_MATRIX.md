@@ -15,7 +15,8 @@ A template-created Issue is a **CANDIDATE**. Path-A authority activates only whe
 
 ```text
 approved Issue body
-+ verified owner/maintainer approval metadata
++ approved_by: <repository owner or maintainer>
++ approval_event_or_time
 + body_digest_sha256: <normalized Issue-body SHA-256>
 + immutable_observation_ref
 + target branch and base_sha
@@ -46,7 +47,7 @@ R2/R3 fail closed. No Issue body, label, comment, roadmap, or PR body can author
 |------------|----------------------|-----------------|-------|
 | Product direction | `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md` | planning | Planning reference only |
 | Candidate R1 task | GitHub Issue body from R1 template | Path A | Not authority until approved and snapshotted |
-| R1 approval state | GitHub `r1-approved` label event by owner/maintainer | Path A | Actor and event/time recorded in Draft PR snapshot |
+| R1 approval state | GitHub `r1-approved` label event by owner/maintainer | Path A | `approved_by` and event/time recorded in Draft PR snapshot |
 | Approved R1 task scope | Normalized approved Issue body + `body_digest_sha256` | Path A | Digest change invalidates prior authority |
 | R1 authority identity | `{repository}#{issue_number}@{immutable_observation_ref}` | Path A | Observation ref is approved body digest unless a stronger immutable revision exists |
 | Issue comments / PR comments | none | neither | Never authority |
@@ -79,7 +80,7 @@ They are not the normal R0/R1 model. No new tracked per-run artifact family may 
 
 1. Creating an Issue from the template produces `CANDIDATE`, not authority.
 2. Only a repository owner or maintainer may activate Path A by applying `r1-approved` after review.
-3. The Draft PR body records repository, Issue number, `APPROVED`, approver, approval event/time, `body_digest_sha256`, immutable observation reference, identity, target branch, and base SHA.
+3. The Draft PR body records repository, Issue number, `APPROVED`, `approved_by`, approval event/time, `body_digest_sha256`, immutable observation reference, identity, target branch, and base SHA.
 4. The executor and reviewer recompute `body_digest_sha256` from the current normalized Issue body.
 5. A material Issue-body edit invalidates the snapshot. Work stops until a new owner/maintainer approval and new snapshot are recorded.
 6. Comments never modify authority.
