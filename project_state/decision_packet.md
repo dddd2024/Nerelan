@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260725_p0_minimal_integration_acceptance_rework_v3",
-  "round_id": "round_20260725_p0_minimal_integration_acceptance_rework_v3",
+  "decision_id": "decision_20260725_p0_minimal_integration_semantic_consistency_rework_v4",
+  "round_id": "round_20260725_p0_minimal_integration_semantic_consistency_rework_v4",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -18,15 +18,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260724_p0_minimal_integration_and_legacy_containment_rework_v2",
-  "follows_last_round_id": "round_20260724_p0_minimal_integration_and_legacy_containment_rework_v2",
+  "follows_last_decision_id": "decision_20260725_p0_minimal_integration_acceptance_rework_v3",
+  "follows_last_round_id": "round_20260725_p0_minimal_integration_acceptance_rework_v3",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "failed_acceptance_head": "657b119cc52e30f0e76ee8ecee4878569425c114",
-  "workstream_id": "p0-minimal-integration-acceptance-rework-v3",
-  "source_issue": 30,
+  "failed_semantic_acceptance_head": "284ec2244ba08c0bf496d09d0110441b34860d4b",
+  "workstream_id": "p0-minimal-integration-semantic-consistency-rework-v4",
+  "source_issue": 31,
   "program_issue": 26,
+  "source_work_item": 28,
   "source_pull_request": 27,
   "required_branch": "codex/p0-minimal-integration-baseline-v1",
+  "starting_head": "284ec2244ba08c0bf496d09d0110441b34860d4b",
   "activation_base_sha": "38de9106d191d6b66d5f878354144817095e7bca",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
@@ -163,7 +165,6 @@
     "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
     "docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",
     "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
-    "docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md",
     ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
     "tests/test_minimal_integration_baseline_docs.py",
     "project_state/decision_packet.md",
@@ -178,6 +179,10 @@
     "pyproject.toml",
     "reverse_agent/architecture/contracts.py",
     "reverse_agent/workflows/development_graph.py",
+    "docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md",
+    "docs/architecture/architecture-spine-v1.md",
+    "docs/architecture/legacy-control-plane-boundary.md",
+    "docs/architecture/control-plane-transition-kernel.md",
     "project_state/current_state.json",
     "project_state/state_manifest.json"
   ],
@@ -193,6 +198,7 @@
     ".github/workflows/**",
     ".codex-skills/**",
     "docs/audits/**",
+    "docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md",
     "docs/architecture/architecture-spine-v1.md",
     "docs/architecture/legacy-control-plane-boundary.md",
     "docs/architecture/control-plane-transition-kernel.md",
@@ -310,20 +316,20 @@
 
 ### Goal
 
-Rework the minimal AI development integration baseline to fix the six content acceptance failures identified by the independent audit of head `657b119cc52e30f0e76ee8ecee4878569425c114`. The v2 round produced six documentation deliverables and passed exact-head CI, but content acceptance failed because the deliverables were inconsistent, incomplete, or untested. This v3 rework freezes `657b119` as historical evidence ("remote checks passed, content acceptance failed") and produces a corrected, tested final head on the same PR #27 branch.
+Rework the minimal AI development integration baseline to fix the six semantic consistency failures (F1-F6) identified by the independent audit of v3 head `284ec2244ba08c0bf496d09d0110441b34860d4b`. The v3 round produced non-empty deliverables and passed exact-head CI, but semantic acceptance failed because the documents contradicted the lightweight R1 authority model they were supposed to define. This v4 rework freezes `284ec224` as "remote checks passed, semantic acceptance failed" historical evidence and produces a corrected, semantically tested final head on the same PR #27 branch.
 
 ### Current Evidence
 
-- The v2 Decision (`decision_20260724_p0_minimal_integration_and_legacy_containment_rework_v2`) authorized six documentation deliverables on branch `codex/p0-minimal-integration-baseline-v1`.
-- The v2 implementation head `657b119cc52e30f0e76ee8ecee4878569425c114` passed all four remote checks (baseline, decision-preflight, state-gate x2).
-- Independent audit returned `REWORK_REQUIRED` with six findings:
-  1. root `AGENTS.md` is the zero-byte Git object (`e69de29...`), so the mandatory operating guide does not exist in usable form;
-  2. the roadmap says normal R0/R1 no longer needs full Decision/Command Plan, but the source-of-truth matrix, containment guide, and R1 Issue template still declare those files as ordinary execution authority;
-  3. routine feature-branch/Draft-PR publication is not consistently classified, so the proposed lightweight R1 path is not executable without ambiguity;
-  4. the reuse inventory permits only `KEEP / ADAPT / DEFER / ARCHIVE_CANDIDATE` but contains `NO_NEW_FEATURES` as a disposition;
-  5. the selected focused tests did not detect the empty mandatory deliverable;
-  6. the PR description remains stale at the original activation head and v1 Decision.
-- The v2 Decision is immutable and sets `stop_after_exact_head_ci=true`; no corrective commit may append under v2 authority.
+- The v3 Decision (`decision_20260725_p0_minimal_integration_acceptance_rework_v3`) authorized six documentation deliverables plus a baseline docs test on branch `codex/p0-minimal-integration-baseline-v1`.
+- The v3 implementation head `284ec2244ba08c0bf496d09d0110441b34860d4b` passed all four remote checks (baseline, decision-preflight, state-gate x2).
+- Independent audit (Issue #31) returned `REWORK_REQUIRED` with six findings:
+  1. **F1**: The ordinary R1 authority model is still directly contradicted. The roadmap and matrix first state execution authority lives in Decision + Command Plan, then later say ordinary R0/R1 no longer uses those files.
+  2. **F2**: The risk taxonomy classifies the same operation as both R1 and R2. Branch push / Draft PR creation are network/publication operations but are classified as R1 while R2 includes all network/publication.
+  3. **F3**: `AGENTS.md` hard-codes a stale `main` SHA (`38de9106...`) into the permanent operating guide. After PR #27 merges, ordinary R1 must use the current `origin/main`, not require a new Decision because `main` advanced.
+  4. **F4**: The required one-time transition-evidence exception is still missing. `SOURCE_OF_TRUTH_MATRIX.md` says runtime logs and per-run artifacts are "never tracked source state" while PR #27 tracks compiler-required transition artifacts.
+  5. **F5**: Containment and precedence wording remains ambiguous. `LEGACY_GOVERNANCE_CONTAINMENT.md` lists `decision_packet.md` as "active round authority" without qualifying as transition/R2-R3 only.
+  6. **F6**: The document-contract test does not verify semantic consistency. The tests are keyword-presence checks that allow the contradictions above to pass.
+- The v3 Decision is immutable and sets `stop_after_exact_head_ci=true`; no corrective commit may append under v3 authority.
 - `main` remains at `38de9106d191d6b66d5f878354144817095e7bca`.
 
 ### Do Not Do
@@ -331,9 +337,10 @@ Rework the minimal AI development integration baseline to fix the six content ac
 - Do not modify product source under `reverse_agent/**`.
 - Do not modify workflows under `.github/workflows/**`.
 - Do not modify `.codex-skills/**`.
-- Do not modify any legacy roadmap or architecture spec under `docs/roadmap/**` (except the single active roadmap) or `docs/architecture/architecture-spine-v1.md`, `docs/architecture/legacy-control-plane-boundary.md`, `docs/architecture/control-plane-transition-kernel.md`.
+- Do not modify `docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md` (read-only this round unless the strengthened parser proves a concrete row defect).
+- Do not modify any legacy roadmap or architecture spec.
 - Do not modify dependencies (`pyproject.toml`, `pytest.ini`, `setup.cfg`).
-- Do not modify any existing test file other than creating `tests/test_minimal_integration_baseline_docs.py`.
+- Do not modify any existing test file other than `tests/test_minimal_integration_baseline_docs.py`.
 - Do not merge, mark PR ready, force push, rebase, squash, tag, or release.
 - Do not create a new branch, new PR, new Gate, new receipt schema, or new verifier.
 - Do not expand into LangGraph runtime, Agent Registry, Web console, Spec Kit, Open SWE, OpenHands, Trust Layer, or binary directions.
@@ -345,6 +352,10 @@ Rework the minimal AI development integration baseline to fix the six content ac
 - `pyproject.toml` (reference)
 - `reverse_agent/architecture/contracts.py` (reference)
 - `reverse_agent/workflows/development_graph.py` (reference)
+- `docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md` (reference, read-only)
+- `docs/architecture/architecture-spine-v1.md` (reference)
+- `docs/architecture/legacy-control-plane-boundary.md` (reference)
+- `docs/architecture/control-plane-transition-kernel.md` (reference)
 - `project_state/current_state.json` (reference)
 - `project_state/state_manifest.json` (reference)
 
@@ -359,13 +370,29 @@ Rework the minimal AI development integration baseline to fix the six content ac
 
 ### Implementation Scope
 
-1. **Replace `project_state/decision_packet.md`** with this v3 Decision (bootstrap exception).
-2. **Rewrite `AGENTS.md`** with full, non-empty content (fix audit finding 1). The guide must state: repository purpose, non-goals, startup checks, source-of-truth order, R0/R1 allowed operations, R2/R3 approval boundary, feature-branch push and Draft-PR creation as R1 operations, test commands, branch/PR rules, prohibited actions, stop conditions.
-3. **Unify the R0/R1 authority model** across `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md`, `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md`, `docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md`, and `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml` (fix audit finding 2). All four documents must agree that, after the transition round, ordinary R0/R1 work does not require a full Decision/Command Plan, while R2/R3 operations remain fail-closed and require a bounded Decision. `decision_packet.md` and `command_plan.json` are authority for transition rounds and R2/R3, not ordinary R0/R1.
-4. **Classify feature-branch push and Draft-PR creation as R1 operations** in `AGENTS.md`, the roadmap, the source-of-truth matrix, and the R1 Issue template (fix audit finding 3). Direct `main` push, merge, force push, rebase, squash, tag, and release remain R2+ or forbidden.
-5. **Fix the `NO_NEW_FEATURES` disposition** in `docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md` (fix audit finding 4). The reuse inventory must use only `KEEP`, `ADAPT`, `DEFER`, or `ARCHIVE_CANDIDATE`. `NO_NEW_FEATURES` is a containment-tier label, not a reuse disposition; the affected row must be changed to one of the four legal reuse values.
-6. **Create `tests/test_minimal_integration_baseline_docs.py`** (fix audit finding 5). The test must verify: (a) all six deliverable files are non-empty; (b) necessary sections exist in each; (c) R1 authority semantics are consistent across the documents; (d) reuse dispositions are limited to `KEEP / ADAPT / DEFER / ARCHIVE_CANDIDATE`.
-7. **Update the PR #27 description** via `gh pr edit 27` to reference the v3 Decision, the v2 failed acceptance head, and the rework scope (fix audit finding 6).
+1. **Replace `project_state/decision_packet.md`** with this v4 Decision (bootstrap exception).
+2. **Fix F1 — R1 authority model contradiction** across `AGENTS.md`, `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md`, `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md`, and `docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md`. Remove unconditional statements that all execution authority lives in Decision + Command Plan. Define two explicit authority paths:
+   - ordinary R0/R1 path: authority = approved Work Item Issue body + exact scope + checks;
+   - transition / R2-R3 path: authority = bounded Decision + generated Command Plan.
+   Distinguish the Issue body used as the Work Item from comments attached to an Issue or PR (which are never authority).
+3. **Fix F2 — Risk taxonomy publication contradiction** across `AGENTS.md`, the roadmap, and `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml`. Define:
+   - R1 publication = bounded push to the exact named non-main branch + create/update the exact Draft PR + no merge / no mark-ready / no history rewrite;
+   - R2 publication/network = direct main push, merge, mark-ready, workflow/dependency publication, release/tag, unbounded network access, cross-repository publication, credentials/secrets, or any operation outside the Work Item binding.
+   Update the risk-justification prompt so a valid R1 task can truthfully declare the narrow branch/Draft-PR exception.
+4. **Fix F3 — Hard-coded permanent main SHA** in `AGENTS.md` and `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml`. Replace the permanent `38de9106...` requirement with Work-Item-bound current base: fetch/observe current `origin/main` SHA; require Work Item `base_sha` to equal the approved current base; fail if branch merge-base differs. Use a generic placeholder such as `<current origin/main SHA>`. The historical `38de9106...` value remains valid only for the current transition round.
+5. **Fix F4 — One-time transition-evidence exception** in `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md`. Explicitly identify the current transition Decision's tracked bootstrap/command-plan/preflight files as a one-time compatibility exception. State they are not the normal R0/R1 model. Prohibit creation of any new tracked per-run artifact family.
+6. **Fix F5 — Containment and precedence ambiguity** in `docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md` and `AGENTS.md`. Qualify the `decision_packet.md` / `command_plan.json` authority labels as transition/R2-R3 only. Define two explicit authority paths rather than one global list.
+7. **Fix F6 — Strengthen semantic contract tests** in `tests/test_minimal_integration_baseline_docs.py`. Replace keyword-presence assertions with exact invariant tests and structured parsing. The test must fail on each F1-F5 regression:
+   - no unconditional statement that all execution authority lives in Decision + Command Plan;
+   - Work Item Issue body is authoritative for R0/R1, while Issue/PR comments are not;
+   - R1 branch/Draft-PR publication is a narrow exception and R2 publication is precisely bounded;
+   - risk-justification prompt does not deny the narrow R1 network/publication exception;
+   - permanent guidance does not hard-code the current transition base SHA;
+   - one-time tracked transition-evidence exception is explicit;
+   - containment authority labels are qualified as transition/R2-R3 only;
+   - every reuse-inventory data row has exactly one disposition from `KEEP / ADAPT / DEFER / ARCHIVE_CANDIDATE`;
+   - a contradictory fixture or temporary mutated text fails each invariant.
+8. **Update the PR #27 description** via `gh pr edit 27` to reference the v4 Decision, the v3 failed semantic-acceptance head, and the rework scope.
 
 ### Tests
 
@@ -376,7 +403,7 @@ python -m pytest tests/test_architecture_contracts.py tests/test_planning_and_gi
 git diff --check
 ```
 
-The new `tests/test_minimal_integration_baseline_docs.py` must fail before the content fixes are applied (TDD red), then pass after the fixes (TDD green).
+The strengthened `tests/test_minimal_integration_baseline_docs.py` must fail before the content fixes are applied (TDD red), then pass after the fixes (TDD green).
 
 ### Stop Conditions
 
@@ -385,7 +412,7 @@ The new `tests/test_minimal_integration_baseline_docs.py` must fail before the c
 - Any focused test fails for a reason inside the current round scope.
 - `git diff --check` reports whitespace or conflict markers.
 - Any remote GitHub Actions check is not green on the exact head.
-- Any scope violation is detected (product source, workflow, dependency, legacy roadmap, or forbidden operation).
+- Any scope violation is detected (product source, workflow, dependency, legacy roadmap, reuse inventory, or forbidden operation).
 - Independent audit rejects the final head.
 
 When `stop_after_exact_head_ci` is satisfied (all remote checks green on the immutable exact head), the round is stopped. Merge remains separately authorized and human-controlled.
@@ -394,9 +421,9 @@ When `stop_after_exact_head_ci` is satisfied (all remote checks green on the imm
 
 This round is complete when:
 
-- the v3 Decision is committed and the gate sequence returns `PRE_EXECUTION_AUTHORIZED`;
-- all six content findings are fixed;
-- `tests/test_minimal_integration_baseline_docs.py` passes;
+- the v4 Decision is committed and the gate sequence returns `PRE_EXECUTION_AUTHORIZED`;
+- all six semantic findings (F1-F6) are fixed;
+- the strengthened `tests/test_minimal_integration_baseline_docs.py` passes;
 - the focused test suite passes;
 - `git diff --check` passes;
 - a new immutable exact head is pushed to `origin/codex/p0-minimal-integration-baseline-v1`;
