@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260725_p0_minimal_integration_semantic_consistency_rework_v4",
-  "round_id": "round_20260725_p0_minimal_integration_semantic_consistency_rework_v4",
+  "decision_id": "decision_20260725_p0_minimal_integration_r1_authority_closure_rework_v5",
+  "round_id": "round_20260725_p0_minimal_integration_r1_authority_closure_rework_v5",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -9,25 +9,17 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
       "bootstrap_exception": false,
-      "produced_artifacts": [
-        "project_state/gates/startup_snapshot.json"
-      ],
+      "produced_artifacts": ["project_state/gates/startup_snapshot.json"],
       "subject_to_reconciliation": true,
-      "allowed_mutated_paths": [
-        "project_state/gates/startup_snapshot.json"
-      ]
+      "allowed_mutated_paths": ["project_state/gates/startup_snapshot.json"]
     },
     {
       "command_id": "status.git_status",
@@ -35,13 +27,9 @@
       "phase": "status",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "repository_observation"
-      ],
+      "operations": ["repository_observation"],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
@@ -57,13 +45,9 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "command_plan_generation"
-      ],
+      "operations": ["command_plan_generation"],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
@@ -85,13 +69,9 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "authority_validation"
-      ],
+      "operations": ["authority_validation"],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
@@ -107,13 +87,9 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "pre_execution_authorization"
-      ],
+      "operations": ["pre_execution_authorization"],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
@@ -135,13 +111,9 @@
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
+      "operations": ["regression_test"],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
@@ -157,13 +129,9 @@
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "diff_validation"
-      ],
+      "operations": ["diff_validation"],
       "network_access": false,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
@@ -179,14 +147,9 @@
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
-      "operations": [
-        "push",
-        "network_access"
-      ],
+      "operations": ["push", "network_access"],
       "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
@@ -202,9 +165,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -222,9 +183,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -242,9 +201,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -262,9 +219,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
@@ -282,9 +237,7 @@
       "phase": "gate",
       "required": true,
       "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
+      "expected_exit_codes": [0],
       "execution_surface": "local",
       "operations": [],
       "network_access": false,
