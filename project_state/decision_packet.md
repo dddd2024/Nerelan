@@ -3,8 +3,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260725_p0_minimal_integration_semantic_consistency_rework_v4",
-  "round_id": "round_20260725_p0_minimal_integration_semantic_consistency_rework_v4",
+  "decision_id": "decision_20260725_p0_minimal_integration_r1_authority_closure_rework_v5",
+  "round_id": "round_20260725_p0_minimal_integration_r1_authority_closure_rework_v5",
   "based_on_state_build_id": "state_20260618_134029_d6bd033d2532",
   "based_on_state_digest": "d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5",
   "status": "APPROVED",
@@ -18,17 +18,17 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260725_p0_minimal_integration_acceptance_rework_v3",
-  "follows_last_round_id": "round_20260725_p0_minimal_integration_acceptance_rework_v3",
+  "follows_last_decision_id": "decision_20260725_p0_minimal_integration_semantic_consistency_rework_v4",
+  "follows_last_round_id": "round_20260725_p0_minimal_integration_semantic_consistency_rework_v4",
   "previous_audit_outcome": "REWORK_REQUIRED",
-  "failed_semantic_acceptance_head": "284ec2244ba08c0bf496d09d0110441b34860d4b",
-  "workstream_id": "p0-minimal-integration-semantic-consistency-rework-v4",
-  "source_issue": 31,
+  "failed_authority_acceptance_head": "e641c9b7eec70e31352dd309834f671350fea14f",
+  "workstream_id": "p0-minimal-integration-r1-authority-closure-rework-v5",
+  "source_issue": 32,
   "program_issue": 26,
   "source_work_item": 28,
   "source_pull_request": 27,
   "required_branch": "codex/p0-minimal-integration-baseline-v1",
-  "starting_head": "284ec2244ba08c0bf496d09d0110441b34860d4b",
+  "starting_head": "e641c9b7eec70e31352dd309834f671350fea14f",
   "activation_base_sha": "38de9106d191d6b66d5f878354144817095e7bca",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
@@ -86,8 +86,14 @@
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
-      "allowed_mutated_paths": ["project_state/gates/command_plan.json", "project_state/gates/transition_command_plan_preview.json"],
-      "produced_artifacts": ["project_state/gates/command_plan.json", "project_state/gates/transition_command_plan_preview.json"]
+      "allowed_mutated_paths": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/command_plan.json",
+        "project_state/gates/transition_command_plan_preview.json"
+      ]
     },
     {
       "command_id": "gate.transition_lint",
@@ -114,8 +120,14 @@
       "network_access": false,
       "required_evidence_source": "local_command_evidence",
       "authority_origin": "normal_plan",
-      "allowed_mutated_paths": ["project_state/gates/transition_preflight_result.json", "project_state/gates/bootstrap_state.json"],
-      "produced_artifacts": ["project_state/gates/transition_preflight_result.json", "project_state/gates/bootstrap_state.json"]
+      "allowed_mutated_paths": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ],
+      "produced_artifacts": [
+        "project_state/gates/transition_preflight_result.json",
+        "project_state/gates/bootstrap_state.json"
+      ]
     },
     {
       "command_id": "test.minimal_integration_contracts",
@@ -164,7 +176,6 @@
     "AGENTS.md",
     "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
     "docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",
-    "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
     ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
     "tests/test_minimal_integration_baseline_docs.py",
     "project_state/decision_packet.md",
@@ -179,6 +190,7 @@
     "pyproject.toml",
     "reverse_agent/architecture/contracts.py",
     "reverse_agent/workflows/development_graph.py",
+    "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
     "docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md",
     "docs/architecture/architecture-spine-v1.md",
     "docs/architecture/legacy-control-plane-boundary.md",
@@ -198,6 +210,7 @@
     ".github/workflows/**",
     ".codex-skills/**",
     "docs/audits/**",
+    "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
     "docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md",
     "docs/architecture/architecture-spine-v1.md",
     "docs/architecture/legacy-control-plane-boundary.md",
@@ -316,119 +329,49 @@
 
 ### Goal
 
-Rework the minimal AI development integration baseline to fix the six semantic consistency failures (F1-F6) identified by the independent audit of v3 head `284ec2244ba08c0bf496d09d0110441b34860d4b`. The v3 round produced non-empty deliverables and passed exact-head CI, but semantic acceptance failed because the documents contradicted the lightweight R1 authority model they were supposed to define. This v4 rework freezes `284ec224` as "remote checks passed, semantic acceptance failed" historical evidence and produces a corrected, semantically tested final head on the same PR #27 branch.
+Close the remaining authority-model defects identified by the independent audit of v4 head `e641c9b7eec70e31352dd309834f671350fea14f`. This v5 round makes the ordinary R1 Work Item internally consistent, explicitly approved, and bound to an immutable authority snapshot without adding a new platform, Gate, receipt, or tracked artifact family.
 
 ### Current Evidence
 
-- The v3 Decision (`decision_20260725_p0_minimal_integration_acceptance_rework_v3`) authorized six documentation deliverables plus a baseline docs test on branch `codex/p0-minimal-integration-baseline-v1`.
-- The v3 implementation head `284ec2244ba08c0bf496d09d0110441b34860d4b` passed all four remote checks (baseline, decision-preflight, state-gate x2).
-- Independent audit (Issue #31) returned `REWORK_REQUIRED` with six findings:
-  1. **F1**: The ordinary R1 authority model is still directly contradicted. The roadmap and matrix first state execution authority lives in Decision + Command Plan, then later say ordinary R0/R1 no longer uses those files.
-  2. **F2**: The risk taxonomy classifies the same operation as both R1 and R2. Branch push / Draft PR creation are network/publication operations but are classified as R1 while R2 includes all network/publication.
-  3. **F3**: `AGENTS.md` hard-codes a stale `main` SHA (`38de9106...`) into the permanent operating guide. After PR #27 merges, ordinary R1 must use the current `origin/main`, not require a new Decision because `main` advanced.
-  4. **F4**: The required one-time transition-evidence exception is still missing. `SOURCE_OF_TRUTH_MATRIX.md` says runtime logs and per-run artifacts are "never tracked source state" while PR #27 tracks compiler-required transition artifacts.
-  5. **F5**: Containment and precedence wording remains ambiguous. `LEGACY_GOVERNANCE_CONTAINMENT.md` lists `decision_packet.md` as "active round authority" without qualifying as transition/R2-R3 only.
-  6. **F6**: The document-contract test does not verify semantic consistency. The tests are keyword-presence checks that allow the contradictions above to pass.
-- The v3 Decision is immutable and sets `stop_after_exact_head_ci=true`; no corrective commit may append under v3 authority.
-- `main` remains at `38de9106d191d6b66d5f878354144817095e7bca`.
+- v4 exact head `e641c9b7eec70e31352dd309834f671350fea14f` passed CI, Decision Preflight, and State Gate.
+- Independent audit Issue #32 returned `REWORK_REQUIRED` because:
+  1. the mandatory R2/R3 checkbox revokes the narrow R1 publication exception;
+  2. `AGENTS.md` recommends rebase although Path A forbids history rewriting;
+  3. an approved mutable Issue body has no approval mechanism or immutable revision identity;
+  4. tests do not detect those authority defects;
+  5. the reuse-inventory parser skips tables and accepts illegal disposition tokens.
+- v4 is immutable and stopped after exact-head CI; no repair may append under v4 authority.
 
 ### Do Not Do
 
-- Do not modify product source under `reverse_agent/**`.
-- Do not modify workflows under `.github/workflows/**`.
-- Do not modify `.codex-skills/**`.
-- Do not modify `docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md` (read-only this round unless the strengthened parser proves a concrete row defect).
-- Do not modify any legacy roadmap or architecture spec.
-- Do not modify dependencies (`pyproject.toml`, `pytest.ini`, `setup.cfg`).
-- Do not modify any existing test file other than `tests/test_minimal_integration_baseline_docs.py`.
-- Do not merge, mark PR ready, force push, rebase, squash, tag, or release.
-- Do not create a new branch, new PR, new Gate, new receipt schema, or new verifier.
-- Do not expand into LangGraph runtime, Agent Registry, Web console, Spec Kit, Open SWE, OpenHands, Trust Layer, or binary directions.
-- Do not invoke model APIs, external reverse tools, unknown binaries, or runner dispatch.
-
-### Files To Inspect
-
-- `README.md` (reference)
-- `pyproject.toml` (reference)
-- `reverse_agent/architecture/contracts.py` (reference)
-- `reverse_agent/workflows/development_graph.py` (reference)
-- `docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md` (reference, read-only)
-- `docs/architecture/architecture-spine-v1.md` (reference)
-- `docs/architecture/legacy-control-plane-boundary.md` (reference)
-- `docs/architecture/control-plane-transition-kernel.md` (reference)
-- `project_state/current_state.json` (reference)
-- `project_state/state_manifest.json` (reference)
-
-### Required Audit
-
-- Preserve the full local `transition-lint` stdout/stderr.
-- Preserve the full local `transition-preflight --mode pre` stdout/stderr.
-- Confirm `PRE_EXECUTION_AUTHORIZED` before any implementation.
-- Confirm focused tests pass and `git diff --check` passes before push.
-- Confirm all three remote GitHub Actions are green on the exact head before declaring the round stopped.
-- PR #27 remains Draft; do not merge or mark ready.
+- Do not modify `reverse_agent/**`, workflows, dependencies, legacy roadmaps, containment, or the reuse inventory.
+- Do not create a new Gate, receipt, verifier, schema family, database, or tracked per-run artifact family.
+- Do not merge, mark ready, force push, rebase, squash, tag, release, or push directly to `main`.
+- Do not start LangGraph runtime, Agent Registry, Web console, Spec Kit, Open SWE, OpenHands, Trust Layer, or binary-domain work.
 
 ### Implementation Scope
 
-1. **Replace `project_state/decision_packet.md`** with this v4 Decision (bootstrap exception).
-2. **Fix F1 — R1 authority model contradiction** across `AGENTS.md`, `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md`, `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md`, and `docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md`. Remove unconditional statements that all execution authority lives in Decision + Command Plan. Define two explicit authority paths:
-   - ordinary R0/R1 path: authority = approved Work Item Issue body + exact scope + checks;
-   - transition / R2-R3 path: authority = bounded Decision + generated Command Plan.
-   Distinguish the Issue body used as the Work Item from comments attached to an Issue or PR (which are never authority).
-3. **Fix F2 — Risk taxonomy publication contradiction** across `AGENTS.md`, the roadmap, and `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml`. Define:
-   - R1 publication = bounded push to the exact named non-main branch + create/update the exact Draft PR + no merge / no mark-ready / no history rewrite;
-   - R2 publication/network = direct main push, merge, mark-ready, workflow/dependency publication, release/tag, unbounded network access, cross-repository publication, credentials/secrets, or any operation outside the Work Item binding.
-   Update the risk-justification prompt so a valid R1 task can truthfully declare the narrow branch/Draft-PR exception.
-4. **Fix F3 — Hard-coded permanent main SHA** in `AGENTS.md` and `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml`. Replace the permanent `38de9106...` requirement with Work-Item-bound current base: fetch/observe current `origin/main` SHA; require Work Item `base_sha` to equal the approved current base; fail if branch merge-base differs. Use a generic placeholder such as `<current origin/main SHA>`. The historical `38de9106...` value remains valid only for the current transition round.
-5. **Fix F4 — One-time transition-evidence exception** in `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md`. Explicitly identify the current transition Decision's tracked bootstrap/command-plan/preflight files as a one-time compatibility exception. State they are not the normal R0/R1 model. Prohibit creation of any new tracked per-run artifact family.
-6. **Fix F5 — Containment and precedence ambiguity** in `docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md` and `AGENTS.md`. Qualify the `decision_packet.md` / `command_plan.json` authority labels as transition/R2-R3 only. Define two explicit authority paths rather than one global list.
-7. **Fix F6 — Strengthen semantic contract tests** in `tests/test_minimal_integration_baseline_docs.py`. Replace keyword-presence assertions with exact invariant tests and structured parsing. The test must fail on each F1-F5 regression:
-   - no unconditional statement that all execution authority lives in Decision + Command Plan;
-   - Work Item Issue body is authoritative for R0/R1, while Issue/PR comments are not;
-   - R1 branch/Draft-PR publication is a narrow exception and R2 publication is precisely bounded;
-   - risk-justification prompt does not deny the narrow R1 network/publication exception;
-   - permanent guidance does not hard-code the current transition base SHA;
-   - one-time tracked transition-evidence exception is explicit;
-   - containment authority labels are qualified as transition/R2-R3 only;
-   - every reuse-inventory data row has exactly one disposition from `KEEP / ADAPT / DEFER / ARCHIVE_CANDIDATE`;
-   - a contradictory fixture or temporary mutated text fails each invariant.
-8. **Update the PR #27 description** via `gh pr edit 27` to reference the v4 Decision, the v3 failed semantic-acceptance head, and the rework scope.
+1. Replace this Decision as the v5 activation authority before implementation.
+2. Fix the R1 boundary checkbox so only network/publication outside the narrow named-branch/Draft-PR exception requires Path B.
+3. Remove every Path-A instruction to rebase or rewrite history. On base mismatch, stop and create a fresh branch only after a revised and reapproved Work Item.
+4. Define the minimal Work Item lifecycle:
+   - template-created Issue = `CANDIDATE`;
+   - repository owner/maintainer applies the explicit `r1-approved` label after review;
+   - executor records repository, Issue number, approver identity, approval event/time, normalized Issue-body SHA-256 digest, and `immutable_observation_ref` in the Draft PR body;
+   - the authority identity is `{repository}#{issue_number}@{immutable_observation_ref}`;
+   - a material Issue-body edit changes the digest, invalidates the snapshot, and requires reapproval;
+   - comments remain non-authoritative.
+5. Strengthen `tests/test_minimal_integration_baseline_docs.py` to fail on each authority regression and to parse every Markdown table containing a `Disposition` column. Every data row must contain exactly one legal disposition and zero illegal tokens.
+6. Update PR #27 description to the final v5 exact head and validation truth.
 
-### Tests
+### Required Audit
 
-Focused tests (authorized in `allowed_commands`):
-
-```bash
-python -m pytest tests/test_architecture_contracts.py tests/test_planning_and_github_adapters.py tests/test_risk_classifier.py tests/test_minimal_integration_baseline_docs.py -q
-git diff --check
-```
-
-The strengthened `tests/test_minimal_integration_baseline_docs.py` must fail before the content fixes are applied (TDD red), then pass after the fixes (TDD green).
-
-### Stop Conditions
-
-- `transition-lint` returns FAILURE.
-- `transition-preflight --mode pre` does not return `PRE_EXECUTION_AUTHORIZED`.
-- Any focused test fails for a reason inside the current round scope.
-- `git diff --check` reports whitespace or conflict markers.
-- Any remote GitHub Actions check is not green on the exact head.
-- Any scope violation is detected (product source, workflow, dependency, legacy roadmap, reuse inventory, or forbidden operation).
-- Independent audit rejects the final head.
-
-When `stop_after_exact_head_ci` is satisfied (all remote checks green on the immutable exact head), the round is stopped. Merge remains separately authorized and human-controlled.
+- Generate the v5 Command Plan from this Decision.
+- Require transition lint success and `PRE_EXECUTION_AUTHORIZED` before content changes.
+- Run the focused test suite and `git diff --check`.
+- Require CI, Decision Preflight, and State Gate success on one immutable exact head.
+- Keep PR #27 Draft and unmerged.
 
 ### Completion
 
-This round is complete when:
-
-- the v4 Decision is committed and the gate sequence returns `PRE_EXECUTION_AUTHORIZED`;
-- all six semantic findings (F1-F6) are fixed;
-- the strengthened `tests/test_minimal_integration_baseline_docs.py` passes;
-- the focused test suite passes;
-- `git diff --check` passes;
-- a new immutable exact head is pushed to `origin/codex/p0-minimal-integration-baseline-v1`;
-- all three remote GitHub Actions are green on the exact head;
-- the PR #27 description is updated;
-- PR #27 remains Draft.
-
-Merge is not part of this round.
+This round is complete when all Issue #32 findings are fixed, the strengthened focused suite passes, `git diff --check` passes, all three remote checks are green on one immutable exact head, the PR description is current, and independent audit accepts the head. Merge is not part of this round.
