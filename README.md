@@ -64,3 +64,9 @@ Security and binary directions remain **extension candidates**, not current impl
 - [docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md](docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md) — single active top-level roadmap
 - [docs/architecture/SOURCE_OF_TRUTH_MATRIX.md](docs/architecture/SOURCE_OF_TRUTH_MATRIX.md) — authoritative source for each class of fact
 - [.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml](.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml) — R1 Work Item Issue template
+
+## Legacy documentation (not the current workflow)
+
+The active development stack and authority paths above define the current workflow. The following legacy artifact is retained as historical reference only and is **not** the default current workflow:
+
+- [docs/run_closeout.md](docs/run_closeout.md) — legacy engineering-round closeout documentation. The `run-closeout` command and `project_state/decision_packet.md`-as-sole-authority model described there are superseded for ordinary R0/R1 work by the Work Item Issue body authority (Path A) defined above.
