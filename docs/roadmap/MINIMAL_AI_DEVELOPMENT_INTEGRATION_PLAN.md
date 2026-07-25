@@ -7,146 +7,119 @@ EXECUTION_AUTHORITY: NONE
 SUPERSEDES_AS_TOP_LEVEL_PLAN: #18, #25
 ```
 
-This is the **single active top-level roadmap** for `reverse-agent`. All other roadmap documents in `docs/roadmap/` are classified below as `HISTORICAL_REFERENCE`, `COMPATIBILITY_PLAN`, `EXTENSION_CANDIDATE`, or `SUPERSEDED`. No older document remains an independent active top-level roadmap.
-
-This document is planning reference only. It does not authorize commands, file changes, closeout, or merge. Authority is split across two paths (see "Two authority paths" below): ordinary R0/R1 work is authorized by the approved Work Item Issue body; transition rounds and R2/R3 operations are authorized by `project_state/decision_packet.md` and `project_state/gates/command_plan.json`.
+This is the single active top-level roadmap for `reverse-agent`. It is planning reference only and never authorizes commands, file changes, closeout, or merge.
 
 ## Active development stack
 
 ```text
 approved specification
--> GitHub Issue / Work Item
+-> candidate GitHub Issue from the R1 template
+-> owner/maintainer approval
+-> immutable Work Item authority snapshot
 -> Codex implementation
--> GitHub Actions as deterministic validation
--> independent review
--> human merge
-```
-
-Repository-owned custom capability is limited to:
-
-- thin risk classification
-- bounded path/operation policy
-- high-risk approval boundary
-- deterministic acceptance checks
-- future domain-specific adapters and verification logic
-
-## Current product scope
-
-The project does not build a generic AI software-development platform. The current product scope is a **minimal integration layer** around mature development tools while product extensions remain undecided.
-
-## Two authority paths
-
-The project defines two distinct authority paths. No source is globally higher when it is not applicable to the selected path.
-
-### Path A — ordinary R0/R1 authority
-
-```text
-approved Work Item Issue body (R1 template)
-  + Issue allowed_paths / forbidden_operations / acceptance_criteria
-  + deterministic checks (pytest, git diff --check, GitHub Actions)
-```
-
-The Work Item Issue body is the primary authority for ordinary R0/R1. Issue comments and PR comments are never authority. `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are **not** used for ordinary R0/R1.
-
-### Path B — transition / R2-R3 authority
-
-```text
-bounded Decision in project_state/decision_packet.md
-  + generated command_plan.json
-  + transition-preflight PRE_EXECUTION_AUTHORIZED
-```
-
-R2/R3 operations fail closed. No Issue, Issue comment, PR comment, or roadmap document can authorize R2/R3 work.
-
-## Risk tier model
-
-| Tier | Scope | Authorization path |
-|------|-------|-------------------|
-| R0 | read-only observation | Path A (no Decision required) |
-| R1 | bounded local edits + narrow R1 publication (see below) | Path A (no Decision required) |
-| R2 | workflow/dependency/unbounded-network/privileged-publication | Path B (bounded Decision + Trust Authorization) |
-| R3 | binary execution, debugging, secrets, destructive | Path B (bounded Decision + Trust authorization) |
-
-### R1 publication — narrow exception
-
-R1 publication is a narrow exception to the general rule that network/publication operations are R2:
-
-- pushing to a non-`main` feature branch (`git push origin <feature-branch>`);
-- creating a Draft PR against `main` (`gh pr create --draft`);
-- updating a Draft PR description (`gh pr edit`).
-
-These R1 publication operations are bounded: they apply only to the exact named non-`main` branch bound to the Work Item, only to the exact Draft PR, and they forbid merge, mark-ready, and history rewrite.
-
-### R2 publication/network — precisely bounded
-
-The following are R2 or higher and fail-closed without a bounded Decision:
-
-- direct push to `main`;
-- merge;
-- force push;
-- rebase;
-- squash;
-- tag or release;
-- marking a PR ready for review (when the round requires Draft);
-- workflow/dependency publication;
-- unbounded network access;
-- cross-repository publication;
-- credentials/secrets access;
-- any operation outside the Work Item binding.
-
-After the one-time transition round (Issue #26 / Issue #28 / PR #27), ordinary R0/R1 development no longer requires a full Decision/Command Plan. An R0/R1 Work Item is authorized by an approved GitHub Issue (using the R1 template), its `allowed_paths` and `forbidden_operations`, and deterministic checks. `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are authority for transition rounds and R2/R3 only, not ordinary R0/R1. R2/R3 remain fail-closed.
-
-Feature-branch push (`git push origin <feature-branch>`) and Draft PR creation (`gh pr create --draft`) are R1 operations and do not require R2 authorization. Direct `main` push, merge, force push, rebase, squash, tag, and release remain R2 or higher.
-
-## Legacy roadmap classification
-
-Every prior roadmap in `docs/roadmap/` is classified below. None remains an independent active top-level roadmap.
-
-| File | Classification | Note |
-|------|----------------|------|
-| `architecture_spine_attestation_policy_seal_v1.md` | SUPERSEDED | Architecture Spine v1 attestation rework; superseded by minimal-integration direction |
-| `architecture_spine_authority_closure_rework_v1.md` | SUPERSEDED | Authority closure rework; superseded by minimal-integration direction |
-| `architecture_spine_evidence_runtime_closeout_v1.md` | SUPERSEDED | Evidence/runtime closeout rework; superseded by minimal-integration direction |
-| `architecture_spine_provenance_integration_final_rework_v1.md` | SUPERSEDED | Provenance integration rework; superseded by minimal-integration direction |
-| `architecture_spine_trusted_execution_cutover_rework_v1.md` | SUPERSEDED | Trusted execution cutover rework; superseded by minimal-integration direction |
-| `architecture_transition_next_24h.md` | HISTORICAL_REFERENCE | Gate bootstrap & Architecture Spine v1 merged execution plan; historical record of `decision_20260720` |
-| `closeout_order_provenance_rework_plan.md` | SUPERSEDED | Closeout order provenance rework; legacy chain, no new features |
-| `evidence_centered_user_solve_execution_plan.md` | SUPERSEDED | Evidence-centered user solve plan; product direction changed |
-| `next_step_after_fast_close_round_key_fix_audit.md` | HISTORICAL_REFERENCE | Next-step recommendation after fast-close audit; historical only |
-| `next_step_after_scoped_metadata_foundation.md` | HISTORICAL_REFERENCE | Next-step after scoped metadata foundation; historical only |
-| `project_state_domain_taxonomy_supplement.md` | HISTORICAL_REFERENCE | Project state domain taxonomy; historical reference |
-| `reverse_agent_larger_step_plan.md` | SUPERSEDED | Larger-step roadmap; superseded by minimal-integration direction |
-| `reverse_agent_normal_pace_plan.md` | SUPERSEDED | Normal-pace plan; superseded by minimal-integration direction |
-| `reverse_agent_unified_architecture_and_trust_roadmap.md` | SUPERSEDED | Unified architecture/trust long-term roadmap; superseded by minimal-integration direction |
-| `trustworthy_hostile_binary_analysis_long_term_plan.md` | EXTENSION_CANDIDATE | Trustworthy hostile-binary analysis; deferred as extension candidate, not current scope |
-
-## Extension candidates (deferred)
-
-The following are **not current implementation scope**. They may be reconsidered only after several R1 pilots validate the minimal integration baseline:
-
-```text
-Spec Kit repository bootstrap
-Open SWE self-hosting
-persistent LangGraph workflow runtime
-Web control console
-specific security/binary product extension
-Trust Layer
-Binary Evidence Firewall
-```
-
-No decision to start any extension candidate is made by this roadmap.
-
-## After acceptance
-
-Once `MINIMAL_AI_DEVELOPMENT_INTEGRATION_BASELINE_ACCEPTED` is reached, the next step is one real R1 pilot using:
-
-```text
-small approved specification
--> GitHub Issue
--> Codex branch and implementation
 -> deterministic GitHub Actions
 -> independent review
 -> human merge
 ```
 
-Only after several pilots should the project decide whether it actually needs any extension candidate. No such decision is made in this roadmap.
+The repository does not build a generic AI software-development platform. Repository-owned capability is limited to thin risk classification, bounded path/operation policy, high-risk approval boundaries, deterministic acceptance checks, and future domain-specific adapters.
+
+## Two authority paths
+
+### Path A — ordinary R0/R1
+
+A template-created Issue is a **CANDIDATE**. It becomes ordinary R0/R1 authority only after a repository owner or maintainer applies the `r1-approved` label following review and the executor records an immutable authority snapshot in the Draft PR body.
+
+The snapshot must contain:
+
+```text
+repository
+issue_number
+approval_state: APPROVED
+approved_by
+approval_event_or_time
+normalized Issue-body SHA-256 digest
+immutable_observation_ref
+work_item_identity = {repository}#{issue_number}@{immutable_observation_ref}
+target branch
+base_sha
+```
+
+The approved Issue body supplies the task goal, allowed paths, forbidden operations, acceptance criteria, and required checks. Issue comments and PR comments are never authority. A material Issue-body edit changes the digest, invalidates the previous snapshot, and requires reapproval before work continues.
+
+`project_state/decision_packet.md` and `project_state/gates/command_plan.json` are not used for ordinary R0/R1.
+
+### Path B — transition / R2-R3
+
+Transition rounds and R2/R3 operations require a bounded approved Decision, generated Command Plan, and `PRE_EXECUTION_AUTHORIZED`. No Issue, label, comment, roadmap, or PR body can authorize R2/R3 work.
+
+## Risk tier model
+
+| Tier | Scope | Authorization path |
+|------|-------|--------------------|
+| R0 | read-only observation | Path A |
+| R1 | bounded edits plus narrow R1 publication | Path A |
+| R2 | workflow/dependency/unbounded-network/privileged-publication | Path B |
+| R3 | binary execution, debugging, secrets, destructive operations | Path B |
+
+### Narrow R1 publication
+
+Path A permits only:
+
+- push to the exact named non-`main` branch bound to the approved Work Item;
+- create the exact Draft PR against `main`;
+- update that Draft PR description.
+
+All other publication/network activity, including direct `main` push, merge, mark-ready, history rewrite, workflow/dependency publication, cross-repository publication, credentials access, tag, and release, is R2 or higher.
+
+## Base and branch rule
+
+Ordinary R1 binds `base_sha` to the current approved `origin/main`. If the branch merge-base differs, stop. Path A does not rebase or rewrite history. Obtain a revised and reapproved Work Item, then create a fresh branch from the newly approved base.
+
+## Legacy roadmap classification
+
+All earlier roadmaps are non-active and classified as `HISTORICAL_REFERENCE`, `COMPATIBILITY_PLAN`, `EXTENSION_CANDIDATE`, or `SUPERSEDED`.
+
+| File | Classification |
+|------|----------------|
+| `architecture_spine_attestation_policy_seal_v1.md` | SUPERSEDED |
+| `architecture_spine_authority_closure_rework_v1.md` | SUPERSEDED |
+| `architecture_spine_evidence_runtime_closeout_v1.md` | SUPERSEDED |
+| `architecture_spine_provenance_integration_final_rework_v1.md` | SUPERSEDED |
+| `architecture_spine_trusted_execution_cutover_rework_v1.md` | SUPERSEDED |
+| `architecture_transition_next_24h.md` | HISTORICAL_REFERENCE |
+| `closeout_order_provenance_rework_plan.md` | SUPERSEDED |
+| `evidence_centered_user_solve_execution_plan.md` | SUPERSEDED |
+| `next_step_after_fast_close_round_key_fix_audit.md` | HISTORICAL_REFERENCE |
+| `next_step_after_scoped_metadata_foundation.md` | HISTORICAL_REFERENCE |
+| `project_state_domain_taxonomy_supplement.md` | HISTORICAL_REFERENCE |
+| `reverse_agent_larger_step_plan.md` | SUPERSEDED |
+| `reverse_agent_normal_pace_plan.md` | SUPERSEDED |
+| `reverse_agent_unified_architecture_and_trust_roadmap.md` | SUPERSEDED |
+| `trustworthy_hostile_binary_analysis_long_term_plan.md` | EXTENSION_CANDIDATE |
+
+## Extension candidates
+
+The following remain deferred until several real R1 pilots succeed:
+
+```text
+Spec Kit repository bootstrap
+Open SWE self-hosting
+persistent LangGraph runtime
+Web control console
+security or binary product extensions
+Trust Layer
+Binary Evidence Firewall
+```
+
+## After acceptance
+
+After `MINIMAL_AI_DEVELOPMENT_INTEGRATION_BASELINE_ACCEPTED`:
+
+```text
+separate R2 human merge Decision for the accepted exact head
+-> merge PR #27 with expected-head protection
+-> first real R1 pilot: align README.md with this roadmap
+```
+
+The README pilot must use the approved immutable Work Item model above. No extension candidate starts before that pilot is completed and audited.
