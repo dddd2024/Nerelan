@@ -1,11 +1,29 @@
 # Run-Closeout Workflow
 
+> **Legacy / Compatibility Documentation.**
+> This file is retained for legacy compatibility and historical reference. It is **not** the default workflow for ordinary R0/R1 Path-A work in the current minimal-integration baseline.
+>
+> Ordinary R0/R1 authority comes from an **approved immutable GitHub Work Item snapshot** (Issue created from the R1 template, `r1-approved` label applied by the repository owner/maintainer, normalized Issue-body SHA-256 digest recorded in the Draft PR body). Ordinary R0/R1 does **not** require `project_state/decision_packet.md`, `project_state/gates/command_plan.json`, or `run-closeout`.
+>
+> The Decision / Command Plan / `run-closeout` model described below applies only to:
+> - legacy rounds that were planned under the older Path-B/Decision-driven model; and
+> - current transition / R2-R3 Path-B work that has a bounded approved Decision and `PRE_EXECUTION_AUTHORIZED`.
+>
+> Active guidance:
+> - [`../AGENTS.md`](../AGENTS.md)
+> - [`roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md`](roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md)
+> - [`architecture/SOURCE_OF_TRUTH_MATRIX.md`](architecture/SOURCE_OF_TRUTH_MATRIX.md)
+
 ## Execution Authority
 
-- `project_state/decision_packet.md` is the sole execution authority for each round.
+> **Scope qualifier.** The statements below describe the legacy Path-B / older-branch authority model. For ordinary current R0/R1 Path-A work, the execution authority is the approved immutable GitHub Work Item snapshot, not `project_state/decision_packet.md`.
+
+- `project_state/decision_packet.md` is the sole execution authority for each legacy/transition Path-B round.
 - `project_state/task_packet.json` is advisory only and must not override the decision packet.
 
 ## Default Closeout Command
+
+> **Scope qualifier.** `run-closeout` is the legacy / default closeout command only when an applicable Path-B Decision and gate profile require it. It is **not** required for ordinary R0/R1 Path-A work, which is closed through the immutable Work Item snapshot, Draft PR, independent audit, and human merge sequence described in `AGENTS.md`.
 
 After implementation work on an approved engineering or tool-integration round, the default closeout command is:
 
