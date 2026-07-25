@@ -9,7 +9,7 @@ SUPERSEDES_AS_TOP_LEVEL_PLAN: #18, #25
 
 This is the **single active top-level roadmap** for `reverse-agent`. All other roadmap documents in `docs/roadmap/` are classified below as `HISTORICAL_REFERENCE`, `COMPATIBILITY_PLAN`, `EXTENSION_CANDIDATE`, or `SUPERSEDED`. No older document remains an independent active top-level roadmap.
 
-This document is planning reference only. It does not authorize commands, file changes, closeout, or merge. Execution authority lives in `project_state/decision_packet.md` and `project_state/gates/command_plan.json`.
+This document is planning reference only. It does not authorize commands, file changes, closeout, or merge. Authority is split across two paths (see "Two authority paths" below): ordinary R0/R1 work is authorized by the approved Work Item Issue body; transition rounds and R2/R3 operations are authorized by `project_state/decision_packet.md` and `project_state/gates/command_plan.json`.
 
 ## Active development stack
 
@@ -34,14 +34,65 @@ Repository-owned custom capability is limited to:
 
 The project does not build a generic AI software-development platform. The current product scope is a **minimal integration layer** around mature development tools while product extensions remain undecided.
 
+## Two authority paths
+
+The project defines two distinct authority paths. No source is globally higher when it is not applicable to the selected path.
+
+### Path A — ordinary R0/R1 authority
+
+```text
+approved Work Item Issue body (R1 template)
+  + Issue allowed_paths / forbidden_operations / acceptance_criteria
+  + deterministic checks (pytest, git diff --check, GitHub Actions)
+```
+
+The Work Item Issue body is the primary authority for ordinary R0/R1. Issue comments and PR comments are never authority. `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are **not** used for ordinary R0/R1.
+
+### Path B — transition / R2-R3 authority
+
+```text
+bounded Decision in project_state/decision_packet.md
+  + generated command_plan.json
+  + transition-preflight PRE_EXECUTION_AUTHORIZED
+```
+
+R2/R3 operations fail closed. No Issue, Issue comment, PR comment, or roadmap document can authorize R2/R3 work.
+
 ## Risk tier model
 
-| Tier | Scope | Authorization |
-|------|-------|---------------|
-| R0 | read-only observation | standard path (no Decision required) |
-| R1 | bounded local edits (docs, tests, config) + feature-branch push + Draft PR creation | standard path (no Decision required) |
-| R2 | workflow/dependency/network/publication | bounded Decision + Trust Authorization |
-| R3 | binary execution, debugging, secrets, destructive | bounded Decision + Trust Authorization |
+| Tier | Scope | Authorization path |
+|------|-------|-------------------|
+| R0 | read-only observation | Path A (no Decision required) |
+| R1 | bounded local edits + narrow R1 publication (see below) | Path A (no Decision required) |
+| R2 | workflow/dependency/unbounded-network/privileged-publication | Path B (bounded Decision + Trust Authorization) |
+| R3 | binary execution, debugging, secrets, destructive | Path B (bounded Decision + Trust authorization) |
+
+### R1 publication — narrow exception
+
+R1 publication is a narrow exception to the general rule that network/publication operations are R2:
+
+- pushing to a non-`main` feature branch (`git push origin <feature-branch>`);
+- creating a Draft PR against `main` (`gh pr create --draft`);
+- updating a Draft PR description (`gh pr edit`).
+
+These R1 publication operations are bounded: they apply only to the exact named non-`main` branch bound to the Work Item, only to the exact Draft PR, and they forbid merge, mark-ready, and history rewrite.
+
+### R2 publication/network — precisely bounded
+
+The following are R2 or higher and fail-closed without a bounded Decision:
+
+- direct push to `main`;
+- merge;
+- force push;
+- rebase;
+- squash;
+- tag or release;
+- marking a PR ready for review (when the round requires Draft);
+- workflow/dependency publication;
+- unbounded network access;
+- cross-repository publication;
+- credentials/secrets access;
+- any operation outside the Work Item binding.
 
 After the one-time transition round (Issue #26 / Issue #28 / PR #27), ordinary R0/R1 development no longer requires a full Decision/Command Plan. An R0/R1 Work Item is authorized by an approved GitHub Issue (using the R1 template), its `allowed_paths` and `forbidden_operations`, and deterministic checks. `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are authority for transition rounds and R2/R3 only, not ordinary R0/R1. R2/R3 remain fail-closed.
 

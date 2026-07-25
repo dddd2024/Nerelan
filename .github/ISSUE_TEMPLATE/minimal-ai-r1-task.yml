@@ -99,10 +99,14 @@ body:
     id: risk_tier_justification
     attributes:
       label: Risk tier justification
-      description: Why this task is R1 (bounded local edits). If any operation would push to R2/R3, stop and request a bounded Decision instead.
+      description: Why this task is R1 (bounded local edits + narrow R1 publication). The narrow R1 publication exception (non-main branch push + Draft PR creation/update) is authorized. If any operation would push to R2/R3, stop and request a bounded Decision instead.
       placeholder: |
-        This task is R1 because <reason>. No operation touches workflow, dependency,
-        network, publication, binary, secrets, or destructive scope.
+        This task is R1 because <reason>. The only publication operations are
+        the narrow R1 publication exception: push to the exact non-main feature branch
+        and create/update the exact Draft PR. The task does not perform workflow,
+        dependency, unbounded-network, or privileged-publication (merge, mark-ready,
+        direct main push, tag, release) operations, and does not touch binary, secrets,
+        or destructive scope.
     validations:
       required: true
 
@@ -138,7 +142,7 @@ body:
     id: base_sha
     attributes:
       label: Base SHA
-      description: The `main` commit this branch is based on.
-      placeholder: 38de9106d191d6b66d5f878354144817095e7bca
+      description: The current `origin/main` commit this branch is based on. Fetch with `git fetch origin main && git rev-parse origin/main`. Do not hard-code a historical SHA.
+      placeholder: <current origin/main SHA>
     validations:
       required: true

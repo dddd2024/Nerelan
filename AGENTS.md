@@ -40,49 +40,58 @@ specific hostile-binary, reverse-solving, crash, patch, malware, or firmware pro
 
 Security and binary directions remain **extension candidates**, not current implementation scope.
 
+## Two authority paths
+
+The project defines two distinct authority paths. No source is globally higher when it is not applicable to the selected path.
+
+### Path A — ordinary R0/R1 authority
+
+For ordinary R0/R1 work (after the one-time transition round that establishes this baseline), authority is:
+
+```text
+approved Work Item Issue body (R1 template)
+  + Issue allowed_paths / forbidden_operations / acceptance_criteria
+  + deterministic checks (pytest, git diff --check, GitHub Actions)
+```
+
+The Work Item Issue body is the primary authority for R0/R1. Issue comments and PR comments are **never** authority. `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are **not** used for ordinary R0/R1.
+
+### Path B — transition / R2-R3 authority
+
+For transition rounds (when `transition_kernel_required=true`) and R2/R3 operations, authority is:
+
+```text
+bounded Decision in project_state/decision_packet.md
+  + generated command_plan.json
+  + transition-preflight PRE_EXECUTION_AUTHORIZED
+```
+
+R2/R3 operations fail closed. No Issue, Issue comment, PR comment, or roadmap document can authorize R2/R3 work.
+
 ## Risk tiers and authority model
 
-The project uses a four-tier risk model. The authority required for each tier is different:
+The project uses a four-tier risk model. Each tier selects one of the two authority paths above.
 
-| Tier | Scope | Authority required | Path |
-|------|-------|--------------------|------|
-| R0 | read-only observation | none (standard path) | standard |
-| R1 | bounded local edits (docs, tests, config) + feature-branch push + Draft PR creation | none (standard path) | standard |
-| R2 | workflow/dependency/network/publication | bounded Decision in `project_state/decision_packet.md` + `command_plan.json` | Trust Authorization required |
-| R3 | binary execution, debugging, secrets, destructive | bounded Decision in `project_state/decision_packet.md` + `command_plan.json` | Trust Authorization required |
+| Tier | Scope | Authority path | Path |
+|------|-------|-----------------|------|
+| R0 | read-only observation | Path A (no Decision required) | standard |
+| R1 | bounded local edits + narrow R1 publication (see below) | Path A (no Decision required) | standard |
+| R2 | workflow/dependency/unbounded-network/privileged-publication | Path B (bounded Decision + Trust Authorization) | Trust Authorization required |
+| R3 | binary execution, debugging, secrets, destructive | Path B (bounded Decision + Trust Authorization) | Trust Authorization required |
 
-### R0/R1 authority model (after the transition round)
+### R1 publication — narrow exception
 
-After the one-time transition round that establishes this baseline, **ordinary R0/R1 work does not require a full Decision or Command Plan**. An R0/R1 Work Item is authorized by:
-
-- an approved GitHub Issue using the `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml` template;
-- the Issue's `allowed_paths`, `forbidden_operations`, and `acceptance_criteria` fields;
-- deterministic checks (`pytest`, `git diff --check`, GitHub Actions).
-
-`project_state/decision_packet.md` and `project_state/gates/command_plan.json` are **not** ordinary R0/R1 execution authority. They are authority for:
-
-- transition rounds (when `transition_kernel_required=true`);
-- R2/R3 operations (which fail closed without a bounded Decision).
-
-### R2/R3 approval boundary
-
-R2/R3 operations fail closed. They require:
-
-- an explicit bounded Decision in `project_state/decision_packet.md` with `authorized_risk_tier: R2` or higher;
-- a generated `command_plan.json` that lists the exact commands;
-- `transition-preflight --mode pre` returning `PRE_EXECUTION_AUTHORIZED`.
-
-No Issue, comment, or roadmap document can authorize R2/R3 work.
-
-### Feature-branch push and Draft PR creation are R1
-
-The following routine publication operations are classified as **R1** and do not require R2 authorization:
+R1 publication is a **narrow exception** to the general rule that network/publication operations are R2. The following routine publication operations are classified as **R1** and do not require R2 authorization:
 
 - pushing to a non-`main` feature branch (`git push origin <feature-branch>`);
 - creating a Draft PR against `main` (`gh pr create --draft`);
 - updating a Draft PR description (`gh pr edit`).
 
-The following publication operations are **R2 or higher** and remain fail-closed without a bounded Decision:
+These R1 publication operations are bounded: they apply only to the exact named non-`main` branch bound to the Work Item, only to the exact Draft PR, and they forbid merge, mark-ready, and history rewrite.
+
+### R2 publication/network — precisely bounded
+
+The following publication and network operations are **R2 or higher** and remain fail-closed without a bounded Decision:
 
 - direct push to `main`;
 - merge;
@@ -90,54 +99,49 @@ The following publication operations are **R2 or higher** and remain fail-closed
 - rebase;
 - squash;
 - tag or release;
-- marking a PR ready for review (when the round requires Draft).
+- marking a PR ready for review (when the round requires Draft);
+- workflow/dependency publication;
+- unbounded network access;
+- cross-repository publication;
+- credentials/secrets access;
+- any operation outside the Work Item binding.
 
 ## R0/R1 allowed operations
 
 - read repository state;
 - edit documentation and tests within the Issue's `allowed_paths`;
 - run `pytest`, `git diff --check`, and local lint;
-- create a feature branch from `main`;
-- push to the feature branch;
-- create a Draft PR against `main`;
-- update the Draft PR description.
+- create a feature branch from the current `origin/main`;
+- push to the non-`main` feature branch (R1 narrow publication exception);
+- create a Draft PR against `main` (R1 narrow publication exception);
+- update the Draft PR description (R1 narrow publication exception).
 
 ## Startup checks
 
 Before any work, an agent must:
 
 1. Confirm the current branch and HEAD: `git status` and `git rev-parse HEAD`.
-2. Confirm `main` is fixed at `38de9106d191d6b66d5f878354144817095e7bca` unless a later Decision has explicitly moved it.
-3. Read the active GitHub Issue to identify `allowed_paths`, `forbidden_operations`, and `acceptance_criteria`.
-4. If the work is R2/R3 or a transition round, read `project_state/decision_packet.md` and `project_state/gates/command_plan.json`.
-5. If the active Decision requires the transition kernel, run the gate sequence below before any implementation.
+2. Fetch and observe the current `origin/main` SHA: `git fetch origin main && git rev-parse origin/main`.
+3. Confirm the Work Item Issue's `base_sha` equals the approved current `origin/main`. If the branch merge-base differs from the Work Item binding, stop and re-base or request a new Work Item.
+4. Read the active GitHub Issue body (R1 template) to identify `allowed_paths`, `forbidden_operations`, and `acceptance_criteria`.
+5. If the work is R2/R3 or a transition round, read `project_state/decision_packet.md` and `project_state/gates/command_plan.json`.
+6. If the active Decision requires the transition kernel, run the gate sequence below before any implementation.
 
-## Source-of-truth order
-
-Authoritative sources, in descending precedence:
-
-1. `project_state/decision_packet.md` — round execution authority for transition rounds and R2/R3 only.
-2. `project_state/gates/command_plan.json` — command authority for transition rounds and R2/R3 only.
-3. Git — code and history.
-4. GitHub — Issue, PR, check, and merge state.
-5. `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md` — product direction (planning reference only, never command authority).
-6. `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md` — ownership map.
-7. All other `docs/**` and legacy `project_state/**` artifacts — read-only compatibility evidence.
-
-For ordinary R0/R1 work, the GitHub Issue (using the R1 template) is the primary authority. Roadmap documents, Issue comments, and audit notes are **planning references**; they do not authorize commands, file changes, closeout, or merge.
+Permanent operating guidance does **not** hard-code a frozen `main` SHA. Ordinary R1 work uses the current `origin/main` SHA as approved by the Work Item. The historical transition base SHA remains valid only for the current transition round.
 
 ## Work Item acceptance requirements
 
-A Work Item (GitHub Issue) is acceptable for R0/R1 work only when it captures:
+A Work Item (GitHub Issue body, using the R1 template) is acceptable for R0/R1 work only when it captures:
 
 - approved specification or explicit task goal;
 - allowed paths;
 - forbidden operations;
 - acceptance criteria;
 - required deterministic checks;
+- `base_sha` bound to the current `origin/main`;
 - Draft PR and human acceptance boundary.
 
-An Issue does not itself authorize R2/R3 operations. See `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml`.
+An Issue body does not itself authorize R2/R3 operations. Issue comments and PR comments are never authority. See `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml`.
 
 ## Test commands
 
@@ -162,7 +166,7 @@ Do not run a full repository test unless the Decision compiler makes it mandator
 ## Branch and PR rules
 
 - Work on a feature branch, never directly on `main`.
-- Feature-branch push and Draft PR creation are R1 operations (see above).
+- Feature-branch push and Draft PR creation are R1 narrow publication operations (see above).
 - Open a **Draft PR** against `main` for review.
 - PR creation is the publication boundary; merge remains separately authorized and human-controlled.
 - Keep the PR Draft until independent audit accepts the final head.
@@ -188,7 +192,7 @@ automatic merge
 Stop immediately, rather than inventing a new governance artifact, when:
 
 - the Decision or generated Command Plan does not validate (transition rounds only);
-- branch, base SHA, or allowed path differs from the active Issue or Decision;
+- branch, base SHA, or allowed path differs from the active Issue body or Decision;
 - implementation requires source, test, dependency, or workflow changes not authorized;
 - a new governance artifact family appears necessary;
 - any operation would mutate an older Draft PR or `main`;

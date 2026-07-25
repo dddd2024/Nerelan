@@ -7,6 +7,15 @@ AUTHORITY: PLANNING_REFERENCE_ONLY
 
 This document classifies repository components into containment tiers and defines the lifecycle for legacy governance assets. It does not authorize deletion, refactor, or behavior change in this round.
 
+## Two authority paths
+
+The project defines two authority paths (see `AGENTS.md` and `SOURCE_OF_TRUTH_MATRIX.md`):
+
+- **Path A — ordinary R0/R1**: authority is the approved Work Item Issue body (R1 template) + deterministic checks. `decision_packet.md` and `command_plan.json` are **not** used.
+- **Path B — transition / R2-R3**: authority is the bounded Decision + generated `command_plan.json` + `PRE_EXECUTION_AUTHORIZED`.
+
+All authority labels in this document (e.g., "transition/R2-R3 authority only") refer to Path B unless explicitly stated otherwise. Ordinary R0/R1 work does not use `decision_packet.md` or `command_plan.json`.
+
 ## Containment tiers
 
 ### RETAIN
@@ -19,12 +28,14 @@ reverse_agent/architecture/risk.py
 risk classification logic (R0-R3 classifier, path-risk floor, capability rules)
 selected GitHub observation adapters (read-only)
 deterministic tests under tests/
-project_state/decision_packet.md (active round authority)
-project_state/gates/command_plan.json (active command authority)
+project_state/decision_packet.md (transition/R2-R3 authority only, Path B)
+project_state/gates/command_plan.json (transition/R2-R3 command authority only, Path B)
 docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md
 docs/architecture/SOURCE_OF_TRUTH_MATRIX.md
 AGENTS.md
 ```
+
+Note: `decision_packet.md` and `command_plan.json` are authority for transition rounds and R2/R3 only (Path B). For ordinary R0/R1 work (Path A), the Work Item Issue body is the primary authority; these files are not used.
 
 ### READ_ONLY_COMPATIBILITY
 
