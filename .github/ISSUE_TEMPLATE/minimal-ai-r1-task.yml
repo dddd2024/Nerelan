@@ -1,0 +1,137 @@
+name: Minimal AI R1 Task
+description: Bounded R1 Work Item for the minimal AI development integration baseline. An Issue does not authorize R2/R3 operations.
+title: "R1: <short task summary>"
+labels: ["r1", "work-item"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Minimal AI R1 Task
+
+        This Issue is a planning reference and Work Item for a bounded R1 (bounded local edits) task.
+        It does **not** authorize R2/R3 operations, merge, direct `main` push, force push, rebase,
+        unknown-binary execution, model API invocation, or any operation outside the allowed paths.
+
+        Execution authority lives in `project_state/decision_packet.md` and
+        `project_state/gates/command_plan.json`. An Issue is not command authority.
+
+  - type: textarea
+    id: specification
+    attributes:
+      label: Approved specification
+      description: The approved specification or explicit task goal. Link to the approving spec/Issue/PR if applicable.
+      placeholder: |
+        <approved specification or task goal>
+    validations:
+      required: true
+
+  - type: textarea
+    id: allowed_paths
+    attributes:
+      label: Allowed paths
+      description: Exact list of paths this Work Item is authorized to modify. Any path not listed is forbidden.
+      placeholder: |
+        docs/example.md
+        tests/test_example.py
+    validations:
+      required: true
+
+  - type: textarea
+    id: forbidden_operations
+    attributes:
+      label: Forbidden operations
+      description: Operations explicitly forbidden for this Work Item. Defaults are listed; add task-specific forbidden operations.
+      value: |
+        direct push to main
+        force push
+        rebase
+        squash
+        merge without explicit authorization
+        tag or release
+        unknown-binary execution
+        model API invocation from repository code
+        external reverse-tool invocation
+        runner dispatch
+        automatic merge
+        product source changes outside allowed paths
+        dependency changes
+        workflow changes
+        new Gate/receipt/verifier implementation
+        LangGraph runtime expansion
+        Agent Registry
+        Web console
+        Spec Kit/Open SWE/OpenHands installation
+        Trust Layer or binary-domain implementation
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Concrete, checkable acceptance criteria for this Work Item.
+      placeholder: |
+        - <criterion 1>
+        - <criterion 2>
+    validations:
+      required: true
+
+  - type: textarea
+    id: required_checks
+    attributes:
+      label: Required deterministic checks
+      description: Deterministic checks that must pass on the final PR head.
+      value: |
+        python -m pytest <relevant test paths> -q
+        git diff --check
+        GitHub Actions: CI / Decision Preflight / State Gate (if transition kernel required)
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk_tier_justification
+    attributes:
+      label: Risk tier justification
+      description: Why this task is R1 (bounded local edits). If any operation would push to R2/R3, stop and request a bounded Decision instead.
+      placeholder: |
+        This task is R1 because <reason>. No operation touches workflow, dependency,
+        network, publication, binary, secrets, or destructive scope.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: r2_r3_boundary
+    attributes:
+      label: R2/R3 boundary acknowledgment
+      description: An Issue does not authorize R2/R3 operations.
+      options:
+        - label: I acknowledge this Issue does not authorize R2/R3 operations. If the work requires workflow, dependency, network, publication, binary, secrets, or destructive scope, I will stop and request a bounded Decision.
+          required: true
+
+  - type: checkboxes
+    id: draft_pr_boundary
+    attributes:
+      label: Draft PR and human acceptance boundary
+      options:
+        - label: The PR will be opened as Draft and remain Draft until independent audit accepts the final head. Merge is separately authorized and human-controlled.
+          required: true
+        - label: I will not push directly to `main`, force push, rebase, squash, merge, tag, or release.
+          required: true
+
+  - type: input
+    id: target_branch
+    attributes:
+      label: Target branch
+      description: Feature branch for this Work Item. Never `main`.
+      placeholder: codex/<workstream>-<task>
+    validations:
+      required: true
+
+  - type: input
+    id: base_sha
+    attributes:
+      label: Base SHA
+      description: The `main` commit this branch is based on.
+      placeholder: 38de9106d191d6b66d5f878354144817095e7bca
+    validations:
+      required: true
