@@ -1,0 +1,178 @@
+name: Minimal AI R1 Task
+description: Candidate bounded R1 Work Item. It becomes authority only after owner/maintainer approval and immutable snapshot binding.
+title: "R1: <short task summary>"
+labels: ["r1", "work-item", "candidate"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Candidate R1 Work Item
+
+        Creating this Issue produces `approval_state: CANDIDATE`. It is **not execution authority**.
+
+        Path-A authority activates only after a repository owner or maintainer reviews the completed Issue and applies the `r1-approved` label. Before implementation, the executor must compute the SHA-256 digest of the normalized approved Issue body and record this immutable authority snapshot in the Draft PR body:
+
+        ```text
+        repository
+        issue_number
+        approval_state: APPROVED
+        approved_by
+        approval_event_or_time
+        body_digest_sha256
+        immutable_observation_ref
+        work_item_identity: {repository}#{issue_number}@{immutable_observation_ref}
+        target_branch
+        base_sha
+        ```
+
+        Unless GitHub supplies a stronger immutable revision reference, `immutable_observation_ref` is the approved normalized Issue-body SHA-256 digest. A material Issue-body edit changes the digest, invalidates the previous snapshot, and requires owner/maintainer reapproval. Issue comments and PR comments are never authority.
+
+        Narrow R1 publication is limited to push to the exact named non-`main` branch and create/update of the exact Draft PR. It never authorizes merge, mark-ready, direct `main` push, history rewrite, tag, release, cross-repository publication, unbounded network, credentials, or operations outside the approved snapshot.
+
+  - type: dropdown
+    id: approval_state
+    attributes:
+      label: Initial approval state
+      description: A newly created Issue must remain CANDIDATE until a repository owner or maintainer applies the r1-approved label.
+      options:
+        - CANDIDATE
+    validations:
+      required: true
+
+  - type: textarea
+    id: specification
+    attributes:
+      label: Approved specification candidate
+      description: State the proposed specification or exact task goal. Owner/maintainer approval happens after Issue creation.
+      placeholder: |
+        <proposed specification or task goal>
+    validations:
+      required: true
+
+  - type: textarea
+    id: allowed_paths
+    attributes:
+      label: Allowed paths
+      description: Exact paths the approved Work Item may modify. Any unlisted path is forbidden.
+      placeholder: |
+        docs/example.md
+        tests/test_example.py
+    validations:
+      required: true
+
+  - type: textarea
+    id: forbidden_operations
+    attributes:
+      label: Forbidden operations
+      description: Defaults are listed. Add task-specific prohibitions.
+      value: |
+        direct push to main
+        force push
+        rebase or other history rewrite
+        squash
+        merge or mark-ready without explicit Path-B authorization
+        tag or release
+        cross-repository publication
+        unbounded network access
+        credentials or secrets access
+        unknown-binary execution
+        model API invocation from repository code
+        external reverse-tool invocation
+        runner dispatch
+        automatic merge
+        product source changes outside allowed paths
+        dependency changes
+        workflow changes
+        new Gate/receipt/verifier implementation
+        LangGraph runtime expansion
+        Agent Registry
+        Web console
+        Spec Kit/Open SWE/OpenHands installation
+        Trust Layer or binary-domain implementation
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Concrete, independently checkable acceptance criteria.
+      placeholder: |
+        - <criterion 1>
+        - <criterion 2>
+    validations:
+      required: true
+
+  - type: textarea
+    id: required_checks
+    attributes:
+      label: Required deterministic checks
+      description: Checks that must pass on the final Draft PR head.
+      value: |
+        python -m pytest <relevant test paths> -q
+        git diff --check
+        applicable GitHub Actions checks
+    validations:
+      required: true
+
+  - type: textarea
+    id: risk_tier_justification
+    attributes:
+      label: Risk tier justification
+      description: Explain why this is bounded R1, including the narrow R1 publication exception.
+      placeholder: |
+        This task is R1 because <reason>. The only network/publication operations are
+        push to the exact approved non-main branch and create/update of the exact Draft PR.
+        It does not perform workflow, dependency, privileged-publication, unbounded-network,
+        cross-repository, credentials, binary, secrets, destructive, or history-rewrite work.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: r2_r3_boundary
+    attributes:
+      label: R2/R3 boundary acknowledgment
+      description: Network/publication outside the narrow R1 exception requires Path B.
+      options:
+        - label: I acknowledge that only push to the exact approved non-main branch and create/update of the exact Draft PR are permitted R1 network/publication operations. Any network/publication outside that narrow exception, or any workflow, dependency, binary, secrets, destructive, history-rewrite, merge, mark-ready, tag, or release operation requires a bounded Path-B Decision.
+          required: true
+
+  - type: checkboxes
+    id: approval_snapshot_boundary
+    attributes:
+      label: Approval and immutable snapshot boundary
+      options:
+        - label: I acknowledge this Issue is CANDIDATE until a repository owner or maintainer applies r1-approved after review.
+          required: true
+        - label: I will not begin implementation until the Draft PR body records approver identity, approval event/time, normalized Issue-body SHA-256 digest, immutable_observation_ref, Work Item identity, target branch, and base SHA.
+          required: true
+        - label: I will stop and obtain reapproval if a material Issue-body edit changes the approved digest.
+          required: true
+
+  - type: checkboxes
+    id: draft_pr_boundary
+    attributes:
+      label: Draft PR and human acceptance boundary
+      options:
+        - label: The PR will remain Draft until independent audit accepts the exact head. Merge is separately authorized and human-controlled.
+          required: true
+        - label: I will not push directly to main, force push, rebase, squash, merge, mark ready, tag, or release.
+          required: true
+
+  - type: input
+    id: target_branch
+    attributes:
+      label: Target branch
+      description: Exact non-main feature branch for this Work Item.
+      placeholder: codex/<workstream>-<task>
+    validations:
+      required: true
+
+  - type: input
+    id: base_sha
+    attributes:
+      label: Base SHA
+      description: Current origin/main commit approved for this Work Item. Fetch it; do not hard-code a historical SHA.
+      placeholder: <current origin/main SHA>
+    validations:
+      required: true
