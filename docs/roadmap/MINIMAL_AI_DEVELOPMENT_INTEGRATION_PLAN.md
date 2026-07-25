@@ -38,14 +38,14 @@ issue_number
 approval_state: APPROVED
 approved_by
 approval_event_or_time
-normalized Issue-body SHA-256 digest
+body_digest_sha256: <normalized Issue-body SHA-256>
 immutable_observation_ref
 work_item_identity = {repository}#{issue_number}@{immutable_observation_ref}
 target branch
 base_sha
 ```
 
-The approved Issue body supplies the task goal, allowed paths, forbidden operations, acceptance criteria, and required checks. Issue comments and PR comments are never authority. A material Issue-body edit changes the digest, invalidates the previous snapshot, and requires reapproval before work continues.
+The approved Issue body supplies the task goal, allowed paths, forbidden operations, acceptance criteria, and required checks. Issue comments and PR comments are never authority. A material Issue-body edit changes `body_digest_sha256`, invalidates the previous snapshot, and requires reapproval before work continues.
 
 `project_state/decision_packet.md` and `project_state/gates/command_plan.json` are not used for ordinary R0/R1.
 
