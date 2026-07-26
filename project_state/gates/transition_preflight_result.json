@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260726_governance_migration_owner_manual_merge_rework_v2",
-  "round_id": "round_20260726_governance_migration_owner_manual_merge_rework_v2",
+  "decision_id": "decision_20260726_governance_migration_owner_manual_merge_rework_v3",
+  "round_id": "round_20260726_governance_migration_owner_manual_merge_rework_v3",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260726_governance_migration_owner_manual_merge_rework_v2 expected=decision_20260726_governance_migration_owner_manual_merge_rework_v2"
+      "detail": "observed=decision_20260726_governance_migration_owner_manual_merge_rework_v3 expected=decision_20260726_governance_migration_owner_manual_merge_rework_v3"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260726_governance_migration_owner_manual_merge_rework_v2 expected=round_20260726_governance_migration_owner_manual_merge_rework_v2"
+      "detail": "observed=round_20260726_governance_migration_owner_manual_merge_rework_v3 expected=round_20260726_governance_migration_owner_manual_merge_rework_v3"
     },
     {
       "name": "decision_approved",
@@ -43,12 +43,12 @@
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=f0cbd05eeb9e71b50abe0b33466d7461f703008c"
+      "detail": "decision_commit=148ed513c1da885098c980cc74f516021eead93a"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260726_governance_migration_owner_manual_merge_rework_v2/round_20260726_governance_migration_owner_manual_merge_rework_v2"
+      "detail": "plan=decision_20260726_governance_migration_owner_manual_merge_rework_v3/round_20260726_governance_migration_owner_manual_merge_rework_v3"
     },
     {
       "name": "command_plan_contract",

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260726_governance_migration_owner_manual_merge_rework_v2",
-  "round_id": "round_20260726_governance_migration_owner_manual_merge_rework_v2",
+  "decision_id": "decision_20260726_governance_migration_owner_manual_merge_rework_v3",
+  "round_id": "round_20260726_governance_migration_owner_manual_merge_rework_v3",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
