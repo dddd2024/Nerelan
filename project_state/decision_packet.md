@@ -1,28 +1,29 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260725_governance_migration_owner_manual_merge_v1","round_id":"round_20260725_governance_migration_owner_manual_merge_v1","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{"schema_version":1,"decision_id":"decision_20260726_governance_migration_owner_manual_merge_rework_v2","round_id":"round_20260726_governance_migration_owner_manual_merge_rework_v2","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9",
-  "follows_last_round_id": "round_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9",
-  "previous_audit_outcome": "V9_DECISION_APPROVED_PREDECESSOR",
-  "workstream_id": "governance-migration-owner-manual-merge-v1",
+  "follows_last_decision_id": "decision_20260725_governance_migration_owner_manual_merge_v1",
+  "follows_last_round_id": "round_20260725_governance_migration_owner_manual_merge_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED_V1_HEAD_1971e9a2_REJECTED",
+  "workstream_id": "governance-migration-owner-manual-merge-rework-v2",
   "source_issue": 43,
   "program_issue": 26,
   "required_branch": "codex/governance-migration-owner-manual-merge-v1",
-  "starting_head": "964cd647afc3d51a7fdf855080351da53c5e79ef",
+  "starting_head": "1971e9a216030049988434ffd5494dc2b64cd7e5",
   "activation_base_sha": "964cd647afc3d51a7fdf855080351da53c5e79ef",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "pr_creation_allowed": true,
+  "pr_creation_allowed": false,
+  "pr_body_update_allowed": true,
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "stop_after_exact_head_ci": true,
-  "one_time_governance_migration": true,
+  "one_time_governance_migration_rework": true,
   "bootstrap_exception_files": ["project_state/decision_packet.md", "project_state/gates/command_plan.json"],
   "bootstrap_exception_commands": ["gate.startup_snapshot", "status.git_status", "gate.command_plan", "gate.transition_lint", "gate.pre_execution"],
   "allowed_commands": [
@@ -34,13 +35,11 @@
     {"command_id":"test.minimal_integration_baseline_docs","command":"python -m pytest tests/test_minimal_integration_baseline_docs.py -q","phase":"test","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["regression_test"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"validation.diff_check","command":"git diff --check","phase":"validation","required":true,"expected_exit_codes":[0],"execution_surface":"local","operations":["diff_validation"],"network_access":false,"required_evidence_source":"local_command_evidence","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
     {"command_id":"publication.push_branch","command":"git push origin codex/governance-migration-owner-manual-merge-v1","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["push","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]},
-    {"command_id":"publication.create_draft_pr","command":"gh pr create --base main --head codex/governance-migration-owner-manual-merge-v1 --draft --title governance-r1-owner-manual-merge-carve-out-one-time-r2-migration --body-file PR_BODY_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_creation","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]}
+    {"command_id":"publication.update_pr_body","command":"gh pr edit 44 --body-file PR_BODY_TEMP_PATH","phase":"publication","required":false,"expected_exit_codes":[0],"execution_surface":"local","operations":["pull_request_edit","network_access"],"network_access":true,"required_evidence_source":"repository_state_attestation","authority_origin":"normal_plan","allowed_mutated_paths":[],"produced_artifacts":[]}
   ],
   "allowed_mutated_paths": [
     "AGENTS.md",
     "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
-    "docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",
-    "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
     ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
     "tests/test_minimal_integration_baseline_docs.py",
     "project_state/decision_packet.md",
@@ -58,7 +57,9 @@
     "tests/test_project_gate.py",
     "tests/test_architecture_contracts.py",
     "tests/test_planning_and_github_adapters.py",
-    "tests/test_risk_classifier.py"
+    "tests/test_risk_classifier.py",
+    "docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",
+    "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md"
   ],
   "generated_artifact_paths": [
     "project_state/gates/startup_snapshot.json",
@@ -72,6 +73,8 @@
     ".github/workflows/**",
     ".codex-skills/**",
     "docs/run_closeout.md",
+    "docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",
+    "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
     "docs/architecture/ARCHITECTURE_SPINE_REUSE_INVENTORY.md",
     "tests/test_project_gate.py",
     "tests/test_architecture_contracts.py",
@@ -121,8 +124,11 @@
     "new verifier implementation",
     "modifying docs/run_closeout.md",
     "modifying .codex-skills/**",
+    "modifying docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",
+    "modifying docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
     "R2/R3 PR using the new lightweight merge path",
-    "applying six-file patch before PRE_EXECUTION_AUTHORIZED"
+    "creating new PR (must update PR #44 only)",
+    "applying fixes before PRE_EXECUTION_AUTHORIZED"
   ],
   "capability_policy": {
     "direct_push_to_main_allowed": false,
@@ -138,15 +144,13 @@
     "network_access_default_allowed": false,
     "local_network_exceptions": [
       "git push origin codex/governance-migration-owner-manual-merge-v1",
-      "gh pr create --base main --head codex/governance-migration-owner-manual-merge-v1 --draft"
+      "gh pr edit 44 --body-file"
     ]
   },
   "authorized_risk_tier": "R2",
   "authorized_risk_paths": [
     "AGENTS.md",
     "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
-    "docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",
-    "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
     ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
     "tests/test_minimal_integration_baseline_docs.py",
     "project_state/decision_packet.md",
@@ -162,13 +166,11 @@
     {"pattern": "project_state/gates/**", "minimum_risk": "R2"}
   ],
   "scope_policy": {
-    "scope": "governance_migration_owner_manual_merge",
-    "one_time_r2_governance_migration": true,
-    "six_governance_files": [
+    "scope": "governance_migration_owner_manual_merge_rework_v2",
+    "one_time_r2_governance_migration_rework": true,
+    "rework_deliverable_files": [
       "AGENTS.md",
       "docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md",
-      "docs/architecture/SOURCE_OF_TRUTH_MATRIX.md",
-      "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md",
       ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
       "tests/test_minimal_integration_baseline_docs.py"
     ],
@@ -180,9 +182,10 @@
       "project_state/gates/transition_command_plan_preview.json",
       "project_state/gates/transition_preflight_result.json"
     ],
-    "six_governance_files_count": 6,
+    "rework_deliverable_files_count": 4,
     "transition_evidence_files_count": 6,
-    "counting_rule": "Six governance migration files and Decision/Gate transition evidence files are counted separately. The migration deliverable is exactly six files; transition evidence is generated by the gate sequence and is not part of the deliverable.",
+    "counting_rule": "Four rework deliverable files and Decision/Gate transition evidence files are counted separately. PR #44 body metadata is updated via gh pr edit (no repo file).",
+    "preserve_accepted_semantics": ["docs/architecture/SOURCE_OF_TRUTH_MATRIX.md", "docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md"],
     "allow_product_source": false,
     "allow_dependency_changes": false,
     "allow_workflow_changes": false,
@@ -190,23 +193,22 @@
     "allow_test_additions": true,
     "allow_documentation_changes": true,
     "allow_template_changes": true,
-    "allow_run_closeout_changes": false
+    "allow_run_closeout_changes": false,
+    "allow_source_matrix_changes": false,
+    "allow_containment_changes": false
   },
-  "migration_semantics": {
-    "introduces_owner_manual_merge_carve_out": true,
-    "carve_out_covers_both_mark_ready_and_merge": true,
-    "actor_distinction": "human-initiated vs agent-initiated vs automation-initiated",
-    "agent_and_automation_merge_remains_path_b": true,
-    "auto_merge_remains_forbidden": true,
-    "r2_r3_prs_excluded_from_carve_out": true,
-    "does_not_modify": ["Gate runtime", "LangGraph runtime", "workflows", "dependencies", "docs/run_closeout.md", ".codex-skills/**"],
+  "rework_semantics": {
+    "fixes_audit_findings": ["F1", "F2", "F3", "F4"],
+    "F1_scope_only_statements_to_agent_implementation_stage": true,
+    "F2_mark_pr27_separate_r2_merge_as_historical": true,
+    "F3_add_structured_negative_tests_detecting_contradictions": true,
+    "F4_update_pr_body_with_final_head_and_12_file_breakdown": true,
     "pr_body_records": "Path-B Decision snapshot (NOT R1 Work Item snapshot)",
-    "pr_body_snapshot_fields": ["decision_id", "round_id", "status", "authorized_risk_tier", "activation_base_sha", "required_branch", "six_governance_files", "forbidden_operations", "one_time_governance_migration", "merge_allowed=false", "migration_pr_self_merge_rule"],
-    "saved_six_file_patch_status": "UNAUTHORIZED_PROPOSAL_ONLY. The previously saved patch at f:\\reverse-agent-governance-migration-v1.patch is not execution authority. It may only be re-applied after transition-preflight returns PRE_EXECUTION_AUTHORIZED, and must be re-reviewed after application.",
+    "pr_body_must_record_after_rework": ["exact_head_sha", "six governance deliverables", "one owner-authored Decision file", "five compiler-owned Gate outputs", "12 changed files total"],
     "audit_comments_are_evidence_not_authority": true,
-    "migration_pr_self_merge_rule": "This migration PR's own final merge must follow current old rules until the new rule reaches main. Either this Decision is amended to explicitly authorize the final exact-head merge, or a separate bounded Path-B merge authorization is required. The new lightweight rule cannot be used to merge itself."
+    "v1_head_1971e9a2_frozen_as_failed_semantic_acceptance_evidence": true,
+    "migration_pr_self_merge_rule": "This migration PR's own final merge must follow current old rules until the new rule reaches main. Either this Decision is amended to explicitly authorize the final exact-head merge, or a separate bounded Path-B merge authorization is required."
   },
-  "main_anomaly_note": "origin/main moved from 4abf7fc90e05253452e4199f2a65401be782422d to 964cd647afc3d51a7fdf855080351da53c5e79ef due to two accidental empty-file creations (__invalid__, __invalid2__) and their reverts. Net tree diff is empty. No force-push to revert main is permitted. activation_base_sha is set to the new 964cd647.",
   "stop_conditions": [
     "transition_lint_failure",
     "preflight_not_authorized",
@@ -215,9 +217,10 @@
     "ci_failure_on_exact_head",
     "scope_violation_detected",
     "independent_audit_rejects_head",
-    "files_changed_outside_six_allowed_paths_plus_transition_evidence",
+    "files_changed_outside_four_rework_files_plus_transition_evidence",
     "attempted_merge_or_mark_ready_without_separate_authorization",
-    "six_file_patch_applied_before_PRE_EXECUTION_AUTHORIZED"
+    "fixes_applied_before_PRE_EXECUTION_AUTHORIZED",
+    "modified_source_matrix_or_containment_without_strict_requirement"
   ]
 }
 ```
@@ -226,80 +229,53 @@
 
 ### Goal
 
-One-time R2 governance migration authorizing the introduction of a narrow owner-manual-merge carve-out for ordinary R1 PRs. After this migration reaches `main`, an accepted ordinary R1 PR may be merged by a repository owner/maintainer acting personally (human-initiated) without a separate Path-B Decision, subject to all R1 final-acceptance conditions holding immediately before the merge.
+One-time R2 governance migration rework (v2) addressing the four blocking findings (F1-F4) from the independent audit of PR #44 exact head `1971e9a216030049988434ffd5494dc2b64cd7e5`. The v1 head is frozen as failed semantic acceptance evidence; no corrective implementation commit may be appended under v1.
 
-This carve-out covers BOTH owner-performed `mark-ready` AND `merge` as a single human-initiated sequence. Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, and external-service-initiated merge/mark-ready, GitHub auto-merge, and merge/mark-ready of R2/R3 work items remain Path-B.
+This v2 Decision authorizes minimal corrections to four deliverable files only. It does NOT authorize merging the migration PR itself; that requires either a follow-up amendment or a separate bounded Path-B merge authorization.
 
-This Decision authorizes ONLY the six-file rule migration. It does NOT authorize merging the migration PR itself; that requires either a follow-up amendment to this Decision or a separate bounded Path-B merge authorization (Phase 4). The new lightweight rule cannot be used to merge itself.
+### Audit findings addressed
+
+- **F1** — Scope unconditional "Only these... are R1" / "Path A permits only" statements to the Agent-implementation-before-final-acceptance stage, so they no longer contradict the owner-manual-merge carve-out. Affected: `AGENTS.md`, `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md`, `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml`.
+- **F2** — Mark the old PR #27 "separate R2 human merge Decision" sequence in the roadmap as historical/one-time transition history, so the active future roadmap has one unambiguous rule. Affected: `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md`.
+- **F3** — Add deterministic structured/negative tests that fail when F1/F2 contradictions reappear (unqualified "only" excluding carve-out; simultaneous "only branch/Draft-PR" + "owner merge is Path-A" without stage qualification; active future roadmap requiring separate R2 merge for every accepted ordinary R1 PR; Agent/automation/auto-merge no longer explicitly Path-B). Affected: `tests/test_minimal_integration_baseline_docs.py`.
+- **F4** — Update PR #44 body metadata after the new final head is produced: record `exact_head_sha`, and break down the changed set as six governance deliverables + one owner-authored Decision file + five compiler-owned Gate outputs = 12 changed files total. Affected: PR #44 body (via `gh pr edit`, no repo file).
+
+### Implementation Scope
+
+1. Modify exactly the four rework deliverable files:
+   - `AGENTS.md` — scope "R1 publication — narrow exception" to "During Agent implementation, before independent exact-head acceptance"; preserve carve-out.
+   - `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md` — scope "Narrow R1 publication" similarly; mark PR #27 sequence under "After acceptance" as historical/one-time.
+   - `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml` — scope the r2_r3_boundary checkbox "only push... and create/update... Draft PR" to Agent implementation stage.
+   - `tests/test_minimal_integration_baseline_docs.py` — add structured negative tests per F3.
+
+2. Do NOT modify `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md` or `docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md` — preserve already-accepted semantics unless a correction is strictly required for consistency.
+
+3. Do NOT modify: Gate runtime, LangGraph runtime, workflows, dependencies, `docs/run_closeout.md`, `.codex-skills/**`, product source, or any test file other than `tests/test_minimal_integration_baseline_docs.py`.
+
+4. Do NOT create a new PR. Update PR #44 body only (via `gh pr edit 44`).
+
+5. Generate and validate v2 Command Plan / preflight evidence. Require CI, Decision Preflight, and State Gate success on one new exact head.
+
+6. Update PR #44 body with the new exact head and 12-file breakdown. Keep the PR Draft until independent audit accepts the new exact head.
 
 ### Authority and evidence boundary
 
 - This is a Path-B (R2) Decision. Authority is this approved Decision + generated command_plan.json + PRE_EXECUTION_AUTHORIZED.
-- Audit comments on Issue #43 are evidence, not execution authority. They inform the Decision shape but do not authorize commands, file changes, closeout, or merge.
-- The previously saved six-file patch at `f:\reverse-agent-governance-migration-v1.patch` is an unauthorized proposal only. It is NOT execution authority. It may only be re-applied after transition-preflight returns PRE_EXECUTION_AUTHORIZED, and must be re-reviewed after application.
-- The PR body for this migration PR records a Path-B Decision snapshot (NOT an R1 Work Item snapshot), using the fields listed in `migration_semantics.pr_body_snapshot_fields`.
-
-### Implementation Scope
-
-1. Modify exactly the six governance migration files to introduce the R1 final-acceptance owner-manual-merge carve-out:
-   - `AGENTS.md` — add "R1 final acceptance — owner manual merge carve-out" subsection; narrow R2 publication scope to Agent/automation merge; clarify prohibited actions.
-   - `docs/roadmap/MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md` — update narrow R1 publication and after-acceptance sections to include the carve-out.
-   - `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md` — update publication boundary to clarify owner-manual-merge conditions.
-   - `docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md` — align rule 8 with the carve-out conditions.
-   - `.github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml` — distinguish actor control in forbidden_operations; add carve-out acknowledgment checkboxes.
-   - `tests/test_minimal_integration_baseline_docs.py` — add semantic tests validating the carve-out and ensuring Agent/automation merge remains Path-B.
-
-2. The carve-out conditions that must ALL hold immediately before owner manual mark-ready + merge:
-   - approved immutable R1 Work Item snapshot in PR body with `body_digest_sha256` matching current normalized Issue body;
-   - `r1-approved` label applied by owner/maintainer, no material Issue-body edit since;
-   - PR from fresh branch with merge-base == snapshot `base_sha`;
-   - allowed-path compliance (PR diff touches only approved paths);
-   - deterministic local checks passed on exact head (`pytest`, `git diff --check`);
-   - required exact-head GitHub Actions checks == SUCCESS;
-   - independent exact-head audit accepted and recorded as PR comment identifying accepted head SHA;
-   - no unresolved blocking review threads;
-   - owner/maintainer immediate re-observation immediately before merge:
-     - `origin/main` == snapshot `base_sha` (no main drift);
-     - PR `headRefOid` == accepted audit head (no head movement);
-     - PR `baseRefOid` == snapshot `base_sha`;
-     - PR `mergeable` == MERGEABLE;
-     - PR `mergeStateStatus` == CLEAN;
-     - PR CI on exact head == SUCCESS;
-     - no concurrent Agent publication or branch mutation active.
-
-3. The carve-out permits ONLY a human-initiated owner/maintainer action performed personally through the GitHub UI or an owner-controlled CLI session. `gh pr merge` run personally by an owner/maintainer is permitted. The decisive property is who reviews, decides, and personally triggers the action — not whether a UI or CLI is used.
-
-4. The following remain Path-B (forbidden under the carve-out):
-   - Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated merge or mark-ready;
-   - GitHub auto-merge;
-   - merge or mark-ready of R2/R3 work items;
-   - direct push to `main`, force push, rebase, squash (without separate authorization), tag, release.
-
-5. Do NOT modify: Gate runtime, LangGraph runtime, workflows (`.github/workflows/**`), dependencies, `docs/run_closeout.md`, `.codex-skills/**`, product source (`reverse_agent/**`), or any test file other than `tests/test_minimal_integration_baseline_docs.py`.
-
-6. Do NOT clean up old `project_state/gates/*` artifacts in this round (tracked-file cleanup requires separate authority). Do NOT create `project_state/pr_body_governance_migration_v1.md` as a repo file; the PR body is written to a temp path outside the repo and passed via `gh pr create --body-file`.
-
-7. Generate and validate v1 Command Plan / preflight evidence. Require CI, Decision Preflight, and State Gate success on one exact head.
-
-8. Create a Draft PR recording the Path-B Decision snapshot in its body. Keep the PR Draft until independent audit accepts the exact head.
-
-### Counting rule
-
-The six governance migration files (the deliverable) and the Decision/Gate transition evidence files (generated by the gate sequence) are counted separately. See `scope_policy.six_governance_files` and `scope_policy.transition_evidence_files`. The migration deliverable is exactly six files; transition evidence is not part of the deliverable.
+- Audit comments on PR #44 are evidence, not execution authority. They inform the Decision shape but do not authorize commands, file changes, closeout, or merge.
+- The v1 head `1971e9a216030049988434ffd5494dc2b64cd7e5` is frozen as failed semantic acceptance evidence. No corrective commit may be appended under v1.
 
 ### Completion
 
 Completion requires:
 - `python -m pytest tests/test_minimal_integration_baseline_docs.py -q` passes;
 - `git diff --check` passes;
-- exactly the six allowed governance files are modified as the deliverable (transition evidence files are separate);
-- new tests explicitly permit owner manual mark-ready + merge under carve-out conditions;
-- new tests continue to prohibit Agent/automation merge;
-- CI passes on the final exact head;
-- Draft PR created with Path-B Decision snapshot in body;
-- STOP for independent audit.
+- exactly the four rework deliverable files are modified (transition evidence files are separate);
+- F1/F2/F3 corrections verifiable in the diff;
+- PR #44 body updated with new exact head + 12-file breakdown (F4);
+- CI passes on the new exact head;
+- STOP for independent re-audit.
 
-Merge is NOT part of this round. The migration PR's own final merge requires either a follow-up amendment to this Decision explicitly authorizing exact-head merge, or a separate bounded Path-B merge authorization. The new lightweight rule cannot be used to merge itself.
+Merge is NOT part of this round. The migration PR's own final merge requires either a follow-up amendment to this Decision or a separate bounded Path-B merge authorization.
 
 ### Stop Conditions
 
@@ -309,7 +285,8 @@ Stop immediately when:
 - focused tests fail;
 - `git diff --check` fails;
 - CI fails on exact head;
-- scope violation detected (files changed outside the six allowed paths plus transition evidence);
+- scope violation detected (files changed outside the four rework files plus transition evidence);
+- `docs/architecture/SOURCE_OF_TRUTH_MATRIX.md` or `docs/architecture/LEGACY_GOVERNANCE_CONTAINMENT.md` is modified without strict requirement;
 - independent audit rejects the head;
 - any attempt to merge or mark-ready without separate authorization;
-- the six-file patch is applied before PRE_EXECUTION_AUTHORIZED.
+- fixes applied before PRE_EXECUTION_AUTHORIZED.
