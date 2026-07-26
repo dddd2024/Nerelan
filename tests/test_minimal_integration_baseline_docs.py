@@ -270,6 +270,128 @@ def test_disposition_validator_rejects_bad_cells(cell: str) -> None:
         _validate_disposition_cell(cell)
 
 
+# ---------------------------------------------------------------------------
+# R1 final acceptance — owner manual merge carve-out
+# ---------------------------------------------------------------------------
+
+
+OWNER_MERGE_DOCS = [AGENTS_MD, ROADMAP_MD, SOURCE_OF_TRUTH_MD, CONTAINMENT_MD]
+
+
+@pytest.mark.parametrize("path", OWNER_MERGE_DOCS, ids=lambda p: p.name)
+def test_owner_manual_merge_carve_out_present(path: Path) -> None:
+    content = _read(path).lower()
+    assert "owner" in content and "maintainer" in content
+    assert "mark-ready" in content
+    assert "merge" in content
+    assert "carve-out" in content or "carve out" in content
+
+
+@pytest.mark.parametrize("path", OWNER_MERGE_DOCS, ids=lambda p: p.name)
+def test_owner_manual_merge_invariants_present(path: Path) -> None:
+    content = _read(path).lower()
+    assert "audit" in content
+    assert "exact head" in content or "exact-head" in content
+    assert "ci" in content
+    assert "mergeable" in content
+    assert "base_sha" in content or "base sha" in content or "baseRefOid".lower() in content
+
+
+def test_owner_manual_merge_match_head_commit_protection_required() -> None:
+    content = _read(AGENTS_MD).lower()
+    assert "match-head-commit" in content or "match head commit" in content
+
+
+@pytest.mark.parametrize("path", OWNER_MERGE_DOCS, ids=lambda p: p.name)
+def test_actor_control_distinction_present(path: Path) -> None:
+    content = _read(path).lower()
+    assert "agent-initiated" in content or "agent initiated" in content
+    assert "automation-initiated" in content or "automation initiated" in content
+    assert "human-initiated" in content or "human initiated" in content
+    assert "personally" in content
+
+
+@pytest.mark.parametrize("path", OWNER_MERGE_DOCS, ids=lambda p: p.name)
+def test_agent_and_automation_merge_remains_path_b(path: Path) -> None:
+    content = _read(path).lower()
+    assert "agent-initiated" in content or "agent initiated" in content
+    assert "automation-initiated" in content or "automation initiated" in content
+    assert "auto-merge" in content or "automatic merge" in content
+    assert "path b" in content or "path-b" in content
+
+
+@pytest.mark.parametrize("path", OWNER_MERGE_DOCS, ids=lambda p: p.name)
+def test_r2_r3_work_items_excluded_from_carve_out(path: Path) -> None:
+    content = _read(path).lower()
+    assert "r2/r3" in content or "r2 or r3" in content
+    assert "path b" in content or "path-b" in content
+
+
+def test_r1_template_forbidden_operations_distinguish_actor() -> None:
+    block = _read(R1_TEMPLATE).lower()
+    assert "agent-initiated" in block or "agent initiated" in block
+    assert "automation-initiated" in block or "automation initiated" in block
+    assert "auto-merge" in block or "automatic merge" in block
+    assert "r1 final-acceptance carve-out" in block or "r1 final acceptance carve-out" in block
+
+
+def test_r1_template_r2_boundary_acknowledges_carve_out() -> None:
+    block = _r2_boundary_block(_read(R1_TEMPLATE)).lower()
+    assert "agent-initiated" in block or "agent initiated" in block
+    assert "auto-merge" in block or "automatic merge" in block
+    assert "owner/maintainer manual merge" in block or "owner manual merge" in block
+    assert "r1 final-acceptance carve-out" in block or "r1 final acceptance carve-out" in block
+
+
+def test_r1_template_draft_pr_boundary_acknowledges_carve_out() -> None:
+    block = _read(R1_TEMPLATE).lower()
+    draft_section = block[block.index("draft pr and human acceptance boundary"):]
+    assert "owner/maintainer" in draft_section
+    assert "r1 final-acceptance carve-out" in draft_section or "r1 final acceptance carve-out" in draft_section
+    assert "agent-initiated" in draft_section or "agent initiated" in draft_section
+    assert "auto-merge" in draft_section or "automatic merge" in draft_section
+
+
+def test_agents_md_r2_scope_narrowed_to_agent_automation_merge() -> None:
+    content = _read(AGENTS_MD).lower()
+    assert "agent-initiated" in content or "agent initiated" in content
+    assert "automation-initiated" in content or "automation initiated" in content
+    r2_section = content[content.index("r2 publication/network"):]
+    assert "agent-initiated" in r2_section or "agent initiated" in r2_section
+    assert "auto-merge" in r2_section or "automatic merge" in r2_section
+
+
+def test_agents_md_prohibited_actions_narrowed_to_agent_automation_merge() -> None:
+    content = _read(AGENTS_MD).lower()
+    prohibited_section = content[content.index("prohibited actions"):]
+    assert "agent-initiated" in prohibited_section or "agent initiated" in prohibited_section
+    assert "automation-initiated" in prohibited_section or "automation initiated" in prohibited_section
+    assert "auto-merge" in prohibited_section or "automatic merge" in prohibited_section
+    assert "r1 final-acceptance carve-out" in prohibited_section or "r1 final acceptance carve-out" in prohibited_section
+
+
+def test_roadmap_after_acceptance_mentions_carve_out() -> None:
+    content = _read(ROADMAP_MD).lower()
+    after_section = content[content.index("after acceptance"):]
+    assert "r1 final-acceptance carve-out" in after_section or "r1 final acceptance carve-out" in after_section
+    assert "owner/maintainer" in after_section
+
+
+def test_legacy_containment_owner_merge_consistent() -> None:
+    content = _read(CONTAINMENT_MD).lower()
+    assert "owner-manual-merge" in content or "owner manual merge" in content
+    assert "agent-initiated" in content or "agent initiated" in content
+    assert "auto-merge" in content or "automatic merge" in content
+
+
+def test_carve_out_does_not_authorize_squash_or_rebase() -> None:
+    content = _read(AGENTS_MD).lower()
+    carve_section = content[content.index("r1 final acceptance"):]
+    assert "squash" not in carve_section.split("r2 publication")[0]
+    assert "rebase" not in carve_section.split("r2 publication")[0]
+    assert "merge method = merge" in carve_section or "merge method = merge".replace("= ", "= ") in carve_section
+
+
 def test_table_parser_handles_module_slash_class_headers() -> None:
     fixture = """
 | Module / class | Disposition | Note |

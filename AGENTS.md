@@ -96,18 +96,63 @@ Only these network/publication operations are R1:
 
 They do not authorize merge, mark-ready, direct `main` push, history rewrite, cross-repository publication, tag, or release.
 
+### R1 final acceptance — owner manual merge carve-out
+
+A repository owner/maintainer may personally perform `mark-ready` and `merge` of an already-accepted ordinary R1 PR without a separate Path-B Decision, iff ALL of the following hold immediately before the merge:
+
+- approved immutable R1 Work Item snapshot is recorded in the Draft PR body and its `body_digest_sha256` matches the current normalized Issue body;
+- the source Work Item Issue carries `r1-approved` applied by an owner/maintainer, and no material Issue-body edit has occurred since;
+- the PR is a Draft PR created from a fresh branch whose merge-base equals the snapshot `base_sha`;
+- allowed-path compliance: the PR diff touches only paths listed in the approved Work Item;
+- deterministic local checks passed on the exact head (`pytest`, `git diff --check`);
+- required exact-head GitHub Actions checks are SUCCESS on the PR head;
+- independent exact-head audit accepted and recorded as a PR comment by the auditor, identifying the accepted head SHA;
+- no unresolved blocking review threads;
+- owner/maintainer immediate re-observation immediately before merge:
+  - `origin/main` == snapshot `base_sha` (no main drift);
+  - PR `headRefOid` == accepted audit head (no head movement);
+  - PR `baseRefOid` == snapshot `base_sha`;
+  - PR `mergeable` == MERGEABLE;
+  - PR `mergeStateStatus` == CLEAN;
+  - PR CI on exact head == SUCCESS;
+  - no concurrent Agent publication or branch mutation is active.
+
+If all conditions hold, the owner/maintainer may perform the manual sequence:
+
+```text
+owner/maintainer manual mark-ready
+-> immediate owner/maintainer manual merge (merge method = merge,
+   with --match-head-commit or equivalent expected-head protection)
+-> post-merge verification (merged == true, mergeCommit.oid recorded,
+   new origin/main == mergeCommit.oid)
+-> close the source Work Item Issue as completed
+```
+
+The decisive property is who reviews, decides, and personally triggers the action — not whether a UI or CLI is used. Permitted carve-out: a human-initiated owner/maintainer action performed personally through the GitHub UI or an owner-controlled CLI session. `gh pr merge` run personally by an owner/maintainer is permitted under this carve-out.
+
+Local working-tree cleanliness is conditional:
+- GitHub UI merge: no universal local-working-tree requirement; no concurrent Agent publication or branch mutation may be active.
+- owner-controlled local CLI merge: the local session/worktree must be clean enough to prevent accidental commit, push, branch mutation, or mixing of unrelated changes.
+
+This carve-out does not authorize Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated mark-ready or merge. Those remain Path-B. This carve-out does not apply to R2/R3 work items; each requires its own Path-B Decision.
+
 ### R2 publication/network
 
 The following require Path B:
 
 - direct push to `main`;
-- merge or mark-ready;
+- agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated `merge` or `mark-ready`;
+- GitHub auto-merge;
 - force push, rebase, squash, or another history rewrite;
 - workflow/dependency publication;
 - unbounded network access or cross-repository publication;
 - credentials or secrets access;
 - tag or release;
-- any operation outside the approved Work Item binding.
+- any operation outside the approved Work Item binding;
+- merge or mark-ready of R2/R3 work items;
+- merge or mark-ready when any R1 final-acceptance carve-out condition has failed.
+
+Note: owner/maintainer manual `merge` and `mark-ready` of an accepted ordinary R1 PR that satisfies all R1 final-acceptance carve-out conditions is Path-A (see `R1 final acceptance — owner manual merge carve-out` above).
 
 ## R0/R1 allowed operations
 
@@ -185,8 +230,10 @@ direct push to main
 force push
 rebase
 squash
-merge without explicit authorization
-mark ready without explicit authorization
+agent-initiated or automation-initiated merge without explicit Path-B authorization
+agent-initiated or automation-initiated mark-ready without explicit Path-B authorization
+owner/maintainer manual merge or mark-ready of an R1 PR that fails any R1 final-acceptance carve-out condition
+owner/maintainer manual merge or mark-ready of an R2/R3 PR without Path-B authorization
 tag or release
 unknown-binary execution
 model API invocation from repository code
@@ -194,6 +241,8 @@ external reverse-tool invocation
 runner dispatch
 automatic merge
 ```
+
+Note: owner/maintainer manual `merge` and `mark-ready` of an accepted ordinary R1 PR that satisfies all R1 final-acceptance carve-out conditions is permitted Path-A publication (see `R1 final acceptance — owner manual merge carve-out`).
 
 ## Stop conditions
 

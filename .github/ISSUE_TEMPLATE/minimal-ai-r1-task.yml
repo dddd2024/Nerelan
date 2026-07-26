@@ -70,7 +70,10 @@ body:
         force push
         rebase or other history rewrite
         squash
-        merge or mark-ready without explicit Path-B authorization
+        agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated merge or mark-ready
+        GitHub auto-merge
+        owner/maintainer manual merge or mark-ready of an R1 PR that fails any R1 final-acceptance carve-out condition
+        owner/maintainer manual merge or mark-ready of an R2/R3 PR without Path-B authorization
         tag or release
         cross-repository publication
         unbounded network access
@@ -79,7 +82,6 @@ body:
         model API invocation from repository code
         external reverse-tool invocation
         runner dispatch
-        automatic merge
         product source changes outside allowed paths
         dependency changes
         workflow changes
@@ -134,7 +136,7 @@ body:
       label: R2/R3 boundary acknowledgment
       description: Network/publication outside the narrow R1 exception requires Path B.
       options:
-        - label: I acknowledge that only push to the exact approved non-main branch and create/update of the exact Draft PR are permitted R1 network/publication operations. Any network/publication outside that narrow exception, or any workflow, dependency, binary, secrets, destructive, history-rewrite, merge, mark-ready, tag, or release operation requires a bounded Path-B Decision.
+        - label: I acknowledge that only push to the exact approved non-main branch and create/update of the exact Draft PR are permitted R1 network/publication operations. Any network/publication outside that narrow exception, or any workflow, dependency, binary, secrets, destructive, history-rewrite, tag, or release operation requires a bounded Path-B Decision. Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated merge or mark-ready, GitHub auto-merge, and merge or mark-ready of R2/R3 work items require Path-B. Owner/maintainer manual merge and mark-ready of this PR after audit acceptance is permitted Path-A only when all R1 final-acceptance carve-out conditions in AGENTS.md hold.
           required: true
 
   - type: checkboxes
@@ -154,9 +156,9 @@ body:
     attributes:
       label: Draft PR and human acceptance boundary
       options:
-        - label: The PR will remain Draft until independent audit accepts the exact head. Merge is separately authorized and human-controlled.
+        - label: The PR will remain Draft until independent audit accepts the exact head. Merge is human-controlled: a repository owner/maintainer may personally mark-ready and merge this PR after audit acceptance when all R1 final-acceptance carve-out conditions in AGENTS.md hold; otherwise merge requires a separate bounded Path-B Decision.
           required: true
-        - label: I will not push directly to main, force push, rebase, squash, merge, mark ready, tag, or release.
+        - label: I will not push directly to main, force push, rebase, squash, tag, or release. I will not perform agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated merge or mark-ready, and I will not use GitHub auto-merge. Owner/maintainer manual merge and mark-ready are permitted only under the R1 final-acceptance carve-out.
           required: true
 
   - type: input

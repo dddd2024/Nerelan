@@ -88,7 +88,11 @@ They are not the normal R0/R1 model. No new tracked per-run artifact family may 
 
 ## Publication boundary
 
-Path A permits push to the exact approved non-`main` branch and creation/update of the exact Draft PR. Direct `main` push, merge, mark-ready, force push, rebase, squash, release, tag, cross-repository publication, unbounded network, credentials, or operations outside the snapshot require Path B.
+Path A permits push to the exact approved non-`main` branch and creation/update of the exact Draft PR. Direct `main` push, force push, rebase, squash, release, tag, cross-repository publication, unbounded network, credentials, or operations outside the snapshot require Path B.
+
+`merge` and `mark-ready` are Path-A only under the narrow R1 final-acceptance carve-out in `AGENTS.md`: a repository owner/maintainer may personally perform `mark-ready` and `merge` of an already-accepted ordinary R1 PR when all R1 final-acceptance conditions hold (approved immutable Work Item snapshot, allowed-path compliance, exact-head CI success, independent audit acceptance, no unresolved blocking review threads, `mergeable` status, and the full pre-merge re-observation). The decisive property is who reviews, decides, and personally triggers the action — not whether a UI or CLI is used. Permitted: a human-initiated owner/maintainer action performed personally through the GitHub UI or an owner-controlled CLI session.
+
+Agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated `merge` or `mark-ready`, GitHub auto-merge, and `merge`/`mark-ready` of R2/R3 work items or of R1 PRs that fail any final-acceptance condition remain Path-B.
 
 ## Non-authoritative sources
 

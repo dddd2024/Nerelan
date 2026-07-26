@@ -70,7 +70,15 @@ Path A permits only:
 - create the exact Draft PR against `main`;
 - update that Draft PR description.
 
-All other publication/network activity, including direct `main` push, merge, mark-ready, history rewrite, workflow/dependency publication, cross-repository publication, credentials access, tag, and release, is R2 or higher.
+All other publication/network activity, including direct `main` push, history rewrite, workflow/dependency publication, cross-repository publication, credentials access, tag, and release, is R2 or higher.
+
+### R1 final acceptance — owner manual merge carve-out
+
+After an ordinary R1 PR has been implemented, has passed required exact-head GitHub Actions, and has been accepted by independent exact-head audit, a repository owner/maintainer may personally perform `mark-ready` and `merge` of that PR without a separate Path-B Decision, provided all R1 final-acceptance conditions in `AGENTS.md` hold (approved immutable Work Item snapshot, allowed-path compliance, exact-head CI success, independent audit acceptance, no unresolved blocking review threads, and the full pre-merge re-observation).
+
+This carve-out is a Path-A lightweight final-acceptance path for already-accepted ordinary R1 PRs. The decisive property is who reviews, decides, and personally triggers the action — not whether a UI or CLI is used. Permitted: a human-initiated owner/maintainer action performed personally through the GitHub UI or an owner-controlled CLI session. Path-B remains mandatory for agent-initiated, automation-initiated, workflow-initiated, scheduled, delegated, or external-service-initiated mark-ready/merge, and for GitHub auto-merge. The carve-out does not apply to R2/R3 work items.
+
+The one-time rule migration that introduces this carve-out is itself R2/Path-B (it modifies the authority boundary). Future qualifying owner-manual acceptance is a Path-A carve-out.
 
 ## Base and branch rule
 
@@ -123,3 +131,5 @@ separate R2 human merge Decision for the accepted exact head
 ```
 
 The README pilot must use the approved immutable Work Item model above. No extension candidate starts before that pilot is completed and audited.
+
+After the R1 final-acceptance carve-out migration is in effect, accepted ordinary R1 PRs no longer require a separate R2 merge Decision; the repository owner/maintainer may personally `mark-ready` and `merge` once all R1 final-acceptance conditions in `AGENTS.md` hold (including independent exact-head audit acceptance, exact-head CI success, `mergeable` status, and the full pre-merge re-observation). R2/R3 work and any Agent/automation-initiated merge still require Path-B.
