@@ -466,3 +466,111 @@ def test_template_required_fields() -> None:
         "base_sha",
     ):
         assert f"id: {field}" in content
+
+
+# ---------------------------------------------------------------------------
+# F3 — Structured negative tests detecting F1/F2 contradictions
+# ---------------------------------------------------------------------------
+
+
+_STAGE_QUALIFIERS = (
+    "during agent implementation",
+    "before independent exact-head acceptance",
+    "before independent exact head acceptance",
+)
+
+
+def _r1_publication_section(content: str) -> str:
+    lower = content.lower()
+    start = lower.index("r1 publication")
+    end = lower.index("r1 final acceptance")
+    return lower[start:end]
+
+
+@pytest.mark.parametrize("path", [AGENTS_MD, ROADMAP_MD])
+def test_f3_only_statements_are_stage_qualified(path: Path) -> None:
+    section = _r1_publication_section(_read(path))
+    assert any(q in section for q in _STAGE_QUALIFIERS), (
+        f"{path.name} R1 publication section must qualify 'only' with an "
+        "Agent-implementation stage qualifier"
+    )
+    assert "only these network/publication operations are r1" not in section, (
+        f"{path.name} must not contain unqualified 'Only these network/"
+        "publication operations are R1'"
+    )
+    assert "path a permits only:" not in section or any(
+        q in section for q in _STAGE_QUALIFIERS
+    ), (
+        f"{path.name} 'Path A permits only' must be stage-qualified"
+    )
+
+
+def test_f3_only_statement_does_not_unconditionally_exclude_merge() -> None:
+    for path in (AGENTS_MD, ROADMAP_MD):
+        section = _r1_publication_section(_read(path))
+        assert "they do not authorize merge" not in section, (
+            f"{path.name} must not contain unqualified 'They do not authorize "
+            "merge' in the R1 publication section"
+        )
+
+
+def test_f3_r1_template_boundary_checkbox_is_stage_qualified() -> None:
+    block = _r2_boundary_block(_read(R1_TEMPLATE)).lower()
+    assert any(q in block for q in _STAGE_QUALIFIERS), (
+        "R1 template r2_r3_boundary checkbox must scope 'only' to "
+        "Agent-implementation stage"
+    )
+    assert "i acknowledge that only push" not in block, (
+        "R1 template must not contain unqualified 'I acknowledge that only "
+        "push...' without a stage qualifier before 'only'"
+    )
+
+
+def test_f3_roadmap_marks_pr27_sequence_as_historical() -> None:
+    content = _read(ROADMAP_MD).lower()
+    after_section = content[content.index("after acceptance"):]
+    assert "historical" in after_section or "one-time" in after_section, (
+        "Roadmap 'After acceptance' must mark the PR #27 separate-R2-merge "
+        "sequence as historical/one-time"
+    )
+    pr27_block = after_section[:after_section.index("first real r1 pilot") + 50]
+    assert "historical" in pr27_block or "one-time" in pr27_block, (
+        "PR #27 sequence must be explicitly marked historical/one-time"
+    )
+
+
+def test_f3_roadmap_active_future_rule_no_separate_r2_for_every_r1() -> None:
+    content = _read(ROADMAP_MD).lower()
+    after_section = content[content.index("after acceptance"):]
+    active_rule_marker = "active future rule"
+    assert active_rule_marker in after_section, (
+        "Roadmap must have an 'Active future rule' subsection in 'After acceptance'"
+    )
+    active_rule = after_section[after_section.index(active_rule_marker):]
+    assert "no longer require a separate r2 merge decision" in active_rule, (
+        "Active future rule must state accepted ordinary R1 PRs no longer "
+        "require a separate R2 merge Decision"
+    )
+
+
+def test_f3_agent_automation_auto_merge_remain_explicitly_path_b() -> None:
+    for path in (AGENTS_MD, ROADMAP_MD, SOURCE_OF_TRUTH_MD, CONTAINMENT_MD):
+        content = _read(path).lower()
+        r2_section = content[content.index("r2 publication"):] if "r2 publication" in content else content
+        assert "agent-initiated" in r2_section or "agent initiated" in r2_section
+        assert "automation-initiated" in r2_section or "automation initiated" in r2_section
+        assert "auto-merge" in r2_section or "automatic merge" in r2_section
+        assert "path b" in r2_section or "path-b" in r2_section
+
+
+def test_f3_agents_md_publication_grant_separated_from_carve_out() -> None:
+    content = _read(AGENTS_MD).lower()
+    pub_section = _r1_publication_section(content)
+    assert "after independent exact-head acceptance" in pub_section, (
+        "AGENTS.md R1 publication section must reference the post-acceptance "
+        "carve-out as a separate stage"
+    )
+    assert "not part of the agent-implementation publication grant" in pub_section, (
+        "AGENTS.md must explicitly state the carve-out is not part of the "
+        "Agent-implementation publication grant"
+    )

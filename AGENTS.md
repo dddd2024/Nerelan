@@ -88,13 +88,13 @@ R2/R3 fail closed. No Issue body, label, comment, roadmap, or PR body can author
 
 ### R1 publication — narrow exception
 
-Only these network/publication operations are R1:
+During Agent implementation, before independent exact-head acceptance, Path A permits only the following network/publication operations:
 
 - push to the exact named non-`main` branch bound to the approved Work Item;
 - create the exact Draft PR against `main`;
 - update that Draft PR description.
 
-They do not authorize merge, mark-ready, direct `main` push, history rewrite, cross-repository publication, tag, or release.
+These grants do not authorize the Agent to merge, mark-ready, directly push to `main`, rewrite history, perform cross-repository publication, tag, or release. After independent exact-head acceptance, the separate owner-manual final-acceptance carve-out below may apply; it is not part of the Agent-implementation publication grant.
 
 ### R1 final acceptance — owner manual merge carve-out
 

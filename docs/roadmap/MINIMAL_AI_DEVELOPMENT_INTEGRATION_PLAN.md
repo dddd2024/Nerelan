@@ -64,13 +64,13 @@ Transition rounds and R2/R3 operations require a bounded approved Decision, gene
 
 ### Narrow R1 publication
 
-Path A permits only:
+During Agent implementation, before independent exact-head acceptance, Path A permits only:
 
 - push to the exact named non-`main` branch bound to the approved Work Item;
 - create the exact Draft PR against `main`;
 - update that Draft PR description.
 
-All other publication/network activity, including direct `main` push, history rewrite, workflow/dependency publication, cross-repository publication, credentials access, tag, and release, is R2 or higher.
+These grants do not authorize the Agent to merge, mark-ready, directly push to `main`, rewrite history, perform workflow/dependency publication, cross-repository publication, credentials access, tag, or release. After independent exact-head acceptance, the separate owner-manual final-acceptance carve-out below may apply; it is not part of the Agent-implementation publication grant.
 
 ### R1 final acceptance — owner manual merge carve-out
 
@@ -122,14 +122,18 @@ Binary Evidence Firewall
 
 ## After acceptance
 
-After `MINIMAL_AI_DEVELOPMENT_INTEGRATION_BASELINE_ACCEPTED`:
+### Historical one-time transition (PR #27, superseded by the carve-out)
+
+The following sequence was the one-time transition path used before the R1 final-acceptance carve-out reached `main`. It is historical transition history, not the active future rule:
 
 ```text
-separate R2 human merge Decision for the accepted exact head
+[Historical/one-time] separate R2 human merge Decision for the accepted exact head
 -> merge PR #27 with expected-head protection
 -> first real R1 pilot: align README.md with this roadmap
 ```
 
 The README pilot must use the approved immutable Work Item model above. No extension candidate starts before that pilot is completed and audited.
+
+### Active future rule (after the carve-out migration is in effect)
 
 After the R1 final-acceptance carve-out migration is in effect, accepted ordinary R1 PRs no longer require a separate R2 merge Decision; the repository owner/maintainer may personally `mark-ready` and `merge` once all R1 final-acceptance conditions in `AGENTS.md` hold (including independent exact-head audit acceptance, exact-head CI success, `mergeable` status, and the full pre-merge re-observation). R2/R3 work and any Agent/automation-initiated merge still require Path-B.
