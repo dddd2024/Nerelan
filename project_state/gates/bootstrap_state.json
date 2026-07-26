@@ -1,1 +1,6 @@
-{"status":"BOOTSTRAP_EXPIRED","decision_id":"decision_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9","round_id":"round_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9","expired_at":"2026-07-25T06:49:42+00:00"}
+{
+  "status": "BOOTSTRAP_EXPIRED",
+  "decision_id": "decision_20260725_governance_migration_owner_manual_merge_v1",
+  "round_id": "round_20260725_governance_migration_owner_manual_merge_v1",
+  "expired_at": "2026-07-26T02:13:38+00:00"
+}

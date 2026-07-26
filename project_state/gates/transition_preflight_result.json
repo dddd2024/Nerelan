@@ -1,1 +1,100 @@
-{"schema_version":1,"gate_name":"transition-preflight","gate_status":"PRE_EXECUTION_AUTHORIZED","decision_id":"decision_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9","round_id":"round_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9","checks":[{"name":"decision_identity","status":"PASS","detail":"observed=decision_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9 expected=decision_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9"},{"name":"round_identity","status":"PASS","detail":"observed=round_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9 expected=round_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9"},{"name":"decision_approved","status":"PASS","detail":"status=APPROVED"},{"name":"active_skills","status":"PASS","detail":"missing=[]"},{"name":"legal_mainline","status":"PASS","detail":"mainline=engineering_branch"},{"name":"branch_identity","status":"PASS","detail":"observed=codex/p0-minimal-integration-baseline-v1 expected=codex/p0-minimal-integration-baseline-v1"},{"name":"base_ancestry","status":"PASS","detail":"base=38de9106d191d6b66d5f878354144817095e7bca merge_base=38de9106d191d6b66d5f878354144817095e7bca"},{"name":"decision_ancestry","status":"PASS","detail":"decision_commit=1f87cf2f5747324a0fd33510c2abd04f22a2100f"},{"name":"command_plan_identity","status":"PASS","detail":"plan=decision_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9/round_20260725_p0_minimal_integration_ci_contract_compatible_enforcement_v9"},{"name":"command_plan_contract","status":"PASS","detail":"errors=[]"},{"name":"allowed_path_scope","status":"PASS","detail":"outside=[]"},{"name":"forbidden_paths","status":"PASS","detail":"forbidden=[]"},{"name":"reference_paths_read_only","status":"PASS","detail":"violations=[]"},{"name":"mutation_grants_enforced","status":"PASS","detail":"violations=[]"},{"name":"capability_policy_enforced","status":"PASS","detail":"forbidden=[]"},{"name":"network_policy_enforced","status":"PASS","detail":"violations=[]"},{"name":"path_risk_floor_enforced","status":"PASS","detail":"violations=[]"},{"name":"execution_evidence_present","status":"PASS","detail":"pre_execution_mode_no_evidence_required"}],"blocking_reasons":[]}
+{
+  "schema_version": 1,
+  "gate_name": "transition-preflight",
+  "gate_status": "PRE_EXECUTION_AUTHORIZED",
+  "decision_id": "decision_20260725_governance_migration_owner_manual_merge_v1",
+  "round_id": "round_20260725_governance_migration_owner_manual_merge_v1",
+  "checks": [
+    {
+      "name": "decision_identity",
+      "status": "PASS",
+      "detail": "observed=decision_20260725_governance_migration_owner_manual_merge_v1 expected=decision_20260725_governance_migration_owner_manual_merge_v1"
+    },
+    {
+      "name": "round_identity",
+      "status": "PASS",
+      "detail": "observed=round_20260725_governance_migration_owner_manual_merge_v1 expected=round_20260725_governance_migration_owner_manual_merge_v1"
+    },
+    {
+      "name": "decision_approved",
+      "status": "PASS",
+      "detail": "status=APPROVED"
+    },
+    {
+      "name": "active_skills",
+      "status": "PASS",
+      "detail": "missing=[]"
+    },
+    {
+      "name": "legal_mainline",
+      "status": "PASS",
+      "detail": "mainline=engineering_branch"
+    },
+    {
+      "name": "branch_identity",
+      "status": "PASS",
+      "detail": "observed=codex/governance-migration-owner-manual-merge-v1 expected=codex/governance-migration-owner-manual-merge-v1"
+    },
+    {
+      "name": "base_ancestry",
+      "status": "PASS",
+      "detail": "base=964cd647afc3d51a7fdf855080351da53c5e79ef merge_base=964cd647afc3d51a7fdf855080351da53c5e79ef"
+    },
+    {
+      "name": "decision_ancestry",
+      "status": "PASS",
+      "detail": "decision_commit=63a31604ec130e10ec562857473d9c97a6b5a00f"
+    },
+    {
+      "name": "command_plan_identity",
+      "status": "PASS",
+      "detail": "plan=decision_20260725_governance_migration_owner_manual_merge_v1/round_20260725_governance_migration_owner_manual_merge_v1"
+    },
+    {
+      "name": "command_plan_contract",
+      "status": "PASS",
+      "detail": "errors=[]"
+    },
+    {
+      "name": "allowed_path_scope",
+      "status": "PASS",
+      "detail": "outside=[]"
+    },
+    {
+      "name": "forbidden_paths",
+      "status": "PASS",
+      "detail": "forbidden=[]"
+    },
+    {
+      "name": "reference_paths_read_only",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "mutation_grants_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "capability_policy_enforced",
+      "status": "PASS",
+      "detail": "forbidden=[]"
+    },
+    {
+      "name": "network_policy_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "path_risk_floor_enforced",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "execution_evidence_present",
+      "status": "PASS",
+      "detail": "pre_execution_mode_no_evidence_required"
+    }
+  ],
+  "blocking_reasons": []
+}
