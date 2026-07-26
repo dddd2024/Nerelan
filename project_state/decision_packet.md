@@ -1,32 +1,39 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260726_path_a_r1_state_gate_cutover_v1","round_id":"round_20260726_path_a_r1_state_gate_cutover_v1","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{"schema_version":1,"decision_id":"decision_20260726_path_a_r1_state_gate_cutover_rework_v2","round_id":"round_20260726_path_a_r1_state_gate_cutover_rework_v2","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260726_governance_migration_pr44_merge_v1",
-  "follows_last_round_id": "round_20260726_governance_migration_pr44_merge_v1",
-  "previous_audit_outcome": "PR47_STATE_GATE_BLOCKED_AT_FROZEN_HEAD",
-  "acceptance_target": "PATH_A_R1_GATE_AND_TASK_SCOPED_CI_ACCEPTED",
-  "workstream_id": "path-a-r1-state-gate-cutover-v1",
-  "source_issue": 48,
+  "follows_last_decision_id": "decision_20260726_path_a_r1_state_gate_cutover_v1",
+  "follows_last_round_id": "round_20260726_path_a_r1_state_gate_cutover_v1",
+  "previous_audit_outcome": "REWORK_REQUIRED_V1_EXACT_HEAD_WORKFLOW_FAILURE",
+  "acceptance_target": "PATH_A_R1_GATE_AND_TASK_SCOPED_CI_REWORK_V2_ACCEPTED",
+  "workstream_id": "path-a-r1-state-gate-cutover-rework-v2",
+  "source_issue": 50,
+  "predecessor_issue": 48,
+  "active_pr": 49,
   "program_issue": 45,
   "blocked_source_issue": 46,
   "blocked_pull_request": 47,
   "blocked_pull_request_frozen_head": "6e096b11df43bc33c8b21dfba08cfd07549352d9",
+  "frozen_v1_head": "f0bf2e585f2b578d5acdb8cd521bf1f960d9988c",
+  "failed_workflow_runs": {
+    "CI": 30201117907,
+    "State Gate": 30201117902,
+    "Decision Preflight": 30201117914
+  },
   "starting_main": "61570724495aa7053eba78bd2e34d8bda22f6407",
-  "starting_head": "61570724495aa7053eba78bd2e34d8bda22f6407",
+  "starting_head": "f0bf2e585f2b578d5acdb8cd521bf1f960d9988c",
   "activation_base_sha": "61570724495aa7053eba78bd2e34d8bda22f6407",
   "required_branch": "codex/path-a-r1-state-gate-cutover-v1",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "decision_commit_must_precede_implementation": true,
   "decision_content_immutable_after_activation": true,
-  "pr_creation_allowed": true,
-  "pr_creation_mode": "draft_only",
+  "pr_creation_allowed": false,
   "pr_body_update_allowed": true,
   "merge_allowed": false,
   "mark_ready_allowed": false,
@@ -161,8 +168,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.project_gate",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_decision_preflight.py -q",
+      "command_id": "test.ci_workflow",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -175,8 +182,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "test.base_platform",
-      "command": "python -m pytest tests/base_platform -q",
+      "command_id": "test.state_gate_workflow",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "phase": "test",
       "required": true,
       "expected_exit_codes": [0],
@@ -215,17 +222,30 @@
       "authority_origin": "normal_plan",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
+    },
+    {
+      "command_id": "publication.update_pr_body",
+      "command": "gh pr edit 49 --body-file PR_BODY_TEMP_PATH",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [0],
+      "execution_surface": "local",
+      "operations": ["pull_request_edit", "network_access"],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "authority_origin": "normal_plan",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     }
   ],
   "allowed_mutated_paths": [
     ".github/workflows/state-gate.yml",
     ".github/workflows/ci.yml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/github_adapter.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_planning_and_github_adapters.py",
+    "reverse_agent/control_plane/path_a.py",
+    "reverse_agent/control_plane/legacy_adapter.py",
     "tests/test_path_a_gate.py",
+    "tests/test_project_gate.py",
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
@@ -238,7 +258,8 @@
     ".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml",
     "reverse_agent/base_platform/**",
     "tests/base_platform/**",
-    "tests/test_project_gate.py",
+    "tests/test_control_plane_transition.py",
+    "tests/test_planning_and_github_adapters.py",
     "tests/test_decision_preflight.py",
     ".github/workflows/decision-preflight.yml"
   ],
@@ -258,7 +279,6 @@
     ".codex-skills/**",
     "reverse_agent/base_platform/**",
     "tests/base_platform/**",
-    "tests/test_project_gate.py",
     "tests/test_decision_preflight.py",
     "pyproject.toml",
     "pytest.ini",
@@ -327,7 +347,8 @@
     "local_network_exceptions": [
       "git push -u origin codex/path-a-r1-state-gate-cutover-v1",
       "gh pr view --repo dddd2024/reverse-agent",
-      "gh pr checks --repo dddd2024/reverse-agent"
+      "gh pr checks --repo dddd2024/reverse-agent",
+      "gh pr edit 49 --body-file PR_BODY_TEMP_PATH"
     ],
     "ci_network_exceptions": []
   },
@@ -335,11 +356,10 @@
     ".github/workflows/state-gate.yml",
     ".github/workflows/ci.yml",
     "reverse_agent/project_gate.py",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/github_adapter.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_planning_and_github_adapters.py",
+    "reverse_agent/control_plane/path_a.py",
+    "reverse_agent/control_plane/legacy_adapter.py",
     "tests/test_path_a_gate.py",
+    "tests/test_project_gate.py",
     "project_state/decision_packet.md",
     "project_state/gates/**"
   ],
@@ -353,7 +373,7 @@
     {"pattern": "tests/**", "minimum_risk": "R1"}
   ],
   "scope_policy": {
-    "scope": "path_a_r1_state_gate_and_task_scoped_ci_cutover",
+    "scope": "path_a_r1_state_gate_and_task_scoped_ci_cutover_rework_v2",
     "three_mutually_exclusive_modes": ["path_a_r1", "transition", "legacy"],
     "allow_workflow_changes": true,
     "allow_router_and_verifier_changes": true,
@@ -363,6 +383,9 @@
     "allow_documentation_changes": false,
     "allow_base_platform_changes": false,
     "allow_pr47_changes": false,
+    "allow_new_branch": false,
+    "allow_new_pr": false,
+    "allow_existing_pr49_body_update": true,
     "allow_replacement_m1_work_item": false
   },
   "publication_policy": {
@@ -381,7 +404,7 @@
     "preflight_not_authorized",
     "scope_violation_detected",
     "focused_tests_failure",
-    "base_platform_tests_failure",
+    "exact_workflow_tests_failure",
     "diff_check_failure",
     "ci_failure_on_exact_head",
     "state_gate_failure_on_exact_head",
@@ -400,43 +423,44 @@
 
 ### Goal
 
-Implement the bounded R2 workflow and control-plane repair described by planning
-Issue #48 so ordinary approved R1 pull requests use an immutable GitHub Work Item
-snapshot, while transition and legacy behavior remain fail-closed and mutually
-exclusive. Add repository-owned task-scoped CI selection for
-`reverse_agent/base_platform/**` and `tests/base_platform/**` without copying or
-modifying the blocked M1 implementation.
+Implement the bounded R2 rework described by planning Issue #50 on the existing
+PR #49 branch after the frozen v1 head failed exact-head workflow regression.
+Close the ordinary-R1 push-routing, complete changed-path observation,
+current-approval, and structured task-check gaps without weakening transition
+or legacy behavior and without copying or modifying the blocked M1 implementation.
 
 ### Authority and binding
 
 - Authority is this APPROVED Path-B Decision, its compiler-generated Command Plan,
   and `PRE_EXECUTION_AUTHORIZED`.
-- Planning Issue #48 and all Issue/PR comments are context or evidence only.
+- Planning Issue #50, predecessor Issue #48, and all Issue/PR comments are context
+  or evidence only.
 - Base is `61570724495aa7053eba78bd2e34d8bda22f6407`.
+- Frozen v1 head is `f0bf2e585f2b578d5acdb8cd521bf1f960d9988c`.
 - Required branch is `codex/path-a-r1-state-gate-cutover-v1`.
+- Existing Draft PR #49 is the only publication target; no new branch or PR.
 - PR #47 and branch `codex/base-platform-m1-spec-policy-core-v1` are frozen and
   read-only at exact head `6e096b11df43bc33c8b21dfba08cfd07549352d9`.
 
 ### Required implementation
 
-1. Route exactly one of `path_a_r1`, `transition`, or `legacy` per workflow run.
+1. Keep feature-branch authority on `pull_request`; State Gate push runs only on
+   `main`, whose existing behavior remains fail-closed.
 2. Treat any present but invalid Path-A PR data as terminal failure, never fallback.
-3. Verify the PR event, Draft/open state, unique immutable Work Item snapshot,
-   Issue approval and owner/maintainer identity, current normalized body digest,
-   repository/Issue/branch/base/merge-base/exact-head bindings, allowed changed
-   paths, and absence of privileged R2/R3 paths or operations.
-4. Never treat comments or Issue free-form shell text as executable authority.
-5. Select task checks only from a deterministic repository-owned mapping. Changes
-   under `reverse_agent/base_platform/**` or `tests/base_platform/**` select
-   `python -m pytest tests/base_platform -q`; missing or unselected task tests fail
-   closed.
-6. Preserve existing transition, legacy, and baseline test behavior.
+3. Establish a complete changed-path set using full local history first; any API
+   fallback must paginate fully, detect incompleteness, and preserve both current
+   and previous names for rename/copy validation.
+4. Require `r1` plus `r1-approved`, reject `r2`/`r3`, and require the latest
+   effective approval transition and body state to match the immutable snapshot.
+5. Replace free-form task commands with structured repository-owned `argv` and
+   validate every required pytest target before execution.
+6. Preserve exact workflow regression commands and existing transition/legacy
+   behavior, including CLI calls that do not explicitly supply an event path.
 
 ### Publication boundary
 
-After all local validation succeeds, publish only the exact named branch and create
-one Draft PR against `main`. Record the Decision, base, exact head, changed files,
-and test results in the PR body. Observe CI, State Gate, and Decision Preflight on
-that exact head, then stop for independent audit. Do not mark ready, merge, rebase,
-squash, force-push, tag, release, modify PR #47, or create a replacement M1 Work
-Item.
+After all exact workflow-equivalent local validation succeeds, push one minimal
+corrective commit to the existing branch and update Draft PR #49 metadata. Observe
+CI, State Gate, and Decision Preflight on that exact head, then stop for independent
+re-audit. Do not create a branch or PR, mark ready, merge, rebase, squash,
+force-push, tag, release, modify PR #47, or create a replacement M1 Work Item.
