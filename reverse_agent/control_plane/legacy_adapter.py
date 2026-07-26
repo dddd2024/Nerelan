@@ -41,8 +41,18 @@ def is_transition_decision(contract: Mapping[str, Any]) -> bool:
     return contract.get("transition_kernel_required") is True
 
 
-def detect_control_plane_mode(path: Path) -> str:
-    """Return one deterministic mode token, rejecting malformed authority."""
+def detect_control_plane_mode(
+    path: Path,
+    *,
+    event: Mapping[str, Any] | None = None,
+) -> str:
+    """Return one deterministic mode token, rejecting malformed authority.
+
+    A pull request whose head is bound to the active Decision keeps the
+    Decision-selected transition/legacy path. Every other pull request is an
+    ordinary Path-A candidate and must run the Path-A verifier; invalid or
+    missing Path-A data therefore cannot fall back to Decision state.
+    """
 
     decision, contract = load_transition_decision(path)
     if not decision.decision_id:
@@ -58,7 +68,14 @@ def detect_control_plane_mode(path: Path) -> str:
     flag = contract.get("transition_kernel_required", False)
     if not isinstance(flag, bool):
         raise ValueError("transition_kernel_required_must_be_boolean")
-    return "transition" if flag else "legacy"
+    decision_mode = "transition" if flag else "legacy"
+    if event is None or not isinstance(event.get("pull_request"), Mapping):
+        return decision_mode
+    head_ref = str((event["pull_request"].get("head") or {}).get("ref") or "")
+    required_branch = str(contract.get("required_branch") or "")
+    if required_branch and head_ref == required_branch:
+        return decision_mode
+    return "path_a_r1"
 
 
 def load_legacy_command_plan(path: Path) -> TransitionCommandPlan:

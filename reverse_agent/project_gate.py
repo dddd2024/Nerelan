@@ -30,6 +30,12 @@ from .control_plane.legacy_adapter import (
     persist_bootstrap_state,
 )
 from .control_plane.local_seal import evaluate_reconciliation, seal_local
+from .control_plane.path_a import (
+    execute_task_checks,
+    PathAGateError,
+    run_path_a_gate,
+    write_task_check_outputs,
+)
 from .control_plane.models import (
     ExecutionEnvelope,
     ExecutionRecord,
@@ -37008,16 +37014,80 @@ def main(argv: list[str] | None = None) -> int:
     transition_run_command_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     control_plane_mode_parser = subparsers.add_parser("control-plane-mode", help="Print the deterministic control-plane mode token.")
     control_plane_mode_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    control_plane_mode_parser.add_argument("--event-path", default=os.environ.get("GITHUB_EVENT_PATH", ""))
+    path_a_parser = subparsers.add_parser("path-a-r1-gate", help="Verify immutable ordinary R1 GitHub Work Item authority.")
+    path_a_parser.add_argument("--event-path", default=os.environ.get("GITHUB_EVENT_PATH", ""))
+    path_a_parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
+    path_a_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    task_checks_parser = subparsers.add_parser("task-scoped-checks", help="Select deterministic repository-owned checks for the exact event head.")
+    task_checks_parser.add_argument("--event-path", default=os.environ.get("GITHUB_EVENT_PATH", ""))
+    task_checks_parser.add_argument("--output-path", default=os.environ.get("GITHUB_OUTPUT", ""))
+    task_checks_parser.add_argument("--execute", action="store_true", help="Execute only repository-mapped task checks.")
+    task_checks_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "control-plane-mode":
         try:
-            mode = detect_control_plane_mode(Path(args.state_dir) / "decision_packet.md")
+            event = None
+            if args.event_path:
+                event = json.loads(Path(args.event_path).read_text(encoding="utf-8"))
+            mode = detect_control_plane_mode(
+                Path(args.state_dir) / "decision_packet.md",
+                event=event,
+            )
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             print(f"control-plane-mode: ERROR: {exc}", file=sys.stderr)
             return 2
         print(mode)
         return 0
+    if args.command == "path-a-r1-gate":
+        try:
+            if not args.event_path:
+                raise PathAGateError("event_path_missing")
+            if not args.repository:
+                raise PathAGateError("repository_missing")
+            event_path = Path(args.event_path)
+            result = run_path_a_gate(
+                event_path=event_path,
+                repository=args.repository,
+                repo_root=Path.cwd(),
+            )
+        except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+            code = exc.code if isinstance(exc, PathAGateError) else "path_a_gate_error"
+            result = {
+                "schema_version": 1,
+                "gate_name": "path-a-r1-gate",
+                "gate_status": "BLOCKED",
+                "mode": "path_a_r1",
+                "blocking_reasons": [str(exc)],
+                "error_code": code,
+            }
+        print(json.dumps(result, ensure_ascii=True, indent=2))
+        return 0 if result.get("gate_status") == "PATH_A_R1_AUTHORIZED" else 1
+    if args.command == "task-scoped-checks":
+        try:
+            if not args.event_path:
+                raise PathAGateError("event_path_missing")
+            result = write_task_check_outputs(
+                event_path=Path(args.event_path),
+                repo_root=Path.cwd(),
+                output_path=Path(args.output_path) if args.output_path else None,
+            )
+            print(json.dumps(result, ensure_ascii=True, indent=2), flush=True)
+            if args.execute:
+                execute_task_checks(result, repo_root=Path.cwd())
+        except (OSError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+            code = exc.code if isinstance(exc, PathAGateError) else "task_check_selection_error"
+            result = {
+                "schema_version": 1,
+                "gate_name": "task-scoped-check-selection",
+                "gate_status": "BLOCKED",
+                "blocking_reasons": [str(exc)],
+                "error_code": code,
+            }
+        if result.get("gate_status") != "TASK_CHECKS_SELECTED":
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        return 0 if result.get("gate_status") == "TASK_CHECKS_SELECTED" else 1
     if args.command == "transition-lint":
         result = transition_lint(state_dir=Path(args.state_dir))
         if args.json:
