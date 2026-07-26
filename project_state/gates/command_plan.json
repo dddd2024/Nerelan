@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260725_governance_migration_owner_manual_merge_v1",
-  "round_id": "round_20260725_governance_migration_owner_manual_merge_v1",
+  "decision_id": "decision_20260726_governance_migration_owner_manual_merge_rework_v2",
+  "round_id": "round_20260726_governance_migration_owner_manual_merge_rework_v2",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -197,8 +197,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.create_draft_pr",
-      "command": "gh pr create --base main --head codex/governance-migration-owner-manual-merge-v1 --draft --title governance-r1-owner-manual-merge-carve-out-one-time-r2-migration --body-file PR_BODY_TEMP_PATH",
+      "command_id": "publication.update_pr_body",
+      "command": "gh pr edit 44 --body-file PR_BODY_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -207,7 +207,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "pull_request_creation",
+        "pull_request_edit",
         "network_access"
       ],
       "network_access": true,
