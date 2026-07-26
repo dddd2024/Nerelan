@@ -123,10 +123,15 @@ body:
       label: Risk tier justification
       description: Explain why this is bounded R1, including the narrow R1 publication exception.
       placeholder: |
-        This task is R1 because <reason>. The only network/publication operations are
-        push to the exact approved non-main branch and create/update of the exact Draft PR.
-        It does not perform workflow, dependency, privileged-publication, unbounded-network,
-        cross-repository, credentials, binary, secrets, destructive, or history-rewrite work.
+        This task is R1 because <reason>. During Agent implementation, before independent
+        exact-head acceptance, the Agent's only network/publication operations are push to
+        the exact approved non-main branch and create/update of the exact Draft PR. The
+        Agent is not authorized to merge or mark-ready. After independent exact-head
+        acceptance, owner/maintainer manual mark-ready and merge may be permitted under
+        the R1 final-acceptance carve-out in AGENTS.md, subject to all carve-out
+        conditions. It does not perform workflow, dependency, privileged-publication,
+        unbounded-network, cross-repository, credentials, binary, secrets, destructive,
+        or history-rewrite work.
     validations:
       required: true
 

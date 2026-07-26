@@ -574,3 +574,99 @@ def test_f3_agents_md_publication_grant_separated_from_carve_out() -> None:
         "AGENTS.md must explicitly state the carve-out is not part of the "
         "Agent-implementation publication grant"
     )
+
+
+# ---------------------------------------------------------------------------
+# F6 — Clause-local stage-qualification + risk_tier_justification block tests
+# ---------------------------------------------------------------------------
+
+
+import re as _re
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences on ., !, ? followed by whitespace or end."""
+    return [s.strip() for s in _re.split(r"[.!?]\s+", text) if s.strip()]
+
+
+def _sentence_has_stage_qualifier(sentence: str) -> bool:
+    s = sentence.lower()
+    return any(q in s for q in _STAGE_QUALIFIERS)
+
+
+@pytest.mark.parametrize("path", [AGENTS_MD, ROADMAP_MD])
+def test_f6_only_clauses_are_clause_local_stage_qualified(path: Path) -> None:
+    """Each sentence containing an 'only' R1-publication rule must also carry
+    a stage qualifier in the same sentence (not merely elsewhere in the section).
+    """
+    section = _r1_publication_section(_read(path))
+    sentences = _split_sentences(section)
+    only_sentences = [
+        s for s in sentences
+        if "only" in s and ("network" in s or "publication" in s or "push" in s or "draft pr" in s or "branch" in s)
+    ]
+    assert only_sentences, (
+        f"{path.name} R1 publication section must contain at least one 'only' "
+        "rule sentence for clause-local validation"
+    )
+    for s in only_sentences:
+        assert _sentence_has_stage_qualifier(s), (
+            f"{path.name} 'only' rule sentence must carry a stage qualifier in "
+            f"the same sentence (clause-local), not merely elsewhere in the "
+            f"section. Offending sentence: {s!r}"
+        )
+
+
+def _risk_tier_justification_block(content: str) -> str:
+    """Extract the risk_tier_justification textarea block from the R1 template."""
+    start = content.index("id: risk_tier_justification")
+    end_marker = "validations:"
+    end = content.index(end_marker, start)
+    return content[start:end]
+
+
+def test_f6_r1_template_risk_tier_justification_block_is_stage_qualified() -> None:
+    block = _risk_tier_justification_block(_read(R1_TEMPLATE)).lower()
+    assert any(q in block for q in _STAGE_QUALIFIERS), (
+        "R1 template risk_tier_justification placeholder must scope 'only' to "
+        "Agent-implementation stage"
+    )
+
+
+def test_f6_r1_template_risk_tier_justification_no_unqualified_only() -> None:
+    block = _risk_tier_justification_block(_read(R1_TEMPLATE))
+    sentences = _split_sentences(block.lower())
+    only_sentences = [s for s in sentences if "only" in s]
+    assert only_sentences, (
+        "risk_tier_justification block must contain at least one 'only' rule "
+        "sentence for clause-local validation"
+    )
+    for s in only_sentences:
+        assert _sentence_has_stage_qualifier(s), (
+            "risk_tier_justification 'only' rule sentence must carry a stage "
+            f"qualifier in the same sentence (clause-local). Offending: {s!r}"
+        )
+    assert "the only network/publication operations are" not in block.lower() or any(
+        q in block.lower() for q in _STAGE_QUALIFIERS
+    ), "unqualified 'The only network/publication operations are' forbidden"
+
+
+def test_f6_r1_template_risk_tier_justification_clauses_local_only() -> None:
+    """Regression for F5: the unqualified form 'The only network/publication
+    operations are push...' must not appear as a standalone clause. The 'only'
+    word and a stage qualifier must co-occur in the same sentence.
+    """
+    block = _risk_tier_justification_block(_read(R1_TEMPLATE)).lower()
+    bad_pattern = "the only network/publication operations are"
+    assert bad_pattern not in block, (
+        f"risk_tier_justification must not contain unqualified {bad_pattern!r}; "
+        "scope to Agent-implementation stage in the same sentence"
+    )
+
+
+def test_f6_r1_template_risk_tier_justification_agent_not_authorized_to_merge() -> None:
+    block = _risk_tier_justification_block(_read(R1_TEMPLATE)).lower()
+    assert "agent is not authorized to merge" in block or "agent is not authorized to merge or mark-ready" in block, (
+        "risk_tier_justification placeholder must state the Agent is not "
+        "authorized to merge or mark-ready during implementation"
+    )
