@@ -31624,7 +31624,7 @@ def test_transition_packaging_and_workflow_boundary() -> None:
     for text in workflows.values():
         assert f"run: {contract['install_command']}" in text
     ci = workflows["ci.yml"]
-    assert "fetch-depth:" not in ci
+    assert "fetch-depth: 0" in ci
     assert [line.strip() for line in ci.splitlines() if line.strip().startswith("- name:")] == [
         "- name: Checkout",
         "- name: Set up Python",

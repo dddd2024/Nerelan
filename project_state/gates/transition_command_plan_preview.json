@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260726_path_a_r1_state_gate_cutover_v1",
-  "round_id": "round_20260726_path_a_r1_state_gate_cutover_v1",
+  "decision_id": "decision_20260726_path_a_r1_state_gate_cutover_rework_v2",
+  "round_id": "round_20260726_path_a_r1_state_gate_cutover_rework_v2",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -174,8 +174,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.project_gate",
-      "command": "python -m pytest tests/test_project_gate.py tests/test_decision_preflight.py -q",
+      "command_id": "test.ci_workflow",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -196,8 +196,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.base_platform",
-      "command": "python -m pytest tests/base_platform -q",
+      "command_id": "test.state_gate_workflow",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -251,6 +251,29 @@
       "execution_surface": "local",
       "operations": [
         "push",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "publication.update_pr_body",
+      "command": "gh pr edit 49 --body-file PR_BODY_TEMP_PATH",
+      "phase": "publication",
+      "required": false,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "pull_request_edit",
         "network_access"
       ],
       "network_access": true,

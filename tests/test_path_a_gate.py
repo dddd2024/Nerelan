@@ -10,6 +10,9 @@ from reverse_agent.control_plane.path_a import (
     BASE_PLATFORM_CHECK,
     PATH_A_CHECK,
     PathAGateError,
+    TaskCheck,
+    _collect_paginated_list,
+    _paths_from_api_file_entries,
     changed_paths_for_event,
     execute_task_checks,
     issue_body_digest,
@@ -114,11 +117,12 @@ def _fixture(
             "number": 46,
             "state": "open",
             "body": body,
-            "labels": [{"name": "r1-approved"}],
+            "labels": [{"name": "r1"}, {"name": "r1-approved"}],
         },
         "approval_events": [
             {
                 "event": "labeled",
+                "id": 1,
                 "label": {"name": "r1-approved"},
                 "actor": {"login": "dddd2024"},
                 "created_at": APPROVAL_TIME,
@@ -247,6 +251,19 @@ def test_issue_without_r1_approved_is_rejected() -> None:
         verify_path_a_r1(**fixture)
 
 
+def test_issue_requires_r1_and_rejects_r2_or_r3() -> None:
+    fixture = _fixture()
+    fixture["issue"]["labels"] = [{"name": "r1-approved"}]
+    with pytest.raises(PathAGateError, match="issue_not_r1"):
+        verify_path_a_r1(**fixture)
+
+    for tier in ("r2", "r3"):
+        fixture = _fixture()
+        fixture["issue"]["labels"].append({"name": tier})
+        with pytest.raises(PathAGateError, match="issue_privileged_risk_tier"):
+            verify_path_a_r1(**fixture)
+
+
 def test_issue_body_change_after_approval_is_rejected() -> None:
     approved_body = _issue_body()
     changed_body = approved_body + "\nmaterial edit\n"
@@ -365,7 +382,43 @@ def test_approver_and_approval_event_are_verified() -> None:
         verify_path_a_r1(**fixture)
     fixture = _fixture()
     fixture["approval_events"] = []
-    with pytest.raises(PathAGateError, match="approval_event_mismatch"):
+    with pytest.raises(PathAGateError, match="approval_event_missing"):
+        verify_path_a_r1(**fixture)
+
+
+@pytest.mark.parametrize("event", ["unlabeled", "other_actor_relabel"])
+def test_latest_approval_transition_must_remain_effective(event: str) -> None:
+    fixture = _fixture()
+    if event == "unlabeled":
+        fixture["approval_events"].append(
+            {
+                "event": "unlabeled",
+                "id": 2,
+                "label": {"name": "r1-approved"},
+                "actor": {"login": "dddd2024"},
+                "created_at": "2026-07-26T10:33:00Z",
+            }
+        )
+        expected = "approval_event_superseded"
+    else:
+        fixture["approval_events"].append(
+            {
+                "event": "labeled",
+                "id": 2,
+                "label": {"name": "r1-approved"},
+                "actor": {"login": "other-maintainer"},
+                "created_at": "2026-07-26T10:33:00Z",
+            }
+        )
+        expected = "approval_actor_mismatch"
+    with pytest.raises(PathAGateError, match=expected):
+        verify_path_a_r1(**fixture)
+
+
+def test_post_approval_body_edit_state_is_rejected_even_with_current_digest() -> None:
+    fixture = _fixture()
+    fixture["issue"]["content_last_edited_at"] = "2026-07-26T10:33:00Z"
+    with pytest.raises(PathAGateError, match="issue_body_edited_after_approval"):
         verify_path_a_r1(**fixture)
 
 
@@ -377,6 +430,8 @@ def test_task_check_selection_is_stable_visible_and_deduplicated(tmp_path: Path)
     )
     (tmp_path / "tests" / "base_platform").mkdir(parents=True)
     (tmp_path / "tests" / "test_path_a_gate.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "test_control_plane_transition.py").write_text("", encoding="utf-8")
+    (tmp_path / "tests" / "test_planning_and_github_adapters.py").write_text("", encoding="utf-8")
     first = select_task_checks(changed, repo_root=tmp_path)
     second = select_task_checks(reversed(changed), repo_root=tmp_path)
     assert first == second
@@ -398,8 +453,19 @@ def test_missing_mapped_test_target_fails_closed(
     monkeypatch.setattr(
         path_a,
         "TASK_CHECK_MAPPING",
-        ((("reverse_agent/mapped/**",), "missing", "python -m pytest tests/does-not-exist -q"),),
+        (
+            (
+                ("reverse_agent/mapped/**",),
+                TaskCheck(
+                    check_id="missing",
+                    argv=("python", "-m", "pytest", "tests/exists.py", "tests/does-not-exist.py", "-q"),
+                    required_targets=("tests/exists.py", "tests/does-not-exist.py"),
+                ),
+            ),
+        ),
     )
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "exists.py").write_text("", encoding="utf-8")
     with pytest.raises(PathAGateError, match="mapped_test_target_missing"):
         path_a.select_task_checks(("reverse_agent/mapped/runtime.py",), repo_root=tmp_path)
 
@@ -431,3 +497,63 @@ def test_task_check_executor_rejects_non_mapping_command(tmp_path: Path) -> None
             {"commands": ["python -c \"print('not mapped')\""]},
             repo_root=tmp_path,
         )
+
+
+def test_paginated_file_observation_reads_more_than_100_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = [{"filename": f"src/file-{index}.py", "status": "modified"} for index in range(100)]
+    second = [{"filename": "src/file-100.py", "status": "modified"}]
+    pages = {
+        "/files?page=1": (first, "/files?page=2"),
+        "/files?page=2": (second, None),
+    }
+    monkeypatch.setattr(
+        "reverse_agent.control_plane.path_a._github_get_page",
+        lambda path: pages[path],
+    )
+    entries = _collect_paginated_list("/files?page=1", expected_count=101)
+    assert len(entries) == 101
+
+
+def test_incomplete_api_file_pagination_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "reverse_agent.control_plane.path_a._github_get_page",
+        lambda path: ([{"filename": "only.py", "status": "modified"}], None),
+    )
+    with pytest.raises(PathAGateError, match="github_file_pagination_incomplete"):
+        _collect_paginated_list("/files", expected_count=101)
+
+
+@pytest.mark.parametrize("status", ["renamed", "copied"])
+def test_rename_and_copy_observe_current_and_previous_paths(status: str) -> None:
+    paths = _paths_from_api_file_entries(
+        [
+            {
+                "filename": "allowed/new.py",
+                "previous_filename": "project_state/old.py",
+                "status": status,
+            }
+        ]
+    )
+    assert paths == ("allowed/new.py", "project_state/old.py")
+    issue_body = _issue_body(allowed_paths="allowed/**\nproject_state/**")
+    with pytest.raises(PathAGateError, match="ordinary_r1_forbidden_paths"):
+        verify_path_a_r1(**_fixture(issue_body=issue_body, changed_paths=paths))
+
+
+def test_feature_push_is_not_path_a_authority_and_main_push_keeps_decision_mode(
+    tmp_path: Path,
+) -> None:
+    decision = tmp_path / "decision_packet.md"
+    _write_decision(decision, transition=True, branch="codex/transition-v1")
+    push_event = {"ref": "refs/heads/main", "before": BASE_SHA, "after": HEAD_SHA}
+    assert detect_control_plane_mode(decision, event=push_event) == "transition"
+
+    state_gate = (
+        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "state-gate.yml"
+    ).read_text(encoding="utf-8")
+    push_block = state_gate.split("  pull_request:", 1)[0]
+    assert "push:\n    branches:\n      - main" in push_block

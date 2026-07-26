@@ -11,6 +11,7 @@ import sys
 import unicodedata
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -59,12 +60,89 @@ ORDINARY_R1_FORBIDDEN_PATHS = (
     "Pipfile*",
 )
 
-BASELINE_CHECK = "python -m pytest tests/test_project_gate.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q"
-PATH_A_CHECK = "python -m pytest tests/test_path_a_gate.py tests/test_control_plane_transition.py tests/test_planning_and_github_adapters.py -q"
-BASE_PLATFORM_CHECK = "python -m pytest tests/base_platform -q"
+class PathAGateError(ValueError):
+    """A stable fail-closed Path-A validation error."""
+
+    def __init__(self, code: str, detail: str = "") -> None:
+        self.code = code
+        self.detail = detail
+        super().__init__(f"{code}:{detail}" if detail else code)
+
+
+@dataclass(frozen=True)
+class TaskCheck:
+    check_id: str
+    argv: tuple[str, ...]
+    required_targets: tuple[str, ...]
+
+    @property
+    def command(self) -> str:
+        return " ".join(self.argv)
+
+
+BASELINE_TASK_CHECK = TaskCheck(
+    check_id="baseline",
+    argv=(
+        "python", "-m", "pytest",
+        "tests/test_project_gate.py",
+        "tests/test_project_reports.py",
+        "tests/test_project_jobs.py",
+        "tests/test_post_final_evidence_sync.py",
+        "tests/test_decision_preflight.py",
+        "tests/test_project_state.py",
+        "tests/test_control_plane_transition.py",
+        "tests/test_architecture_contracts.py",
+        "tests/test_risk_classifier.py",
+        "tests/test_development_graph.py",
+        "tests/test_trust_authorization_adapter.py",
+        "tests/test_planning_and_github_adapters.py",
+        "-q",
+    ),
+    required_targets=(
+        "tests/test_project_gate.py",
+        "tests/test_project_reports.py",
+        "tests/test_project_jobs.py",
+        "tests/test_post_final_evidence_sync.py",
+        "tests/test_decision_preflight.py",
+        "tests/test_project_state.py",
+        "tests/test_control_plane_transition.py",
+        "tests/test_architecture_contracts.py",
+        "tests/test_risk_classifier.py",
+        "tests/test_development_graph.py",
+        "tests/test_trust_authorization_adapter.py",
+        "tests/test_planning_and_github_adapters.py",
+    ),
+)
+PATH_A_TASK_CHECK = TaskCheck(
+    check_id="path_a_gate",
+    argv=(
+        "python", "-m", "pytest",
+        "tests/test_path_a_gate.py",
+        "tests/test_control_plane_transition.py",
+        "tests/test_planning_and_github_adapters.py",
+        "-q",
+    ),
+    required_targets=(
+        "tests/test_path_a_gate.py",
+        "tests/test_control_plane_transition.py",
+        "tests/test_planning_and_github_adapters.py",
+    ),
+)
+BASE_PLATFORM_TASK_CHECK = TaskCheck(
+    check_id="base_platform",
+    argv=("python", "-m", "pytest", "tests/base_platform", "-q"),
+    required_targets=("tests/base_platform",),
+)
+
+BASELINE_CHECK = BASELINE_TASK_CHECK.command
+PATH_A_CHECK = PATH_A_TASK_CHECK.command
+BASE_PLATFORM_CHECK = BASE_PLATFORM_TASK_CHECK.command
 
 TASK_CHECK_MAPPING = (
-    (("reverse_agent/base_platform/**", "tests/base_platform/**"), "base_platform", BASE_PLATFORM_CHECK),
+    (
+        ("reverse_agent/base_platform/**", "tests/base_platform/**"),
+        BASE_PLATFORM_TASK_CHECK,
+    ),
     (
         (
             "reverse_agent/project_gate.py",
@@ -75,19 +153,9 @@ TASK_CHECK_MAPPING = (
             ".github/workflows/state-gate.yml",
             ".github/workflows/ci.yml",
         ),
-        "path_a_gate",
-        PATH_A_CHECK,
+        PATH_A_TASK_CHECK,
     ),
 )
-
-
-class PathAGateError(ValueError):
-    """A stable fail-closed Path-A validation error."""
-
-    def __init__(self, code: str, detail: str = "") -> None:
-        self.code = code
-        self.detail = detail
-        super().__init__(f"{code}:{detail}" if detail else code)
 
 
 @dataclass(frozen=True)
@@ -283,20 +351,48 @@ def verify_path_a_r1(
         str(label.get("name") if isinstance(label, Mapping) else label)
         for label in issue.get("labels", [])
     }
+    if "r1" not in labels:
+        raise PathAGateError("issue_not_r1")
     if "r1-approved" not in labels:
         raise PathAGateError("issue_not_r1_approved")
+    disallowed_tiers = sorted(labels & {"r2", "r3"})
+    if disallowed_tiers:
+        raise PathAGateError("issue_privileged_risk_tier", ",".join(disallowed_tiers))
     if approver_permission not in {"admin", "maintain"}:
         raise PathAGateError("approver_not_owner_or_maintainer")
 
-    matching_approval_events = [
+    approval_transitions = [
         item for item in approval_events
-        if str(item.get("event") or "") == "labeled"
+        if str(item.get("event") or "") in {"labeled", "unlabeled"}
         and str((item.get("label") or {}).get("name") or "") == "r1-approved"
-        and str((item.get("actor") or {}).get("login") or "") == snapshot.approved_by
-        and str(item.get("created_at") or "") == snapshot.approval_event_or_time
     ]
-    if len(matching_approval_events) != 1:
+    approval_transitions.sort(
+        key=lambda item: (
+            str(item.get("created_at") or ""),
+            int(item.get("id") or 0),
+        )
+    )
+    if not approval_transitions:
+        raise PathAGateError("approval_event_missing")
+    effective_approval = approval_transitions[-1]
+    if str(effective_approval.get("event") or "") != "labeled":
+        raise PathAGateError("approval_event_superseded")
+    if str((effective_approval.get("actor") or {}).get("login") or "") != snapshot.approved_by:
+        raise PathAGateError("approval_actor_mismatch")
+    if str(effective_approval.get("created_at") or "") != snapshot.approval_event_or_time:
         raise PathAGateError("approval_event_mismatch")
+
+    last_edited_at = issue.get("content_last_edited_at")
+    if last_edited_at:
+        try:
+            last_edit = datetime.fromisoformat(str(last_edited_at).replace("Z", "+00:00"))
+            approval_time = datetime.fromisoformat(
+                snapshot.approval_event_or_time.replace("Z", "+00:00")
+            )
+        except ValueError as exc:
+            raise PathAGateError("issue_edit_time_invalid") from exc
+        if last_edit > approval_time:
+            raise PathAGateError("issue_body_edited_after_approval")
 
     issue_body = str(issue.get("body") or "")
     if issue_body_digest(issue_body) != snapshot.body_digest_sha256:
@@ -360,16 +456,16 @@ def select_task_checks(
     """Select stable repository-owned checks; runtime changes without a mapping fail."""
 
     changed = tuple(sorted(dict.fromkeys(path.replace("\\", "/") for path in changed_paths)))
-    selected: list[tuple[str, str]] = []
-    for patterns, check_id, command in TASK_CHECK_MAPPING:
+    selected: list[TaskCheck] = []
+    for patterns, check in TASK_CHECK_MAPPING:
         if any(any(_path_matches(path, pattern) for pattern in patterns) for path in changed):
-            selected.append((check_id, command))
+            selected.append(check)
     unmatched_runtime = tuple(
         path for path in changed
         if path.startswith("reverse_agent/")
         and not any(
             any(_path_matches(path, pattern) for pattern in patterns)
-            for patterns, _, _ in TASK_CHECK_MAPPING
+            for patterns, _ in TASK_CHECK_MAPPING
         )
     )
     if unmatched_runtime:
@@ -377,14 +473,100 @@ def select_task_checks(
     if any(path.startswith(("reverse_agent/", "tests/")) for path in changed) and not selected:
         raise PathAGateError("task_checks_not_selected")
     if repo_root is not None:
-        for _, command in selected:
-            match = re.search(r"python -m pytest\s+(\S+)", command)
-            if match and not (repo_root / match.group(1)).exists():
-                raise PathAGateError("mapped_test_target_missing", match.group(1))
+        for check in selected:
+            for target in check.required_targets:
+                if not (repo_root / target).exists():
+                    raise PathAGateError(
+                        "mapped_test_target_missing",
+                        f"{check.check_id}:{target}",
+                    )
     return {
-        "check_ids": tuple(check_id for check_id, _ in selected),
-        "commands": tuple(command for _, command in selected),
+        "check_ids": tuple(check.check_id for check in selected),
+        "commands": tuple(check.command for check in selected),
+        "checks": tuple(selected),
     }
+
+
+def _paths_from_diff_name_status(output: str) -> tuple[str, ...]:
+    paths: list[str] = []
+    for raw_line in output.splitlines():
+        if not raw_line:
+            continue
+        fields = raw_line.split("\t")
+        status = fields[0]
+        if status.startswith(("R", "C")):
+            if len(fields) != 3:
+                raise PathAGateError("git_diff_name_status_malformed", raw_line)
+            paths.extend((fields[1], fields[2]))
+        else:
+            if len(fields) != 2:
+                raise PathAGateError("git_diff_name_status_malformed", raw_line)
+            paths.append(fields[1])
+    return tuple(dict.fromkeys(paths))
+
+
+def _paths_from_api_file_entries(entries: Iterable[Mapping[str, Any]]) -> tuple[str, ...]:
+    paths: list[str] = []
+    for entry in entries:
+        filename = str(entry.get("filename") or "")
+        if not filename:
+            raise PathAGateError("github_file_entry_missing_filename")
+        paths.append(filename)
+        status = str(entry.get("status") or "")
+        previous = str(entry.get("previous_filename") or "")
+        if status in {"renamed", "copied"}:
+            if not previous:
+                raise PathAGateError("github_file_entry_missing_previous_filename", filename)
+            paths.append(previous)
+    return tuple(dict.fromkeys(paths))
+
+
+def _collect_paginated_list(
+    path: str,
+    *,
+    expected_count: int | None = None,
+) -> list[Mapping[str, Any]]:
+    items: list[Mapping[str, Any]] = []
+    next_path: str | None = path
+    seen: set[str] = set()
+    while next_path:
+        if next_path in seen:
+            raise PathAGateError("github_pagination_cycle")
+        seen.add(next_path)
+        payload, next_path = _github_get_page(next_path)
+        if not isinstance(payload, list) or any(not isinstance(item, Mapping) for item in payload):
+            raise PathAGateError("github_paginated_payload_invalid")
+        items.extend(payload)
+    if expected_count is not None and len(items) != expected_count:
+        raise PathAGateError(
+            "github_file_pagination_incomplete",
+            f"observed={len(items)} expected={expected_count}",
+        )
+    return items
+
+
+def _collect_paginated_compare_files(path: str) -> list[Mapping[str, Any]]:
+    files: list[Mapping[str, Any]] = []
+    next_path: str | None = path
+    seen: set[str] = set()
+    incomplete = False
+    while next_path:
+        if next_path in seen:
+            raise PathAGateError("github_pagination_cycle")
+        seen.add(next_path)
+        payload, next_path = _github_get_page(next_path)
+        if not isinstance(payload, Mapping):
+            raise PathAGateError("github_compare_payload_invalid")
+        page_files = payload.get("files")
+        if not isinstance(page_files, list) or any(
+            not isinstance(item, Mapping) for item in page_files
+        ):
+            incomplete = True
+            continue
+        files.extend(page_files)
+    if incomplete or len(files) >= 300:
+        raise PathAGateError("github_compare_files_may_be_truncated")
+    return files
 
 
 def changed_paths_for_event(event: Mapping[str, Any], repo_root: Path) -> tuple[tuple[str, ...], str, str]:
@@ -405,14 +587,14 @@ def changed_paths_for_event(event: Mapping[str, Any], repo_root: Path) -> tuple[
     if not SHA_RE.fullmatch(base_sha):
         raise PathAGateError("workflow_base_sha_missing")
     diff = subprocess.run(
-        ["git", "diff", "--name-only", f"{base_sha}...{head_sha}"],
+        ["git", "diff", "--name-status", "-M", "-C", f"{base_sha}...{head_sha}"],
         cwd=repo_root,
         check=False,
         capture_output=True,
         text=True,
     )
     if diff.returncode == 0:
-        changed = tuple(line for line in diff.stdout.splitlines() if line)
+        changed = _paths_from_diff_name_status(diff.stdout)
     else:
         repository = str((event.get("repository") or {}).get("full_name") or "")
         if not repository:
@@ -421,44 +603,100 @@ def changed_paths_for_event(event: Mapping[str, Any], repo_root: Path) -> tuple[
             number = int(pr.get("number") or event.get("number") or 0)
             if not number:
                 raise PathAGateError("event_pull_request_number_missing")
-            files = _github_get(f"/repos/{repository}/pulls/{number}/files?per_page=100")
+            expected_count = int(pr.get("changed_files") or 0)
+            if expected_count <= 0:
+                raise PathAGateError("event_changed_file_count_missing")
+            files = _collect_paginated_list(
+                f"/repos/{repository}/pulls/{number}/files?per_page=100",
+                expected_count=expected_count,
+            )
         else:
-            comparison = _github_get(
+            files = _collect_paginated_compare_files(
                 f"/repos/{repository}/compare/{base_sha}...{head_sha}?per_page=100"
             )
-            files = comparison.get("files", []) if isinstance(comparison, Mapping) else []
-        changed = tuple(
-            str(item.get("filename") or "")
-            for item in files
-            if isinstance(item, Mapping) and item.get("filename")
-        )
+        changed = _paths_from_api_file_entries(files)
     if not changed:
         raise PathAGateError("changed_paths_empty")
     return changed, base_sha, head_sha
 
 
-def _github_get(path: str) -> Any:
+def _github_headers() -> dict[str, str]:
     token = os.environ.get("GITHUB_TOKEN", "")
     if not token:
         raise PathAGateError("github_token_missing")
+    return {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "reverse-agent-path-a-gate",
+    }
+
+
+def _github_get_page(path: str) -> tuple[Any, str | None]:
+    url = path if path.startswith("https://") else f"https://api.github.com{path}"
     request = urllib.request.Request(
-        f"https://api.github.com{path}",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "reverse-agent-path-a-gate",
-        },
+        url,
+        headers=_github_headers(),
     )
     with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
+        payload = json.load(response)
+        link = str(response.headers.get("Link") or "")
+    next_match = re.search(r'<([^>]+)>;\s*rel="next"', link)
+    return payload, next_match.group(1) if next_match else None
+
+
+def _github_get(path: str) -> Any:
+    payload, next_path = _github_get_page(path)
+    if next_path:
+        raise PathAGateError("github_unexpected_pagination", path)
+    return payload
+
+
+def _github_graphql(query: str, variables: Mapping[str, Any]) -> Mapping[str, Any]:
+    request = urllib.request.Request(
+        "https://api.github.com/graphql",
+        data=json.dumps({"query": query, "variables": dict(variables)}).encode("utf-8"),
+        headers={**_github_headers(), "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        payload = json.load(response)
+    if not isinstance(payload, Mapping) or payload.get("errors"):
+        raise PathAGateError("github_graphql_error")
+    return payload
+
+
+def _issue_last_edited_at(repository: str, issue_number: int) -> str | None:
+    owner, name = repository.split("/", 1)
+    payload = _github_graphql(
+        """
+        query($owner: String!, $name: String!, $number: Int!) {
+          repository(owner: $owner, name: $name) {
+            issue(number: $number) { lastEditedAt }
+          }
+        }
+        """,
+        {"owner": owner, "name": name, "number": issue_number},
+    )
+    issue = ((payload.get("data") or {}).get("repository") or {}).get("issue")
+    if not isinstance(issue, Mapping):
+        raise PathAGateError("github_issue_edit_observation_missing")
+    value = issue.get("lastEditedAt")
+    return str(value) if value else None
 
 
 def run_path_a_gate(*, event_path: Path, repository: str, repo_root: Path) -> dict[str, Any]:
     event = json.loads(event_path.read_text(encoding="utf-8"))
     snapshot = parse_snapshot(str((event.get("pull_request") or {}).get("body") or ""))
     issue = _github_get(f"/repos/{repository}/issues/{snapshot.issue_number}")
-    approval_events = _github_get(
+    if not isinstance(issue, Mapping):
+        raise PathAGateError("github_issue_payload_invalid")
+    issue = dict(issue)
+    issue["content_last_edited_at"] = _issue_last_edited_at(
+        repository,
+        snapshot.issue_number,
+    )
+    approval_events = _collect_paginated_list(
         f"/repos/{repository}/issues/{snapshot.issue_number}/events?per_page=100"
     )
     owner = repository.split("/", 1)[0]
@@ -515,13 +753,20 @@ def write_task_check_outputs(
 def execute_task_checks(payload: Mapping[str, Any], *, repo_root: Path) -> None:
     """Execute only commands selected from the immutable repository mapping."""
 
-    safe_commands = {command for _, _, command in TASK_CHECK_MAPPING}
+    check_by_command = {check.command: check for _, check in TASK_CHECK_MAPPING}
     for command in payload.get("commands", []):
-        if command == BASELINE_CHECK:
+        if command == BASELINE_TASK_CHECK.command:
             continue
-        if command not in safe_commands:
+        check = check_by_command.get(str(command))
+        if check is None:
             raise PathAGateError("untrusted_task_check_command", str(command))
-        argv = str(command).split()
-        if argv and argv[0] == "python":
+        for target in check.required_targets:
+            if not (repo_root / target).exists():
+                raise PathAGateError(
+                    "mapped_test_target_missing",
+                    f"{check.check_id}:{target}",
+                )
+        argv = list(check.argv)
+        if argv[0] == "python":
             argv[0] = sys.executable
         subprocess.run(argv, cwd=repo_root, check=True)

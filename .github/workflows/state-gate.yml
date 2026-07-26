@@ -2,6 +2,8 @@ name: State Gate
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "project_state/**"
       - "reverse_agent/**"
