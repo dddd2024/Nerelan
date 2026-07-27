@@ -12,13 +12,17 @@ on:
       - ".codex-skills/**"
       - "docs/prompts/**"
   pull_request:
-    paths:
-      - "project_state/**"
-      - "reverse_agent/**"
-      - "tests/**"
-      - ".github/workflows/**"
-      - ".codex-skills/**"
-      - "docs/prompts/**"
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      - converted_to_draft
+      - ready_for_review
+      - labeled
+      - unlabeled
+      - auto_merge_enabled
+      - auto_merge_disabled
 
 permissions:
   contents: read

@@ -82,6 +82,8 @@ ORDINARY_R1_PATH_RISK_POLICY = (
     (".github/actions/**", "R2"),
     (".github/ISSUE_TEMPLATE/**", "R2"),
     (".github/CODEOWNERS", "R2"),
+    ("CODEOWNERS", "R2"),
+    ("docs/CODEOWNERS", "R2"),
     (".codex-skills/**", "R2"),
     ("AGENTS.md", "R2"),
     ("reverse_agent/project_gate.py", "R2"),
@@ -279,6 +281,120 @@ def issue_body_digest(body: str) -> str:
     return hashlib.sha256(normalize_issue_body(body).encode("utf-8")).hexdigest()
 
 
+@dataclass(frozen=True)
+class AuthorityRevision:
+    """Canonical digest of every mutable live input to ordinary-R1 authority."""
+
+    repository: str
+    source_issue_number: int
+    normalized_issue_body_digest: str
+    current_risk_labels: tuple[str, ...]
+    current_authority_labels: tuple[str, ...]
+    latest_effective_r1_approved_event_id: int | str | None
+    latest_effective_r1_approved_actor: str | None
+    latest_effective_r1_approved_timestamp: str | None
+    latest_r1_approved_transition: str | None
+    source_issue_last_edited_at: str | None
+    pr_number: int
+    pr_body_digest: str
+    pr_draft_state: bool | None
+    pr_auto_merge_state: Any
+    base_sha: str
+    exact_head_sha: str
+
+    def to_mapping(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "repository": self.repository,
+            "source_issue_number": self.source_issue_number,
+            "normalized_issue_body_digest": self.normalized_issue_body_digest,
+            "current_risk_labels": list(self.current_risk_labels),
+            "current_authority_labels": list(self.current_authority_labels),
+            "latest_effective_r1_approved_event_id": (
+                self.latest_effective_r1_approved_event_id
+            ),
+            "latest_effective_r1_approved_actor": (
+                self.latest_effective_r1_approved_actor
+            ),
+            "latest_effective_r1_approved_timestamp": (
+                self.latest_effective_r1_approved_timestamp
+            ),
+            "latest_r1_approved_transition": self.latest_r1_approved_transition,
+            "source_issue_last_edited_at": self.source_issue_last_edited_at,
+            "pr_number": self.pr_number,
+            "pr_body_digest": self.pr_body_digest,
+            "pr_draft_state": self.pr_draft_state,
+            "pr_auto_merge_state": self.pr_auto_merge_state,
+            "base_sha": self.base_sha,
+            "exact_head_sha": self.exact_head_sha,
+        }
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        payload["digest_sha256"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return payload
+
+
+def _build_authority_revision(
+    *,
+    repository: str,
+    issue: Mapping[str, Any],
+    labels: Iterable[str],
+    latest_approval_transition: Mapping[str, Any] | None,
+    pr_number: int,
+    pr: Mapping[str, Any],
+) -> AuthorityRevision:
+    canonical_labels = tuple(sorted({str(label).casefold() for label in labels}))
+    event_name = (
+        str(latest_approval_transition.get("event") or "")
+        if latest_approval_transition is not None
+        else None
+    )
+    effective = latest_approval_transition if event_name == "labeled" else None
+    return AuthorityRevision(
+        repository=repository,
+        source_issue_number=int(issue.get("number") or 0),
+        normalized_issue_body_digest=issue_body_digest(str(issue.get("body") or "")),
+        current_risk_labels=tuple(
+            label for label in canonical_labels if label in {"r0", "r1", "r2", "r3"}
+        ),
+        current_authority_labels=tuple(
+            label
+            for label in canonical_labels
+            if label in {"r0", "r1", "r1-approved", "r2", "r3"}
+        ),
+        latest_effective_r1_approved_event_id=(
+            effective.get("id") if effective is not None else None
+        ),
+        latest_effective_r1_approved_actor=(
+            str((effective.get("actor") or {}).get("login") or "")
+            if effective is not None
+            else None
+        ),
+        latest_effective_r1_approved_timestamp=(
+            str(effective.get("created_at") or "")
+            if effective is not None
+            else None
+        ),
+        latest_r1_approved_transition=event_name,
+        source_issue_last_edited_at=(
+            str(issue.get("content_last_edited_at"))
+            if issue.get("content_last_edited_at")
+            else None
+        ),
+        pr_number=pr_number,
+        pr_body_digest=issue_body_digest(str(pr.get("body") or "")),
+        pr_draft_state=(
+            pr.get("draft") if isinstance(pr.get("draft"), bool) else None
+        ),
+        pr_auto_merge_state=pr.get("auto_merge"),
+        base_sha=str((pr.get("base") or {}).get("sha") or "").lower(),
+        exact_head_sha=str((pr.get("head") or {}).get("sha") or "").lower(),
+    )
+
+
 def _text_blocks(markdown: str) -> list[str]:
     return re.findall(r"```(?:text)?[ \t]*\n(.*?)\n```", markdown, flags=re.DOTALL | re.IGNORECASE)
 
@@ -355,10 +471,11 @@ def _path_matches(path: str, pattern: str) -> bool:
 
 
 def _minimum_path_risk(path: str) -> tuple[str, str] | None:
+    canonical_path = path.replace("\\", "/").casefold()
     matches = tuple(
         (minimum_risk, pattern)
         for pattern, minimum_risk in ORDINARY_R1_PATH_RISK_POLICY
-        if _path_matches(path, pattern)
+        if _path_matches(canonical_path, pattern.casefold())
     )
     if not matches:
         return None
@@ -402,6 +519,7 @@ def verify_path_a_r1(
     changed_paths: Iterable[str],
     merge_base_sha: str,
     expected_repository: str,
+    expected_authority_revision: str | None = None,
 ) -> dict[str, Any]:
     """Verify a complete ordinary R1 authority snapshot without executing Issue text."""
 
@@ -412,8 +530,6 @@ def verify_path_a_r1(
         raise PathAGateError("repository_mismatch", repository)
 
     pr = event["pull_request"]
-    if pr.get("state") != "open" or pr.get("draft") is not True:
-        raise PathAGateError("pr_must_be_open_draft")
     snapshot = parse_snapshot(str(pr.get("body") or ""))
     if snapshot.repository != expected_repository:
         raise PathAGateError("snapshot_repository_mismatch")
@@ -421,12 +537,48 @@ def verify_path_a_r1(
     issue_number = int(issue.get("number") or 0)
     if snapshot.issue_number != issue_number:
         raise PathAGateError("snapshot_issue_mismatch")
-    if str(issue.get("state") or "").lower() != "open":
-        raise PathAGateError("source_issue_not_open")
     labels = {
-        str(label.get("name") if isinstance(label, Mapping) else label)
+        str(label.get("name") if isinstance(label, Mapping) else label).casefold()
         for label in issue.get("labels", [])
     }
+    approval_transitions = [
+        item for item in approval_events
+        if str(item.get("event") or "") in {"labeled", "unlabeled"}
+        and str((item.get("label") or {}).get("name") or "").casefold()
+        == "r1-approved"
+    ]
+    approval_transitions.sort(
+        key=lambda item: (
+            str(item.get("created_at") or ""),
+            int(item.get("id") or 0),
+        )
+    )
+    effective_approval = approval_transitions[-1] if approval_transitions else None
+    pr_number = int(event.get("number") or pr.get("number") or 0)
+    authority_revision = _build_authority_revision(
+        repository=repository,
+        issue=issue,
+        labels=labels,
+        latest_approval_transition=effective_approval,
+        pr_number=pr_number,
+        pr=pr,
+    ).to_mapping()
+    if (
+        expected_authority_revision is not None
+        and authority_revision["digest_sha256"] != expected_authority_revision
+    ):
+        raise PathAGateError(
+            "authority_revision_mismatch",
+            (
+                f"expected={expected_authority_revision};"
+                f"observed={authority_revision['digest_sha256']}"
+            ),
+        )
+
+    if pr.get("state") != "open" or pr.get("draft") is not True:
+        raise PathAGateError("pr_must_be_open_draft")
+    if str(issue.get("state") or "").lower() != "open":
+        raise PathAGateError("source_issue_not_open")
     if "r1" not in labels:
         raise PathAGateError("issue_not_r1")
     if "r1-approved" not in labels:
@@ -437,20 +589,9 @@ def verify_path_a_r1(
     if approver_permission not in {"admin", "maintain"}:
         raise PathAGateError("approver_not_owner_or_maintainer")
 
-    approval_transitions = [
-        item for item in approval_events
-        if str(item.get("event") or "") in {"labeled", "unlabeled"}
-        and str((item.get("label") or {}).get("name") or "") == "r1-approved"
-    ]
-    approval_transitions.sort(
-        key=lambda item: (
-            str(item.get("created_at") or ""),
-            int(item.get("id") or 0),
-        )
-    )
     if not approval_transitions:
         raise PathAGateError("approval_event_missing")
-    effective_approval = approval_transitions[-1]
+    assert effective_approval is not None
     if str(effective_approval.get("event") or "") != "labeled":
         raise PathAGateError("approval_event_superseded")
     if str((effective_approval.get("actor") or {}).get("login") or "") != snapshot.approved_by:
@@ -522,9 +663,11 @@ def verify_path_a_r1(
         "target_branch": snapshot.target_branch,
         "base_sha": snapshot.base_sha,
         "exact_head_sha": snapshot.exact_head_sha,
+        "authority_revision": authority_revision,
+        "authority_revalidation_required": True,
         "changed_paths": list(changed),
         "selected_checks": list(select_task_checks(changed)["commands"]),
-        "authority_source": "immutable_work_item_snapshot",
+        "authority_source": "live_github_authority_revision",
         "comments_authoritative": False,
         "issue_commands_executed": False,
     }
@@ -769,7 +912,15 @@ def _issue_last_edited_at(repository: str, issue_number: int) -> str | None:
 
 def run_path_a_gate(*, event_path: Path, repository: str, repo_root: Path) -> dict[str, Any]:
     event = json.loads(event_path.read_text(encoding="utf-8"))
-    snapshot = parse_snapshot(str((event.get("pull_request") or {}).get("body") or ""))
+    event_pr = event.get("pull_request") or {}
+    pr_number = int(event.get("number") or event_pr.get("number") or 0)
+    if pr_number <= 0:
+        raise PathAGateError("github_pr_number_missing")
+    live_pr = _github_get(f"/repos/{repository}/pulls/{pr_number}")
+    if not isinstance(live_pr, Mapping):
+        raise PathAGateError("github_pr_payload_invalid")
+    event = {**event, "number": pr_number, "pull_request": dict(live_pr)}
+    snapshot = parse_snapshot(str(live_pr.get("body") or ""))
     issue = _github_get(f"/repos/{repository}/issues/{snapshot.issue_number}")
     if not isinstance(issue, Mapping):
         raise PathAGateError("github_issue_payload_invalid")
@@ -795,7 +946,7 @@ def run_path_a_gate(*, event_path: Path, repository: str, repo_root: Path) -> di
         cwd=repo_root,
         text=True,
     ).strip()
-    return verify_path_a_r1(
+    result = verify_path_a_r1(
         event_name=os.environ.get("GITHUB_EVENT_NAME", ""),
         event=event,
         issue=issue,
@@ -804,7 +955,12 @@ def run_path_a_gate(*, event_path: Path, repository: str, repo_root: Path) -> di
         changed_paths=changed,
         merge_base_sha=merge_base,
         expected_repository=repository,
+        expected_authority_revision=(
+            os.environ.get("PATH_A_EXPECTED_AUTHORITY_REVISION") or None
+        ),
     )
+    result["live_github_state_observed"] = True
+    return result
 
 
 def write_task_check_outputs(

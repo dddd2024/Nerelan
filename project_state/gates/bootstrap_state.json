@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260726_path_a_r1_state_gate_cutover_rework_v3",
-  "round_id": "round_20260726_path_a_r1_state_gate_cutover_rework_v3",
-  "expired_at": "2026-07-27T02:07:57+00:00"
+  "decision_id": "decision_20260727_path_a_live_authority_binding_rework_v4",
+  "round_id": "round_20260727_path_a_live_authority_binding_rework_v4",
+  "expired_at": "2026-07-27T03:50:30+00:00"
 }

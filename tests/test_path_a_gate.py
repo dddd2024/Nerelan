@@ -17,6 +17,7 @@ from reverse_agent.control_plane.path_a import (
     execute_task_checks,
     issue_body_digest,
     parse_snapshot,
+    run_path_a_gate,
     select_task_checks,
     verify_path_a_r1,
 )
@@ -100,8 +101,10 @@ def _fixture(
     return {
         "event_name": "pull_request",
         "event": {
+            "number": 49,
             "repository": {"full_name": REPOSITORY},
             "pull_request": {
+                "number": 49,
                 "state": "open",
                 "draft": True,
                 "body": snapshot_body,
@@ -363,6 +366,139 @@ def test_bounded_m1_paths_remain_r1_eligible(changed_paths: tuple[str, ...]) -> 
     assert result["selected_checks"] == [BASE_PLATFORM_CHECK]
 
 
+def test_authority_revision_contains_all_live_authority_inputs() -> None:
+    revision = _verify()["authority_revision"]
+    assert len(revision["digest_sha256"]) == 64
+    assert revision["repository"] == REPOSITORY
+    assert revision["source_issue_number"] == 46
+    assert len(revision["normalized_issue_body_digest"]) == 64
+    assert revision["current_risk_labels"] == ["r1"]
+    assert revision["latest_effective_r1_approved_event_id"] == 1
+    assert revision["latest_effective_r1_approved_actor"] == "dddd2024"
+    assert revision["latest_effective_r1_approved_timestamp"] == APPROVAL_TIME
+    assert revision["source_issue_last_edited_at"] is None
+    assert revision["pr_number"] == 49
+    assert len(revision["pr_body_digest"]) == 64
+    assert revision["pr_draft_state"] is True
+    assert revision["pr_auto_merge_state"] is None
+    assert revision["base_sha"] == BASE_SHA
+    assert revision["exact_head_sha"] == HEAD_SHA
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "issue_body",
+        "approval_removed",
+        "approval_reapplied",
+        "risk_label",
+        "pr_body",
+        "ready",
+        "auto_merge",
+    ],
+)
+def test_live_authority_mutation_invalidates_previous_revision(mutation: str) -> None:
+    initial = _fixture()
+    previous_revision = verify_path_a_r1(**initial)["authority_revision"]["digest_sha256"]
+    current = _fixture()
+    if mutation == "issue_body":
+        body = current["issue"]["body"] + "\nmaterial authority edit\n"
+        current["issue"]["body"] = body
+        current["event"]["pull_request"]["body"] = _snapshot(body)
+    elif mutation == "approval_removed":
+        current["issue"]["labels"] = [{"name": "r1"}]
+        current["approval_events"].append(
+            {
+                "event": "unlabeled",
+                "id": 2,
+                "label": {"name": "r1-approved"},
+                "actor": {"login": "dddd2024"},
+                "created_at": "2026-07-26T10:33:00Z",
+            }
+        )
+    elif mutation == "approval_reapplied":
+        current["approval_events"].append(
+            {
+                "event": "labeled",
+                "id": 2,
+                "label": {"name": "r1-approved"},
+                "actor": {"login": "dddd2024"},
+                "created_at": APPROVAL_TIME,
+            }
+        )
+    elif mutation == "risk_label":
+        current["issue"]["labels"] = [{"name": "r2"}, {"name": "r1-approved"}]
+    elif mutation == "pr_body":
+        current["event"]["pull_request"]["body"] += "\n\nnon-snapshot PR metadata edit"
+    elif mutation == "ready":
+        current["event"]["pull_request"]["draft"] = False
+    else:
+        current["event"]["pull_request"]["auto_merge"] = {
+            "enabled_by": {"login": "dddd2024"}
+        }
+    with pytest.raises(PathAGateError, match="authority_revision_mismatch"):
+        verify_path_a_r1(
+            **current,
+            expected_authority_revision=previous_revision,
+        )
+
+
+def test_path_a_gate_requeries_live_pr_and_issue_state(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture()
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps(fixture["event"]), encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_github_get(path: str):
+        calls.append(path)
+        if path == f"/repos/{REPOSITORY}/pulls/49":
+            return fixture["event"]["pull_request"]
+        if path == f"/repos/{REPOSITORY}/issues/46":
+            return fixture["issue"]
+        raise AssertionError(path)
+
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setattr(
+        "reverse_agent.control_plane.path_a._github_get",
+        fake_github_get,
+    )
+    monkeypatch.setattr(
+        "reverse_agent.control_plane.path_a._issue_last_edited_at",
+        lambda repository, issue_number: None,
+    )
+    monkeypatch.setattr(
+        "reverse_agent.control_plane.path_a._collect_paginated_list",
+        lambda path: fixture["approval_events"],
+    )
+    monkeypatch.setattr(
+        "reverse_agent.control_plane.path_a.changed_paths_for_event",
+        lambda event, repo_root: (
+            fixture["changed_paths"],
+            BASE_SHA,
+            HEAD_SHA,
+        ),
+    )
+    monkeypatch.setattr(
+        "reverse_agent.control_plane.path_a.subprocess.check_output",
+        lambda *args, **kwargs: BASE_SHA,
+    )
+
+    result = run_path_a_gate(
+        event_path=event_path,
+        repository=REPOSITORY,
+        repo_root=tmp_path,
+    )
+    assert calls[:2] == [
+        f"/repos/{REPOSITORY}/pulls/49",
+        f"/repos/{REPOSITORY}/issues/46",
+    ]
+    assert result["live_github_state_observed"] is True
+    assert result["authority_revalidation_required"] is True
+
+
 @pytest.mark.parametrize(
     "term",
     [
@@ -606,6 +742,110 @@ def test_rename_and_copy_reject_risky_previous_paths(
         verify_path_a_r1(**_fixture(issue_body=issue_body, changed_paths=paths))
     assert f"path={previous_filename}" in exc_info.value.detail
     assert f"minimum_risk={minimum_risk}" in exc_info.value.detail
+
+
+@pytest.mark.parametrize(
+    ("path", "minimum_risk"),
+    [
+        ("CODEOWNERS", "R2"),
+        ("docs/CODEOWNERS", "R2"),
+        ("Config/Secrets/API.KEY", "R3"),
+        ("service-CREDENTIAL.json", "R3"),
+        ("tools/payload.EXE", "R3"),
+        (".ENV", "R3"),
+        (".ENV.production", "R3"),
+        ("certs/CLIENT.PEM", "R3"),
+        ("certs/CLIENT.KEY", "R3"),
+        ("certs/CLIENT.P12", "R3"),
+        ("certs/CLIENT.PFX", "R3"),
+        ("native/LIBRARY.DLL", "R3"),
+        ("native/LIBRARY.SO", "R3"),
+        ("native/LIBRARY.DYLIB", "R3"),
+    ],
+)
+def test_security_path_risk_matching_is_case_insensitive(
+    path: str,
+    minimum_risk: str,
+) -> None:
+    issue_body = _issue_body(allowed_paths=path)
+    with pytest.raises(PathAGateError, match="path_risk_exceeds_r1") as exc_info:
+        verify_path_a_r1(**_fixture(issue_body=issue_body, changed_paths=(path,)))
+    assert f"path={path}" in exc_info.value.detail
+    assert f"minimum_risk={minimum_risk}" in exc_info.value.detail
+
+
+@pytest.mark.parametrize("status", ["renamed", "copied"])
+def test_mixed_case_risky_previous_path_is_rejected(status: str) -> None:
+    paths = _paths_from_api_file_entries(
+        [
+            {
+                "filename": "allowed/new.py",
+                "previous_filename": "Config/Secrets/API.KEY",
+                "status": status,
+            }
+        ]
+    )
+    with pytest.raises(PathAGateError, match="path_risk_exceeds_r1") as exc_info:
+        verify_path_a_r1(
+            **_fixture(
+                issue_body=_issue_body(allowed_paths="allowed/**"),
+                changed_paths=paths,
+            )
+        )
+    assert "path=Config/Secrets/API.KEY" in exc_info.value.detail
+    assert "minimum_risk=R3" in exc_info.value.detail
+
+
+@pytest.mark.parametrize(
+    "only_changed_path",
+    [
+        "pyproject.toml",
+        "requirements-dev.txt",
+        "setup.py",
+        "uv.lock",
+        "Dockerfile",
+        "CODEOWNERS",
+        "docs/CODEOWNERS",
+        ".env",
+        "config/Secrets/API.KEY",
+        "tools/payload.EXE",
+    ],
+)
+def test_state_gate_pull_request_trigger_reaches_every_risk_only_change(
+    only_changed_path: str,
+) -> None:
+    state_gate = (
+        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "state-gate.yml"
+    ).read_text(encoding="utf-8")
+    pull_request_block = state_gate.split("  pull_request:", 1)[1].split(
+        "\n\npermissions:",
+        1,
+    )[0]
+    assert "paths:" not in pull_request_block, only_changed_path
+    assert "Path-A R1 gate" in state_gate
+
+
+def test_state_gate_revalidates_on_pr_authority_metadata_changes() -> None:
+    state_gate = (
+        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "state-gate.yml"
+    ).read_text(encoding="utf-8")
+    pull_request_block = state_gate.split("  pull_request:", 1)[1].split(
+        "\n\npermissions:",
+        1,
+    )[0]
+    for event_type in (
+        "opened",
+        "edited",
+        "synchronize",
+        "reopened",
+        "converted_to_draft",
+        "ready_for_review",
+        "labeled",
+        "unlabeled",
+        "auto_merge_enabled",
+        "auto_merge_disabled",
+    ):
+        assert f"- {event_type}" in pull_request_block
 
 
 def test_feature_push_is_not_path_a_authority_and_main_push_keeps_decision_mode(
