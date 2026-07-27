@@ -1,19 +1,19 @@
 # Decision Packet
 
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260726_path_a_r1_state_gate_cutover_rework_v3","round_id":"round_20260726_path_a_r1_state_gate_cutover_rework_v3","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{"schema_version":1,"decision_id":"decision_20260727_path_a_live_authority_binding_rework_v4","round_id":"round_20260727_path_a_live_authority_binding_rework_v4","based_on_state_build_id":"state_20260618_134029_d6bd033d2532","based_on_state_digest":"d6bd033d25324345cfd8ada0ac65db42bc86eb5017f3ffc92906fcd8b71cacb5","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "follows_last_decision_id": "decision_20260726_path_a_r1_state_gate_cutover_rework_v2",
-  "follows_last_round_id": "round_20260726_path_a_r1_state_gate_cutover_rework_v2",
-  "previous_audit_outcome": "REWORK_REQUIRED_V2_SEMANTIC_ACCEPTANCE_WITHHELD",
-  "acceptance_target": "PATH_A_R1_GATE_RISK_FLOOR_REWORK_V3_ACCEPTED",
-  "workstream_id": "path-a-r1-state-gate-cutover-rework-v3",
-  "source_issue": 51,
-  "predecessor_issue": 50,
+  "follows_last_decision_id": "decision_20260726_path_a_r1_state_gate_cutover_rework_v3",
+  "follows_last_round_id": "round_20260726_path_a_r1_state_gate_cutover_rework_v3",
+  "previous_audit_outcome": "REWORK_REQUIRED_V3_SEMANTIC_ACCEPTANCE_WITHHELD",
+  "acceptance_target": "PATH_A_LIVE_AUTHORITY_BINDING_AND_TRIGGER_COVERAGE_V4_ACCEPTED",
+  "workstream_id": "path-a-live-authority-binding-rework-v4",
+  "source_issue": 52,
+  "predecessor_issue": 51,
   "active_pr": 49,
   "program_issue": 45,
   "blocked_source_issue": 46,
@@ -21,13 +21,14 @@
   "blocked_pull_request_frozen_head": "6e096b11df43bc33c8b21dfba08cfd07549352d9",
   "frozen_v1_head": "f0bf2e585f2b578d5acdb8cd521bf1f960d9988c",
   "frozen_v2_head": "7a238bbdd0bdc77d90715819bb01e355b2af9ca1",
-  "accepted_v2_workflow_runs": {
-    "CI": 30205750461,
-    "State Gate": 30205750471,
-    "Decision Preflight": 30205750474
+  "frozen_v3_head": "abfcd456236fec21de9b246dce3d29b654a01cd5",
+  "accepted_v3_workflow_runs": {
+    "CI": 30232869610,
+    "State Gate": 30232869614,
+    "Decision Preflight": 30232869618
   },
   "starting_main": "61570724495aa7053eba78bd2e34d8bda22f6407",
-  "starting_head": "7a238bbdd0bdc77d90715819bb01e355b2af9ca1",
+  "starting_head": "abfcd456236fec21de9b246dce3d29b654a01cd5",
   "activation_base_sha": "61570724495aa7053eba78bd2e34d8bda22f6407",
   "required_branch": "codex/path-a-r1-state-gate-cutover-v1",
   "risk_tier": "R2",
@@ -240,8 +241,10 @@
     }
   ],
   "allowed_mutated_paths": [
+    ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/path_a.py",
     "tests/test_path_a_gate.py",
+    "tests/test_project_gate.py",
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
@@ -255,13 +258,11 @@
     ".github/CODEOWNERS",
     ".github/actions/**",
     ".github/workflows/ci.yml",
-    ".github/workflows/state-gate.yml",
     "reverse_agent/project_gate.py",
     "reverse_agent/decision_preflight.py",
     "reverse_agent/github_adapter.py",
     "reverse_agent/base_platform/**",
     "tests/base_platform/**",
-    "tests/test_project_gate.py",
     "tests/test_control_plane_transition.py",
     "tests/test_planning_and_github_adapters.py",
     "tests/test_decision_preflight.py",
@@ -357,8 +358,10 @@
     "ci_network_exceptions": []
   },
   "authorized_risk_paths": [
+    ".github/workflows/state-gate.yml",
     "reverse_agent/control_plane/path_a.py",
     "tests/test_path_a_gate.py",
+    "tests/test_project_gate.py",
     "project_state/decision_packet.md",
     "project_state/gates/**"
   ],
@@ -368,6 +371,8 @@
     {"pattern": ".github/actions/**", "minimum_risk": "R2"},
     {"pattern": ".github/ISSUE_TEMPLATE/**", "minimum_risk": "R2"},
     {"pattern": ".github/CODEOWNERS", "minimum_risk": "R2"},
+    {"pattern": "CODEOWNERS", "minimum_risk": "R2"},
+    {"pattern": "docs/CODEOWNERS", "minimum_risk": "R2"},
     {"pattern": ".codex-skills/**", "minimum_risk": "R2"},
     {"pattern": "AGENTS.md", "minimum_risk": "R2"},
     {"pattern": "reverse_agent/project_gate.py", "minimum_risk": "R2"},
@@ -381,9 +386,9 @@
     {"pattern": "tests/**", "minimum_risk": "R1"}
   ],
   "scope_policy": {
-    "scope": "path_a_r1_repository_risk_floor_and_bounded_scope_rework_v3",
+    "scope": "path_a_live_authority_binding_and_trigger_coverage_rework_v4",
     "three_mutually_exclusive_modes": ["path_a_r1", "transition", "legacy"],
-    "allow_workflow_changes": false,
+    "allow_workflow_changes": true,
     "allow_router_and_verifier_changes": true,
     "allow_test_additions": true,
     "allow_compiler_owned_gate_outputs": true,
@@ -431,21 +436,21 @@
 
 ### Goal
 
-Implement the bounded R2 semantic rework described by planning Issue #51 on the
-existing PR #49 branch after the frozen v2 head passed exact-head workflows but
-failed independent semantic acceptance. Close the ordinary-R1 repository-owned
-path-risk-floor, unbounded allowed-path, and equal-timestamp approval ambiguity
-gaps without weakening transition or legacy behavior and without copying or
-modifying the blocked M1 implementation.
+Implement the bounded R2 semantic rework described by planning Issue #52 on the
+existing PR #49 branch after the frozen v3 head passed exact-head workflows but
+failed independent semantic acceptance. Bind Path-A evidence to a deterministic
+live authority revision, make the State Gate reachable for every pull request,
+and canonicalize security-path matching without weakening transition or legacy
+behavior or modifying the blocked M1 implementation.
 
 ### Authority and binding
 
 - Authority is this APPROVED Path-B Decision, its compiler-generated Command Plan,
   and `PRE_EXECUTION_AUTHORIZED`.
-- Planning Issue #51, predecessor Issue #50, and all Issue/PR comments are context
+- Planning Issue #52, predecessor Issue #51, and all Issue/PR comments are context
   or evidence only.
 - Base is `61570724495aa7053eba78bd2e34d8bda22f6407`.
-- Frozen v2 head is `7a238bbdd0bdc77d90715819bb01e355b2af9ca1`.
+- Frozen v3 head is `abfcd456236fec21de9b246dce3d29b654a01cd5`.
 - Required branch is `codex/path-a-r1-state-gate-cutover-v1`.
 - Existing Draft PR #49 is the only publication target; no new branch or PR.
 - PR #47 and branch `codex/base-platform-m1-spec-policy-core-v1` are frozen and
@@ -453,19 +458,23 @@ modifying the blocked M1 implementation.
 
 ### Required implementation
 
-1. Define a deterministic repository-owned ordinary-R1 minimum-risk policy and
-   reject every observed current or previous path whose floor exceeds R1.
-2. Classify governance, workflow, permission, Path-A trust-boundary, Decision,
-   Gate, GitHub-authority, dependency, and packaging paths as at least R2.
-3. Classify secrets, credentials, private keys, and unknown binary paths as R3.
-4. Reject repository-root catch-all allowed-path forms, including normalized
-   equivalents of `*`, `**`, `**/*`, `.`, and `./`, while preserving bounded
-   directory-prefix patterns and exact files.
-5. Reject an observed Issue body edit when its timestamp is equal to or later
-   than the effective approval timestamp.
-6. Add deterministic negative coverage for current paths, rename/copy previous
-   paths, unbounded globs, and equal timestamps; preserve the valid bounded M1,
-   transition, and legacy routing behavior.
+1. Build a deterministic AuthorityRevision from the current Issue body and risk
+   labels, latest effective approval event identity, Issue edit time, PR body
+   snapshot, Draft/auto-merge state, base, and exact head.
+2. Expose stable revision evidence and require any later acceptance or merge
+   authority to re-query GitHub and compare the unchanged exact head with the
+   current revision; stale green checks alone are never authority.
+3. Add PR metadata activity triggers as defense in depth and remove the State
+   Gate pull-request path filter so every potentially mergeable PR reaches the
+   same Path-A authority gate.
+4. Canonicalize path separators and case for security classification while
+   retaining original path text in rejection evidence and checking rename/copy
+   previous paths identically.
+5. Classify `.github/CODEOWNERS`, root `CODEOWNERS`, and `docs/CODEOWNERS` as R2,
+   and preserve mixed-case protection for environment, secret, credential,
+   private-key, and native-binary paths.
+6. Add deterministic revision-invalidation, workflow-reachability, mixed-case,
+   bounded-M1, transition, and legacy regression coverage.
 
 ### Publication boundary
 
