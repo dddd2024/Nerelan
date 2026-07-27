@@ -257,6 +257,10 @@ def collect_execution_evidence(
     if actual_base != contract.base_commit:
         raise ValueError("base_commit_mismatch")
     observed_head = _git(repo, "rev-parse", "HEAD").stdout.strip().lower()
+    check_results = tuple(
+        _command_result(command, _run(command, cwd=repo, shell=True))
+        for command in contract.required_checks
+    )
     name_status = _git(repo, "diff", "--name-status", contract.base_commit, "--").stdout
     changed: list[str] = []
     for line in name_status.splitlines():
@@ -266,10 +270,6 @@ def collect_execution_evidence(
     changed.extend(line.replace("\\", "/") for line in untracked.splitlines() if line)
     diff_command = ("git", "diff", "--check", contract.base_commit, "--")
     diff_result = _run(diff_command, cwd=repo)
-    check_results = tuple(
-        _command_result(command, _run(command, cwd=repo, shell=True))
-        for command in contract.required_checks
-    )
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     return ExecutionEvidence(
         schema_version=contract.schema_version,

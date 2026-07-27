@@ -44,7 +44,8 @@ def _repo(tmp_path: Path) -> tuple[Path, str]:
         "from calc import add\n\n\ndef test_add():\n    assert add(2, 3) == 5\n",
         encoding="utf-8",
     )
-    _run(repo, "git", "add", "calc.py", "test_calc.py")
+    (repo / ".gitignore").write_text("__pycache__/\n.pytest_cache/\n", encoding="utf-8")
+    _run(repo, "git", "add", ".gitignore", "calc.py", "test_calc.py")
     _run(repo, "git", "commit", "-qm", "base")
     return repo, _run(repo, "git", "rev-parse", "HEAD")
 
