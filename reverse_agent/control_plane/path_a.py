@@ -12,7 +12,7 @@ import unicodedata
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
-from fnmatch import fnmatch
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -48,16 +48,72 @@ PRIVILEGED_OPERATION_TERMS = (
     "release",
 )
 
-ORDINARY_R1_FORBIDDEN_PATHS = (
-    "project_state/**",
-    ".github/workflows/**",
-    "pyproject.toml",
-    "requirements*.txt",
-    "setup.py",
-    "setup.cfg",
-    "pytest.ini",
-    "poetry.lock",
-    "Pipfile*",
+ORDINARY_R1_PATH_RISK_POLICY = (
+    # R3 sensitive material and unknown native binaries.
+    ("secrets/**", "R3"),
+    ("**/secrets/**", "R3"),
+    (".env", "R3"),
+    (".env.*", "R3"),
+    ("**/.env", "R3"),
+    ("**/.env.*", "R3"),
+    ("*credential*", "R3"),
+    ("**/*credential*", "R3"),
+    ("*secret*", "R3"),
+    ("**/*secret*", "R3"),
+    ("*.pem", "R3"),
+    ("**/*.pem", "R3"),
+    ("*.key", "R3"),
+    ("**/*.key", "R3"),
+    ("*.p12", "R3"),
+    ("**/*.p12", "R3"),
+    ("*.pfx", "R3"),
+    ("**/*.pfx", "R3"),
+    ("*.exe", "R3"),
+    ("**/*.exe", "R3"),
+    ("*.dll", "R3"),
+    ("**/*.dll", "R3"),
+    ("*.so", "R3"),
+    ("**/*.so", "R3"),
+    ("*.dylib", "R3"),
+    ("**/*.dylib", "R3"),
+    # R2 governance, authority, workflow, dependency, and packaging surfaces.
+    ("project_state/**", "R2"),
+    (".github/workflows/**", "R2"),
+    (".github/actions/**", "R2"),
+    (".github/ISSUE_TEMPLATE/**", "R2"),
+    (".github/CODEOWNERS", "R2"),
+    (".codex-skills/**", "R2"),
+    ("AGENTS.md", "R2"),
+    ("reverse_agent/project_gate.py", "R2"),
+    ("reverse_agent/control_plane/**", "R2"),
+    ("reverse_agent/decision_preflight.py", "R2"),
+    ("reverse_agent/project_ci.py", "R2"),
+    ("reverse_agent/project_jobs.py", "R2"),
+    ("reverse_agent/post_final_evidence_sync.py", "R2"),
+    ("reverse_agent/github_adapter.py", "R2"),
+    ("reverse_agent/architecture/risk.py", "R2"),
+    ("reverse_agent/architecture/risk_classifier.py", "R2"),
+    ("pyproject.toml", "R2"),
+    ("requirements*.txt", "R2"),
+    ("**/requirements*.txt", "R2"),
+    ("setup.py", "R2"),
+    ("setup.cfg", "R2"),
+    ("pytest.ini", "R2"),
+    ("poetry.lock", "R2"),
+    ("Pipfile*", "R2"),
+    ("uv.lock", "R2"),
+    ("package.json", "R2"),
+    ("**/package.json", "R2"),
+    ("package-lock.json", "R2"),
+    ("**/package-lock.json", "R2"),
+    ("pnpm-lock.yaml", "R2"),
+    ("**/pnpm-lock.yaml", "R2"),
+    ("yarn.lock", "R2"),
+    ("**/yarn.lock", "R2"),
+    ("Dockerfile", "R2"),
+    ("Dockerfile.*", "R2"),
+    ("**/Dockerfile", "R2"),
+    ("**/Dockerfile.*", "R2"),
 )
 
 class PathAGateError(ValueError):
@@ -268,16 +324,25 @@ def _section_fenced_block(markdown: str, heading: str) -> str:
 
 def parse_allowed_paths(issue_body: str) -> tuple[str, ...]:
     block = _section_fenced_block(issue_body, "Allowed paths")
-    paths = tuple(
-        line.strip().replace("\\", "/")
-        for line in block.splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    )
+    paths: list[str] = []
+    for line in block.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        raw_path = line.strip().replace("\\", "/")
+        if raw_path.startswith("/") or re.match(r"^[A-Za-z]:", raw_path):
+            raise PathAGateError("issue_allowed_paths_invalid", raw_path)
+        normalized = re.sub(r"/+", "/", raw_path)
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        normalized = normalized.rstrip("/")
+        if normalized in {"", ".", "*", "**", "**/*"}:
+            raise PathAGateError("issue_allowed_paths_unbounded", raw_path)
+        if normalized.startswith("/") or ".." in Path(normalized).parts:
+            raise PathAGateError("issue_allowed_paths_invalid", raw_path)
+        paths.append(normalized)
     if not paths:
         raise PathAGateError("issue_allowed_paths_empty")
-    if any(path.startswith("/") or ".." in Path(path).parts for path in paths):
-        raise PathAGateError("issue_allowed_paths_invalid")
-    return paths
+    return tuple(paths)
 
 
 def _path_matches(path: str, pattern: str) -> bool:
@@ -286,7 +351,18 @@ def _path_matches(path: str, pattern: str) -> bool:
     if candidate.endswith("/**"):
         prefix = candidate[:-3].rstrip("/")
         return normalized == prefix or normalized.startswith(prefix + "/")
-    return fnmatch(normalized, candidate)
+    return fnmatchcase(normalized, candidate)
+
+
+def _minimum_path_risk(path: str) -> tuple[str, str] | None:
+    matches = tuple(
+        (minimum_risk, pattern)
+        for pattern, minimum_risk in ORDINARY_R1_PATH_RISK_POLICY
+        if _path_matches(path, pattern)
+    )
+    if not matches:
+        return None
+    return max(matches, key=lambda item: {"R2": 2, "R3": 3}[item[0]])
 
 
 def _paths_outside(changed_paths: Iterable[str], allowed_paths: Iterable[str]) -> tuple[str, ...]:
@@ -391,8 +467,8 @@ def verify_path_a_r1(
             )
         except ValueError as exc:
             raise PathAGateError("issue_edit_time_invalid") from exc
-        if last_edit > approval_time:
-            raise PathAGateError("issue_body_edited_after_approval")
+        if last_edit >= approval_time:
+            raise PathAGateError("issue_body_edit_not_strictly_before_approval")
 
     issue_body = str(issue.get("body") or "")
     if issue_body_digest(issue_body) != snapshot.body_digest_sha256:
@@ -420,15 +496,21 @@ def verify_path_a_r1(
     changed = tuple(dict.fromkeys(path.replace("\\", "/") for path in changed_paths))
     if not changed:
         raise PathAGateError("changed_paths_empty")
-    outside = _paths_outside(changed, parse_allowed_paths(issue_body))
+    allowed_paths = parse_allowed_paths(issue_body)
+    for path in changed:
+        path_risk = _minimum_path_risk(path)
+        if path_risk is not None:
+            minimum_risk, matched_pattern = path_risk
+            raise PathAGateError(
+                "path_risk_exceeds_r1",
+                (
+                    f"path={path};minimum_risk={minimum_risk};"
+                    f"matched_pattern={matched_pattern}"
+                ),
+            )
+    outside = _paths_outside(changed, allowed_paths)
     if outside:
         raise PathAGateError("changed_paths_outside_allowed", ",".join(outside))
-    forbidden = tuple(
-        path for path in changed
-        if any(_path_matches(path, pattern) for pattern in ORDINARY_R1_FORBIDDEN_PATHS)
-    )
-    if forbidden:
-        raise PathAGateError("ordinary_r1_forbidden_paths", ",".join(forbidden))
 
     return {
         "schema_version": 1,

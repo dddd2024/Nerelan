@@ -30,7 +30,7 @@ APPROVAL_TIME = "2026-07-26T10:32:41Z"
 
 def _issue_body(
     *,
-    allowed_paths: str = "reverse_agent/control_plane/**\ntests/test_path_a_gate.py",
+    allowed_paths: str = "reverse_agent/base_platform/**\ntests/base_platform/**",
     required_checks: str = "python -m pytest tests/test_path_a_gate.py -q\ngit diff --check",
     extra: str = "",
 ) -> str:
@@ -93,7 +93,7 @@ def _fixture(
     *,
     issue_body: str | None = None,
     pr_body: str | None = None,
-    changed_paths: tuple[str, ...] = ("reverse_agent/control_plane/path_a.py",),
+    changed_paths: tuple[str, ...] = ("reverse_agent/base_platform/models.py",),
 ) -> dict:
     body = issue_body if issue_body is not None else _issue_body()
     snapshot_body = pr_body if pr_body is not None else _snapshot(body)
@@ -183,7 +183,7 @@ def test_valid_r1_fixture_selects_path_a_and_passes(tmp_path: Path) -> None:
     assert result["mode"] == "path_a_r1"
     assert result["issue_commands_executed"] is False
     assert result["comments_authoritative"] is False
-    assert result["selected_checks"] == [PATH_A_CHECK]
+    assert result["selected_checks"] == [BASE_PLATFORM_CHECK]
 
 
 @pytest.mark.parametrize(
@@ -313,17 +313,54 @@ def test_changed_path_outside_allowed_paths_is_rejected() -> None:
 
 
 @pytest.mark.parametrize(
-    "path",
+    ("path", "minimum_risk"),
     [
-        "project_state/decision_packet.md",
-        ".github/workflows/ci.yml",
-        "pyproject.toml",
+        ("reverse_agent/control_plane/path_a.py", "R2"),
+        ("reverse_agent/project_gate.py", "R2"),
+        ("reverse_agent/github_adapter.py", "R2"),
+        (".github/ISSUE_TEMPLATE/minimal-ai-r1-task.yml", "R2"),
+        (".github/CODEOWNERS", "R2"),
+        ("config/secrets/api.key", "R3"),
+        ("config/service-credential.json", "R3"),
+        ("tools/sample.exe", "R3"),
+        ("pyproject.toml", "R2"),
+        ("package-lock.json", "R2"),
     ],
 )
-def test_ordinary_r1_forbidden_governance_workflow_and_dependency_paths(path: str) -> None:
+def test_ordinary_r1_path_risk_floor_rejects_privileged_paths(
+    path: str,
+    minimum_risk: str,
+) -> None:
     issue_body = _issue_body(allowed_paths=path)
-    with pytest.raises(PathAGateError, match="ordinary_r1_forbidden_paths"):
+    with pytest.raises(PathAGateError, match="path_risk_exceeds_r1") as exc_info:
         verify_path_a_r1(**_fixture(issue_body=issue_body, changed_paths=(path,)))
+    assert f"path={path}" in exc_info.value.detail
+    assert f"minimum_risk={minimum_risk}" in exc_info.value.detail
+    assert "matched_pattern=" in exc_info.value.detail
+
+
+@pytest.mark.parametrize("allowed_paths", ["*", "**", "**/*", ".", "./", ".//"])
+def test_unbounded_allowed_paths_are_rejected(allowed_paths: str) -> None:
+    issue_body = _issue_body(allowed_paths=allowed_paths)
+    with pytest.raises(PathAGateError, match="issue_allowed_paths_unbounded"):
+        verify_path_a_r1(**_fixture(issue_body=issue_body))
+
+
+@pytest.mark.parametrize(
+    "changed_paths",
+    [
+        ("reverse_agent/base_platform/models.py",),
+        ("tests/base_platform/test_models.py",),
+        (
+            "reverse_agent/base_platform/models.py",
+            "tests/base_platform/test_models.py",
+        ),
+    ],
+)
+def test_bounded_m1_paths_remain_r1_eligible(changed_paths: tuple[str, ...]) -> None:
+    result = verify_path_a_r1(**_fixture(changed_paths=changed_paths))
+    assert result["gate_status"] == "PATH_A_R1_AUTHORIZED"
+    assert result["selected_checks"] == [BASE_PLATFORM_CHECK]
 
 
 @pytest.mark.parametrize(
@@ -418,7 +455,20 @@ def test_latest_approval_transition_must_remain_effective(event: str) -> None:
 def test_post_approval_body_edit_state_is_rejected_even_with_current_digest() -> None:
     fixture = _fixture()
     fixture["issue"]["content_last_edited_at"] = "2026-07-26T10:33:00Z"
-    with pytest.raises(PathAGateError, match="issue_body_edited_after_approval"):
+    with pytest.raises(
+        PathAGateError,
+        match="issue_body_edit_not_strictly_before_approval",
+    ):
+        verify_path_a_r1(**fixture)
+
+
+def test_body_edit_equal_to_approval_time_is_rejected() -> None:
+    fixture = _fixture()
+    fixture["issue"]["content_last_edited_at"] = APPROVAL_TIME
+    with pytest.raises(
+        PathAGateError,
+        match="issue_body_edit_not_strictly_before_approval",
+    ):
         verify_path_a_r1(**fixture)
 
 
@@ -528,20 +578,34 @@ def test_incomplete_api_file_pagination_fails_closed(
 
 
 @pytest.mark.parametrize("status", ["renamed", "copied"])
-def test_rename_and_copy_observe_current_and_previous_paths(status: str) -> None:
+@pytest.mark.parametrize(
+    ("previous_filename", "minimum_risk"),
+    [
+        ("config/secrets/api.key", "R3"),
+        ("project_state/old.py", "R2"),
+        ("reverse_agent/control_plane/old.py", "R2"),
+    ],
+)
+def test_rename_and_copy_reject_risky_previous_paths(
+    status: str,
+    previous_filename: str,
+    minimum_risk: str,
+) -> None:
     paths = _paths_from_api_file_entries(
         [
             {
                 "filename": "allowed/new.py",
-                "previous_filename": "project_state/old.py",
+                "previous_filename": previous_filename,
                 "status": status,
             }
         ]
     )
-    assert paths == ("allowed/new.py", "project_state/old.py")
-    issue_body = _issue_body(allowed_paths="allowed/**\nproject_state/**")
-    with pytest.raises(PathAGateError, match="ordinary_r1_forbidden_paths"):
+    assert paths == ("allowed/new.py", previous_filename)
+    issue_body = _issue_body(allowed_paths="allowed/**")
+    with pytest.raises(PathAGateError, match="path_risk_exceeds_r1") as exc_info:
         verify_path_a_r1(**_fixture(issue_body=issue_body, changed_paths=paths))
+    assert f"path={previous_filename}" in exc_info.value.detail
+    assert f"minimum_risk={minimum_risk}" in exc_info.value.detail
 
 
 def test_feature_push_is_not_path_a_authority_and_main_push_keeps_decision_mode(
