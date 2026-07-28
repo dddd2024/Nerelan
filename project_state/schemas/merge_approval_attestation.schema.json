@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "merge_approval_attestation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "attestation_id",
+    "repository",
+    "source_pr",
+    "locked_base_sha",
+    "accepted_exact_head_sha",
+    "allowed_merge_method",
+    "intent_digest",
+    "workflow_observations",
+    "human_r2_approval",
+    "authorization_status",
+    "expires_at",
+    "superseded_by",
+    "content_digest"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "attestation_id": {"type": "string", "minLength": 1},
+    "repository": {"const": "dddd2024/reverse-agent"},
+    "source_pr": {"type": "integer", "minimum": 1},
+    "locked_base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "accepted_exact_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "allowed_merge_method": {"const": "merge"},
+    "intent_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "workflow_observations": {"type": "array", "minItems": 4, "maxItems": 4},
+    "human_r2_approval": {"type": "object"},
+    "authorization_status": {"const": "active"},
+    "expires_at": {"type": "string"},
+    "superseded_by": {"type": ["string", "null"]},
+    "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+  }
+}

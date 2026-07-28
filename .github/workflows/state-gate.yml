@@ -20,6 +20,9 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
+  issues: read
 
 jobs:
   state-gate:
@@ -53,8 +56,36 @@ jobs:
         run: python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
 
       - name: Transition preflight
-        if: steps.control_plane.outputs.mode == 'transition'
+        if: steps.control_plane.outputs.mode == 'transition' && github.ref != 'refs/heads/main'
         run: python -m reverse_agent.project_gate transition-preflight --state-dir project_state
+
+      - name: Historical integration baseline
+        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        run: python -m reverse_agent.project_gate integration-baseline --state-dir project_state
+
+      - name: PR 60 exact historical recovery
+        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python -m reverse_agent.project_gate pr60-historical-recovery --state-dir project_state
+
+      - name: Current mainline merge validation
+        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python -m reverse_agent.project_gate mainline-merge-validation --state-dir project_state
+
+      - name: Emit mainline integration receipt
+        if: steps.control_plane.outputs.mode == 'transition' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: >-
+          python -m reverse_agent.project_gate emit-mainline-integration-receipt
+          --state-dir project_state
+          --output "${{ runner.temp }}/mainline_integration_receipt.json"
 
       - name: Project gate preflight
         if: steps.control_plane.outputs.mode == 'legacy'
@@ -160,3 +191,4 @@ jobs:
           path: |
             project_state/gates/*.json
             project_state/pytest_result.txt
+            ${{ runner.temp }}/mainline_integration_receipt.json

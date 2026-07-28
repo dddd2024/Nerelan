@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "integration_baseline.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "baseline_id",
+    "status",
+    "program_issue",
+    "program_bundle_url",
+    "program_bundle_sha256",
+    "source_pull_request",
+    "previous_main_sha",
+    "subject_head_sha",
+    "merge_commit_sha",
+    "expected_parent_shas",
+    "expected_tree_sha",
+    "frozen_pr11_head_sha",
+    "merged_at",
+    "verified_at",
+    "successful_exact_head_runs"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "baseline_id": {"const": "architecture_spine_v1"},
+    "status": {"const": "FROZEN_BASELINE"},
+    "program_issue": {"const": 18},
+    "program_bundle_url": {"type": "string"},
+    "program_bundle_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_pull_request": {"const": 9},
+    "previous_main_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "subject_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "merge_commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "expected_parent_shas": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+    },
+    "expected_tree_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "frozen_pr11_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "merged_at": {"type": "string"},
+    "verified_at": {"type": "string"},
+    "successful_exact_head_runs": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "run_id", "head_sha", "conclusion", "url"],
+        "properties": {
+          "name": {"enum": ["CI", "Decision Preflight", "State Gate (pull_request)", "State Gate (push)"]},
+          "run_id": {"type": "integer", "minimum": 1},
+          "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "conclusion": {"const": "success"},
+          "url": {"type": "string"}
+        }
+      }
+    }
+  }
+}
