@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260727_executor_neutral_binding_rework_v2",
-  "round_id": "round_20260727_executor_neutral_binding_rework_v2",
+  "decision_id": "decision_20260728_pr60_mainline_landing_repair_v2",
+  "round_id": "round_20260728_pr60_mainline_landing_repair_v2",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260727_executor_neutral_binding_rework_v2 expected=decision_20260727_executor_neutral_binding_rework_v2"
+      "detail": "observed=decision_20260728_pr60_mainline_landing_repair_v2 expected=decision_20260728_pr60_mainline_landing_repair_v2"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260727_executor_neutral_binding_rework_v2 expected=round_20260727_executor_neutral_binding_rework_v2"
+      "detail": "observed=round_20260728_pr60_mainline_landing_repair_v2 expected=round_20260728_pr60_mainline_landing_repair_v2"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=codex/executor-neutral-vertical-slice-v1 expected=codex/executor-neutral-vertical-slice-v1"
+      "detail": "observed=codex/pr60-mainline-landing-repair-v2 expected=codex/pr60-mainline-landing-repair-v2"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=61570724495aa7053eba78bd2e34d8bda22f6407 merge_base=61570724495aa7053eba78bd2e34d8bda22f6407"
+      "detail": "base=68026521710c50fa9a70f3851472941605d9ead1 merge_base=68026521710c50fa9a70f3851472941605d9ead1"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=12cd2465a38b7f58f23590a537403d6cf4547aca"
+      "detail": "decision_commit=614d91cb261e9ba2f4bbe106823c668a9a1ac441"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260727_executor_neutral_binding_rework_v2/round_20260727_executor_neutral_binding_rework_v2"
+      "detail": "plan=decision_20260728_pr60_mainline_landing_repair_v2/round_20260728_pr60_mainline_landing_repair_v2"
     },
     {
       "name": "command_plan_contract",
