@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260726_governance_migration_owner_manual_merge_rework_v3",
-  "round_id": "round_20260726_governance_migration_owner_manual_merge_rework_v3",
+  "decision_id": "decision_20260727_pr60_final_merge_authorization_v1",
+  "round_id": "round_20260727_pr60_final_merge_authorization_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260726_governance_migration_owner_manual_merge_rework_v3 expected=decision_20260726_governance_migration_owner_manual_merge_rework_v3"
+      "detail": "observed=decision_20260727_pr60_final_merge_authorization_v1 expected=decision_20260727_pr60_final_merge_authorization_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260726_governance_migration_owner_manual_merge_rework_v3 expected=round_20260726_governance_migration_owner_manual_merge_rework_v3"
+      "detail": "observed=round_20260727_pr60_final_merge_authorization_v1 expected=round_20260727_pr60_final_merge_authorization_v1"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=codex/governance-migration-owner-manual-merge-v1 expected=codex/governance-migration-owner-manual-merge-v1"
+      "detail": "observed=codex/pr60-final-merge-authorization-v1 expected=codex/pr60-final-merge-authorization-v1"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=964cd647afc3d51a7fdf855080351da53c5e79ef merge_base=964cd647afc3d51a7fdf855080351da53c5e79ef"
+      "detail": "base=61570724495aa7053eba78bd2e34d8bda22f6407 merge_base=61570724495aa7053eba78bd2e34d8bda22f6407"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=148ed513c1da885098c980cc74f516021eead93a"
+      "detail": "decision_commit=d64c893d77df4c192b914fc1fa891e1228099058"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260726_governance_migration_owner_manual_merge_rework_v3/round_20260726_governance_migration_owner_manual_merge_rework_v3"
+      "detail": "plan=decision_20260727_pr60_final_merge_authorization_v1/round_20260727_pr60_final_merge_authorization_v1"
     },
     {
       "name": "command_plan_contract",

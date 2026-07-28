@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260726_governance_migration_owner_manual_merge_rework_v3",
-  "round_id": "round_20260726_governance_migration_owner_manual_merge_rework_v3",
+  "decision_id": "decision_20260727_pr60_final_merge_authorization_v1",
+  "round_id": "round_20260727_pr60_final_merge_authorization_v1",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -130,28 +130,6 @@
       ]
     },
     {
-      "command_id": "test.minimal_integration_baseline_docs",
-      "command": "python -m pytest tests/test_minimal_integration_baseline_docs.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
       "command_id": "validation.diff_check",
       "command": "git diff --check",
       "phase": "validation",
@@ -174,10 +152,10 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.push_branch",
-      "command": "git push origin codex/governance-migration-owner-manual-merge-v1",
+      "command_id": "publication.push_authorization_branch",
+      "command": "git push -u origin codex/pr60-final-merge-authorization-v1",
       "phase": "publication",
-      "required": false,
+      "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
@@ -197,18 +175,18 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.update_pr_body",
-      "command": "gh pr edit 44 --body-file PR_BODY_TEMP_PATH",
-      "phase": "publication",
-      "required": false,
+      "command_id": "observation.pr60_live_state",
+      "command": "gh pr view 60 --repo dddd2024/reverse-agent --json state,isDraft,mergedAt,headRefOid,baseRefOid,mergeable,mergeStateStatus,autoMergeRequest,statusCheckRollup",
+      "phase": "observation",
+      "required": true,
       "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
       "operations": [
-        "pull_request_edit",
-        "network_access"
+        "network_access",
+        "repository_observation"
       ],
       "network_access": true,
       "diagnostic_only": false,
@@ -220,101 +198,70 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.gate.startup_snapshot",
-      "command": "gate.startup_snapshot",
-      "phase": "gate",
+      "command_id": "observation.pr60_review_threads",
+      "command": "gh api graphql --input PR60_REVIEW_THREADS_QUERY_PATH",
+      "phase": "observation",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
+      "operations": [
+        "network_access",
+        "repository_observation"
+      ],
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.status.git_status",
-      "command": "status.git_status",
-      "phase": "gate",
+      "command_id": "observation.issue62",
+      "command": "gh issue view 62 --repo dddd2024/reverse-agent --json state,stateReason,comments",
+      "phase": "observation",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
+      "operations": [
+        "network_access",
+        "repository_observation"
+      ],
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "bootstrap.gate.command_plan",
-      "command": "gate.command_plan",
-      "phase": "gate",
+      "command_id": "publication.issue63_report",
+      "command": "gh issue comment 63 --repo dddd2024/reverse-agent --body-file PR60_FINAL_AUTHORIZATION_REPORT_PATH",
+      "phase": "publication",
       "required": true,
-      "required_evidence_source": "local_command_evidence",
+      "required_evidence_source": "repository_state_attestation",
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.gate.transition_lint",
-      "command": "gate.transition_lint",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
+      "operations": [
+        "network_access",
+        "issue_comment"
       ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "bootstrap.gate.pre_execution",
-      "command": "gate.pre_execution",
-      "phase": "gate",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "bootstrap_exception",
-      "bootstrap_exception": true,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
       "produced_artifacts": [],
       "subject_to_reconciliation": true,
       "allowed_mutated_paths": []
