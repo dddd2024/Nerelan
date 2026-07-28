@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260728_pr60_mainline_landing_repair_v2",
-  "round_id": "round_20260728_pr60_mainline_landing_repair_v2",
+  "decision_id": "decision_20260728_mainline_landing_semantic_rework_v3",
+  "round_id": "round_20260728_mainline_landing_semantic_rework_v3",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -285,31 +285,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.create_draft_pr",
-      "command": "gh pr create --repo dddd2024/reverse-agent --base main --head codex/pr60-mainline-landing-repair-v2 --draft --title PR_TITLE --body-file PR_BODY_TEMP_PATH",
-      "phase": "publication",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "pull_request_create",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
       "command_id": "publication.update_pr_body",
-      "command": "gh pr edit PR_NUMBER --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
+      "command": "gh pr edit 67 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -331,8 +308,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue66",
-      "command": "gh issue comment 66 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue68",
+      "command": "gh issue comment 68 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -354,31 +331,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue65",
-      "command": "gh issue comment 65 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
-      "phase": "publication",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "issue_comment",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "publication.comment_pr",
-      "command": "gh pr comment PR_NUMBER --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_pr67",
+      "command": "gh pr comment 67 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -401,7 +355,7 @@
     },
     {
       "command_id": "observation.exact_head_checks",
-      "command": "gh pr checks PR_NUMBER --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks 67 --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
