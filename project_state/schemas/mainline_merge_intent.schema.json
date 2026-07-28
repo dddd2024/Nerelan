@@ -28,7 +28,12 @@
       "additionalProperties": false,
       "required": ["decision_id", "decision_content_sha256"],
       "properties": {
-        "decision_id": {"const": "decision_20260728_pr60_mainline_landing_repair_v2"},
+        "decision_id": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 200,
+          "pattern": "^decision_[A-Za-z0-9][A-Za-z0-9_.-]+$"
+        },
         "decision_content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       }
     },

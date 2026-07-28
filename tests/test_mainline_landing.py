@@ -17,6 +17,7 @@ from reverse_agent.github_remote_verifier import (
 )
 from reverse_agent.mainline_landing import (
     CANONICAL_WORKFLOW_POLICY,
+    _validate_intent,
     canonical_digest,
     emit_mainline_integration_receipt,
     validate_future_merge,
@@ -56,7 +57,16 @@ class FakeVerifier:
         return {"verified": self.fail != "ref", "reason": self.fail}
 
 
-def _future_repo(tmp_path: Path, *, bad_decision: bool = False, bad_plan: bool = False) -> dict[str, Any]:
+def _future_repo(
+    tmp_path: Path,
+    *,
+    decision_id: str = "decision_20260801_later_mainline_landing_v4",
+    intent_decision_id: str | None = None,
+    bad_decision: bool = False,
+    bad_plan: bool = False,
+    plan_decision_id: str | None = None,
+    decision_artifact: str | None = None,
+) -> dict[str, Any]:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "-b", "main")
@@ -71,8 +81,36 @@ def _future_repo(tmp_path: Path, *, bad_decision: bool = False, bad_plan: bool =
     plan_path = repo / "project_state" / "gates" / "command_plan.json"
     decision_path.parent.mkdir(parents=True)
     plan_path.parent.mkdir(parents=True)
-    decision_path.write_text("approved v2 decision\n", encoding="utf-8")
-    plan_path.write_text('{"locked":true}\n', encoding="utf-8")
+    round_id = "round_20260801_later_mainline_landing_v4"
+    decision_text = decision_artifact or (
+        "# Decision Packet\n\n"
+        "```json decision_meta\n"
+        + json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "round_id": round_id,
+                "status": "APPROVED",
+                "mainline": "engineering_branch",
+            },
+            separators=(",", ":"),
+        )
+        + "\n```\n"
+    )
+    decision_path.write_text(decision_text, encoding="utf-8")
+    plan_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "decision_id": plan_decision_id or decision_id,
+                "round_id": round_id,
+                "commands": [],
+            },
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     _git(repo, "add", "project_state")
     _git(repo, "commit", "-m", "authority")
     decision_digest = hashlib.sha256(
@@ -93,7 +131,7 @@ def _future_repo(tmp_path: Path, *, bad_decision: bool = False, bad_plan: bool =
         "locked_base_sha": base,
         "allowed_merge_method": "merge",
         "decision_identity": {
-            "decision_id": "decision_20260728_pr60_mainline_landing_repair_v2",
+            "decision_id": intent_decision_id or decision_id,
             "decision_content_sha256": "0" * 64 if bad_decision else decision_digest,
         },
         "command_plan_sha256": "0" * 64 if bad_plan else plan_digest,
@@ -186,6 +224,24 @@ def test_normal_two_parent_merge_passes(tmp_path: Path) -> None:
     assert result["gate_status"] == "PASSED", result
 
 
+def test_later_valid_decision_identity_passes(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        decision_id="decision_20260815_future_exact_head_v7",
+    )
+    result = _validate(bundle)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_intent_decision_identity_mismatch_fails(tmp_path: Path) -> None:
+    bundle = _future_repo(
+        tmp_path,
+        intent_decision_id="decision_20260801_other_authority_v1",
+    )
+    result = _validate(bundle)
+    assert any("intent_decision_id" in item for item in result["blocking_reasons"])
+
+
 def test_direct_push_fails(tmp_path: Path) -> None:
     bundle = _future_repo(tmp_path)
     bundle["merge"] = bundle["head"]
@@ -264,6 +320,48 @@ def test_command_plan_digest_mismatch_fails(tmp_path: Path) -> None:
     assert any("intent_command_plan_digest" in item for item in result["blocking_reasons"])
 
 
+def test_command_plan_identity_mismatch_fails_even_with_matching_digest(
+    tmp_path: Path,
+) -> None:
+    result = _validate(
+        _future_repo(
+            tmp_path,
+            plan_decision_id="decision_20260801_other_authority_v1",
+        )
+    )
+    assert any(
+        "intent_command_plan_identity" in item for item in result["blocking_reasons"]
+    )
+
+
+@pytest.mark.parametrize(
+    "decision_artifact",
+    [
+        "# Decision Packet\n",
+        "```json decision_meta\n{not-json}\n```\n",
+        (
+            "```json decision_meta\n"
+            '{"schema_version":1,"decision_id":"decision_20260801_valid_v1",'
+            '"round_id":"round_20260801_valid_v1","status":"APPROVED",'
+            '"mainline":"engineering_branch"}\n```\n'
+            "```json decision_meta\n"
+            '{"schema_version":1,"decision_id":"decision_20260801_other_v1",'
+            '"round_id":"round_20260801_other_v1","status":"APPROVED",'
+            '"mainline":"engineering_branch"}\n```\n'
+        ),
+    ],
+)
+def test_missing_malformed_or_multiple_decision_metadata_fails_closed(
+    tmp_path: Path,
+    decision_artifact: str,
+) -> None:
+    result = _validate(
+        _future_repo(tmp_path, decision_artifact=decision_artifact)
+    )
+    assert result["gate_status"] == "BLOCKED"
+    assert result["blocking_reasons"][0].startswith("invalid_merge_evidence:")
+
+
 def test_wrong_workflow_event_fails(tmp_path: Path) -> None:
     bundle = _future_repo(tmp_path)
     bundle["attestation"]["workflow_observations"][3]["event"] = "pull_request"
@@ -285,6 +383,18 @@ def test_remote_api_failure_fails_closed(tmp_path: Path) -> None:
     result = _validate(_future_repo(tmp_path), verifier=FakeVerifier(fail="workflow"))
     assert result["gate_status"] == "BLOCKED"
     assert any("remote_workflow:" in item for item in result["blocking_reasons"])
+
+
+@pytest.mark.parametrize("historical_failure", ["comment", "ref"])
+def test_future_merge_does_not_consult_pr60_historical_remote_evidence(
+    tmp_path: Path,
+    historical_failure: str,
+) -> None:
+    result = _validate(
+        _future_repo(tmp_path),
+        verifier=FakeVerifier(fail=historical_failure),
+    )
+    assert result["gate_status"] == "PASSED", result
 
 
 def test_pr_binding_failure_fails_closed(tmp_path: Path) -> None:
@@ -356,7 +466,20 @@ def test_pr60_recovery_remote_failures_fail_closed(failure: str) -> None:
     assert result["gate_status"] == "BLOCKED"
 
 
-def test_pr60_recovery_record_cannot_authorize_other_merge(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("source_pr", 61),
+        ("locked_base_sha", "0" * 40),
+        ("accepted_head_sha", "1" * 40),
+        ("merge_commit_sha", "2" * 40),
+    ],
+)
+def test_pr60_recovery_record_cannot_authorize_other_identity(
+    tmp_path: Path,
+    field: str,
+    value: Any,
+) -> None:
     state_dir = tmp_path / "project_state"
     target = state_dir / "mainline_recoveries"
     target.mkdir(parents=True)
@@ -365,7 +488,7 @@ def test_pr60_recovery_record_cannot_authorize_other_merge(tmp_path: Path) -> No
             encoding="utf-8"
         )
     )
-    payload["merge_commit_sha"] = payload["accepted_head_sha"]
+    payload[field] = value
     (target / "pr60.json").write_text(json.dumps(payload), encoding="utf-8")
     result = validate_pr60_recovery(
         repo_root=REPO_ROOT,
@@ -373,7 +496,6 @@ def test_pr60_recovery_record_cannot_authorize_other_merge(tmp_path: Path) -> No
         verifier=FakeVerifier(),
     )
     assert result["gate_status"] == "BLOCKED"
-    assert any("exact_merge" in item for item in result["blocking_reasons"])
 
 
 def test_pr60_recovery_rejects_unknown_field(tmp_path: Path) -> None:
@@ -401,9 +523,34 @@ def test_state_gate_routes_branch_and_main_lifecycles() -> None:
     )
     assert "github.ref != 'refs/heads/main'" in text
     assert "integration-baseline --state-dir project_state" in text
-    assert "pr60-historical-recovery --state-dir project_state" in text
+    assert "pr60-historical-recovery --state-dir project_state" not in text
     assert "mainline-merge-validation --state-dir project_state" in text
     assert "emit-mainline-integration-receipt" in text
+    project_gate = (REPO_ROOT / "reverse_agent/project_gate.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"pr60-historical-recovery"' in project_gate
+
+
+def test_committed_pr67_intent_binds_v3_decision_and_plan() -> None:
+    intent = json.loads(
+        (REPO_ROOT / "project_state/mainline_merge_intents/active.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    checks = _validate_intent(
+        intent,
+        repo_root=REPO_ROOT,
+        accepted_head="HEAD",
+        source_pr=67,
+        locked_base="68026521710c50fa9a70f3851472941605d9ead1",
+        now=NOW,
+    )
+    assert all(check["status"] == "PASS" for check in checks), checks
+    assert (
+        intent["decision_identity"]["decision_id"]
+        == "decision_20260728_mainline_landing_semantic_rework_v3"
+    )
 
 
 def test_state_gate_permissions_are_read_only_and_complete() -> None:

@@ -17,6 +17,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from .project_state import extract_markdown_json_block
+
 
 INTEGRATION_BASELINE_NAME = "architecture_spine_v1.json"
 MERGE_INTENT_PATH = "project_state/mainline_merge_intents/active.json"
@@ -114,6 +116,48 @@ def _json_blob(repo_root: Path, commit_sha: str, path: str) -> dict[str, Any] | 
 def _sha256_blob(repo_root: Path, commit_sha: str, path: str) -> str | None:
     raw = _blob(repo_root, commit_sha, path)
     return None if raw is None else hashlib.sha256(raw).hexdigest()
+
+
+def _decision_meta_blob(repo_root: Path, commit_sha: str) -> dict[str, Any]:
+    """Parse exactly one trusted Decision metadata block from a committed tree."""
+
+    path = "project_state/decision_packet.md"
+    raw = _blob(repo_root, commit_sha, path)
+    if raw is None:
+        raise ValueError(f"missing_decision_artifact:{path}")
+    text = raw.decode("utf-8", errors="strict")
+    match_count = sum(
+        1
+        for line in text.splitlines()
+        if line.strip().startswith("```")
+        and "json" in line.strip()[3:].strip().split()
+        and "decision_meta" in line.strip()[3:].strip().split()
+    )
+    if match_count != 1:
+        raise ValueError(f"expected_one_decision_meta:observed={match_count}")
+    parsed = extract_markdown_json_block(text, "decision_meta")
+    if not parsed.get("found") or parsed.get("parse_error"):
+        raise ValueError(f"invalid_decision_meta:{parsed.get('parse_error')}")
+    meta = {
+        key: value
+        for key, value in parsed.items()
+        if key not in {"found", "parse_error"}
+    }
+    decision_id = meta.get("decision_id")
+    round_id = meta.get("round_id")
+    if (
+        meta.get("schema_version") != 1
+        or meta.get("status") != "APPROVED"
+        or meta.get("mainline") != "engineering_branch"
+        or not isinstance(decision_id, str)
+        or re.fullmatch(r"decision_[A-Za-z0-9][A-Za-z0-9_.-]{2,190}", decision_id)
+        is None
+        or not isinstance(round_id, str)
+        or re.fullmatch(r"round_[A-Za-z0-9][A-Za-z0-9_.-]{2,191}", round_id)
+        is None
+    ):
+        raise ValueError("invalid_decision_meta_contract")
+    return meta
 
 
 def _sha(value: Any) -> bool:
@@ -215,9 +259,14 @@ def _validate_intent(
     decision_digest = _sha256_blob(
         repo_root, accepted_head, "project_state/decision_packet.md"
     )
+    accepted_decision = _decision_meta_blob(repo_root, accepted_head)
     plan_digest = _sha256_blob(
         repo_root, accepted_head, "project_state/gates/command_plan.json"
     )
+    command_plan = _json_blob(
+        repo_root, accepted_head, "project_state/gates/command_plan.json"
+    )
+    command_plan = command_plan if isinstance(command_plan, Mapping) else {}
     try:
         not_expired = bool(expiry) and _parse_time(expiry) > now
     except ValueError:
@@ -243,8 +292,9 @@ def _validate_intent(
         _check("intent_locked_base", intent.get("locked_base_sha") == locked_base, f"observed={intent.get('locked_base_sha')} expected={locked_base}"),
         _check("intent_merge_method", intent.get("allowed_merge_method") == "merge", f"observed={intent.get('allowed_merge_method')}"),
         _check("intent_decision_fields", set(decision) == {"decision_id", "decision_content_sha256"}, f"observed={sorted(decision)}"),
-        _check("intent_decision_id", decision.get("decision_id") == "decision_20260728_pr60_mainline_landing_repair_v2", f"observed={decision.get('decision_id')}"),
+        _check("intent_decision_id", decision.get("decision_id") == accepted_decision.get("decision_id"), f"observed={decision.get('decision_id')} expected={accepted_decision.get('decision_id')}"),
         _check("intent_decision_digest", _sha256(decision.get("decision_content_sha256")) and decision.get("decision_content_sha256") == decision_digest, f"observed={decision.get('decision_content_sha256')} expected={decision_digest}"),
+        _check("intent_command_plan_identity", command_plan.get("decision_id") == accepted_decision.get("decision_id") and command_plan.get("round_id") == accepted_decision.get("round_id"), f"plan={command_plan.get('decision_id')}/{command_plan.get('round_id')} decision={accepted_decision.get('decision_id')}/{accepted_decision.get('round_id')}"),
         _check("intent_command_plan_digest", _sha256(intent.get("command_plan_sha256")) and intent.get("command_plan_sha256") == plan_digest, f"observed={intent.get('command_plan_sha256')} expected={plan_digest}"),
         _check("intent_merge_tree_policy", intent.get("merge_tree_policy") == "equal_to_accepted_head_tree", f"observed={intent.get('merge_tree_policy')}"),
         _check("intent_workflow_policy", required == list(CANONICAL_WORKFLOW_POLICY), f"observed={required}"),
