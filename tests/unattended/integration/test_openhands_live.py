@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -16,6 +17,9 @@ def test_selected_openhands_health_surface() -> None:
         UrllibJsonTransport(
             os.environ.get("OPENHANDS_BASE_URL", "http://localhost:8000"),
             session_api_key=os.environ.get("OH_SESSION_API_KEYS_0"),
-        )
+        ),
+        host_workspace_root=Path(
+            os.environ.get("UNATTENDED_WORKSPACE_ROOT", ".var/unattended")
+        ).absolute(),
     )
     assert adapter.health() == {"/alive": "PASS", "/health": "PASS"}
