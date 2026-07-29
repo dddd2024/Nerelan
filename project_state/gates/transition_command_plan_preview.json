@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260728_mainline_landing_semantic_rework_v3",
-  "round_id": "round_20260728_mainline_landing_semantic_rework_v3",
+  "decision_id": "decision_20260729_github_contents_base64_normalization_v4",
+  "round_id": "round_20260729_github_contents_base64_normalization_v4",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -131,7 +131,29 @@
     },
     {
       "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_mainline_landing.py tests/test_integration_baseline.py -q",
+      "command": "python -m pytest tests/test_mainline_landing.py -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "regression_test"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.integration_baseline",
+      "command": "python -m pytest tests/test_integration_baseline.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -154,28 +176,6 @@
     {
       "command_id": "test.executor_neutral",
       "command": "python -m pytest tests/executor_neutral -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.transition_contracts",
-      "command": "python -m pytest tests/test_architecture_contracts.py tests/test_planning_and_github_adapters.py tests/test_risk_classifier.py tests/test_minimal_integration_baseline_docs.py -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -241,7 +241,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check",
+      "command": "git diff --check origin/main..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -253,6 +253,29 @@
         "diff_validation"
       ],
       "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "validation.live_pr60_recovery",
+      "command": "python -m reverse_agent.project_gate pr60-historical-recovery --state-dir project_state --json",
+      "phase": "validation",
+      "required": true,
+      "required_evidence_source": "repository_state_attestation",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "remote_observation",
+      "operations": [
+        "repository_observation",
+        "network_access"
+      ],
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -308,8 +331,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue68",
-      "command": "gh issue comment 68 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue70",
+      "command": "gh issue comment 70 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
