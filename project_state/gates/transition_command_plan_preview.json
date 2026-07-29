@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260729_unattended_gate2_owner_audit_rework_v3",
-  "round_id": "round_20260729_unattended_gate2_owner_audit_rework_v3",
+  "decision_id": "decision_20260729_unattended_gate2_audit_closure_v4",
+  "round_id": "round_20260729_unattended_gate2_audit_closure_v4",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -262,8 +262,30 @@
       "allowed_mutated_paths": []
     },
     {
+      "command_id": "probe.secret_preflight",
+      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli secret-preflight --secret-file SECRET_FILE",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "secret_boundary_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
       "command_id": "probe.compose_fresh",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml up -d --wait",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue80-audit -f deploy/unattended/compose.yaml up -d --wait",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -285,8 +307,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.gate2_first",
-      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli gate2-probe",
+      "command_id": "probe.audit_closure",
+      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli audit-closure-probe",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -296,7 +318,7 @@
       "execution_surface": "local",
       "operations": [
         "component_compatibility_validation",
-        "network_access"
+        "secret_boundary_validation"
       ],
       "network_access": true,
       "diagnostic_only": false,
@@ -308,30 +330,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.compose_down_retain",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml down",
-      "phase": "probe",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "container_runtime"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
       "command_id": "probe.compose_cleanup",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue79-gate2 -f deploy/unattended/compose.yaml down -v",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue80-audit -f deploy/unattended/compose.yaml down -v",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -398,31 +398,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue79",
-      "command": "gh issue comment 79 --repo dddd2024/reverse-agent --body-file ISSUE79_COMMENT_TEMP_PATH",
-      "phase": "publication",
-      "required": false,
-      "required_evidence_source": "repository_state_attestation",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "issue_comment",
-        "network_access"
-      ],
-      "network_access": true,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "publication.comment_issue77",
-      "command": "gh issue comment 77 --repo dddd2024/reverse-agent --body-file ISSUE77_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue80",
+      "command": "gh issue comment 80 --repo dddd2024/reverse-agent --body-file ISSUE80_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
