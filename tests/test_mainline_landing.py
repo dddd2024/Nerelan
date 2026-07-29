@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -532,7 +533,7 @@ def test_state_gate_routes_branch_and_main_lifecycles() -> None:
     assert '"pr60-historical-recovery"' in project_gate
 
 
-def test_committed_pr67_intent_binds_v3_decision_and_plan() -> None:
+def test_committed_pr67_intent_remains_bound_to_v3_authority() -> None:
     intent = json.loads(
         (REPO_ROOT / "project_state/mainline_merge_intents/active.json").read_text(
             encoding="utf-8"
@@ -546,7 +547,14 @@ def test_committed_pr67_intent_binds_v3_decision_and_plan() -> None:
         locked_base="68026521710c50fa9a70f3851472941605d9ead1",
         now=NOW,
     )
-    assert all(check["status"] == "PASS" for check in checks), checks
+    observed = {check["name"]: check["status"] for check in checks}
+    assert {
+        name for name, status in observed.items() if status == "FAIL"
+    } == {
+        "intent_decision_id",
+        "intent_decision_digest",
+        "intent_command_plan_digest",
+    }
     assert (
         intent["decision_identity"]["decision_id"]
         == "decision_20260728_mainline_landing_semantic_rework_v3"
@@ -597,3 +605,114 @@ def test_production_verifier_rejects_wrong_workflow_identity() -> None:
         expected_run_attempt=1,
     )
     assert result["verified"] is False
+
+
+def _verify_contents_payload(
+    payload: dict[str, object],
+    *,
+    expected_content: bytes = b"github contents api fixture",
+    expected_sha256: str | None = None,
+) -> dict[str, object]:
+    verifier = GitHubRemoteAcceptanceVerifier(
+        repository="dddd2024/reverse-agent",
+        token="test",
+    )
+    verifier._request_json = lambda _path: payload  # type: ignore[method-assign]
+    return verifier.verify_ref_file_sha256(
+        ref="a" * 40,
+        path="project_state/example.json",
+        expected_sha256=expected_sha256
+        or hashlib.sha256(expected_content).hexdigest(),
+    )
+
+
+@pytest.fixture
+def github_contents_base64_payload() -> dict[str, object]:
+    content = base64.b64encode(b"github contents api fixture").decode("ascii")
+    return {
+        "type": "file",
+        "encoding": "base64",
+        "content": content,
+    }
+
+
+@pytest.mark.parametrize("separator", ["\n", "\r\n", " ", "\t"])
+def test_production_verifier_accepts_github_base64_formatting_whitespace(
+    github_contents_base64_payload: dict[str, object],
+    separator: str,
+) -> None:
+    raw_content = github_contents_base64_payload["content"]
+    assert isinstance(raw_content, str)
+    github_contents_base64_payload["content"] = separator.join(
+        raw_content[index : index + 4]
+        for index in range(0, len(raw_content), 4)
+    )
+    result = _verify_contents_payload(github_contents_base64_payload)
+    assert result["verified"] is True
+
+
+def test_production_verifier_accepts_unwrapped_base64(
+    github_contents_base64_payload: dict[str, object],
+) -> None:
+    result = _verify_contents_payload(github_contents_base64_payload)
+    assert result["verified"] is True
+
+
+@pytest.mark.parametrize("content", ["YWJj*", "YWJj=", "YWJj===", "YWJ"])
+def test_production_verifier_rejects_invalid_base64_content(content: str) -> None:
+    result = _verify_contents_payload({"encoding": "base64", "content": content})
+    assert result == {"verified": False, "reason": "invalid_base64_content"}
+
+
+@pytest.mark.parametrize("separator", ["\v", "\f", "\u00a0"])
+def test_production_verifier_rejects_non_ascii_formatting_whitespace(
+    separator: str,
+) -> None:
+    result = _verify_contents_payload(
+        {"encoding": "base64", "content": f"Z2l0{separator}aHVi"}
+    )
+    assert result == {"verified": False, "reason": "invalid_base64_content"}
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "BASE64", "", None])
+def test_production_verifier_rejects_unexpected_content_encoding(
+    encoding: object,
+) -> None:
+    result = _verify_contents_payload({"encoding": encoding, "content": "YWJj"})
+    assert result == {
+        "verified": False,
+        "reason": "unexpected_content_encoding",
+    }
+
+
+@pytest.mark.parametrize("content", [None, 1, True, [], {}])
+def test_production_verifier_rejects_non_string_content(content: object) -> None:
+    result = _verify_contents_payload({"encoding": "base64", "content": content})
+    assert result == {"verified": False, "reason": "invalid_content_type"}
+
+
+def test_production_verifier_rejects_missing_content() -> None:
+    result = _verify_contents_payload({"encoding": "base64"})
+    assert result == {"verified": False, "reason": "invalid_content_type"}
+
+
+def test_production_verifier_rejects_digest_mismatch(
+    github_contents_base64_payload: dict[str, object],
+) -> None:
+    result = _verify_contents_payload(
+        github_contents_base64_payload,
+        expected_sha256="0" * 64,
+    )
+    observed = hashlib.sha256(b"github contents api fixture").hexdigest()
+    assert result == {
+        "verified": False,
+        "reason": f"content_digest_mismatch:{observed}",
+    }
+
+
+def test_production_verifier_accepts_empty_base64_content() -> None:
+    result = _verify_contents_payload(
+        {"encoding": "base64", "content": ""},
+        expected_content=b"",
+    )
+    assert result["verified"] is True

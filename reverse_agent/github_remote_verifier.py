@@ -22,6 +22,14 @@ class GitHubEvidenceError(RuntimeError):
     """Raised when trusted GitHub evidence cannot be obtained or verified."""
 
 
+def _decode_github_contents_base64(content: str) -> bytes:
+    normalized = content.translate(str.maketrans("", "", " \t\r\n"))
+    try:
+        return base64.b64decode(normalized, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("invalid_base64_content") from exc
+
+
 class GitHubRemoteAcceptanceVerifier:
     """Verify exact GitHub objects against a fixed repository identity."""
 
@@ -172,7 +180,10 @@ class GitHubRemoteAcceptanceVerifier:
             )
             if payload.get("encoding") != "base64":
                 return {"verified": False, "reason": "unexpected_content_encoding"}
-            raw = base64.b64decode(str(payload.get("content") or ""), validate=True)
+            content = payload.get("content")
+            if not isinstance(content, str):
+                return {"verified": False, "reason": "invalid_content_type"}
+            raw = _decode_github_contents_base64(content)
             observed = hashlib.sha256(raw).hexdigest()
             if observed != expected_sha256:
                 return {
