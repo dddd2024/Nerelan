@@ -31600,7 +31600,10 @@ def test_transition_packaging_and_workflow_boundary() -> None:
     assert pyproject["build-system"]["build-backend"] == "setuptools.build_meta"
     assert pyproject["project"]["name"] == "reverse-agent"
     assert pyproject["project"]["requires-python"] == ">=3.13"
-    assert pyproject["project"]["dependencies"] == ["langgraph==1.0.5"]
+    dependencies = pyproject["project"]["dependencies"]
+    expected_dependencies = {"langgraph==1.0.5", "temporalio==1.30.0"}
+    assert len(dependencies) == len(expected_dependencies)
+    assert set(dependencies) == expected_dependencies
     assert pyproject["project"]["optional-dependencies"]["test"] == ["pytest>=8,<9"]
     finder = pyproject["tool"]["setuptools"]["packages"]["find"]
     assert finder["include"] == ["reverse_agent*"]

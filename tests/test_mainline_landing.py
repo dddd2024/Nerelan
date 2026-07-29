@@ -534,9 +534,13 @@ def test_state_gate_routes_branch_and_main_lifecycles() -> None:
     assert '"pr60-historical-recovery"' in project_gate
 
 
-def _committed_blob(path: str) -> bytes:
+PR67_ACCEPTED_HEAD = "4d28cbfb43e4e896ce053907b72d330ce4af15be"
+PR67_BASE = "68026521710c50fa9a70f3851472941605d9ead1"
+
+
+def _committed_blob(path: str, *, commit: str = PR67_ACCEPTED_HEAD) -> bytes:
     return subprocess.check_output(
-        ["git", "cat-file", "blob", f"HEAD:{path}"],
+        ["git", "cat-file", "blob", f"{commit}:{path}"],
         cwd=REPO_ROOT,
     )
 
@@ -573,9 +577,9 @@ def test_committed_pr67_intent_binds_exact_v5_authority() -> None:
     checks = _validate_intent(
         intent,
         repo_root=REPO_ROOT,
-        accepted_head="HEAD",
+        accepted_head=PR67_ACCEPTED_HEAD,
         source_pr=67,
-        locked_base="68026521710c50fa9a70f3851472941605d9ead1",
+        locked_base=PR67_BASE,
         now=NOW,
     )
     assert all(check["status"] == "PASS" for check in checks), checks
@@ -616,9 +620,9 @@ def test_committed_pr67_intent_rejects_stale_v3_authority(
     checks = _validate_intent(
         intent,
         repo_root=REPO_ROOT,
-        accepted_head="HEAD",
+        accepted_head=PR67_ACCEPTED_HEAD,
         source_pr=67,
-        locked_base="68026521710c50fa9a70f3851472941605d9ead1",
+        locked_base=PR67_BASE,
         now=NOW,
     )
     observed = {check["name"]: check["status"] for check in checks}
@@ -646,8 +650,8 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
     )
-    head = _git(repo, "rev-parse", "HEAD")
-    base = "68026521710c50fa9a70f3851472941605d9ead1"
+    head = PR67_ACCEPTED_HEAD
+    base = PR67_BASE
     tree = _git(repo, "rev-parse", f"{head}^{{tree}}")
     merge = _git(
         repo,

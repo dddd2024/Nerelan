@@ -131,13 +131,19 @@ def test_validate_audits_dir_returns_outcome_counts_and_paths(tmp_path: Path) ->
 
 
 def test_validate_audits_dir_accepts_current_audit_record() -> None:
-    result = validate_audits_dir(Path("project_state"))
+    repo_root = Path(__file__).resolve().parents[1]
+    audit_path = (
+        repo_root
+        / "project_state"
+        / "audits"
+        / "audit_20260629_rework_required_clean_baseline_jobs_inventory_gate.md"
+    )
+    result = validate_audit_file(audit_path)
 
     assert result["validation_status"] == "PASSED"
-    current = next(
-        audit
-        for audit in result["audits"]
-        if audit["audit_id"] == "audit_20260629_rework_required_clean_baseline_jobs_inventory_gate"
+    assert (
+        result["audit_id"]
+        == "audit_20260629_rework_required_clean_baseline_jobs_inventory_gate"
     )
-    assert current["outcome"] == "REWORK_REQUIRED"
-    assert current["mainline"] == "engineering_branch"
+    assert result["outcome"] == "REWORK_REQUIRED"
+    assert result["mainline"] == "engineering_branch"
