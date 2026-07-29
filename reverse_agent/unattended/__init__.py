@@ -23,6 +23,19 @@ from .openhands import (
     conversation_id_for,
     prepare_bounded_workspace,
 )
+from .sandbox import (
+    AGENT_SERVER_DIGEST,
+    AGENT_SERVER_IMAGE,
+    ATTEMPT_WORKSPACE_DESTINATION,
+    FIXED_LAUNCH_SPEC,
+    AttemptContainerMetadata,
+    DockerCommandResult,
+    FixedLaunchSpec,
+    SandboxController,
+    SandboxControllerError,
+    SubprocessDockerRunner,
+    container_name_for,
+)
 from .policy import PolicyViolation, resolve_execution_policy
 
 __all__ = [
@@ -45,4 +58,15 @@ __all__ = [
     "workflow_id",
     "workspace_id",
     "workspace_path",
+    "AGENT_SERVER_DIGEST",
+    "AGENT_SERVER_IMAGE",
+    "ATTEMPT_WORKSPACE_DESTINATION",
+    "FIXED_LAUNCH_SPEC",
+    "AttemptContainerMetadata",
+    "DockerCommandResult",
+    "FixedLaunchSpec",
+    "SandboxController",
+    "SandboxControllerError",
+    "SubprocessDockerRunner",
+    "container_name_for",
 ]
