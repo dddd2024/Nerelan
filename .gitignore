@@ -23,6 +23,8 @@ project_state/rounds/*/task_packet.json
 venv/
 env/
 
+.var/unattended/
+
 .idea/
 .vscode/
 

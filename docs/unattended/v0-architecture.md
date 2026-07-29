@@ -1,0 +1,34 @@
+# Unattended base platform v0
+
+This baseline is a bounded integration layer, not a replacement workflow
+engine, sandbox, coding loop, or model gateway.
+
+```text
+MinimalWorkItem
+  -> deterministic Temporal Workflow
+  -> host-side Activities
+  -> OpenHands Agent Server
+  -> bounded Docker sandbox
+  -> LiteLLM proxy
+  -> configured model provider
+```
+
+Temporal owns durable scheduling and replay. PostgreSQL is its durable store.
+The reverse-agent worker owns policy resolution and calls the Agent Server over
+HTTP; it does not control Docker. OpenHands owns its supported coding loop and
+host-side sandbox controller. LiteLLM is the only model endpoint exposed to
+OpenHands.
+
+The development stack derives its Temporal layout from the maintained
+`temporalio/samples-server` PostgreSQL Compose example. Start the pinned stack
+from WSL2/Linux after creating a secret-only `.env`:
+
+```bash
+cd deploy/unattended
+docker compose -f compose.yaml up -d --wait
+```
+
+Runtime workspaces live below the ignored `.var/unattended/` tree. Named
+volumes `temporal-postgresql-data` and `temporal-server-data` retain local
+Temporal state between ordinary container restarts. This is a development
+baseline and is not a production deployment topology.
