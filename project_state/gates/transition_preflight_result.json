@@ -2,18 +2,18 @@
   "schema_version": 1,
   "gate_name": "transition-preflight",
   "gate_status": "PRE_EXECUTION_AUTHORIZED",
-  "decision_id": "decision_20260729_pr67_final_intent_rebind_v5",
-  "round_id": "round_20260729_pr67_final_intent_rebind_v5",
+  "decision_id": "decision_20260729_unattended_gate2_baseline_v1",
+  "round_id": "round_20260729_unattended_gate2_baseline_v1",
   "checks": [
     {
       "name": "decision_identity",
       "status": "PASS",
-      "detail": "observed=decision_20260729_pr67_final_intent_rebind_v5 expected=decision_20260729_pr67_final_intent_rebind_v5"
+      "detail": "observed=decision_20260729_unattended_gate2_baseline_v1 expected=decision_20260729_unattended_gate2_baseline_v1"
     },
     {
       "name": "round_identity",
       "status": "PASS",
-      "detail": "observed=round_20260729_pr67_final_intent_rebind_v5 expected=round_20260729_pr67_final_intent_rebind_v5"
+      "detail": "observed=round_20260729_unattended_gate2_baseline_v1 expected=round_20260729_unattended_gate2_baseline_v1"
     },
     {
       "name": "decision_approved",
@@ -33,22 +33,22 @@
     {
       "name": "branch_identity",
       "status": "PASS",
-      "detail": "observed=codex/pr60-mainline-landing-repair-v2 expected=codex/pr60-mainline-landing-repair-v2"
+      "detail": "observed=codex/unattended-base-platform-v0 expected=codex/unattended-base-platform-v0"
     },
     {
       "name": "base_ancestry",
       "status": "PASS",
-      "detail": "base=68026521710c50fa9a70f3851472941605d9ead1 merge_base=68026521710c50fa9a70f3851472941605d9ead1"
+      "detail": "base=2aacf42dbab7f283454908da861b6ef44990f1d5 merge_base=2aacf42dbab7f283454908da861b6ef44990f1d5"
     },
     {
       "name": "decision_ancestry",
       "status": "PASS",
-      "detail": "decision_commit=cfa83a02a8917e6e6803089e6838805c2997e004"
+      "detail": "decision_commit=25b6b32f09205b517bf72ed3883a6678cfeea372"
     },
     {
       "name": "command_plan_identity",
       "status": "PASS",
-      "detail": "plan=decision_20260729_pr67_final_intent_rebind_v5/round_20260729_pr67_final_intent_rebind_v5"
+      "detail": "plan=decision_20260729_unattended_gate2_baseline_v1/round_20260729_unattended_gate2_baseline_v1"
     },
     {
       "name": "command_plan_contract",

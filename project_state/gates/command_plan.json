@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260729_pr67_final_intent_rebind_v5",
-  "round_id": "round_20260729_pr67_final_intent_rebind_v5",
+  "decision_id": "decision_20260729_unattended_gate2_baseline_v1",
+  "round_id": "round_20260729_unattended_gate2_baseline_v1",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -130,8 +130,8 @@
       ]
     },
     {
-      "command_id": "test.mainline_landing",
-      "command": "python -m pytest tests/test_mainline_landing.py -q",
+      "command_id": "test.unattended_unit",
+      "command": "python -m pytest tests/unattended/unit -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -152,8 +152,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.integration_baseline",
-      "command": "python -m pytest tests/test_integration_baseline.py -q",
+      "command_id": "test.unattended_integration",
+      "command": "python -m pytest tests/unattended/integration -q",
       "phase": "test",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -174,74 +174,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "test.executor_neutral",
-      "command": "python -m pytest tests/executor_neutral -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.transition_runtime",
-      "command": "python -m pytest tests/test_control_plane_transition.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "test.project_gate",
-      "command": "python -m pytest tests/test_project_gate.py -q",
-      "phase": "test",
-      "required": true,
-      "required_evidence_source": "local_command_evidence",
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "local",
-      "operations": [
-        "regression_test"
-      ],
-      "network_access": false,
-      "diagnostic_only": false,
-      "allowed_only_after_validation": false,
-      "authority_origin": "normal_plan",
-      "bootstrap_exception": false,
-      "produced_artifacts": [],
-      "subject_to_reconciliation": true,
-      "allowed_mutated_paths": []
-    },
-    {
-      "command_id": "validation.integration_baseline",
-      "command": "python -m reverse_agent.project_gate integration-baseline --state-dir project_state",
+      "command_id": "validation.compose_config",
+      "command": "docker compose -f deploy/unattended/compose.yaml config --quiet",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -250,7 +184,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "repository_observation"
+        "container_configuration_validation"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -262,8 +196,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "validation.production_pre_merge_simulation",
-      "command": "python -m pytest tests/test_mainline_landing.py -q -k production_pre_merge_simulation",
+      "command_id": "validation.doctor",
+      "command": "python -m reverse_agent.unattended.cli doctor",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -272,8 +206,29 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "regression_test",
-        "repository_observation"
+        "component_health_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "test.full_regression",
+      "command": "python -m pytest -q",
+      "phase": "test",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "regression_test"
       ],
       "network_access": false,
       "diagnostic_only": false,
@@ -286,7 +241,7 @@
     },
     {
       "command_id": "validation.diff_check",
-      "command": "git diff --check origin/main..HEAD",
+      "command": "git diff --check 2aacf42dbab7f283454908da861b6ef44990f1d5..HEAD",
       "phase": "validation",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -307,17 +262,63 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "validation.live_pr60_recovery",
-      "command": "python -m reverse_agent.project_gate pr60-historical-recovery --state-dir project_state --json",
-      "phase": "validation",
+      "command_id": "probe.python313_temporal",
+      "command": "python3.13 -c \"import temporalio; print(temporalio.__version__)\"",
+      "phase": "probe",
       "required": true,
-      "required_evidence_source": "repository_state_attestation",
+      "required_evidence_source": "local_command_evidence",
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "remote_observation",
+      "execution_surface": "local",
       "operations": [
-        "repository_observation",
+        "component_compatibility_validation"
+      ],
+      "network_access": false,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.compose_up",
+      "command": "docker compose -f deploy/unattended/compose.yaml up -d --wait",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "container_runtime",
+        "network_access"
+      ],
+      "network_access": true,
+      "diagnostic_only": false,
+      "allowed_only_after_validation": false,
+      "authority_origin": "normal_plan",
+      "bootstrap_exception": false,
+      "produced_artifacts": [],
+      "subject_to_reconciliation": true,
+      "allowed_mutated_paths": []
+    },
+    {
+      "command_id": "probe.gate2",
+      "command": "python -m reverse_agent.unattended.cli gate2-probe",
+      "phase": "probe",
+      "required": true,
+      "required_evidence_source": "local_command_evidence",
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "local",
+      "operations": [
+        "component_compatibility_validation",
+        "model_api_invocation",
         "network_access"
       ],
       "network_access": true,
@@ -331,7 +332,7 @@
     },
     {
       "command_id": "publication.push_branch",
-      "command": "git push origin codex/pr60-mainline-landing-repair-v2",
+      "command": "git push -u origin codex/unattended-base-platform-v0",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -353,8 +354,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.update_pr_body",
-      "command": "gh pr edit 67 --repo dddd2024/reverse-agent --body-file PR_BODY_TEMP_PATH",
+      "command_id": "publication.create_draft_pr",
+      "command": "gh pr create --repo dddd2024/reverse-agent --base main --head codex/unattended-base-platform-v0 --draft --title \"Gate 2: unattended base platform v0\" --body-file PR_BODY_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -363,7 +364,7 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "pull_request_edit",
+        "pull_request_create",
         "network_access"
       ],
       "network_access": true,
@@ -376,8 +377,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue71",
-      "command": "gh issue comment 71 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue76",
+      "command": "gh issue comment 76 --repo dddd2024/reverse-agent --body-file ISSUE_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -399,8 +400,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_pr67",
-      "command": "gh pr comment 67 --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_draft_pr",
+      "command": "gh pr comment PR_NUMBER --repo dddd2024/reverse-agent --body-file PR_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
@@ -423,7 +424,7 @@
     },
     {
       "command_id": "observation.exact_head_checks",
-      "command": "gh pr checks 67 --repo dddd2024/reverse-agent --watch",
+      "command": "gh pr checks PR_NUMBER --repo dddd2024/reverse-agent --watch",
       "phase": "observation",
       "required": false,
       "required_evidence_source": "repository_state_attestation",
