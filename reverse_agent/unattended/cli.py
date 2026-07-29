@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .probe import run_temporal_probe
+from .sandbox_probe import run_sandbox_boundary_probe
 from .component_lock import load_component_lock
 from .secrets import executor_key_secret_preflight, provider_secret_preflight
 
@@ -123,6 +124,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--secret-file",
         default=os.environ.get("UNATTENDED_LITELLM_EXECUTOR_KEY_FILE"),
     )
+    sandbox_probe = subparsers.add_parser("sandbox-boundary-probe")
+    sandbox_probe.add_argument(
+        "--compose-project",
+        default=os.environ.get(
+            "UNATTENDED_COMPOSE_PROJECT",
+            "reverse-agent-issue81-sandbox",
+        ),
+    )
+    sandbox_probe.add_argument(
+        "--executor-key-file",
+        default=os.environ.get("UNATTENDED_LITELLM_EXECUTOR_KEY_FILE"),
+    )
     args = parser.parse_args(argv)
     if args.command == "doctor":
         report = doctor_report()
@@ -135,10 +148,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.secret_file,
             repository_root=_repo_root(),
         )
-    else:
+    elif args.command == "executor-key-preflight":
         report = executor_key_secret_preflight(
             args.secret_file,
             repository_root=_repo_root(),
+        )
+    else:
+        key_file = (
+            Path(args.executor_key_file)
+            if args.executor_key_file
+            else Path("")
+        )
+        report = run_sandbox_boundary_probe(
+            repository_root=_repo_root(),
+            compose_project=args.compose_project,
+            executor_key_file=key_file,
         )
     print(json.dumps(report, sort_keys=True))
     return 0 if report["status"] == "PASS" else 1
