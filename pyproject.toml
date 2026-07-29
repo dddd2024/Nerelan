@@ -7,7 +7,7 @@ name = "reverse-agent"
 version = "0.1.0"
 description = "Reverse-agent governance and control-plane tooling"
 requires-python = ">=3.13"
-dependencies = ["langgraph==1.0.5"]
+dependencies = ["langgraph==1.0.5", "temporalio==1.30.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<9"]
