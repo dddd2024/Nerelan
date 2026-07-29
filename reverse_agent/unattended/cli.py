@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from .probe import run_temporal_probe
+from .component_lock import load_component_lock
 
-_PROJECTION_SHA256 = "e7c334033f8999d7b53fdd7b4b34e4469c3f87a871d4524e4270c707b7f2f83d"
 _REQUIRED_SECRET_NAMES = (
     "POSTGRES_PASSWORD",
     "OH_SESSION_API_KEYS_0",
@@ -32,13 +32,14 @@ def doctor_report() -> dict[str, Any]:
     root = _repo_root()
     lock_path = root / "deploy" / "unattended" / "component-lock.yaml"
     compose_path = root / "deploy" / "unattended" / "compose.yaml"
+    lock = load_component_lock(lock_path)
     lock_text = lock_path.read_text(encoding="utf-8")
     compose_text = compose_path.read_text(encoding="utf-8")
     version = importlib.metadata.version("temporalio")
     checks = {
         "python_at_least_3_13": tuple(__import__("sys").version_info[:2]) >= (3, 13),
         "temporalio_exact_1_30_0": version == "1.30.0",
-        "component_projection_present": _PROJECTION_SHA256 in lock_text,
+        "component_projection_valid": bool(lock["projection_sha256"]),
         "floating_latest_absent": "latest" not in lock_text.lower()
         and "latest" not in compose_text.lower(),
         "github_token_not_in_runtime_compose": "GITHUB_TOKEN" not in compose_text,

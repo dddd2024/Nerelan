@@ -28,6 +28,16 @@ cd deploy/unattended
 docker compose -f compose.yaml up -d --wait
 ```
 
+The Compose baseline creates the Temporal `default` namespace automatically and
+idempotently. The same command is valid for a fresh project and after a
+`docker compose down` that retains its named volumes; no manual schema or
+namespace command is part of the startup contract.
+
+Published development ports default to
+`${UNATTENDED_BIND_ADDRESS:-127.0.0.1}`. Setting a broader address is an
+explicit local-development opt-in, not a production topology. Internal service
+traffic remains on the private Compose `control` network.
+
 Runtime workspaces live below the ignored `.var/unattended/` tree. Named
 volumes `temporal-postgresql-data` and `temporal-server-data` retain local
 Temporal state between ordinary container restarts. This is a development
