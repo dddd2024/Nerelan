@@ -21,12 +21,20 @@ OpenHands.
 
 The development stack derives its Temporal layout from the maintained
 `temporalio/samples-server` PostgreSQL Compose example. Start the pinned stack
-from WSL2/Linux after creating a secret-only `.env`:
+from WSL2/Linux after creating a local `.env` for non-provider service
+credentials and a temporary `0600` provider file outside the repository:
 
 ```bash
 cd deploy/unattended
+export UNATTENDED_OPENAI_API_KEY_FILE=/tmp/reverse-agent-openai-api-key
+python -m reverse_agent.unattended.cli secret-preflight
 docker compose -f compose.yaml up -d --wait
 ```
+
+`UNATTENDED_OPENAI_API_KEY_FILE` is a non-secret path. Compose mounts that file
+only into LiteLLM; it does not put the provider value in any service
+environment or expose it to OpenHands, the worker, sandbox, Temporal, or
+PostgreSQL.
 
 The Compose baseline creates the Temporal `default` namespace automatically and
 idempotently. The same command is valid for a fresh project and after a

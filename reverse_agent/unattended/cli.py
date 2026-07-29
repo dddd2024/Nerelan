@@ -14,6 +14,7 @@ from typing import Any
 
 from .probe import run_temporal_probe
 from .component_lock import load_component_lock
+from .secrets import provider_secret_preflight
 
 _REQUIRED_SECRET_NAMES = (
     "POSTGRES_PASSWORD",
@@ -43,6 +44,11 @@ def doctor_report() -> dict[str, Any]:
         "floating_latest_absent": "latest" not in lock_text.lower()
         and "latest" not in compose_text.lower(),
         "github_token_not_in_runtime_compose": "GITHUB_TOKEN" not in compose_text,
+        "provider_key_not_in_runtime_environment": "OPENAI_API_KEY:" not in compose_text,
+        "provider_secret_file_boundary": (
+            "UNATTENDED_OPENAI_API_KEY_FILE" in compose_text
+            and "source: openai_api_key" in compose_text
+        ),
         "worker_has_no_docker_socket": "reverse-agent-worker" not in compose_text
         or "/var/run/docker.sock" not in _service_block(
             compose_text, "reverse-agent-worker"
@@ -97,12 +103,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--temporal-namespace",
         default=os.environ.get("TEMPORAL_NAMESPACE", "default"),
     )
+    secret_preflight = subparsers.add_parser("secret-preflight")
+    secret_preflight.add_argument(
+        "--secret-file",
+        default=os.environ.get("UNATTENDED_OPENAI_API_KEY_FILE"),
+    )
     args = parser.parse_args(argv)
     if args.command == "doctor":
         report = doctor_report()
-    else:
+    elif args.command == "gate2-probe":
         report = asyncio.run(
             _gate2_report(args.temporal_address, args.temporal_namespace)
+        )
+    else:
+        report = provider_secret_preflight(
+            args.secret_file,
+            repository_root=_repo_root(),
         )
     print(json.dumps(report, sort_keys=True))
     return 0 if report["status"] == "PASS" else 1

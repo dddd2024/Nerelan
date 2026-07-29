@@ -108,13 +108,17 @@ services:
 
   litellm:
     image: ghcr.io/berriai/litellm:v1.94.0@sha256:65d84a2282137b4dc73bbe184650a7c807177c533e4223b3bfbc87963fe3fabe
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    entrypoint: ["/bin/sh", "/app/litellm-entrypoint.sh"]
     environment:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    secrets:
+      - source: openai_api_key
+        target: openai_api_key
+        mode: 0400
     volumes:
       - ./litellm.config.example.yaml:/app/config.yaml:ro
+      - ./litellm-entrypoint.sh:/app/litellm-entrypoint.sh:ro
     ports:
       - "${UNATTENDED_BIND_ADDRESS:-127.0.0.1}:4000:4000"
     healthcheck:
@@ -169,3 +173,7 @@ networks:
 volumes:
   temporal-postgresql-data:
   temporal-server-data:
+
+secrets:
+  openai_api_key:
+    file: ${UNATTENDED_OPENAI_API_KEY_FILE:-/tmp/reverse-agent-missing-openai-api-key}
