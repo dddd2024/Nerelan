@@ -152,7 +152,7 @@ class SandboxController:
         self._validate_handle(handle)
         existing = self.inspect(handle)
         if existing is not None:
-            return existing
+            return self._require_running(existing)
 
         workspace = self._workspace_for(handle)
         result = self._runner.run(
@@ -162,12 +162,12 @@ class SandboxController:
         if result.returncode != 0:
             raced = self.inspect(handle)
             if raced is not None:
-                return raced
+                return self._require_running(raced)
             raise SandboxControllerError("docker_container_create_failed")
         created = self.inspect(handle)
         if created is None:
             raise SandboxControllerError("docker_container_missing_after_create")
-        return created
+        return self._require_running(created)
 
     def inspect(self, handle: ExecutionHandle) -> AttemptContainerMetadata | None:
         self._validate_handle(handle)
@@ -200,6 +200,14 @@ class SandboxController:
     def _require_fixed_spec(spec: FixedLaunchSpec) -> None:
         if spec is not FIXED_LAUNCH_SPEC:
             raise ValueError("untrusted_launch_spec")
+
+    @staticmethod
+    def _require_running(
+        metadata: AttemptContainerMetadata,
+    ) -> AttemptContainerMetadata:
+        if metadata.state != "running":
+            raise SandboxControllerError("attempt_container_not_running")
+        return metadata
 
     @staticmethod
     def _validate_handle(handle: ExecutionHandle) -> None:
@@ -237,13 +245,13 @@ class SandboxController:
             "--memory",
             "1g",
             "--tmpfs",
-            "/tmp:rw,noexec,nosuid,size=64m",
+            "/tmp:rw,exec,nosuid,nodev,size=512m",
             "--tmpfs",
             "/home/openhands:rw,nosuid,size=128m",
             "--mount",
             (
                 f"type=bind,src={workspace},"
-                f"dst={ATTEMPT_WORKSPACE_DESTINATION},rw"
+                f"dst={ATTEMPT_WORKSPACE_DESTINATION}"
             ),
             "--workdir",
             ATTEMPT_WORKSPACE_DESTINATION,
@@ -267,7 +275,8 @@ class SandboxController:
         host = _mapping(item, "HostConfig")
         state = _mapping(item, "State")
         mounts = item.get("Mounts")
-        networks = _mapping(_mapping(item, "NetworkSettings"), "Networks")
+        network_settings = _mapping(item, "NetworkSettings")
+        networks = _mapping(network_settings, "Networks")
         labels = config.get("Labels")
         env = config.get("Env")
         security_opt = host.get("SecurityOpt")

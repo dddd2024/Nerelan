@@ -18,8 +18,6 @@ from .secrets import provider_secret_preflight
 
 _REQUIRED_SECRET_NAMES = (
     "POSTGRES_PASSWORD",
-    "OH_SESSION_API_KEYS_0",
-    "OH_SECRET_KEY",
     "LITELLM_MASTER_KEY",
     "LITELLM_SALT_KEY",
 )
@@ -52,6 +50,12 @@ def doctor_report() -> dict[str, Any]:
         "worker_has_no_docker_socket": "reverse-agent-worker" not in compose_text
         or "/var/run/docker.sock" not in _service_block(
             compose_text, "reverse-agent-worker"
+        ),
+        "long_lived_agent_server_absent": "  agent-server:" not in compose_text,
+        "docker_socket_absent_from_compose": "/var/run/docker.sock" not in compose_text,
+        "internal_model_executor_network": (
+            "  model-executor:" in compose_text
+            and "    internal: true" in compose_text
         ),
     }
     return {

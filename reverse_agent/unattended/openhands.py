@@ -20,6 +20,7 @@ _UNSAFE_STATUSES = frozenset(
 )
 _MODEL = "openai/unattended-v0"
 _LITELLM_BASE_URL = "http://litellm:4000/v1"
+_AGENT_ATTEMPT_ROOT = PurePosixPath("/workspace/attempt")
 _MIN_MAX_ITERATIONS = 1
 _MAX_MAX_ITERATIONS = 20
 _AUDIT_TOOLS = (
@@ -132,20 +133,11 @@ class OpenHandsAdapter:
         transport: JsonTransport,
         *,
         host_workspace_root: Path,
-        agent_workspace_root: str = "/workspace",
     ) -> None:
         if not host_workspace_root.is_absolute():
             raise ValueError("host_workspace_root_must_be_absolute")
-        agent_root = PurePosixPath(agent_workspace_root)
-        if (
-            not agent_root.is_absolute()
-            or ".." in agent_root.parts
-            or "\x00" in agent_workspace_root
-        ):
-            raise ValueError("agent_workspace_root_invalid")
         self._transport = transport
         self._host_workspace_root = host_workspace_root
-        self._agent_workspace_root = agent_root
 
     def health(self) -> dict[str, str]:
         checks: dict[str, str] = {}
@@ -361,9 +353,7 @@ class OpenHandsAdapter:
         host_workspace = prepare_bounded_workspace(
             self._host_workspace_root, expected
         )
-        agent_workspace = self._agent_workspace_root.joinpath(
-            *PurePosixPath(expected).parts
-        ).as_posix()
+        agent_workspace = _AGENT_ATTEMPT_ROOT.as_posix()
         return expected, host_workspace, agent_workspace
 
     def _assert_workspace_still_bound(

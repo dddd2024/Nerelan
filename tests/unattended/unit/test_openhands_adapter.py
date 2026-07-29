@@ -59,7 +59,6 @@ def _adapter(transport: FakeTransport, tmp_path: Path) -> OpenHandsAdapter:
     return OpenHandsAdapter(
         transport,
         host_workspace_root=(tmp_path / "host-workspaces").absolute(),
-        agent_workspace_root="/workspace",
     )
 
 
@@ -133,7 +132,7 @@ def test_start_task_creates_and_runs_exactly_one_conversation(tmp_path: Path) ->
     assert create[2]["conversation_id"] == expected  # type: ignore[index]
     assert create[2]["workspace"] == {  # type: ignore[index]
         "kind": "LocalWorkspace",
-        "working_dir": f"/workspace/{_attempt_workspace()}",
+        "working_dir": "/workspace/attempt",
     }
     assert create[2]["secrets"] == {}  # type: ignore[index]
     assert create[2] == {  # type: ignore[comparison-overlap]
@@ -154,7 +153,7 @@ def test_start_task_creates_and_runs_exactly_one_conversation(tmp_path: Path) ->
         "conversation_id": expected,
         "workspace": {
             "kind": "LocalWorkspace",
-            "working_dir": f"/workspace/{_attempt_workspace()}",
+            "working_dir": "/workspace/attempt",
         },
         "worktree": False,
         "initial_message": {

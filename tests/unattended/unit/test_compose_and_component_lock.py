@@ -45,7 +45,7 @@ def test_component_lock_rejects_floating_or_projection_drift(
 
 def test_all_published_ports_default_to_loopback() -> None:
     compose = (DEPLOY / "compose.yaml").read_text(encoding="utf-8")
-    for port in (7233, 8080, 4000, 8000, 3000):
+    for port in (7233, 8080, 4000, 3000):
         assert (
             f'"${{UNATTENDED_BIND_ADDRESS:-127.0.0.1}}:{port}:{port}"'
             in compose
@@ -53,8 +53,20 @@ def test_all_published_ports_default_to_loopback() -> None:
     assert '"7233:7233"' not in compose
     assert '"8080:8080"' not in compose
     assert '"4000:4000"' not in compose
-    assert '"8000:8000"' not in compose
     assert '"3000:3000"' not in compose
+
+
+def test_compose_separates_control_from_internal_model_executor_network() -> None:
+    compose = (DEPLOY / "compose.yaml").read_text(encoding="utf-8")
+
+    assert "\n  agent-server:\n" not in compose
+    assert "/var/run/docker.sock" not in compose
+    assert "\n  model-executor:\n" in compose
+    assert "    internal: true" in compose
+    assert "aliases: [litellm-executor]" in compose
+    for service in ("temporal", "postgresql", "temporal-ui"):
+        block = compose.split(f"\n  {service}:\n", 1)[1].split("\n  ", 1)[0]
+        assert "model-executor" not in block
 
 
 def test_temporal_bootstrap_is_automatic_and_idempotent() -> None:
@@ -87,8 +99,6 @@ def test_resolved_compose_mounts_provider_secret_only_into_litellm(
     environment.update(
         {
             "POSTGRES_PASSWORD": "synthetic-postgres",
-            "OH_SESSION_API_KEYS_0": "synthetic-session",
-            "OH_SECRET_KEY": "synthetic-oh",
             "LITELLM_MASTER_KEY": "synthetic-litellm",
             "LITELLM_SALT_KEY": "synthetic-salt",
             "UNATTENDED_OPENAI_API_KEY_FILE": str(secret_file),
@@ -130,6 +140,8 @@ def test_resolved_compose_mounts_provider_secret_only_into_litellm(
         environment_values = service.get("environment", {})
         assert "OPENAI_API_KEY" not in environment_values
         assert provider_value not in json.dumps(environment_values, sort_keys=True)
+    assert set(services["litellm"]["networks"]) == {"control", "model-executor"}
+    assert resolved["networks"]["model-executor"]["internal"] is True
     assert provider_value not in completed.stdout
 
 

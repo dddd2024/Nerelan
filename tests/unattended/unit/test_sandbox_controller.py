@@ -73,7 +73,7 @@ def _inspect_payload(
             "NanoCpus": 1000000000,
             "PidsLimit": 128,
             "Tmpfs": {
-                "/tmp": "rw,noexec,nosuid,size=64m",
+                "/tmp": "rw,exec,nosuid,nodev,size=512m",
                 "/home/openhands": "rw,nosuid,size=128m",
             },
         },
@@ -86,7 +86,9 @@ def _inspect_payload(
                 "RW": True,
             }
         ],
-        "NetworkSettings": {"Networks": {_NETWORK: {}}},
+        "NetworkSettings": {
+            "Networks": {_NETWORK: {}},
+        },
     }
     for dotted, value in (overrides or {}).items():
         current: dict[str, object] = payload
@@ -236,6 +238,21 @@ def test_failed_create_without_reconciled_container_is_sanitized(
     with pytest.raises(
         SandboxControllerError, match="docker_container_create_failed"
     ):
+        _controller(tmp_path, runner).launch_or_reconcile(
+            _handle(), FIXED_LAUNCH_SPEC
+        )
+
+
+def test_reconcile_rejects_nonrunning_container(tmp_path: Path) -> None:
+    root = (tmp_path / "attempts").absolute()
+    runner = StatefulRunner(
+        root,
+        _handle(),
+        exists=True,
+        overrides={"State.Status": "exited"},
+    )
+
+    with pytest.raises(SandboxControllerError, match="not_running"):
         _controller(tmp_path, runner).launch_or_reconcile(
             _handle(), FIXED_LAUNCH_SPEC
         )

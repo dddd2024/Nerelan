@@ -7,17 +7,19 @@ engine, sandbox, coding loop, or model gateway.
 MinimalWorkItem
   -> deterministic Temporal Workflow
   -> host-side Activities
-  -> OpenHands Agent Server
-  -> bounded Docker sandbox
+  -> thin trusted SandboxController
+  -> one bounded OpenHands Agent Server Attempt container
   -> LiteLLM proxy
   -> configured model provider
 ```
 
 Temporal owns durable scheduling and replay. PostgreSQL is its durable store.
-The reverse-agent worker owns policy resolution and calls the Agent Server over
-HTTP; it does not control Docker. OpenHands owns its supported coding loop and
-host-side sandbox controller. LiteLLM is the only model endpoint exposed to
-OpenHands.
+The reverse-agent worker owns policy resolution and does not control Docker.
+The separate thin trusted `SandboxController` is the sole Docker authority and
+launches the pinned OpenHands Agent Server image once per Attempt. OpenHands
+continues to own its coding loop and local Terminal/File Editor execution, but
+that execution occurs inside the disposable bounded Attempt container.
+LiteLLM is its only reachable model endpoint.
 
 The development stack derives its Temporal layout from the maintained
 `temporalio/samples-server` PostgreSQL Compose example. Start the pinned stack
@@ -43,8 +45,16 @@ namespace command is part of the startup contract.
 
 Published development ports default to
 `${UNATTENDED_BIND_ADDRESS:-127.0.0.1}`. Setting a broader address is an
-explicit local-development opt-in, not a production topology. Internal service
-traffic remains on the private Compose `control` network.
+explicit local-development opt-in, not a production topology. Internal
+control-plane traffic remains on the private Compose `control` network.
+LiteLLM is additionally attached to the internal `model-executor` network.
+Attempt containers join only `model-executor`; Temporal, PostgreSQL, Canvas,
+and the other control services do not.
+
+Agent Server port 8000 is not published by the long-lived Compose stack or the
+Attempt launch profile. Audit control stays at the trusted Docker boundary;
+the ordinary worker receives neither a Docker socket nor an additional
+network path into the Attempt.
 
 Runtime workspaces live below the ignored `.var/unattended/` tree. Named
 volumes `temporal-postgresql-data` and `temporal-server-data` retain local

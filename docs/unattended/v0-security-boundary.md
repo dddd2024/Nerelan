@@ -9,8 +9,9 @@ Secret boundaries:
 
 - `GITHUB_TOKEN` remains host-side and is never passed to OpenHands, Agent
   Canvas, LiteLLM, or a sandbox.
-- OpenHands receives only the fixed local LiteLLM endpoint configuration,
-  never the upstream model-provider credential.
+- each disposable OpenHands Attempt receives only the fixed local LiteLLM
+  executor endpoint and its bounded execution credential, never the upstream
+  provider credential or LiteLLM master key.
 - the provider credential is a Docker Compose file secret mounted only at
   `/run/secrets/openai_api_key` in LiteLLM. The fixed wrapper reads it inside
   that container and immediately `exec`s the pinned LiteLLM command.
@@ -39,8 +40,14 @@ Docker boundaries:
 
 - the reverse-agent worker has no Docker socket mount and cannot create
   containers directly;
-- only the OpenHands host-side sandbox controller receives the socket;
-- sandbox work is restricted to the attempt workspace;
+- only the separate trusted `SandboxController` process may address Docker;
+- the AI-controlled Agent Server container has no Docker socket;
+- sandbox work is restricted to its single RW Attempt-workspace bind;
+- the root filesystem is read-only, temporary paths are tmpfs, all
+  capabilities are dropped, `no-new-privileges` is set, and CPU, memory, and
+  PID counts are bounded;
+- the Attempt joins only an internal network shared with LiteLLM, with no
+  public egress or control-service attachment;
 - the adapter rejects path traversal and symlinks before submitting work.
 
 Agent output is evidence, not platform acceptance. Deterministic acceptance

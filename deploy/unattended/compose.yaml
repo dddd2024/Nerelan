@@ -127,39 +127,13 @@ services:
       timeout: 5s
       retries: 30
       start_period: 20s
-    networks: [control]
-
-  agent-server:
-    image: ghcr.io/openhands/agent-server:1.37.0-python@sha256:c188dac7624d486331b455042d54abe020af43b843c2c02694deccecfbed487a
-    depends_on:
-      litellm:
-        condition: service_healthy
-    environment:
-      OH_SESSION_API_KEYS_0: ${OH_SESSION_API_KEYS_0}
-      OH_SECRET_KEY: ${OH_SECRET_KEY}
-      LLM_API_KEY: ${LITELLM_MASTER_KEY}
-      LLM_BASE_URL: http://litellm:4000/v1
-      LLM_MODEL: openai/unattended-v0
-      OH_AGENT_SERVER_ENV: '{"LLM_API_KEY":"${LITELLM_MASTER_KEY}","LLM_BASE_URL":"http://litellm:4000/v1","LLM_MODEL":"openai/unattended-v0"}'
-      SANDBOX_VOLUMES: ${UNATTENDED_WORKSPACE_ROOT:-../../.var/unattended}:/workspace:rw
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${UNATTENDED_WORKSPACE_ROOT:-../../.var/unattended}:/workspace:rw
-    ports:
-      - "${UNATTENDED_BIND_ADDRESS:-127.0.0.1}:8000:8000"
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/alive', timeout=3)\""]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 20s
-    networks: [control]
+    networks:
+      control:
+      model-executor:
+        aliases: [litellm-executor]
 
   agent-canvas:
     image: ghcr.io/openhands/agent-canvas:1.6.1@sha256:98203471b02490b3c5bea8e9525c883519a794c5695989c8ba18c284d11d002d
-    depends_on:
-      agent-server:
-        condition: service_healthy
     environment:
       VITE_BACKEND_HOST: http://localhost:8000
     ports:
@@ -169,6 +143,9 @@ services:
 networks:
   control:
     driver: bridge
+  model-executor:
+    driver: bridge
+    internal: true
 
 volumes:
   temporal-postgresql-data:
