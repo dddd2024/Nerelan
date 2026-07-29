@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mainline_merge_intent.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "intent_id",
+    "repository",
+    "source_pr",
+    "locked_base_sha",
+    "allowed_merge_method",
+    "decision_identity",
+    "command_plan_sha256",
+    "merge_tree_policy",
+    "required_workflows",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "intent_id": {"type": "string", "minLength": 1},
+    "repository": {"const": "dddd2024/reverse-agent"},
+    "source_pr": {"type": "integer", "minimum": 1},
+    "locked_base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "allowed_merge_method": {"const": "merge"},
+    "decision_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision_id", "decision_content_sha256"],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "minLength": 12,
+          "maxLength": 200,
+          "pattern": "^decision_[A-Za-z0-9][A-Za-z0-9_.-]+$"
+        },
+        "decision_content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "command_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "merge_tree_policy": {"const": "equal_to_accepted_head_tree"},
+    "required_workflows": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "CI"},
+        {"const": "Decision Preflight"},
+        {"const": "State Gate (pull_request)"},
+        {"const": "State Gate (push)"}
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "expires_at": {"type": "string"}
+  }
+}

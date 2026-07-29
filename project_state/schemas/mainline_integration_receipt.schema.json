@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mainline_integration_receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "receipt_status",
+    "validation_status",
+    "merge_commit_sha",
+    "first_parent_sha",
+    "second_parent_sha",
+    "intent_id",
+    "attestation_id",
+    "blocking_reasons",
+    "emitted_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "receipt_id": {"type": "string"},
+    "receipt_status": {"enum": ["EMITTED", "BLOCKED"]},
+    "validation_status": {"enum": ["PASSED", "BLOCKED"]},
+    "merge_commit_sha": {"type": "string"},
+    "first_parent_sha": {"type": "string"},
+    "second_parent_sha": {"type": "string"},
+    "intent_id": {"type": "string"},
+    "attestation_id": {"type": "string"},
+    "blocking_reasons": {"type": "array", "items": {"type": "string"}},
+    "emitted_at": {"type": "string"}
+  }
+}

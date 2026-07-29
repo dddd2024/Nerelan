@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260727_executor_neutral_binding_rework_v2",
-  "round_id": "round_20260727_executor_neutral_binding_rework_v2",
-  "expired_at": "2026-07-27T13:36:40+00:00"
+  "decision_id": "decision_20260729_pr67_final_intent_rebind_v5",
+  "round_id": "round_20260729_pr67_final_intent_rebind_v5",
+  "expired_at": "2026-07-29T04:31:11+00:00"
 }

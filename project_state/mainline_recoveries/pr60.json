@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "recovery_id": "pr60_exact_historical_recovery_v1",
+  "status": "EXACT_HISTORICAL_RECOVERY",
+  "non_retroactive": true,
+  "repository": "dddd2024/reverse-agent",
+  "source_pr": 60,
+  "accepted_head_sha": "0ab750cf0ea49463d29577948becc768a6c176b8",
+  "locked_base_sha": "61570724495aa7053eba78bd2e34d8bda22f6407",
+  "merge_commit_sha": "68026521710c50fa9a70f3851472941605d9ead1",
+  "expected_parent_shas": [
+    "61570724495aa7053eba78bd2e34d8bda22f6407",
+    "0ab750cf0ea49463d29577948becc768a6c176b8"
+  ],
+  "merge_method": "merge",
+  "authorization_issue": 63,
+  "authorization_comment_id": 5099339493,
+  "authorization_comment_body_sha256": "8bd6d1a633afe06b1111910b735e9d7254f378e69d35b6681c122d02bfaebf29",
+  "authorization_branch": "codex/pr60-final-merge-authorization-v1",
+  "authorization_head_sha": "7e2ef47b22d742fafc5a5e15808792cb62a2328a",
+  "authorization_decision_id": "decision_20260727_pr60_final_merge_authorization_v1",
+  "authorization_decision_sha256": "690718066e324dfdccef7fffb0835ea40f93507e6e6ab898d3264c150934b00f",
+  "authorization_command_plan_sha256": "ff27c9212a43c5c5dc5df44406a1d6c243ba0f39a0e69d55a80baa2345735282",
+  "accepted_audit_head_sha": "0ab750cf0ea49463d29577948becc768a6c176b8",
+  "workflow_observations": [
+    {
+      "name": "CI",
+      "run_id": 30271833155,
+      "workflow_file": ".github/workflows/ci.yml",
+      "event": "pull_request",
+      "run_attempt": 1,
+      "head_sha": "0ab750cf0ea49463d29577948becc768a6c176b8",
+      "conclusion": "success"
+    },
+    {
+      "name": "Decision Preflight",
+      "run_id": 30271834920,
+      "workflow_file": ".github/workflows/decision-preflight.yml",
+      "event": "pull_request",
+      "run_attempt": 1,
+      "head_sha": "0ab750cf0ea49463d29577948becc768a6c176b8",
+      "conclusion": "success"
+    },
+    {
+      "name": "State Gate (pull_request)",
+      "run_id": 30271833403,
+      "workflow_file": ".github/workflows/state-gate.yml",
+      "event": "pull_request",
+      "run_attempt": 1,
+      "head_sha": "0ab750cf0ea49463d29577948becc768a6c176b8",
+      "conclusion": "success"
+    },
+    {
+      "name": "State Gate (push)",
+      "run_id": 30271829010,
+      "workflow_file": ".github/workflows/state-gate.yml",
+      "event": "push",
+      "run_attempt": 1,
+      "head_sha": "0ab750cf0ea49463d29577948becc768a6c176b8",
+      "conclusion": "success"
+    }
+  ],
+  "allowed_approvers": ["dddd2024"]
+}

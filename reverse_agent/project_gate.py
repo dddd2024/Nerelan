@@ -46,6 +46,14 @@ from .architecture.report_truth import (
     RemoteObservation,
     ReportTruth,
 )
+from .github_remote_verifier import GitHubEvidenceError, GitHubRemoteAcceptanceVerifier
+from .mainline_landing import (
+    emit_mainline_integration_receipt,
+    integration_baseline,
+    load_merge_intent,
+    validate_future_merge,
+    validate_pr60_recovery,
+)
 
 from .project_ci import (
     build_artifact_manifest_artifact,
@@ -36975,6 +36983,31 @@ def main(argv: list[str] | None = None) -> int:
         default="pre",
         help="pre = pre-execution authorization; post = post-execution reconcile.",
     )
+    integration_baseline_parser = subparsers.add_parser(
+        "integration-baseline",
+        help="Validate the frozen Architecture Spine integration baseline.",
+    )
+    integration_baseline_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    integration_baseline_parser.add_argument("--json", action="store_true")
+    pr60_recovery_parser = subparsers.add_parser(
+        "pr60-historical-recovery",
+        help="Validate the exact, non-retroactive PR #60 recovery evidence.",
+    )
+    pr60_recovery_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    pr60_recovery_parser.add_argument("--json", action="store_true")
+    mainline_validation_parser = subparsers.add_parser(
+        "mainline-merge-validation",
+        help="Validate the actual main merge using exact-head external authority.",
+    )
+    mainline_validation_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    mainline_validation_parser.add_argument("--json", action="store_true")
+    receipt_parser = subparsers.add_parser(
+        "emit-mainline-integration-receipt",
+        help="Emit an output-only receipt after mainline validation.",
+    )
+    receipt_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    receipt_parser.add_argument("--output", required=True)
+    receipt_parser.add_argument("--json", action="store_true")
     transition_reconcile_parser = subparsers.add_parser("transition-reconcile", help="Run post-execution reconciliation gate.")
     transition_reconcile_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     transition_reconcile_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -37046,6 +37079,93 @@ def main(argv: list[str] | None = None) -> int:
             print(f"artifact: project_state/gates/{TRANSITION_PREFLIGHT_RESULT_NAME}")
         if result.get("gate_status") == "PRE_EXECUTION_AUTHORIZED":
             return 0
+        return 0 if result.get("gate_status") == "PASSED" else 1
+    if args.command == "integration-baseline":
+        state_dir = Path(args.state_dir)
+        result = integration_baseline(
+            state_dir=state_dir,
+            repo_root=_derive_repo_root(state_dir),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+        return 0 if result.get("gate_status") == "PASSED" else 1
+    if args.command == "pr60-historical-recovery":
+        state_dir = Path(args.state_dir)
+        try:
+            verifier = GitHubRemoteAcceptanceVerifier.from_env()
+            result = validate_pr60_recovery(
+                repo_root=_derive_repo_root(state_dir),
+                state_dir=state_dir,
+                verifier=verifier,
+            )
+        except GitHubEvidenceError as exc:
+            result = {
+                "schema_version": 1,
+                "gate_name": "pr60-historical-recovery",
+                "gate_status": "BLOCKED",
+                "checks": [],
+                "blocking_reasons": [str(exc)],
+            }
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+        return 0 if result.get("gate_status") == "PASSED" else 1
+    if args.command in {
+        "mainline-merge-validation",
+        "emit-mainline-integration-receipt",
+    }:
+        state_dir = Path(args.state_dir)
+        repo_root = _derive_repo_root(state_dir)
+        try:
+            verifier = GitHubRemoteAcceptanceVerifier.from_env()
+            merge_commit = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            parents, intent = load_merge_intent(repo_root, merge_commit)
+            if len(parents) != 2 or intent is None:
+                attestation: dict[str, Any] = {}
+            else:
+                attestation = verifier.load_merge_attestation(
+                    pr_number=int(intent.get("source_pr") or 0),
+                    expected_head_sha=parents[1],
+                )
+            result = validate_future_merge(
+                repo_root=repo_root,
+                state_dir=state_dir,
+                attestation=attestation,
+                verifier=verifier,
+                commit_sha=merge_commit,
+            )
+        except (GitHubEvidenceError, OSError, subprocess.SubprocessError, ValueError) as exc:
+            result = {
+                "schema_version": 1,
+                "gate_name": "mainline-merge-validation",
+                "gate_status": "BLOCKED",
+                "checks": [],
+                "blocking_reasons": [str(exc)],
+            }
+        if args.command == "emit-mainline-integration-receipt":
+            payload = emit_mainline_integration_receipt(result)
+            output = Path(args.output)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_text(
+                json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
+        else:
+            payload = result
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=True, indent=2))
+        else:
+            _print_result(payload)
         return 0 if result.get("gate_status") == "PASSED" else 1
     if args.command == "transition-reconcile":
         state_dir = Path(args.state_dir)
