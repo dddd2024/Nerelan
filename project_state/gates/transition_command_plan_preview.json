@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260729_unattended_gate2_audit_closure_v4",
-  "round_id": "round_20260729_unattended_gate2_audit_closure_v4",
+  "decision_id": "decision_20260729_unattended_gate2_sandbox_boundary_v5",
+  "round_id": "round_20260729_unattended_gate2_sandbox_boundary_v5",
   "commands": [
     {
       "command_id": "gate.startup_snapshot",
@@ -262,8 +262,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.secret_preflight",
-      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli secret-preflight --secret-file SECRET_FILE",
+      "command_id": "probe.upstream_source",
+      "command": "git clone --branch 1.37.0 --depth 1 https://github.com/OpenHands/software-agent-sdk.git UPSTREAM_TEMP_PATH",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -272,9 +272,10 @@
       ],
       "execution_surface": "local",
       "operations": [
-        "secret_boundary_validation"
+        "repository_observation",
+        "network_access"
       ],
-      "network_access": false,
+      "network_access": true,
       "diagnostic_only": false,
       "allowed_only_after_validation": false,
       "authority_origin": "normal_plan",
@@ -285,7 +286,7 @@
     },
     {
       "command_id": "probe.compose_fresh",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue80-audit -f deploy/unattended/compose.yaml up -d --wait",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue81-sandbox -f deploy/unattended/compose.yaml up -d --wait",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -307,8 +308,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "probe.audit_closure",
-      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli audit-closure-probe",
+      "command_id": "probe.sandbox_boundary",
+      "command": "wsl.exe -d Ubuntu -- python -m reverse_agent.unattended.cli sandbox-boundary-probe",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -318,6 +319,8 @@
       "execution_surface": "local",
       "operations": [
         "component_compatibility_validation",
+        "container_runtime",
+        "network_access",
         "secret_boundary_validation"
       ],
       "network_access": true,
@@ -331,7 +334,7 @@
     },
     {
       "command_id": "probe.compose_cleanup",
-      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue80-audit -f deploy/unattended/compose.yaml down -v",
+      "command": "wsl.exe -d Ubuntu -- docker compose -p reverse-agent-issue81-sandbox -f deploy/unattended/compose.yaml down -v",
       "phase": "probe",
       "required": true,
       "required_evidence_source": "local_command_evidence",
@@ -398,8 +401,8 @@
       "allowed_mutated_paths": []
     },
     {
-      "command_id": "publication.comment_issue80",
-      "command": "gh issue comment 80 --repo dddd2024/reverse-agent --body-file ISSUE80_COMMENT_TEMP_PATH",
+      "command_id": "publication.comment_issue81",
+      "command": "gh issue comment 81 --repo dddd2024/reverse-agent --body-file ISSUE81_COMMENT_TEMP_PATH",
       "phase": "publication",
       "required": false,
       "required_evidence_source": "repository_state_attestation",

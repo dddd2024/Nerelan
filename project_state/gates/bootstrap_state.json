@@ -1,6 +1,6 @@
 {
   "status": "BOOTSTRAP_EXPIRED",
-  "decision_id": "decision_20260729_unattended_gate2_audit_closure_v4",
-  "round_id": "round_20260729_unattended_gate2_audit_closure_v4",
-  "expired_at": "2026-07-29T12:31:36+00:00"
+  "decision_id": "decision_20260729_unattended_gate2_sandbox_boundary_v5",
+  "round_id": "round_20260729_unattended_gate2_sandbox_boundary_v5",
+  "expired_at": "2026-07-29T13:47:19+00:00"
 }
